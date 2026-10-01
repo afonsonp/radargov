@@ -3494,8 +3494,12 @@ botões ou no calendário.
   seguia. O «Proposto» antes do Submetido não está vazio por falta de
   preenchimento: é **impossível** (`ESTADOS_COM_PROPOSTO`), e uma coluna
   de travessões que nunca poderá ter nada é uma pergunta sem resposta.
-  «Lote» e «Responsável» **ficam**: estão vazios por não estarem
-  preenchidos, e esconder a coluna tirava o sítio onde se vê que faltam.
+  O «Responsável» **fica**: está vazio por não estar preenchido, e
+  esconder a coluna tirava o sítio onde se vê que falta. O «Lote» sai
+  quando **nenhuma** linha da lista o tem (1/10/2026, E9 e M4, decisão
+  dele): a maior parte dos concursos não tem lotes, e no telemóvel os
+  travessões ficavam soltos, sem rótulo — o `com_lote` vai às duas, ao
+  `colunas_da_ranhura()` e ao `linha_da_pipeline()`.
   Uma coluna que saia do cabeçalho tem de sair da linha — desalinha a
   tabela toda e não dá erro nenhum; há teste que conta os dois.
 
@@ -4149,7 +4153,12 @@ botões ou no calendário.
   `_contas_das_abas()` chamava o `a_acabar_por_entidade()` só para lhe
   medir o comprimento, e isso punha o agrupamento dos 90 dias em
   **todas** as abas, incluindo as que não usam esse número. Um
-  `COUNT(DISTINCT)` sobre o mesmo índice custa a leitura.
+  `COUNT(DISTINCT)` sobre o mesmo índice custa a leitura. **E o número
+  é o da lista que a aba abre**: o «a acabar» contava 2 408 entidades
+  por cima de uma lista cortada nas 60. Desde 1/10/2026 (M4) as abas
+  paginam-se a 20 (`CABEM_NA_LISTA`), e a do «a acabar» no SQL, com o
+  desempate pela chave — sem ele, duas entidades com o mesmo número de
+  contratos podiam trocar de página entre dois pedidos.
 
 - **`count("sit-n")` apanha o `sit-numeros` que embrulha as células.**
   Um teste que conte as seis células dá sete. É a mesma família do
@@ -4599,6 +4608,19 @@ botões ou no calendário.
   empresa: o script vê as páginas da empresa como o gestor dela e as da
   plataforma como o dono, com uma conta que devolve ele próprio (o
   `utilizador_da_sessao()` substituído) — **não grava sessão nenhuma**.
+- **Um `mg-card__title` fora da cabeça do cartão cresce** (1/10/2026, os
+  títulos `h2` dos gráficos e da Situação). O sistema dá-lhe `flex:1 1
+  auto`, para ocupar a linha da `mg-card__head`; solto num cartão em
+  coluna, um gráfico mais baixo do que o vizinho da grelha abria um vão
+  de 150 px entre o título e a nota. A nossa folha põe-lhe `flex:none`
+  (`.mg-card>.mg-card__title`), e um subtítulo dentro de um cartão é um
+  `h3` com a classe do rótulo, que fica com o aspecto de antes.
+- **No `.topo`, duas barras de abas iam para a mesma linha da grelha**
+  (1/10/2026, J2). As Entidades levam as três vistas do Mercado por cima
+  das cinco delas, e o `.topo>.mg-tabs` põe todas na linha 3: a segunda
+  desenhava-se por cima da primeira, sem erro. A segunda desce para a
+  linha 4 (`.topo>.abas-mercado+.mg-tabs`). Uma página do `TOPO` que
+  passe mais de uma barra em `abas=` precisa da sua linha.
 
 ## Convenções
 

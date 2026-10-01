@@ -2342,6 +2342,22 @@ DISTRITOS = ("Aveiro", "Beja", "Braga", "Bragança", "Castelo Branco",
              "Portalegre", "Porto", "Santarém", "Setúbal",
              "Viana do Castelo", "Vila Real", "Viseu",
              "Região Autónoma dos Açores", "Região Autónoma da Madeira")
+# Os mesmos vinte, agrupados para se escolherem (UX-7-LEIS M3,
+# 1/10/2026): eram vinte caixas seguidas. Os grupos sao as cinco regioes
+# das CCDR mais as duas autonomas -- as NUTS II de antes de 2024, menos o
+# «Lisboa», que aqui leva o Vale do Tejo: um distrito atravessa as vezes
+# duas NUTS, e as CCDR seguem os distritos de mais perto. **So agrupa o
+# ecra**: o que se grava continua a ser a lista dos distritos marcados.
+DISTRITOS_POR_REGIAO = (
+    ("Norte", ("Viana do Castelo", "Braga", "Porto", "Vila Real", "Bragança")),
+    ("Centro", ("Aveiro", "Viseu", "Guarda", "Coimbra", "Castelo Branco",
+                "Leiria")),
+    ("Lisboa e Vale do Tejo", ("Lisboa", "Santarém", "Setúbal")),
+    ("Alentejo", ("Portalegre", "Évora", "Beja")),
+    ("Algarve", ("Faro",)),
+    ("Açores", ("Região Autónoma dos Açores",)),
+    ("Madeira", ("Região Autónoma da Madeira",)),
+)
 _DISTRITO_NACIONAL = ("todos", "portugal continental")
 RX_SECCAO_DO_DR = re.compile(r"^\s*\d+ - [A-ZÇÃÉÍÓÚ]", re.M)
 RX_DISTRITO = re.compile(r"^\s*Distrito:\s*(.+?)\s*$", re.M)
@@ -14752,8 +14768,11 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .tab-contratos th{text-align:left;padding:11px 12px;background:var(--surface-raised);
  border-bottom:1px solid var(--line);font:600 var(--text-xs)/1 var(--font-sans);
  color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+/* O corpo a 14 px, como o dos Concursos (UX-ICONES-DICAS-PESOS 16,
+   1/10/2026): a 12 era o maior bloco dos 55 % de texto pequeno da
+   aplicacao. O cabecalho fica nos 12 do sistema. */
 .tab-contratos td{padding:10px 12px;border-bottom:1px solid var(--surface-sunken);
- font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
+ font:400 var(--text-sm)/1.45 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
 .tab-contratos tr:last-child td{border-bottom:0}
 .tab-contratos tr:hover td{background:var(--surface-raised)}
 .tab-contratos td.d{font-family:var(--font-mono);white-space:nowrap;color:var(--ink-muted)}
@@ -19579,7 +19598,7 @@ COLUNAS_DA_PIPELINE = ("Ref.ª", "Objecto", "Lote", "Resp.", "Preço base",
                        "Proposto", "Prazo", "Estado", "Falta")
 
 
-def colunas_da_ranhura(estado):
+def colunas_da_ranhura(estado, com_lote=True):
     """As colunas que ESTA ranhura pode ter (16/09/2026, fase 5).
 
     A regra e a mesma que a ficha ja seguia -- um campo pertence a um
@@ -19594,12 +19613,20 @@ def colunas_da_ranhura(estado):
     travessoes que nunca podera ter nada e uma pergunta sem resposta
     possivel, repetida em cada linha.
 
-    O que NAO se esconde: "Lote" e "Responsavel" estao vazios por nao
-    estarem preenchidos, e isso e outra coisa -- podem ter valor, e
-    esconde-los tirava o sitio onde se ve que faltam.
+    O que NAO se esconde: o "Responsavel" esta vazio por nao estar
+    preenchido, e isso e outra coisa -- pode ter valor, e esconde-lo
+    tirava o sitio onde se ve que falta.
+
+    O "Lote" esconde-se quando NENHUMA linha da lista o tem (`com_lote`;
+    UX-ECRAS-EM-FALTA-E-ESCURO E9 e UX-7-LEIS M4, 1/10/2026): a maior
+    parte dos concursos nao tem lotes, e o vazio nao e falta de
+    preenchimento -- e a coluna toda de travessoes, que no telemovel
+    ficavam soltos e sem rotulo.
     """
     colunas = (COLUNAS_DA_PIPELINE if estado in ESTADOS_COM_PROPOSTO
                else tuple(c for c in COLUNAS_DA_PIPELINE if c != "Proposto"))
+    if not com_lote:
+        colunas = tuple(c for c in colunas if c != "Lote")
     # Numa ranhura decidida a última coluna é o desfecho (3.ª ronda,
     # G28): o adjudicado de uma Ganha, o motivo de uma Perdida ou de um
     # Não fomos. Não havia onde os ler sem abrir proposta a proposta.
@@ -19620,7 +19647,7 @@ def _preco_da_proposta(p):
     return "&mdash;"
 
 
-def linha_da_pipeline(p, urgente, prazos, falta=None):
+def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True):
     """Uma proposta na tabela. A ligacao e para a ficha do anuncio
     quando ha anuncio, e para a propria proposta quando nao ha (D2) --
     uma consulta previa nao tem ficha do DR para abrir."""
@@ -19680,7 +19707,7 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
     return ("<tr><td class='mg-code'><a href='%s'>%s</a></td>"
             "<td class='o'><a href='%s' title='%s'>%s</a>%s"
             "<small title='%s'>%s</small></td>"
-            "<td class='curta'>%s</td>"
+            "%s"
             "<td class='curta'>%s</td>"
             "<td class='mg-num p'>%s</td>%s"
             "<td class='mg-num d'>%s</td>"
@@ -19695,8 +19722,11 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
                % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
                html.escape(p["entidade"] or "", quote=True),
                html.escape(corta(p["entidade"] or "", 45)),
-               "L%d" % p["lote"] if p["lote"] else
-               ("conjunto" if p["lote"] == 0 else "&mdash;"),
+               # a celula do lote sai com a coluna (colunas_da_ranhura)
+               "<td class='curta'>%s</td>"
+               % ("L%d" % p["lote"] if p["lote"] else
+                  ("conjunto" if p["lote"] == 0 else "&mdash;"))
+               if com_lote else "",
                # o nome inteiro tambem para o leitor de ecra: as iniciais
                # so diziam «AF» (UX-ICONES-DICAS-PESOS, B.1 #5)
                ("<span class='mg-avatar' title='%s'><span aria-hidden='true'>%s"
@@ -19858,12 +19888,13 @@ def _lista_de_propostas():
                 [("estado", estado_actual)] + ([("q", procura)] if procura else [])
                 + ([] if activa else [("ordem", chave)])),
             sentido, convite, "Voltar à ordem de sempre, a mais recente primeiro")
+    com_lote = any(p["lote"] is not None for p in linhas)
     if linhas:
         corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos tab-lista'>"
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
-                 % ("".join(cabecalho(t) for t in colunas_da_ranhura(estado_actual)),
+                 % ("".join(cabecalho(t) for t in colunas_da_ranhura(estado_actual, com_lote)),
                     "".join(linha_da_pipeline(p, urgente, prazos,
-                                              falta.get(p["id"]))
+                                              falta.get(p["id"]), com_lote)
                             for p in linhas)))
     elif procura:
         # A ranhura pode estar cheia: o que esta vazio e a RESPOSTA. Dizer
@@ -21079,17 +21110,56 @@ def interesse():
     return redirect("/configuracoes/interesse" + ("?" + qs if qs else ""))
 
 
+# O «todos» de cada regiao marca e desmarca as dela, e acende-se quando
+# estao todas. Nao tem `name`: nao se grava, e sem JS nao aparece (o
+# CSS pede o `.com-js`) -- uma caixa que nao faz nada era pior do que
+# nenhuma.
+DISTRITOS_JS = """<script>
+if (!window.distritosPorRegiao) {
+  window.distritosPorRegiao = true;
+  document.addEventListener('change', function (e) {
+    var t = e.target, f = t.closest && t.closest('fieldset.dist-regiao');
+    if (!f) return;
+    var caixas = f.querySelectorAll('input[name=dist]');
+    var todos = f.querySelector('input[data-todos]');
+    if (t === todos) {
+      caixas.forEach(function (c) { c.checked = todos.checked; });
+    } else if (todos) {
+      todos.checked = Array.prototype.every.call(caixas,
+        function (c) { return c.checked; });
+    }
+  });
+}
+</script>"""
+
+
+def caixas_dos_distritos(escolhidos):
+    """As vinte caixas dos distritos, agrupadas por regiao, cada grupo
+    com o seu «todos» (UX-7-LEIS M3). O formulario manda o mesmo `dist`
+    de sempre, um por distrito marcado."""
+    grupos = []
+    for regiao, distritos in DISTRITOS_POR_REGIAO:
+        todos = all(d in escolhidos for d in distritos)
+        grupos.append(
+            "<fieldset class='dist-regiao'><legend>%s</legend>%s%s</fieldset>"
+            % (html.escape(regiao),
+               "" if len(distritos) == 1 else
+               "<label class='dist-cx dist-todos'><input type='checkbox' "
+               "data-todos%s> todos</label>" % (" checked" if todos else ""),
+               "".join("<label class='dist-cx'><input type='checkbox' name='dist' "
+                       "value='%s'%s> %s</label>"
+                       % (html.escape(d, quote=True),
+                          " checked" if d in escolhidos else "",
+                          html.escape(d)) for d in distritos)))
+    return "".join(grupos) + DISTRITOS_JS
+
+
 def _local_e_valor_do_interesse(cfg):
     """Os distritos (caixas) e o valor minimo do interesse, dentro do
     formulario que a arvore grava -- e com o botao dele, para se poder
     guardar so isto (25/09/2026)."""
     escolhidos = set((cfg.get("interesse_distritos") or "").split("|"))
-    caixas = "".join(
-        "<label class='dist-cx'><input type='checkbox' name='dist' "
-        "value='%s'%s> %s</label>"
-        % (html.escape(d, quote=True), " checked" if d in escolhidos else "",
-           html.escape(d))
-        for d in DISTRITOS)
+    caixas = caixas_dos_distritos(escolhidos)
     # sem botão próprio (3.ª ronda, G95): eram dois «Guardar» na mesma
     # página, e não se percebia que eram duas coisas; grava o «Guardar o
     # perfil» do fim, que leva também a árvore
@@ -21708,7 +21778,7 @@ def _conteudo_alertas():
 # dizer o contrario do que ela faz. Vieram da barra a 13/09 e o sitio
 # serve; o que estava errado era chamar-lhes configuracao.
 SECCOES_CONFIG = (
-    ("conta", "Conta", "palavra-passe, sessões, a nossa empresa, utilizadores", False, True),
+    ("conta", "Conta", "a minha conta, a empresa e a equipa, o registo do suporte", False, True),
     ("interesse", "Perfil da empresa", "os CPV, os distritos e o valor que a empresa trabalha", False, True),
     ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
     ("importar", "Importar dados", "o registo da empresa, pelo modelo Excel", False, True),
@@ -23556,8 +23626,8 @@ def config_conta():
                  "seriam os seus, e não os da empresa, e por isso não se "
                  "mostram. O resto é o que o gestor da empresa vê.</div>")
         if da_empresa:
-            corpo += (_bloco_da_empresa() + _bloco_utilizadores(todos, utilizador["id"])
-                      + _bloco_dos_convites(convites) + _bloco_do_suporte(suporte))
+            return pagina_config("conta", corpo + _cartoes_da_empresa(
+                todos, utilizador["id"], convites, suporte))
         return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
     corpo = (
         "<form method='post' action='/configuracoes/conta' class='conf-form'>"
@@ -23582,12 +23652,27 @@ def config_conta():
     corpo += _bloco_do_aspecto(utilizador)
     if contas.pode_ter_segundo_factor(utilizador):
         corpo += _bloco_do_segundo_factor(utilizador)
-    if da_empresa:
-        corpo += _bloco_da_empresa()
-        corpo += _bloco_utilizadores(todos, utilizador["id"])
-        corpo += _bloco_dos_convites(convites)
-        corpo += _bloco_do_suporte(suporte)
-    return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
+    if not da_empresa:
+        return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
+    # Três cartões e não um (UX-7-LEIS M2, 1/10/2026): eram seis assuntos
+    # num cartão só, e os dados da empresa e a equipa viviam dentro da
+    # «Conta» pessoal. O que é de quem está, o que é da empresa, e o
+    # registo do suporte, cada um com o seu título.
+    return pagina_config("conta", cartao("A minha conta", corpo, id_="a-minha-conta")
+                         + _cartoes_da_empresa(todos, utilizador["id"],
+                                               convites, suporte))
+
+
+def _cartoes_da_empresa(todos, eu, convites, suporte):
+    """Os dois cartões da Conta que são da empresa, e só do gestor dela:
+    a empresa e a equipa, e o registo do suporte (sem entradas, não se
+    desenha -- um cartão vazio parecia à espera de carregar)."""
+    suporte_html = _bloco_do_suporte(suporte)
+    return (cartao("A empresa e a equipa",
+                   _bloco_da_empresa() + _bloco_utilizadores(todos, eu)
+                   + _bloco_dos_convites(convites), id_="a-empresa")
+            + (cartao("Registo do suporte", suporte_html, id_="suporte")
+               if suporte_html else ""))
 
 
 # O que cada aspecto diz a quem escolhe (D14). O escuro oferece-se desde
@@ -25183,16 +25268,23 @@ def concentracao_html(ganha):
                       "title='as outras %s empresas — %s'></i>"
                       % (100.0 * resto / total, mil_pt(max(0, quantas - 5)),
                          euros_curto(resto)))
-    return ("<div class='mg-card graf'><div class='mg-field__label'>Concentração</div>"
+    # cada fatia também à vista (UX-ICONES-DICAS-PESOS 13): o nome e o
+    # valor viviam só no `title` de um `<i>` vazio
+    numeros = numeros_do_grafico(
+        ("", "Valor", "Fatia"),
+        [(x["n"], euros_curto(x["v"]), pct_pt(x["v"] / total, 0)) for x in topo]
+        + ([("as outras %s empresas" % mil_pt(max(0, quantas - 5)),
+             euros_curto(resto), pct_pt(resto / total, 0))] if resto > 0 else []))
+    return ("<div class='mg-card graf'><h2 class='mg-card__title'>Concentração</h2>"
             "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
             "cinco maiores, entre as %s empresas que ganharam alguma "
             "coisa.</div>"
             "<div class='conc-n'>%s</div>"
             "<div class='conc-b'>%s</div>"
             "<div class='nota' style='margin-top:10px'>Os cinco maiores "
-            "levam %s dos %s adjudicados.</div></div>"
+            "levam %s dos %s adjudicados.</div>%s</div>"
             % (mil_pt(quantas), pct_pt(quota / total, 0), "".join(fatias),
-               euros_curto(quota), euros_curto(total)))
+               euros_curto(quota), euros_curto(total), numeros))
 
 
 def barras_h(linhas, titulo, nota="", ligar=False):
@@ -25217,7 +25309,7 @@ def barras_h(linhas, titulo, nota="", ligar=False):
             % (html.escape(l["n"], quote=True), etiqueta,
                100.0 * l["v"] / maior, euros_curto(l["v"]),
                "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
-    return ("<div class='mg-card graf'><div class='mg-field__label'>%s</div>%s"
+    return ("<div class='mg-card graf'><h2 class='mg-card__title'>%s</h2>%s"
             "<div class='barras-h'>%s</div></div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 12px'>%s</div>" % nota
@@ -25307,12 +25399,40 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
-    return ("<div class='mg-card graf'><div class='mg-field__label'>%s</div>%s"
-            "<div class='barras%s'>%s</div></div>"
+    # Os valores escondidos vão também para uma tabela à vista, num
+    # `<details>` (UX-ICONES-DICAS-PESOS 13, 1/10/2026): estavam só no
+    # `title` de um `div` sem foco, que o toque, o teclado e o leitor de
+    # ecrã não alcançam.
+    numeros = numeros_do_grafico(
+        ("", "Valor", unidade.capitalize()),
+        [(l["t"] + (" (a decorrer)" if parcial and l["t"] == parcial else ""),
+          fmt(l["v"]), mil_pt(l["k"])) for l in linhas]) if muitas else ""
+    return ("<div class='mg-card graf'><h2 class='mg-card__title'>%s</h2>%s"
+            "<div class='barras%s'>%s</div>%s</div>"
             % (titulo,
                "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
                if nota else "<div style='height:14px'></div>",
-               " muitas" if muitas else "", "".join(cols)))
+               " muitas" if muitas else "", "".join(cols), numeros))
+
+
+def numeros_do_grafico(cabecas, linhas):
+    """Os números de um gráfico numa tabela pequena, dentro de um
+    `<details>` fechado (UX-ICONES-DICAS-PESOS 13): o que só estava no
+    `title` passa a estar à vista de quem toca, de quem usa o teclado e
+    do leitor de ecrã. `linhas` já vem formatado; a primeira coluna é o
+    nome, as outras são números."""
+    if not linhas:
+        return ""
+    return ("<details class='graf-numeros'><summary>ver os números</summary>"
+            "<table><thead><tr>%s</tr></thead><tbody>%s</tbody></table></details>"
+            % ("".join("<th%s>%s</th>" % ("" if i == 0 else " class='p'",
+                                          html.escape(c) or
+                                          "<span class='so-leitor'>Nome</span>")
+                       for i, c in enumerate(cabecas)),
+               "".join("<tr>%s</tr>" % "".join(
+                   "<td%s>%s</td>" % ("" if i == 0 else " class='p'",
+                                      html.escape(str(v)))
+                   for i, v in enumerate(linha)) for linha in linhas)))
 
 
 @app.route("/contratos/resumo")
@@ -25602,9 +25722,10 @@ MESES_A_ACABAR = 3
 SQL_A_ACABAR = ("fim_estimado BETWEEN date('now') "
                 "AND date('now', '+%d months')" % MESES_A_ACABAR)
 
-# Quantas linhas por aba. As duas do corpus ja vinham limitadas a 25 no
-# `entidades_top()`; as nossas sao dezenas.
-CABEM_NA_LISTA = 60
+# Quantas linhas por pagina de cada aba: as mesmas 20 do Mercado
+# (UX-7-LEIS M4, 1/10/2026). Eram 60 de uma vez, com oito colunas, e o
+# «a acabar» cortava nas 60 com a aba a contar 2 408.
+CABEM_NA_LISTA = POR_PAGINA_LISTA
 
 
 def _propostas_por_entidade(chaves):
@@ -25640,7 +25761,8 @@ def _identidades_do_corpus(chaves):
             "WHERE chave IN (%s)" % ",".join("?" * len(chaves)), chaves)}
 
 
-def a_acabar_por_entidade(chaves=None, quantas=None, filtro=("", [])):
+def a_acabar_por_entidade(chaves=None, quantas=None, filtro=("", []),
+                          desvio=0):
     """{chave: (quantos, euros)} dos contratos que acabam na janela.
 
     Corre pelo indice `(fim_estimado, id)` -- e um intervalo de datas e
@@ -25651,7 +25773,13 @@ def a_acabar_por_entidade(chaves=None, quantas=None, filtro=("", [])):
 
     O `filtro` é o da ficha da entidade (`filtro_da_ficha()`, com o
     prefixo `c.`): os outros factos já mudavam com ele, e este ficava
-    igual (3.ª ronda, G31)."""
+    igual (3.ª ronda, G31).
+
+    O `desvio` é o da paginação da aba (UX-7-LEIS M4, 1/10/2026), e por
+    isso a ordem desempata pela chave: sem isso, duas entidades com o
+    mesmo número de contratos podiam trocar de página entre dois pedidos.
+    Medido no corpus de 2 milhões: 0,15 s antes, 0,18 s na página 1 e na
+    página 50."""
     if not ha_corpus():
         return {}
     onde, vals = filtro[0], list(filtro[1])
@@ -25666,8 +25794,9 @@ def a_acabar_por_entidade(chaves=None, quantas=None, filtro=("", [])):
             "SELECT adjudicante_chave ch, COUNT(*) k, "
             "  COALESCE(SUM(preco_contratual),0) v FROM contratos c "
             "WHERE " + SQL_A_ACABAR + onde +
-            " GROUP BY adjudicante_chave ORDER BY k DESC"
-            + (" LIMIT %d" % int(quantas) if quantas else ""),
+            " GROUP BY adjudicante_chave ORDER BY k DESC, adjudicante_chave"
+            + (" LIMIT %d OFFSET %d" % (int(quantas), int(desvio))
+               if quantas else ""),
             vals).fetchall()
     return {r["ch"]: (r["k"], r["v"]) for r in linhas if r["ch"]}
 
@@ -25683,15 +25812,36 @@ def _fita_connosco(estados):
         % (cores.get(e, "var(--brand)"), html.escape(estado_da_empresa(e)))
         for e in estados[:24])
     em_curso = sum(1 for e in estados if e in ESTADOS_ABERTOS)
-    return ("<span class='ent-fita'>%s</span><span class='nota'>%s%s</span>"
+    # O desfecho de cada quadrado também em palavras (UX-ICONES-DICAS-PESOS
+    # 13, 1/10/2026): estava só no `title` de um `<i>` vazio, e a cor
+    # sozinha não se lê em voz alta nem sobrevive à daltonia.
+    desfechos = "".join(
+        " &middot; %s %s" % (html.escape(nome.lower()), mil_pt(n))
+        for nome, n in ((estado_da_empresa(e), estados.count(e))
+                        for e in ESTADOS_FECHADOS) if n)
+    return ("<span class='ent-fita' aria-hidden='true'>%s</span>"
+            "<span class='nota'>%s%s%s</span>"
             % (quadros,
                "%s proposta%s" % (mil_pt(len(estados)),
                                   "" if len(estados) == 1 else "s"),
+               desfechos,
                " &middot; %s em curso" % mil_pt(em_curso) if em_curso else ""))
 
 
-def _linhas_da_aba(aba):
-    """[(chave, nome)] da aba pedida, pela ordem em que se mostram."""
+def _linhas_da_aba(aba, desvio=0):
+    """[(chave, nome)] de uma pagina da aba pedida, pela ordem em que se
+    mostram. A do «a acabar» pagina-se no SQL (sao milhares); as outras
+    sao dezenas, e cortam-se aqui."""
+    if aba == "acabar":
+        acabam = a_acabar_por_entidade(quantas=CABEM_NA_LISTA, desvio=desvio)
+        nomes = _identidades_do_corpus(list(acabam))
+        return [(ch, (nomes[ch]["nome"] if ch in nomes else ch))
+                for ch in acabam]
+    return _todas_da_aba(aba)[desvio:desvio + CABEM_NA_LISTA]
+
+
+def _todas_da_aba(aba):
+    """[(chave, nome)] da aba inteira, menos a do «a acabar»."""
     if aba == "seguidas":
         with liga() as c:
             return [(s["chave"], s["nome"] or nome_da_entidade(s["chave"]))
@@ -25701,11 +25851,6 @@ def _linhas_da_aba(aba):
         return [(e["chave"], e["nome"]) for e in entidades_top("cliente")]
     if aba == "concorrentes":
         return [(e["chave"], e["nome"]) for e in entidades_top("concorrente")]
-    if aba == "acabar":
-        acabam = a_acabar_por_entidade(quantas=CABEM_NA_LISTA)
-        nomes = _identidades_do_corpus(list(acabam))
-        return [(ch, (nomes[ch]["nome"] if ch in nomes else ch))
-                for ch in acabam]
     return [(e["chave"], e["nome"]) for e in entidades_com_proposta()]
 
 
@@ -25832,7 +25977,12 @@ def entidades():
     marcadas = [c for c in request.args.getlist("vs") if c][:2]
 
     contas = _contas_das_abas()
-    abas = "<nav class='mg-tabs' aria-label='Vistas das entidades'>%s</nav>" % "".join(
+    # O numero da aba e o total da lista paginada (a regra da casa): o
+    # «a acabar» dizia 2 408 por cima de uma lista cortada nas 60.
+    paginas = max(1, -(-contas.get(aba, 0) // CABEM_NA_LISTA))
+    pagina = min(max(1, pagina_pedida(request.args)), paginas)
+    # as tres vistas do Mercado por cima das cinco (UX-7-LEIS J2)
+    abas = abas_do_mercado("entidades") + "<nav class='mg-tabs' aria-label='Vistas das entidades'>%s</nav>" % "".join(
         "<a class='mg-tab'%s "
         "href='/entidades?ver=%s'>%s <span class='mg-tab__count'>%s</span></a>"
         % (" aria-current='page'" if aba == chave else "", chave,
@@ -25858,7 +26008,7 @@ def entidades():
                    "«Actualizar contratos» — demora minutos e refaz-se "
                    "sozinho à segunda-feira.</div>") + procura
 
-    linhas = _linhas_da_aba(aba)[:CABEM_NA_LISTA]
+    linhas = _linhas_da_aba(aba, (pagina - 1) * CABEM_NA_LISTA)
     chaves = [ch for ch, _ in linhas]
     ident = _identidades_do_corpus(chaves)
     nossas = _propostas_por_entidade(chaves)
@@ -25922,7 +26072,7 @@ def entidades():
                     "comparar as marcadas</button>")
         tabela = (
             "<form method='get' action='/entidades'>"
-            "<input type='hidden' name='ver' value='%s'>"
+            "<input type='hidden' name='ver' value='%s'>%s"
             "<div class='mg-card tab-cx'>"
             "<div class='tab-pe'>%s<span class='nota'>Marque duas.</span></div>"
             "<table class='mg-table tab-contratos'>"
@@ -25937,9 +26087,14 @@ def entidades():
             "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
             "a partir de %d decididas. %s</span></div></div></form>"
-            % (html.escape(aba, quote=True), comparar, MESES_A_ACABAR,
+            % (html.escape(aba, quote=True),
+               # comparar volta a MESMA pagina: as marcadas estao nela
+               "<input type='hidden' name='pag' value='%d'>" % pagina
+               if pagina > 1 else "",
+               comparar, MESES_A_ACABAR,
                "".join(corpo), comparar, MINIMO_COM_ENTIDADE,
                LEGENDA_DO_PAPEL))
+        tabela += paginador(pagina, paginas, request.args, "/entidades")
     else:
         titulo_vazio, porque = _vazio_da_aba(aba)
         tabela = ("<div class='mg-empty comecar'><h2 class='mg-empty__title'>%s</h2>"
@@ -26191,11 +26346,17 @@ def entidade(chave):
                html.escape(r["tipo_procedimento"] or ""),
                euros(r["preco_contratual"]))
             for r in d["recentes"])
+        # com titulo (UX-ECRAS-EM-FALTA-E-ESCURO E12, 1/10/2026): era a
+        # unica tabela da ficha sem nenhum, e nada dizia que eram os
+        # contratos que ELA ganhou, e nao os que adjudicou
         recentes = ("<div class='mg-card tab-cx' style='margin-top:14px'>"
+                    "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
+                    "Os últimos contratos que ganhou%s</h2>"
                     "<table class='mg-table tab-contratos'><thead><tr>"
                     "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
                     "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
-                    "<tbody>%s</tbody></table></div>" % linhas_r)
+                    "<tbody>%s</tbody></table></div>"
+                    % (html.escape(janela), linhas_r))
     elif filtrada:
         # sem isto, um filtro que nao apanha nada deixava a pagina
         # aparentemente na mesma, so com os numeros a zero
@@ -26241,10 +26402,21 @@ def entidade(chave):
     # Portal BASE à direita. Empilhados, o que já lhe fizemos ficava
     # debaixo de seis gráficos do mercado, e a primeira pergunta ao
     # abrir uma entidade é o que já lhe fizemos -- não quanto ela compra.
-    conteudo = ("<div class='larg'>" + ident + filtros_da_ficha(chave, d)
+    #
+    # Os seis números e o nosso lado vêm ANTES do filtro (UX-ECRAS-EM-
+    # FALTA-E-ESCURO E11, 1/10/2026): o primeiro número estava a 1 063 px
+    # no telemóvel, depois do nome duas vezes, seis campos, seis períodos
+    # e a árvore. O filtro vive agora no topo da coluna do Portal BASE,
+    # que é o que ele filtra, recolhido em «Filtrar os contratos» -- e
+    # aberto quando está em uso, como o «Mais filtros» dos Concursos.
+    filtro = ("<details class='ent-filtrar'%s><summary>Filtrar os contratos"
+              "</summary>%s</details>"
+              % (" open" if filtrada else "", filtros_da_ficha(chave, d)))
+    conteudo = ("<div class='larg'>" + ident
                 + factos + atalhos + seguir_cx
                 + "<div class='dois ent-dois'><div class='lado-nosso'>"
                 + nosso_lado_cx(nosso) + "</div><div class='lado-base'>"
+                + filtro
                 + "<div class='graf-corpo solto'>" + "".join(blocos)
                 # A tabela dos contratos recentes fica em LARGURA TODA,
                 # por baixo das duas colunas: são cinco colunas de texto
@@ -26454,6 +26626,35 @@ def refs_com_anuncio(refs):
         return {r["ref"] for r in c.execute(
             "SELECT ref FROM anuncios WHERE ref IN (%s)"
             % ",".join("?" * len(limpos)), limpos)}
+
+
+def abas_do_mercado(actual, args=None):
+    """As tres vistas do Mercado: os dois modos dos contratos e as
+    Entidades. Desenham-se nas TRES paginas (UX-7-LEIS J2, 1/10/2026):
+    carregar em «Entidades» levava a uma pagina sem estas abas, e uma
+    aba que tira a propria barra nao se comporta como uma aba.
+
+    A troca de modo e uma troca de vista, nao de pagina: leva o filtro
+    inteiro (P3). As Entidades nao o levam -- sao outra lista, com a
+    procura dela."""
+    args = args if args is not None else request.args
+    para_celebracao = args_da_lista(args)
+    for fora in ("ver", "meses", "pag", "vs"):
+        para_celebracao.pop(fora, None)
+    para_fim = dict(para_celebracao, ver="fim")
+    if args.get("meses"):
+        para_fim["meses"] = args.get("meses")
+    if actual == "entidades":         # vem das Entidades: sem o filtro delas
+        para_celebracao, para_fim = {}, {"ver": "fim"}
+    vistas = (("contratos", "Por celebração", "/contratos"
+               + ("?" + urlencode(para_celebracao) if para_celebracao else "")),
+              ("fim", "Por fim estimado", "/contratos?" + urlencode(para_fim)),
+              ("entidades", "Entidades", "/entidades"))
+    return ("<nav class='mg-tabs abas-mercado' aria-label='Vistas do Mercado'>%s</nav>"
+            % "".join("<a class='mg-tab'%s href='%s'>%s</a>"
+                      % (" aria-current='page'" if chave == actual else "",
+                         html.escape(destino, quote=True), rotulo)
+                      for chave, rotulo, destino in vistas))
 
 
 @app.route("/contratos")
@@ -26839,22 +27040,7 @@ def contratos():
                 "data-auto><p class='ficha-nota'>A carregar quem ganha e "
                 "quem compra…</p></div>") if ha_pergunta else ""
 
-    # A troca de modo e uma troca de vista, nao de pagina: leva o filtro
-    # inteiro (P3). Vai no lugar das abas, como os estados da Triagem.
-    para_celebracao = args_da_lista(request.args)
-    para_celebracao.pop("ver", None)
-    para_celebracao.pop("meses", None)
-    para_fim = args_da_lista(request.args, ver="fim")
-    abas = ("<nav class='mg-tabs' aria-label='Vistas do Mercado'>"
-            "<a class='mg-tab'%s "
-            "href='/contratos%s'>Por celebração</a>"
-            "<a class='mg-tab'%s "
-            "href='/contratos?%s'>Por fim estimado</a>"
-            "<a class='mg-tab' href='/entidades'>Entidades</a>"
-            "</nav>"
-            % ("" if fim else " aria-current='page'",
-               ("?" + urlencode(para_celebracao)) if para_celebracao else "",
-               " aria-current='page'" if fim else "", urlencode(para_fim)))
+    abas = abas_do_mercado("fim" if fim else "contratos", request.args)
 
     nota_estimativa = (
         "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
@@ -26895,15 +27081,18 @@ def contratos():
     # O `EcraMercado`: a pergunta, a arvore, a linha do resumo (o filtro
     # activo e a contagem a esquerda, os dois modos a direita), e por
     # baixo a tabela com os graficos na coluna da direita.
-    resumo_linha = ("<div class='mercado-resumo'>%s%s%s</div>"
-                    % (faixa_cpv, linha_conta, abas))
+    # As abas sairam desta linha para cima do cartao do filtro (UX-7-LEIS
+    # J2, 1/10/2026): estavam por baixo do filtro e da contagem, e nos
+    # Concursos e nas Propostas estao por cima.
+    resumo_linha = ("<div class='mercado-resumo'>%s%s</div>"
+                    % (faixa_cpv, linha_conta))
     tabela_e_notas = (tabela +
                       paginador(pagina, paginas, request.args, "/contratos") +
                       nota_estimativa)
     corpo_mercado = (("<div class='mercado-duas'><div class='mercado-tabela'>%s"
                       "</div>%s</div>" % (tabela_e_notas, graficos))
                      if ha_pergunta else tabela_e_notas)
-    conteudo = ("<div class='larg'>" + pergunta +
+    conteudo = (abas + "<div class='larg'>" + pergunta +
                 ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
                 resumo_linha + corpo_mercado + barra_corpus(anos) +
                 (fonte if ha_pergunta else "") + "</div>")
@@ -32343,8 +32532,8 @@ def cpv_html_bloco():
     if not por_cpv:
         return ""
     nomes = nomes_das_divisoes(d for d, _, _, _ in por_cpv)
-    return ("<div class='mg-field__label' style='margin:22px 0 10px'>Onde se ganha, "
-            "por área</div><div class='barras-h'>%s</div>"
+    return ("<h3 class='mg-field__label' style='margin:22px 0 10px'>Onde se ganha, "
+            "por área</h3><div class='barras-h'>%s</div>"
             % "".join(
                 "<div class='lh'><span class='t'>%s</span>"
                 "<span class='bh' style='width:%d%%;background:%s'></span>"
@@ -32378,32 +32567,21 @@ def negocio_cx():
     # explicasse. O que eles diziam quando não havia que contar («ainda
     # não há decididos», e não um travessão) mudou-se para o
     # `_numero_da_situacao()`, que é onde vive agora.
-    pipeline = pipeline_em_euros()
+    #
+    # E o gráfico «Abertas, por fase» saiu a 1/10/2026 (UX-7-LEIS M1): as
+    # quatro fases abertas eram as quatro primeiras barras do «Propostas
+    # por fase», na mesma página, e o «Por submeter» e o «Em jogo»
+    # apareciam três vezes -- no número, no cartão da lista e na barra.
 
-    # o pipeline por ranhura, cada barra a abrir a sua lista
-    maior = max([v["euros"] for v in pipeline.values()] + [1.0])
-    barras = "".join(
-        "<div class='col'><span class='v'>%s</span>"
-        "<a class='b' href='%s?estado=%s' style='height:%d%%' "
-        "title='%d proposta(s)' aria-label='%s: %d proposta(s)'></a>"
-        "<span class='l'>%s</span></div>"
-        # a contagem e os euros, com a unidade: «0» por cima de uma barra
-        # que abre duas propostas lia-se como contagem, e o leitor de ecra
-        # ouvia 2 (UX-ECRAS-EM-FALTA-E-ESCURO, E1, 30/09/2026)
-        % ("%s &middot; %s" % (mil_pt(pipeline[ch]["quantas"]),
-                               euros_curto(pipeline[ch]["euros"] or 0)),
-           PROPOSTAS, ch, int(88.0 * pipeline[ch]["euros"] / maior) + 6,
-           pipeline[ch]["quantas"],
-           html.escape(estado_da_empresa(ch), quote=True),
-           pipeline[ch]["quantas"], html.escape(estado_da_empresa(ch)))
-        for ch in ESTADOS_ABERTOS)
-
+    # Os subtítulos dentro do cartão são `h3` (UX-ICONES-DICAS-PESOS 15):
+    # eram `div`, e quem navega pelos títulos com o leitor de ecrã não os
+    # encontrava. O aspecto é o do rótulo, que era o de antes.
     def tabela(titulo, linhas, vazio):
         if not linhas:
-            return ("<div class='mg-field__label' style='margin:22px 0 6px'>%s</div>"
+            return ("<h3 class='mg-field__label' style='margin:22px 0 6px'>%s</h3>"
                     "<div class='nota'>%s</div>" % (titulo, vazio))
         maior_n = max(l["n"] for l in linhas)
-        return ("<div class='mg-field__label' style='margin:22px 0 10px'>%s</div>"
+        return ("<h3 class='mg-field__label' style='margin:22px 0 10px'>%s</h3>"
                 "<div class='barras-h'>%s</div>"
                 % (titulo, "".join(
                     "<div class='lh'><span class='t'>%s</span>"
@@ -32451,18 +32629,16 @@ def negocio_cx():
     # é quem sabe dizer «ainda não» em vez de um travessão, e as frases
     # dele são as que o BACKLOG cita.
     return ("<div class='mg-card' style='padding:22px 24px'>"
-            "<div class='mg-field__label' style='margin-bottom:6px'>O negócio</div>"
+            "<h2 class='mg-card__title' style='margin-bottom:6px'>O negócio</h2>"
             "<div class='nota' style='margin-bottom:18px'>Porque se perde, "
             "porque não se vai, e onde se ganha. Uma taxa só aparece "
             "com %d decididas ou mais.</div>"
             "%s"
-            "<div class='mg-field__label' id='em-jogo' style='margin:22px 0 10px'>Abertas, por "
-            "fase</div><div class='barras'>%s</div>"
             "%s%s%s"
-            "<div class='mg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
-            "se mexerem</div><div class='saude'>%s</div>"
+            "<h3 class='mg-field__label' style='margin:22px 0 6px'>Há mais tempo sem "
+            "se mexerem</h3><div class='saude'>%s</div>"
             "</div>"
-            % (MINIMO_PARA_TAXA, aviso_fechar, barras,
+            % (MINIMO_PARA_TAXA, aviso_fechar,
                tabela("Porque se perde", porque_se_perde(),
                       "ainda não há perdidos"),
                tabela("Porque não se vai", porque_nao_se_vai(),
@@ -32647,7 +32823,7 @@ def tabela_das_decididas(linhas, rotulo_periodo):
     Stat liga para aqui (`#decididas`)."""
     if not linhas:
         return ("<div class='mg-card' id='decididas' style='padding:22px 24px'>"
-                "<div class='mg-field__label'>Decididas %s</div>"
+                "<h2 class='mg-card__title'>Decididas %s</h2>"
                 "<div class='nota' style='margin-top:6px'>Nenhuma proposta "
                 "ganha ou perdida neste período.</div></div>"
                 % html.escape(rotulo_periodo))
@@ -32672,8 +32848,8 @@ def tabela_das_decididas(linhas, rotulo_periodo):
            if l["estado"] == "ganho" else "—")
         for l in linhas)
     return ("<div class='mg-card tab-cx' id='decididas'>"
-            "<div class='mg-field__label' style='padding:16px 16px 0'>"
-            "Decididas %s</div>"
+            "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
+            "Decididas %s</h2>"
             "<table class='mg-table tab-contratos'><thead><tr>"
             "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
             "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
@@ -32724,8 +32900,8 @@ def tabela_em_jogo(ancora, rotulo, estados):
             "SELECT * FROM propostas WHERE estado IN (%s) "
             "ORDER BY COALESCE(criada_em,'') DESC, id DESC"
             % ",".join("?" * len(estados)), list(estados)).fetchall()
-    cabeca = ("<div class='mg-field__label' style='padding:16px 16px 0'>%s"
-              "</div>" % html.escape(rotulo))
+    cabeca = ("<h2 class='mg-card__title' style='padding:16px 16px 0'>%s"
+              "</h2>" % html.escape(rotulo))
     if not linhas:
         return ("<div class='mg-card tab-cx' id='%s'>%s<div class='nota' "
                 "style='padding:6px 16px 16px'>Nenhuma proposta em %s.</div>"
@@ -32791,7 +32967,7 @@ def situacao():
     elif ver == "cpv":
         bloco = cpv_html_bloco()
         corpo = ("<div class='mg-card' style='padding:22px 24px'>"
-                 "<div class='mg-field__label'>Por área de CPV</div>"
+                 "<h2 class='mg-card__title'>Por área de CPV</h2>"
                  "<div class='nota' style='margin:6px 0 0'>A taxa de "
                  "vitória por divisão do vocabulário CPV — as duas "
                  "primeiras casas, que são a área do negócio. Uma taxa "
@@ -32839,7 +33015,7 @@ def situacao():
             if not euros_:
                 return _numero_da_situacao(
                     rotulo, None, "",
-                    "as %s ainda não têm preço lido" % mil_pt(quantas)
+                    "%s sem preço lido" % plural(quantas, "proposta")
                     if quantas else "nenhuma proposta em %s" % nomes)
             # uma FOTOGRAFIA de agora, e nao um total do periodo: a base
             # nao guarda o pipeline de ontem, e uma seta inventada era
@@ -33014,8 +33190,8 @@ def funil_cx_html():
                html.escape(corta(nomes_div.get(r["div"], "sem descrição"), 40)),
                mil_pt(r["sim"]), mil_pt(r["tudo"]))
             for r in f["por_divisao"])
-        divisoes = ("<div class='mg-field__label' style='margin:22px 0 16px'>Onde a "
-                    "triagem tem dito que sim</div><div class='saude'>%s</div>"
+        divisoes = ("<h3 class='mg-field__label' style='margin:22px 0 16px'>Onde a "
+                    "triagem tem dito que sim</h3><div class='saude'>%s</div>"
                     % divisoes)
     else:
         divisoes = ("<div class='nota' style='margin-top:16px'>Ainda não há "
@@ -33026,8 +33202,8 @@ def funil_cx_html():
     # (a taxa de conversao) e, concatenado no template, o `%` de baixo
     # tentava interpreta-lo como conversao.
     funil_cx = ("<div class='mg-card' style='padding:22px 24px'>"
-                "<div class='mg-field__label' style='margin-bottom:6px'>Funil da "
-                "triagem</div>"
+                "<h2 class='mg-card__title' style='margin-bottom:6px'>Funil da "
+                "triagem</h2>"
                 "<div class='nota' style='margin-bottom:18px'>" + leitura +
                 "</div><div class='barras'>" + funil_html + "</div>" +
                 divisoes + "</div>")
@@ -33098,8 +33274,8 @@ def ranhuras_cx_html(por_estado):
            html.escape(rotulo))
         for ch, rotulo in ESTADOS_DA_EMPRESA)
     return ("<div class='mg-card' style='padding:22px 24px'>"
-            "<div class='mg-field__label' style='margin-bottom:22px'>Propostas por "
-            "fase</div><div class='barras'>%s</div></div>" % barras)
+            "<h2 class='mg-card__title' style='margin-bottom:22px'>Propostas por "
+            "fase</h2><div class='barras'>%s</div></div>" % barras)
 
 
 @app.route("/configuracoes/indicadores")
@@ -34169,12 +34345,7 @@ def _formulario_do_aceitar(p, aviso=""):
     if request.method == "POST":           # volta com o que se escreveu
         cpv = request.form.get("cpv") or ""
         distritos = "|".join(request.form.getlist("dist"))
-    escolhidos = set(distritos.split("|"))
-    caixas = "".join(
-        "<label class='dist-cx'><input type='checkbox' name='dist' "
-        "value='%s'%s> %s</label>"
-        % (html.escape(d, quote=True), " checked" if d in escolhidos else "",
-           html.escape(d)) for d in DISTRITOS)
+    caixas = caixas_dos_distritos(set(distritos.split("|")))
     return envolver(
         "configuracoes", "Aceitar o pedido",
         "Cria a empresa, prepara o perfil dela e manda o convite a quem pediu.",
