@@ -229,6 +229,18 @@ radar** — é por aqui que se fecha o ciclo), `adjudicante_chave`,
 prorrogações e cessações antecipadas não constam do dump. Trata-se como
 sinal para olhar, nunca como facto.
 
+**Ao lado do corpus, o `contratos-concorrentes.db`** (desde 1/10/2026,
+L5 do plano de Outubro): o detalhe de cada contrato dos últimos dois
+anos pedido ao Portal BASE, um a um, pela thread de fundo do painel
+(`vigiar_os_concorrentes()`). Quatro tabelas: `detalhe` (um por contrato
+lido; `n_concorrentes` a NULL quando o BASE não traz lista — «sem lista»
+não é «zero»), `concorrente` (o NIF, o nome e a chave, que é **o NIF e
+nunca o nome**: `chave_do_concorrente()`), `corte` (cada corte da
+firewall do BASE, com quantos pedidos passaram antes e quando voltou) e
+`estado`. A fila vai pelos concursos públicos, depois as consultas
+prévias, e os ajustes directos no fim. **Enche-se devagar e durante
+semanas**; o progresso está na página da plataforma, no cartão Recolha.
+
 ### 2.3 O que a aplicação sabe sem pedir nada a ninguém
 
 - **Dez anos de anúncios** (2015→), todos com detalhe lido.
@@ -1861,8 +1873,9 @@ Para não desenhares o que não se pode fazer:
   `type=detail_contratos` devolve `contestants`, a lista dos concorrentes
   com NIF, e ainda `invitees`, `closeDate`, `causesDeadlineChange`,
   `causesPriceChange`, o PDF do contrato e o link das peças). É um pedido
-  por contrato, não uma coluna — o que se pode fazer com isso está no
-  `docs/historico/CONCORRENTES-2026-09.md`, adenda 2; nada foi construído.
+  por contrato, não uma coluna. **Desde 1/10/2026 recolhe-se** (o
+  `contratos-concorrentes.db`, §2.2), devagar, por causa da firewall do
+  BASE; os ecrãs que o mostram são a segunda parte do L5.
 - **Preços das propostas perdedoras** — não estão em lado nenhum público.
 - **Relatórios preliminares e finais** — só chegam a quem concorre, pela
   plataforma, com sessão iniciada.

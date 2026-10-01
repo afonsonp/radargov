@@ -26073,6 +26073,166 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
 
 
 
+class TestOsConcorrentesDoContrato(BaseTemporaria):
+    """L5 do plano de Outubro, a recolha (1/10/2026). O detalhe de cada
+    contrato no Portal BASE traz os concorrentes, um pedido por contrato,
+    e a firewall do BASE corta o IP ao fim de ~200 pedidos e por horas.
+    O que estes testes seguram: o ficheiro é outro (o `--contratos` não o
+    leva), a chave é o NIF e nunca o nome, «sem lista» não é «zero», a
+    fila vai pela ordem que vale e não repete, e um corte pára a fila,
+    fica registado com quantos pedidos passaram, e fecha-se com a hora a
+    que o BASE voltou -- é assim que se mede o ritmo que ele aguenta."""
+
+    def setUp(self):
+        super().setUp()
+        radar.iniciar_corpus()
+        hoje = datetime.date.today()
+        recente = (hoje - datetime.timedelta(days=30)).isoformat()
+        antigo = (hoje - datetime.timedelta(days=900)).isoformat()
+        with radar.liga_corpus() as c:
+            for id_, tipo, data in ((1, "Ajuste Direto Regime Geral", recente),
+                                    (2, "Consulta Prévia", recente),
+                                    (3, "Concurso público", recente),
+                                    (4, "Ao abrigo de acordo-quadro (art.º 259.º)", recente),
+                                    (5, "Concurso público", antigo)):
+                c.execute("INSERT INTO contratos (id, ano, tipo_procedimento, "
+                          "data_publicacao) VALUES (?,?,?,?)",
+                          (id_, int(data[:4]), tipo, data))
+        self.pedidos = []
+
+    def pedir(self, respostas):
+        """Um BASE falso: cada pedido consome a resposta seguinte."""
+        respostas = list(respostas)
+
+        def pedir(sessao, contrato_id):
+            self.pedidos.append(contrato_id)
+            r = respostas.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        return pedir
+
+    def test_o_ficheiro_e_outro_e_o_contratos_nao_o_leva(self):
+        self.assertNotEqual(radar.ficheiro_dos_concorrentes(), radar.CORPUS)
+        self.assertNotEqual(radar.ficheiro_dos_concorrentes(), radar.ficheiro_da_memoria())
+        self.assertTrue(radar.ficheiro_dos_concorrentes().startswith(self.pasta))
+
+    def test_a_chave_e_o_nif_e_nunca_o_nome(self):
+        self.assertEqual(radar.chave_do_concorrente("509999999"), "509999999")
+        self.assertEqual(radar.chave_do_concorrente(" - "), "")
+        self.assertEqual(radar.chave_do_concorrente("B12345678"), "B12345678")
+
+    def test_a_fila_vai_pela_ordem_que_vale_e_so_dois_anos(self):
+        self.assertEqual(radar.contratos_por_ler(10), [3, 2, 4, 1])
+
+    def test_sem_lista_nao_e_zero_e_nao_se_repete(self):
+        lidos, cortado = radar.recolher_concorrentes(
+            2, pedir=self.pedir([
+                {"contestants": [{"nif": "509999999", "description": "Alfa, Lda"},
+                                 {"nif": "-", "description": "João"}]},
+                None]), esperar=lambda s: None)
+        self.assertEqual((lidos, cortado), (2, False))
+        with radar.liga_concorrentes() as c:
+            linhas = dict(c.execute("SELECT contrato_id, n_concorrentes FROM detalhe"))
+            chaves = [r[0] for r in c.execute("SELECT chave FROM concorrente ORDER BY nome")]
+        self.assertEqual(linhas, {3: 2, 2: None})
+        self.assertEqual(chaves, ["509999999", ""])
+        self.assertEqual(radar.contratos_por_ler(10), [4, 1])
+
+    def test_um_corte_para_a_fila_e_fica_registado(self):
+        lidos, cortado = radar.recolher_concorrentes(
+            4, pedir=self.pedir([{"contestants": []}, radar.CorteDoBase()]),
+            esperar=lambda s: None)
+        self.assertEqual((lidos, cortado), (1, True))
+        self.assertEqual(self.pedidos, [3, 2])
+        with radar.liga_concorrentes() as c:
+            corte = c.execute("SELECT pedidos_antes, fim FROM corte").fetchone()
+        self.assertEqual(tuple(corte), (1, None))
+        # o primeiro pedido que passa depois fecha o corte, com a hora
+        radar.recolher_concorrentes(1, pedir=self.pedir([None]), esperar=lambda s: None)
+        with radar.liga_concorrentes() as c:
+            self.assertTrue(c.execute("SELECT fim FROM corte").fetchone()[0])
+
+    def test_tres_falhas_de_rede_param_sem_contar_como_corte(self):
+        erro = radar.requests.ConnectionError()
+        lidos, cortado = radar.recolher_concorrentes(
+            4, pedir=self.pedir([erro, erro, erro]), esperar=lambda s: None)
+        self.assertEqual((lidos, cortado), (0, False))
+        with radar.liga_concorrentes() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM corte").fetchone()[0], 0)
+
+    def test_um_erro_deste_contrato_marca_o_e_um_5xx_nao(self):
+        """A revisão de 1/10/2026: um 4xx (ou uma resposta que não é JSON)
+        ficava no topo da fila e repetia-se em todos os lotes; três
+        seguidos prendiam a fila. Fica lido, sem detalhe. Um 5xx é o BASE
+        em baixo: não marca, conta como falha."""
+        def http(codigo):
+            r = radar.requests.Response()
+            r.status_code = codigo
+            return radar.requests.HTTPError(response=r)
+        lidos, _ = radar.recolher_concorrentes(
+            2, pedir=self.pedir([http(404), ValueError()]), esperar=lambda s: None)
+        self.assertEqual(lidos, 2)
+        self.assertEqual(radar.contratos_por_ler(10), [4, 1])
+        lidos, _ = radar.recolher_concorrentes(
+            4, pedir=self.pedir([http(503)] * 3), esperar=lambda s: None)
+        self.assertEqual(lidos, 0)
+        self.assertEqual(radar.contratos_por_ler(10), [4, 1])
+
+    def test_a_copia_dos_concorrentes_nao_derruba_a_diaria(self):
+        radar.recolher_concorrentes(1, pedir=self.pedir([None]), esperar=lambda s: None)
+        with unittest.mock.patch.object(radar, "liga_concorrentes",
+                                        side_effect=sqlite3.OperationalError("cheio")):
+            destino = radar.copia_de_seguranca()
+        self.assertTrue(os.path.exists(destino))
+        self.assertFalse([f for f in os.listdir(radar.COPIAS)
+                          if f.startswith("concorrentes-")])
+
+    def test_depois_de_um_corte_espera_e_a_espera_dobra(self):
+        relogio = [datetime.datetime(2026, 10, 1, 12, 0)]
+
+        def cortar(sessao, contrato_id):
+            raise radar.CorteDoBase()
+        with unittest.mock.patch.object(radar, "ler_detalhe_do_base", cortar):
+            radar.vigiar_os_concorrentes(voltas=1, esperar=lambda s: None,
+                                         agora=lambda: relogio[0])
+            self.assertEqual(radar._estado_dos_concorrentes("espera"), "1800")
+            self.assertEqual(radar._estado_dos_concorrentes("parado_ate"),
+                             "2026-10-01 12:30:00")
+            # parado: não pede nada
+            esperas = []
+            radar.vigiar_os_concorrentes(voltas=1, esperar=esperas.append,
+                                         agora=lambda: relogio[0])
+            self.assertEqual(esperas, [600])
+            # passado o prazo, outro corte dobra a espera
+            relogio[0] = datetime.datetime(2026, 10, 1, 12, 31)
+            radar.vigiar_os_concorrentes(voltas=1, esperar=lambda s: None,
+                                         agora=lambda: relogio[0])
+        self.assertEqual(radar._estado_dos_concorrentes("espera"), "3600")
+
+    def test_desligada_no_config_nao_pede_nada(self):
+        with unittest.mock.patch.object(radar, "ler_config",
+                                        lambda: {"concorrentes": False}), \
+                unittest.mock.patch.object(radar, "ler_detalhe_do_base",
+                                           self.pedir([])):
+            radar.vigiar_os_concorrentes(voltas=1, esperar=lambda s: None)
+        self.assertEqual(self.pedidos, [])
+
+    def test_a_plataforma_diz_o_progresso_e_o_ultimo_corte(self):
+        radar.recolher_concorrentes(2, pedir=self.pedir([None, radar.CorteDoBase()]),
+                                    esperar=lambda s: None)
+        frase = radar._paragrafo_dos_concorrentes()
+        self.assertIn("1 de 4 contratos dos últimos 2 anos lidos, 0 com a lista", frase)
+        self.assertIn("depois de 1 pedido; parada até", frase)
+
+    def test_o_estado_conta_os_lidos_e_o_total_do_ambito(self):
+        radar.recolher_concorrentes(1, pedir=self.pedir([{"contestants": [
+            {"nif": "509999999", "description": "Alfa"}]}]), esperar=lambda s: None)
+        e = radar.estado_da_recolha()
+        self.assertEqual((e["total"], e["lidos"], e["com_lista"]), (4, 1, 1))
+
+
+
 
 class TestUXFichasDe1Outubro(_CicloDoTesteComUtilizadores):
     """As fichas, a proposta e as tarefas, das correcções que as

@@ -166,6 +166,9 @@ python radar.py --reler            # reanalisa o texto já guardado, sem rede
 python radar.py --ler-pecas [tudo] # manda as peças ao modelo; "tudo" refaz as já lidas
 python radar.py --importar-cpv F   # carrega o vocabulário CPV (uma vez)
 python radar.py --contratos [anos] # corpus de contratos do Portal BASE
+python radar.py --concorrentes [N] # L5: pede N detalhes ao BASE agora e diz o
+                                   # estado da recolha (o painel fá-la sozinho,
+                                   # em fundo; "concorrentes": false desliga-a)
 python radar.py --descartar-expirados # descarta os "por ver" com prazo passado
 python radar.py --exportar-triagem # empresas/<id>/triagem.jsonl, só local (a verificação exporta-o sozinha; não vai para o git)
 python radar.py --repor-triagem [F] # repõe a triagem numa base refeita, a partir do empresas/<id>/triagem.jsonl (ou F); idempotente
@@ -623,7 +626,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **430 pontos** (contados a 1/10/2026), cada um de um erro que
+São **431 pontos** (contados a 1/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

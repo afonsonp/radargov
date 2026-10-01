@@ -15,17 +15,17 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
-- [Contratos e entidades](#contratos-e-entidades) &middot; 35
+- [Contratos e entidades](#contratos-e-entidades) &middot; 36
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 20
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
 - [Contas e a porta](#contas-e-a-porta) &middot; 42
-- [A interface](#a-interface) &middot; 120
+- [A interface](#a-interface) &middot; 127
 - [Convenções](#convencoes) &middot; 7
 
-São **423** ao todo, contados a 30/09/2026. Contam-se por secção com
+São **431** ao todo, contados a 30/09/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1089,6 +1089,15 @@ Uma árvore, duas fontes de contagem, dois campos.
 
 ## Contratos e entidades
 
+- **A firewall do BASE corta ao fim de ~200 pedidos, e a fila dos
+  concorrentes tem de o aguentar** (L5, 1/10/2026). Cortou ao 193.º a um
+  pedido por segundo e ao 230.º a um a cada 6 s: não é só a cadência. O
+  corte responde `999` com uma página HTML do WebKnight, a tudo, durante
+  horas. A fila (`recolher_concorrentes()`) **pára ao primeiro corte** e
+  regista-o, e a vigia espera 30 min a dobrar até 8 h — insistir só o
+  prolonga. E o ficheiro é o `contratos-concorrentes.db`, **ao lado do
+  corpus e não dentro**: o `--contratos` refaz o corpus, e isto leva
+  semanas. Entra nas cópias diárias (só as duas últimas).
 - **Os «clientes» e os «concorrentes» das Entidades recortam pelo
   interesse, quando há** (`entidades_top()`, 25/09/2026). No corpus
   inteiro, os concorrentes de uma empresa de AVAC eram a Petrogal e a
