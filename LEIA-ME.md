@@ -322,6 +322,11 @@ dentro de «Apagar esta proposta» porque não tem volta. Uma proposta que
 tenha vindo do DR não se apaga aí: tira-se da escada, e o anúncio volta
 à lista.
 
+Como não há anúncio, o **prazo de entrega** escreve-se na proposta
+(desde 1/10/2026): é ele que põe o «até …» nos quatro passos lá em cima,
+a data na coluna «Prazo» das Propostas e a tarefa «entregar a proposta»
+no Hoje. Mudar a data muda a tarefa; apagá-la tira-a.
+
 ### A barra
 
 A barra é **horizontal, em cima**, e tem a marca à esquerda — o
@@ -599,9 +604,10 @@ que se decide:
 - **As peças**, que continuam a abrir dentro da ficha, e no fim o
   **Anúncio completo**, fechado, com as secções do DR em bruto.
 
-À direita, e presa ao rolar no computador, fica o **prazo** (grande, com
-as prorrogações), a nossa proposta, o que falta fazer, os contactos e o
-histórico.
+À direita fica o **prazo** (grande, com as prorrogações), a nossa
+proposta, o que falta fazer, os contactos e o histórico. No computador
+essa coluna fica presa ao rolar enquanto não há proposta; com proposta é
+mais alta do que o ecrã, e rola com a página.
 
 A **data de esclarecimentos** é calculada, não lida: é o primeiro terço
 do prazo das propostas, que é a regra supletiva do artigo 50.º do CCP.

@@ -435,7 +435,34 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .mercado-resumo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);
  margin:var(--space-4) 0}
 .mercado-resumo .conta{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-secondary)}
-.mercado-resumo>.mg-tabs{margin-left:auto}
+/* As três vistas do Mercado por cima do filtro, e também nas Entidades,
+   por cima das cinco delas (UX-7-LEIS J2, 1/10/2026). No `.topo` das
+   Entidades as duas barras iam para a mesma linha da grelha, uma por
+   cima da outra; a segunda desce uma. */
+.topo>.abas-mercado+.mg-tabs{grid-row:4;margin-top:var(--space-2)}
+/* O filtro da ficha da entidade recolhido, no topo da coluna do Portal
+   BASE (E11): os números e o nosso lado vêm antes dele. */
+.ent-filtrar{margin-bottom:var(--space-4)}
+.ent-filtrar>summary{cursor:pointer;font:600 var(--text-sm)/1.4 var(--font-sans);
+ color:var(--ink);padding:var(--space-2) 0}
+.ent-filtrar[open]>summary{margin-bottom:var(--space-3)}
+/* Os números de um gráfico, à vista dentro de um «ver os números»
+   (UX-ICONES-DICAS-PESOS 13): estavam só no `title` das barras. */
+.graf-numeros{margin-top:var(--space-3)}
+.graf-numeros>summary{cursor:pointer;font:400 var(--text-xs)/1.4 var(--font-sans);
+ color:var(--ink-muted)}
+.graf-numeros table{width:100%;border-collapse:collapse;margin-top:var(--space-2);
+ font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
+.graf-numeros th{text-align:left;font-weight:600;color:var(--ink-muted);
+ border-bottom:1px solid var(--line);padding:4px 6px}
+.graf-numeros td{padding:4px 6px;border-bottom:1px solid var(--surface-sunken)}
+.graf-numeros .p{text-align:right;font-family:var(--font-mono);white-space:nowrap}
+/* Os títulos dos gráficos e dos cartões da Situação são `h2` (15 e
+   E12): o `mg-card__title` traz o peso e o tamanho. Fora da cabeça do
+   cartão não cresce -- o `flex:1 1 auto` do sistema, num cartão em
+   coluna, abria um vão entre o título e a nota. */
+.mg-card>.mg-card__title{flex:none}
+.graf>.mg-card__title{margin:0 0 var(--space-1)}
 /* A tabela e os gráficos: um por baixo do outro até 1600px, lado a lado
    daí para cima (lote PC-A, 26/09/2026). A coluna dos gráficos ao lado
    roubava 376px à tabela a 1280 -- o Preço ficava cortado na borda do
@@ -623,6 +650,10 @@ main#conteudo:focus{outline:none}
    passos mostram só o número e a nota; o nome do passo aceso fica. */
 @media (max-width:600px){
  .mg-pagehead__title{font-size:var(--text-xl);line-height:28px}
+ /* e o número grande desce com ele (UX-ICONES-DICAS-PESOS, C.2 #7,
+    1/10/2026): a 28 px passava o título de 22 no Hoje, na Situação e
+    no prazo da ficha. As frases do `Stat` têm a regra delas, mais abaixo. */
+ .mg-stat__value,.ficha-prazo b{font-size:var(--text-xl);line-height:28px}
  .ficha-escada .mg-step__label{font-size:var(--text-xs);overflow:visible;white-space:normal;
   text-overflow:clip;word-break:normal}}
 
@@ -638,6 +669,15 @@ dl.glossario dd{margin:2px 0 0;color:var(--ink-secondary);max-width:70ch}
 .dist-interesse{border:0;padding:0;margin:0 0 10px;flex:1 1 100%;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 12px}
 .dist-interesse legend{font-weight:600;margin-bottom:6px;padding:0}
+/* Agrupados por região, cada uma com o seu «todos» (UX-7-LEIS M3,
+   1/10/2026): as regiões são as células da grelha, e as caixas de cada
+   uma ficam em coluna. O «todos» só existe com JS. */
+.dist-interesse .dist-regiao{border:0;padding:0;margin:0 0 var(--space-2);min-width:0;
+ display:flex;flex-direction:column;gap:4px}
+.dist-interesse .dist-regiao legend{font:600 var(--text-sm)/1.4 var(--font-sans);
+ color:var(--ink-secondary);margin-bottom:2px}
+.dist-interesse .dist-regiao .dist-todos{display:none}
+.com-js .dist-interesse .dist-regiao .dist-todos{display:flex;color:var(--ink-muted)}
 .dist-interesse .dist-cx{display:flex;align-items:center;gap:6px;font-size:var(--text-sm)}
 
 /* ---- TELEMÓVEL E ACESSIBILIDADE (segunda ronda de testes, 26/09/2026,
@@ -1140,11 +1180,14 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .pagehead-etiquetas{gap:var(--space-2);margin-top:var(--space-2);flex-wrap:wrap}
 /* no computador, a coluna da direita fica presa ao rolar; mais alta do
    que o ecrã, rola por dentro (senão o fim dela só se via no fim da
-   página) */
+   página). Com a proposta deixa de caber -- 1 874 px numa caixa de 820,
+   a 1280 × 900 -- e passa a rolar com a página (UX-ECRAS-EM-FALTA, E7):
+   o fim dela, as tarefas e os contactos, só se alcançava por dentro. */
 @media (min-width:1101px){
  .ficha-lado{position:sticky;top:calc(var(--barra-h,56px) + 12px);align-self:start;
   max-height:calc(100vh - var(--barra-h,56px) - 24px);overflow-y:auto;
-  overscroll-behavior:contain}}
+  overscroll-behavior:contain}
+ .ficha-lado.com-proposta{position:static;max-height:none;overflow:visible}}
 @media (max-width:720px){
  .factos-grelha{grid-template-columns:repeat(2,minmax(0,1fr))}
  .factos-grelha>div{padding:var(--space-3) var(--space-4)}
@@ -1242,6 +1285,11 @@ ul.tarefas li form.accao{align-items:end}
 .campo-data-cx>button.data-cal.data-cal:hover{color:var(--ink);border-color:var(--brand);background:var(--brand-soft)}
 .data-cal:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
 .data-escolha{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+/* A sintaxe da pesquisa e do CPV à vista, numa linha inteira por baixo
+   dos campos (UX-ICONES-DICAS-PESOS, 14): estava só no `title`, que não
+   aparece no toque nem ao focar o campo. Fica FORA do «Mais filtros»,
+   à vista com ele fechado, e depois dele (`order`) quando abre. */
+.f-sintaxe{grid-column:1/-1;order:2;margin:0}
 /* A dica de uma tabela que rola de lado (o JS do `BASE`; G75). */
 .rola-dica{margin:0 0 var(--space-1);font:400 var(--text-xs)/16px var(--font-sans);
  color:var(--ink-muted);text-align:right}
