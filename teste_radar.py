@@ -25775,13 +25775,15 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
     def test_o_site_diz_os_planos_e_nao_a_beta_gratuita(self):
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
-        for frase in ("39 €", "75 €", "34 €/mês", "65 €/mês", "48 €/mês",
+        # o anual paga-se de uma vez desde 1/10/2026 (decisão dele: «pagam logo
+        # a totalidade, se saírem saíram»), e não em 12 prestações
+        for frase in ("39 €", "75 €", "408 €/ano", "780 €/ano", "576 €/ano",
                       "55 €/mês + IVA", "31 de dezembro de 2026", "por IA está em todos",
                       'name="nif"', 'name="plano"', 'id="planos"'):
             self.assertIn(frase, site)
         for frase in ("Contas para toda a equipa", "Todas as que precisar",
                       '"name": "Vigia"', "VigIA+",
-                      "Ainda não está decidido", '"price": "0"'):
+                      "Ainda não está decidido", '"price": "0"', "prestações"):
             self.assertNotIn(frase, site)
         # os valores do formulário são os que o servidor aceita
         seleccao = site.split('id="plano"', 1)[1].split("</select>", 1)[0]
