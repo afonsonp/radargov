@@ -11856,7 +11856,11 @@ class TestColunasSeguemARanhura(BaseTemporaria):
         corpo = radar.app.test_client().get(
             radar.LISTA + "?estado=" + estado).get_data(as_text=True)
         cabeca = corpo.split("<thead><tr>")[1].split("</tr>")[0]
-        return re.findall(r"<th>([^<]*)</th>", cabeca), corpo
+        # o texto de cada cabeçalho, também dos que ordenam (J4, 1/10/2026:
+        # o «Prazo» e o «Preço base» passaram a ligações com seta)
+        return [re.sub(r"(?s)<span class='(so-leitor|seta[^']*)'.*?</span>|<[^>]+>",
+                       "", th)
+                for th in re.findall(r"(?s)<th[^>]*>(.*?)</th>", cabeca)], corpo
 
     def test_o_proposto_so_aparece_de_submetido_para_a_frente(self):
         for estado in ("analisar", "proposta"):
@@ -24139,8 +24143,10 @@ class TestAcessibilidadeETelemovelDaTerceiraRonda(BaseTemporaria):
     def test_g75_filtros_recolhidos_e_a_dica_de_rolar(self):
         """A 390 px os filtros ocupavam a primeira dobra; a 768 as tabelas
         cortavam-se sem nada a dizer que havia mais."""
-        html_ = self.cliente.get(radar.LISTA + "?estado=porver&ent=IPL").get_data(as_text=True)
-        self.assertIn("aria-controls='filtros-lista'>Mais filtros &middot; 1</button>", html_)
+        # a entidade ficou à vista com o H1 (1/10/2026), e por isso o
+        # filtro que o botão conta é a plataforma, que ele recolhe
+        html_ = self.cliente.get(radar.LISTA + "?estado=porver&plat=acingov").get_data(as_text=True)
+        self.assertIn("aria-controls='filtros-mais'>Mais filtros &middot; 1</button>", html_)
         self.assertIn("A tabela continua para o lado", radar.BASE)
 
     def test_g77_a_validacao_fala_portugues(self):
@@ -25557,7 +25563,10 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         self.assertNotIn("[data-pele=novo] .tab-contratos th,", radar.CSS_NOVO)
 
     def test_a1_o_porque_e_o_do_sistema(self):
-        h = self.cliente.get("/situacao").get_data(as_text=True)
+        # na ficha, e não no título da Situação: o «?» do título saiu com
+        # o J3 (1/10/2026), e o dos blocos ficou
+        self._proposta()
+        h = self._ficha()
         self.assertIn("<span class='mg-disc__q' aria-hidden='true'", h)
         self.assertNotIn("<i aria-hidden='true' title='O que é", h)
         self.assertNotIn("details.porque > summary > i", radar.CSS)
@@ -25692,6 +25701,163 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         for grupo, _ in radar.GLOSSARIO:
             self.assertIn("id='grupo-%s'" % radar.ancora_do_termo(grupo), h)
         self.assertNotIn("title='O que é esta página'", h)
+
+
+class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
+    """Os achados da lista dos Concursos e das Propostas que a auditoria
+    das sete leis (`docs/historico/UX-7-LEIS.md`, 30/09/2026) deixava para
+    depois de 5/10, e que ele mandou fazer a 1/10/2026 («Faz todos»).
+    Cada método diz de que achado vem; todos falhavam com o código de
+    antes."""
+
+    def _com_prazo(self, ref, dias, preco=""):
+        with radar.liga() as c:
+            c.execute("INSERT OR IGNORE INTO anuncios (ref, titulo, entidade, "
+                      "data_pub, tipo, url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      (ref, "Anúncio " + ref, "IPL", "2026-09-02",
+                       "Anúncio de procedimento", "https://dr/" + ref))
+            c.execute("UPDATE anuncios SET prazo=?, preco_base=?, detalhe_lido=1 "
+                      "WHERE ref=?",
+                      ((datetime.date.today() + datetime.timedelta(days=dias))
+                       .isoformat(), preco, ref))
+
+    def _ver(self, rota):
+        r = self.cliente.get(rota)
+        self.assertEqual(r.status_code, 200, rota)
+        return r.get_data(as_text=True)
+
+    @staticmethod
+    def _folha():
+        return TestAsCorreccoesDeUXDoLancamento._ficheiro("estilo", "miragov-radar.css")
+
+    def test_h1_os_filtros_recolhem_se_e_o_botao_diz_quantos_estao_postos(self):
+        """H1: a triagem tinha por cima um formulário de oito campos; o
+        «Mais filtros» só existia abaixo de 600 px."""
+        h = self._ver(radar.LISTA)
+        form = h.split("id='filtros-lista'", 1)[1].split("</form>", 1)[0]
+        mais = form.split("<div class='f-mais-campos' id='filtros-mais'>", 1)
+        self.assertEqual(len(mais), 2, "os campos recolhíveis têm o seu bloco")
+        # à vista ficam a pesquisa e a entidade; o resto vai no bloco
+        self.assertIn("name='q'", mais[0])
+        self.assertIn("name='ent'", mais[0])
+        self.assertIn("name='plat'", mais[1])
+        self.assertIn("name='de'", mais[1])
+        self.assertIn("aria-expanded='false' aria-controls='filtros-mais'>"
+                      "Mais filtros</button>", form)
+        # a regra que recolhe vale em todas as larguras, e não só no telemóvel
+        folha = self._folha()
+        regra = ".com-js #filtros-lista:not(.aberto) .f-mais-campos{display:none}"
+        self.assertIn(regra, folha)
+        antes = folha.split(regra, 1)[0]
+        self.assertGreater(antes.rfind("}"), antes.rfind("@media"),
+                           "a regra não pode estar dentro de um @media")
+        # com filtro escondido posto, abre sozinho e diz quantos
+        h = self._ver(radar.LISTA + "?plat=acingov&de=01/09/2026")
+        self.assertIn("class='mg-card filtros aberto' id='filtros-lista'", h)
+        self.assertIn("aria-expanded='true' aria-controls='filtros-mais'>"
+                      "Mais filtros &middot; 2</button>", h)
+
+    def test_v1_o_prazo_folgado_e_neutro_e_o_urgente_nao(self):
+        """V1, a segunda parte: as etiquetas verdes do prazo folgado
+        disputavam a cor com o que pede atenção."""
+        self._com_prazo("61/2026", 30)
+        self._com_prazo("62/2026", 2)
+        h = self._ver(radar.LISTA)
+        self.assertIn("<span class='mg-tag'>30 dias</span>", h)
+        self.assertIn("<span class='mg-tag mg-tag--warning'>2 dias</span>", h)
+        self.assertNotIn("mg-tag--success", h.split("<tbody>", 1)[1])
+        self.cliente.post("/estado/61%2F2026/analisar")
+        h = self._ver(radar.PROPOSTAS + "?estado=analisar")
+        self.assertIn("<span class='mg-tag'>30 dias</span>", h)
+        self.assertNotIn("mg-tag--success", h.split("<tbody>", 1)[1])
+
+    def test_j4_ordena_se_pelo_preco_e_as_propostas_pelo_prazo_e_pelo_preco(self):
+        """J4: só o «Prazo» dos Concursos se ordenava."""
+        self._com_prazo("61/2026", 30, "1.000,00 EUR")
+        self._com_prazo("62/2026", 5, "50.000,00 EUR")
+        self.assertIn(radar.SQL_PRECO_BASE + " DESC",
+                      radar.ordem_da_lista({"ordem": "preco"}))
+        h = self._ver(radar.LISTA + "?estado=&ordem=preco")
+        corpo = h.split("<tbody>", 1)[1]
+        self.assertLess(corpo.index("62/2026"), corpo.index("61/2026"))
+        self.assertIn("<th class='mg-num' aria-sort='descending'>"
+                      "<a class='ordenar'", h)
+        # as propostas: pelo prazo, o mais perto primeiro; pelo preço, o maior
+        for ref in ("61/2026", "62/2026"):
+            self.cliente.post("/estado/%s/analisar" % ref.replace("/", "%2F"))
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET preco_base='1.000,00 EUR', "
+                      "criada_em='2026-09-02' WHERE ref='61/2026'")
+            c.execute("UPDATE propostas SET preco_base='50.000,00 EUR', "
+                      "criada_em='2026-09-01' WHERE ref='62/2026'")
+        base = radar.PROPOSTAS + "?estado=analisar"
+        h = self._ver(base)
+        self.assertIn("<a class='ordenar' href='%s&amp;ordem=prazo'" % base, h)
+        self.assertIn("<a class='ordenar' href='%s&amp;ordem=preco'" % base, h)
+        # a ordem de sempre (a mais recente primeiro) continua a omissão
+        corpo = h.split("<tbody>", 1)[1]
+        self.assertLess(corpo.index("61/2026"), corpo.index("62/2026"))
+        for ordem in ("prazo", "preco"):
+            corpo = self._ver(base + "&ordem=" + ordem).split("<tbody>", 1)[1]
+            self.assertLess(corpo.index("62/2026"), corpo.index("61/2026"), ordem)
+
+    def test_j6_as_datas_dos_filtros_tem_o_calendario_do_browser(self):
+        """J6: as datas eram texto dd/mm/aaaa, sem calendário para
+        escolher. O campo continua texto (o `type=date` desenha-se no
+        idioma do browser), e o calendário do browser escreve nele."""
+        h = self._ver(radar.LISTA)
+        self.assertIn("<input type='text' name='de' value='' inputmode='numeric' "
+                      "placeholder='dd/mm/aaaa'", h)
+        self.assertIn("showPicker", radar.BASE)
+        self.assertIn("Escolher no calendário", radar.BASE)
+        self.assertIn(".campo-data-cx", self._folha())
+        self.assertEqual(radar.data_de_filtro("1/9/2026"), "2026-09-01")
+
+    def test_h4_a_linha_da_proposta_leva_a_fase_seguinte(self):
+        """H4: mudar para a fase seguinte, que é o gesto de quase sempre,
+        era abrir um selector de nove opções."""
+        id_ = self._proposta()
+        h = self._ver(radar.PROPOSTAS + "?estado=analisar")
+        self.assertIn("<form class='accao desfecho-js fase-seguinte' method='post' "
+                      "action='/proposta/%d/escada' data-estado='proposta'" % id_, h)
+        self.assertIn("<input type='hidden' name='de' value='analisar'>", h)
+        self.assertIn("&rarr; A preparar</button>", h)
+        r = self.cliente.post("/proposta/%d/escada" % id_,
+                              data={"estado": "proposta", "de": "analisar"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(radar.proposta(id_)["estado"], "proposta")
+        # a seguinte do «A preparar» pede o preço proposto, pela caixa
+        h = self._ver(radar.PROPOSTAS + "?estado=proposta")
+        self.assertIn("data-estado='submetido' data-falta='[&quot;valor_proposta&quot;]'", h)
+        self.assertIn("&rarr; Submetida</button>", h)
+        # do relatório em diante não há uma seguinte só
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET estado='relatorio' WHERE id=?", (id_,))
+        self.assertNotIn("fase-seguinte'", self._ver(radar.PROPOSTAS + "?estado=relatorio"))
+
+    def test_z2_o_titulo_da_aba_conta_as_tarefas_atrasadas(self):
+        """Z2: fora do Hoje nada lembrava as tarefas atrasadas."""
+        self.assertIn("<title>Por analisar · Propostas — Mira Gov</title>",
+                      self._ver(radar.PROPOSTAS))
+        ontem = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        with radar.liga() as c:
+            c.execute("INSERT INTO tarefas (o_que, quando) VALUES ('ligar', ?)",
+                      (ontem,))
+            c.execute("INSERT INTO tarefas (o_que, quando, feita_em) "
+                      "VALUES ('feita', ?, ?)", (ontem, ontem))
+        self.assertIn("<title>(1) Por analisar · Propostas — Mira Gov</title>",
+                      self._ver(radar.PROPOSTAS))
+        # o número é o mesmo do Hoje
+        self.assertIn("1 atrasada", self._ver("/"))
+
+    def test_j3_o_titulo_da_pagina_nunca_esta_dentro_de_um_summary(self):
+        """J3: em oito ecrãs, carregar no título abria um texto."""
+        for rota, titulo in (("/situacao", "Ponto de situação"),
+                             ("/proposta/nova", "Nova proposta")):
+            h = self._ver(rota)
+            self.assertNotIn("<summary><h1", h, rota)
+            self.assertIn("<h1 class='mg-pagehead__title'>%s</h1>"
+                          "<p class='mg-pagehead__sub'>" % titulo, h, rota)
 
 
 

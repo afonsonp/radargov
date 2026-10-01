@@ -295,7 +295,13 @@ Por ver → Por analisar → A preparar → Submetida
 
 O selector **não grava ao mudar** (26/09/2026): escolhe-se a ranhura e
 grava-se com o botão «Mudar» (ou o Enter). Antes gravava a cada seta do
-teclado. «Tirar da escada» pergunta antes.
+teclado. «Tirar da escada» pergunta antes. Na linha das **Propostas**,
+por baixo dele, há o botão da **fase seguinte** (`FASE_SEGUINTE`,
+1/10/2026, H4 da `docs/historico/UX-7-LEIS.md`): «→ A preparar» em
+«Por analisar», «→ Submetida» em «A preparar», «→ Relatório
+preliminar» em «Submetida»; do relatório em diante não há uma seguinte
+só, e não há botão. Vai pelo mesmo caminho do selector, com o `de`, e
+pela mesma caixa quando a fase seguinte exige o que falta.
 
 O que falta **pede-se no gesto que escolhe a ranhura** (25/09/2026):
 escolhida no selector e carregado o «Mudar», abre-se uma caixa com o que esta proposta ainda
@@ -836,6 +842,14 @@ nem o foco ficarem tapados (WCAG 2.4.11). O dono sem empresa tem em
 baixo os Concursos e o Mercado, e a Plataforma no «Mais». Em ecrã largo
 a barra de cima fica como está (`barra_de_baixo()`).
 
+**O título da aba do browser conta as tarefas atrasadas** — «(2)
+Concursos — Mira Gov» (1/10/2026, Z2 da `docs/historico/UX-7-LEIS.md`):
+é o número do balde «Atrasadas» do Hoje, de toda a gente
+(`quantas_atrasadas()`), em todas as páginas de uma empresa. A marca
+continua sem contador. E o **cabeçalho de todas as páginas é um só**:
+o título e, por baixo, o subtítulo à vista (J3; até aí, em oito ecrãs,
+o título vivia dentro do `<summary>` de um «?»).
+
 À direita, o menu da conta: o nome de quem entrou e, **por baixo, o da
 empresa em que está a trabalhar** (D7 da segunda ronda, 26/09/2026,
 decisão dele; `nome_da_empresa_activa()`) — «Empresa N» enquanto ela
@@ -983,7 +997,11 @@ Por omissão a lista vem **pela publicação**, a mais recente primeiro; o
 **cabeçalho «Prazo»** troca para **o prazo mais perto primeiro**, como
 numa folha de cálculo (seta ▲ e `aria-sort` quando está activo; um
 segundo clique volta atrás; 30/09/2026), com os sem prazo no fim
-(`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026). Nos cartões do
+(`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026), e o do **«Preço
+base»** para **o maior primeiro** (`?ordem=preco`, seta ▼; 1/10/2026,
+J4). As **Propostas** ordenam-se da mesma maneira pelo «Prazo» e pelo
+«Preço base» (`cabecalho_que_ordena()`); a omissão continua a ser a
+mais recente primeiro. Nos cartões do
 telemóvel, onde o cabeçalho se esconde, a troca é uma ligação ao lado da
 contagem. A ordem não é um filtro: não se guarda num alerta.
 
@@ -993,10 +1011,20 @@ a vírgula ou a barra separam alternativas, e entre aspas procura-se a
 frase exacta. Vale igual para os alertas, que usam o mesmo motor. Sem
 resultados dentro do perfil da empresa, a lista diz quantos há fora dele.
 
-Filtros (painel recolhível): objecto (com E/OU e exclusões) · CPV (com
-árvore de 9 454 códigos e exclusões) · entidade que publica · NIF ·
-plataforma · prazo · datas · preço mínimo. O filtro compõe-se com o
-perfil da empresa.
+Filtros: à vista só a **Pesquisa**, a **Entidade** e o **«Mais
+filtros»**, que recolhe a plataforma, as datas, o distrito e os preços
+(1/10/2026, H1; até aí só no telemóvel). O botão diz quantos desses
+estão postos («Mais filtros · 2») e o bloco abre sozinho quando há
+algum. As datas são texto `dd/mm/aaaa` com um botão ao lado que abre o
+**calendário do browser** e escreve nele (J6). O CPV escolhe-se na
+árvore de 9 454 códigos, por baixo; o motor entende ainda o E/OU, as
+exclusões e o prazo vindos no endereço. O filtro compõe-se com o perfil
+da empresa.
+
+A **etiqueta do prazo** só tem cor quando pede atenção: laranja dentro
+da janela do urgente, vermelha expirado ou a acabar hoje; o prazo
+folgado é **neutro** (1/10/2026, V1; era verde), nos Concursos e nas
+Propostas (`pilula_do_prazo()`).
 
 Por linha: triar («interessa» / «abandonar», que pergunta o motivo),
 **mudar de ranhura no selector**, abrir a ficha. Exporta para CSV.
