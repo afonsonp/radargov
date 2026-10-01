@@ -27039,6 +27039,34 @@ class TestOsEcrasDosConcorrentes(BaseTemporaria):
         self.assertEqual([len(x) for x in linhas], [2, 1])
         self.assertEqual(sorted(linhas[0] + linhas[1]), sorted([self.A, self.B, self.C]))
 
+    def test_um_nif_estrangeiro_que_ganha_conta_como_ganhou(self):
+        """A revisão do PR #198: a chave do concorrente é o NIF tal como vem
+        do BASE, e a do adjudicatário no corpus só é o NIF quando tem nove
+        algarismos (senão é «n:» e o nome). Um estrangeiro que ganhava
+        contava como perdedor, e aparecia a ganhar a si próprio."""
+        fora = "ESB12345678"
+        recente = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, ano, adjudicante_chave, "
+                      "data_publicacao, data_celebracao, n_anuncio, preco_base, "
+                      "preco_contratual, tipo_procedimento) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (5, int(recente[:4]), self.ENTIDADE, recente, recente,
+                       "5/2026", 100000, 90000, "Concurso público"))
+            c.execute("INSERT INTO contrato_cpv VALUES (?,?)", (5, "45000000"))
+            c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                      "nome_norm, chave) VALUES (?,?,?,?,?)",
+                      (5, fora, "Fora, SL", "fora sl", "n:fora sl"))
+        with radar.liga_concorrentes() as k:
+            radar.gravar_detalhe(k, 5, {"contestants": [
+                {"nif": fora, "description": "Fora, SL"},
+                {"nif": self.A, "description": self.NOMES[self.A]}]},
+                "2026-10-01 10:00:00")
+        d = radar.concorrencia_do_fornecedor(fora)
+        self.assertEqual((d["concorreu"], d["ganhou"], d["ganham"]), (1, 1, []))
+        # e para o Alfa, quem lhe ganhou o 5 foi o estrangeiro
+        self.assertIn("n:fora sl", [g["chave"] for g in
+                                    radar.concorrencia_do_fornecedor(self.A)["ganham"]])
+
     def test_o_mercado_tem_a_vista(self):
         for url in ("/entidades", "/concorrentes"):
             self.assertIn("href='/concorrentes'>Concorrentes", self.pagina(url))

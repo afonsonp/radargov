@@ -13702,7 +13702,7 @@ def estado_da_recolha():
 SQL_DA_CONCORRENCIA = (
     "SELECT k.chave, MAX(k.nome) nome, COUNT(DISTINCT k.contrato_id) concorreu, "
     "COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM corpus.contrato_adjudicatario a "
-    " WHERE a.contrato_id = k.contrato_id AND a.chave = k.chave) "
+    " WHERE a.contrato_id = k.contrato_id AND (a.chave = k.chave OR a.nif = k.chave)) "
     " THEN k.contrato_id END) ganhou "
     "FROM concorrente k JOIN corpus.contratos c ON c.id = k.contrato_id "
     "WHERE k.chave != '' AND c.data_publicacao >= ?{onde} "
@@ -13797,11 +13797,11 @@ def concorrencia_do_fornecedor(chave, topo=8):
             "JOIN corpus.contrato_adjudicatario a ON a.contrato_id = k.contrato_id "
             "LEFT JOIN corpus.entidades g ON g.chave = a.chave "
             "WHERE k.chave = ? AND c.data_publicacao >= ? "
-            "AND COALESCE(a.chave, '') NOT IN ('', ?) "
+            "AND COALESCE(a.chave, '') NOT IN ('', ?) AND COALESCE(a.nif, '') != ? "
             "AND NOT EXISTS (SELECT 1 FROM corpus.contrato_adjudicatario b "
-            " WHERE b.contrato_id = k.contrato_id AND b.chave = ?) "
+            " WHERE b.contrato_id = k.contrato_id AND (b.chave = ? OR b.nif = ?)) "
             "GROUP BY a.chave ORDER BY vezes DESC, nome LIMIT ?",
-            (chave, desde, chave, chave, topo))] if linha else []
+            (chave, desde, chave, chave, chave, chave, topo))] if linha else []
     return {"lidos": lidos, "nome": linha["nome"] if linha else "",
             "concorreu": linha["concorreu"] if linha else 0,
             "ganhou": linha["ganhou"] if linha else 0, "ganham": ganham}
