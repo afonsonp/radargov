@@ -832,7 +832,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**137 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**138 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1018,6 +1018,14 @@ comparação com o período anterior **do mesmo tamanho**.
   saiu a 1/10/2026 (UX-7-LEIS M1): eram as quatro primeiras barras do
   das oito, na mesma página. Cada cartão tem o seu título `h2`, e os
   subtítulos são `h3`.
+- **Quem nos ganha** (no Negócio, desde 1/10/2026, L5): os fornecedores
+  que mais vezes ganharam contratos em que a empresa **constou da lista
+  de concorrentes** e não ganhou (`quem_nos_ganha_cx()`), com a frase «a
+  empresa consta da lista de N contratos lidos, e ganhou M». Lê os
+  contratos dos últimos dois anos que a recolha do Portal BASE já leu, e
+  procura a empresa pelo **NIF** (Configurações › Conta). Sem NIF, sem
+  corpus, sem nada lido, ou sem a empresa em lista nenhuma, o cartão diz
+  qual das quatro — nunca uma tabela vazia.
 - **Triagem**: o funil — entrados · sem decisão · triados · interessa.
   O segundo chama-se «sem decisão» e não «por ver» (G26): conta também
   os que já expiraram, e a aba «Por ver» só os que ainda têm prazo.
@@ -1197,6 +1205,15 @@ a tarefa automática «entregar a proposta», que acompanha a data como as
 do DR. Não chega ainda ao cartão «Prazos a chegar» do Hoje nem ao
 Calendário, que lêem os prazos dos anúncios.
 
+**Quando o Portal BASE fecha o contrato** (a faixa do desfecho, aqui e
+na ficha do anúncio; `faixa_do_desfecho()`): diz a quem foi adjudicado,
+por quanto, e oferece «Ganhámos» e «Perdemos». **Desde 1/10/2026 (L5)**,
+se o NIF da empresa consta da lista de concorrentes de um contrato
+desse procedimento e o adjudicatário é outro (`consta_da_lista()`), diz
+«A sua empresa consta da lista de concorrentes; o contrato foi para X»
+e **propõe** a ranhura Perdida: o «Perdemos» passa a botão primário. A
+ranhura não muda sozinha. Sem a lista lida, a faixa fica como era.
+
 ### 4.6 Mercado — `/contratos`
 
 O corpus do Portal BASE. Lista com filtros (objecto, CPV, entidade que
@@ -1210,9 +1227,22 @@ objecto (com o procedimento por baixo) · entidade · quem ganhou ·
 preço, com o corpo a 14 px como o dos Concursos (1/10/2026). Os
 gráficos vão por baixo da tabela, em grelha, e só passam a coluna à
 direita dela em ecrãs com mais de 1600px. **As três vistas** (por
-celebração · por fim estimado · Entidades) estão logo por baixo do
-cabeçalho, por cima do filtro, e são as mesmas nas Entidades (J2,
-1/10/2026).
+celebração · por fim estimado · Entidades · Concorrentes) estão logo
+por baixo do cabeçalho, por cima do filtro, e são as mesmas nas
+Entidades e nos Concorrentes (J2, 1/10/2026).
+
+**Concorrentes** (`/concorrentes`, desde 1/10/2026, L5): os fornecedores
+que concorreram nos contratos do perfil da empresa (o CPV do interesse;
+sem perfil, ou com «ver tudo», todos) nos últimos dois anos, a partir
+das listas que a recolha já leu (`concorrencia_no_perfil()`). Uma frase
+no topo diz **quantos contratos foram lidos de quantos**, e quantos
+traziam lista. Tabela: fornecedor (abre a ficha) · concorreu · ganhou
+(contratos lidos) · taxa (ganhou ÷ concorreu) · desconto mediano sobre o
+preço base quando ganha (no perfil, de sempre, só com 5 procedimentos
+ou mais). Pagina a 20, e o «N fornecedores» é o total da lista. Nos
+ajustes directos o BASE só lista o adjudicatário, e a nota di-lo. Sem
+nada lido, diz que a recolha ainda não chegou — sem tabela nem zeros. A
+lista guarda-se pelo número de lidos (`lembrado_do_corpus()`).
 
 `/contratos/resumo`: sete gráficos — quem ganha, quem compra, como se
 compra, concentração, tamanho dos contratos, desconto, evolução —, cada
@@ -1259,6 +1289,14 @@ título de cada uma di-lo («· sempre»). **O filtro vem depois dos
 números e do nosso lado** (E11, 1/10/2026): vive no topo da coluna do
 Portal BASE, recolhido em «Filtrar os contratos», e abre quando está em
 uso. A tabela do fim chama-se «Os últimos contratos que ganhou».
+
+**A concorrência de um fornecedor** (desde 1/10/2026, L5): no topo da
+coluna do Portal BASE, o cartão «Concorrência» (`concorrencia_cx()`)
+diz «Concorreu a N contratos lidos, ganhou M» e **quem lhe ganha** — os
+que mais vezes ganharam um contrato em que ele constou da lista e não
+ganhou. Só aparece a quem consta de alguma lista lida. **Quem só
+concorreu e nunca ganhou** não está nas entidades do corpus, e a ficha
+existe na mesma: o nome vem da lista do BASE, e o cartão é o que tem.
 
 ### 4.8 Configurações — `/configuracoes/…`
 
@@ -1948,7 +1986,10 @@ Para não desenhares o que não se pode fazer:
   `causesPriceChange`, o PDF do contrato e o link das peças). É um pedido
   por contrato, não uma coluna. **Desde 1/10/2026 recolhe-se** (o
   `contratos-concorrentes.db`, §2.2), devagar, por causa da firewall do
-  BASE; os ecrãs que o mostram são a segunda parte do L5.
+  BASE. Mostram-no, desde o mesmo dia, o «Quem costuma concorrer» da
+  ficha do anúncio, a aba Concorrentes do Mercado (§4.6), a ficha do
+  fornecedor (§4.7), a faixa do desfecho da proposta (§4.5) e o «Quem
+  nos ganha» da Situação (§4.2).
 - **Preços das propostas perdedoras** — não estão em lado nenhum público.
 - **Relatórios preliminares e finais** — só chegam a quem concorre, pela
   plataforma, com sessão iniciada.

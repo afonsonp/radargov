@@ -26944,6 +26944,182 @@ class TestQuemCostumaConcorrer(BaseTemporaria):
         self.assertEqual(radar.concorrentes_cx(self.a, "599999999"), "")
 
 
+class TestOsEcrasDosConcorrentes(BaseTemporaria):
+    """L5 do plano de Outubro, a segunda parte (1/10/2026): os quatro
+    ecrãs que leem a lista dos concorrentes -- a aba Concorrentes do
+    Mercado, a ficha de um fornecedor, a proposta quando o BASE fecha o
+    contrato, e o «Quem nos ganha» da Situação. Mapeiam e não decidem:
+    cada número diz em quantos contratos lidos se baseia, e sem nada
+    lido o ecrã diz que a recolha não chegou -- e não mostra «0»."""
+
+    ENTIDADE = "500000000"
+    A, B, C = "509999999", "508888888", "507777777"
+    NOMES = {A: "Alfa, Lda", B: "Beta, SA", C: "Gama, Lda"}
+
+    def setUp(self):
+        super().setUp()
+        radar._MEMORIA_DO_CORPUS.clear()
+        self.addCleanup(radar._MEMORIA_DO_CORPUS.clear)
+        self.cliente = radar.app.test_client()
+        radar.iniciar_corpus()
+        recente = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+        # (id, cpv, quem ganhou, quem concorreu)
+        self.contratos = ((1, "45000000", self.B, (self.A, self.B)),
+                          (2, "45000000", self.A, (self.A, self.B)),
+                          (3, "45000000", self.B, (self.A, self.B, self.C)),
+                          (4, "72000000", self.C, (self.C,)))
+        with radar.liga_corpus() as c:
+            for id_, cpv, ganhou, _ in self.contratos:
+                c.execute("INSERT INTO contratos (id, ano, adjudicante_chave, "
+                          "data_publicacao, data_celebracao, n_anuncio, preco_base, "
+                          "preco_contratual, tipo_procedimento) VALUES (?,?,?,?,?,?,?,?,?)",
+                          (id_, int(recente[:4]), self.ENTIDADE, recente, recente,
+                           "%d/2026" % id_, 100000, 90000, "Concurso público"))
+                c.execute("INSERT INTO contrato_cpv VALUES (?,?)", (id_, cpv))
+                c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                          "nome_norm, chave) VALUES (?,?,?,?,?)",
+                          (id_, ganhou, self.NOMES[ganhou], "x", ganhou))
+
+    def ler(self, ids=(1, 2, 3, 4)):
+        with radar.liga_concorrentes() as k:
+            for id_, _, _, quem in self.contratos:
+                if id_ in ids:
+                    radar.gravar_detalhe(k, id_, {"contestants": [
+                        {"nif": n, "description": self.NOMES[n]} for n in quem]},
+                        "2026-10-01 10:00:00")
+
+    def pagina(self, url):
+        r = self.cliente.get(url)
+        self.assertEqual(r.status_code, 200, url)
+        return r.get_data(as_text=True)
+
+    # 1. a aba Concorrentes do Mercado
+
+    def test_a_aba_conta_quem_concorre_e_quem_ganha(self):
+        self.ler()
+        d = radar.concorrencia_no_perfil({})
+        self.assertEqual((d["ambito"], d["lidos"], d["com_lista"]), (4, 4, 4))
+        self.assertEqual([(f["chave"], f["concorreu"], f["ganhou"]) for f in d["linhas"]],
+                         [(self.B, 3, 2), (self.A, 3, 1), (self.C, 2, 1)])
+        h = self.pagina("/concorrentes")
+        self.assertIn("4 lidos de 4 contratos nos últimos 2 anos", h)
+        self.assertIn("Beta, SA", h)
+        self.assertIn("/entidade/%s" % self.A, h)
+        self.assertIn(radar.pct_pt(2 / 3, 0), h)       # a taxa do Beta, 2 de 3
+
+    def test_a_aba_recorta_pelo_perfil(self):
+        self.ler()
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "45"})
+        d = radar.concorrencia_no_perfil({})
+        self.assertEqual((d["ambito"], d["lidos"]), (3, 3))
+        self.assertIn((self.C, 1, 0), [(f["chave"], f["concorreu"], f["ganhou"])
+                                       for f in d["linhas"]])
+        self.assertIn("3 lidos de 3 contratos do perfil",
+                      self.pagina("/concorrentes"))
+        # o «ver tudo» levanta o perfil
+        self.assertIn("4 lidos de 4 contratos nos",
+                      self.pagina("/concorrentes?interesse=nao"))
+
+    def test_a_aba_sem_nada_lido_diz_que_a_recolha_nao_chegou(self):
+        h = self.pagina("/concorrentes")
+        self.assertIn("a recolha ainda não leu nenhum", h)
+        self.assertNotIn("0 lidos", h)
+        self.assertNotIn("<table", h)
+
+    def test_o_numero_da_aba_e_a_lista_que_ela_mostra(self):
+        """A regra da casa: o «3 fornecedores» tem de dar exactamente as
+        linhas da lista, página a página."""
+        self.ler()
+        with unittest.mock.patch.object(radar, "CABEM_NA_LISTA", 2):
+            h1 = self.pagina("/concorrentes")
+            h2 = self.pagina("/concorrentes?pag=2")
+        self.assertIn("<b>3 fornecedores</b>", h1)
+        linhas = [re.findall(r"<tr><td><a class='' href='/entidade/(\d+)'", h)
+                  for h in (h1, h2)]
+        self.assertEqual([len(x) for x in linhas], [2, 1])
+        self.assertEqual(sorted(linhas[0] + linhas[1]), sorted([self.A, self.B, self.C]))
+
+    def test_o_mercado_tem_a_vista(self):
+        for url in ("/entidades", "/concorrentes"):
+            self.assertIn("href='/concorrentes'>Concorrentes", self.pagina(url))
+
+    # 2. a ficha do fornecedor
+
+    def test_a_ficha_do_fornecedor_diz_a_quantos_concorreu_e_quem_lhe_ganha(self):
+        self.ler()
+        d = radar.concorrencia_do_fornecedor(self.A)
+        self.assertEqual((d["lidos"], d["concorreu"], d["ganhou"]), (4, 3, 1))
+        # o Beta ganhou o 1 e o 3, onde o Alfa constou e não ganhou
+        self.assertEqual([(g["chave"], g["vezes"]) for g in d["ganham"]], [(self.B, 2)])
+        # o Alfa não está nas `entidades` do corpus: a ligação da aba não
+        # pode dar 404
+        h = self.pagina("/entidade/%s" % self.A)
+        self.assertIn("Concorreu a 3 contratos lidos, ganhou 1.", h)
+        self.assertIn("Beta, SA", h)
+
+    def test_a_ficha_sem_nada_lido_nao_tem_cartao(self):
+        self.assertEqual(radar.concorrencia_cx(self.A), "")
+        self.assertEqual(self.cliente.get("/entidade/%s" % self.A).status_code, 404)
+
+    # 3. a proposta, quando o BASE fecha o contrato
+
+    def _proposta(self, ref="1/2026"):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, "
+                      "url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      (ref, "Obras", "Município", "2026-03-01",
+                       "Anúncio de procedimento", "https://dr/1"))
+        return radar.criar_proposta(ref, estado="submetido")
+
+    def test_a_proposta_propoe_perdida_e_nao_muda_sozinha(self):
+        id_ = self._proposta()
+        self.ler()
+        radar.gravar_config({"nif_da_empresa": self.A})
+        linhas = radar.desfecho_do_anuncio("1/2026")
+        self.assertIs(radar.consta_da_lista(linhas), True)
+        faixa = radar.faixa_do_desfecho(radar.proposta(id_), linhas)
+        self.assertIn("A sua empresa consta da lista de concorrentes; o contrato "
+                      "foi para Beta, SA.", faixa)
+        self.assertIn("mg-btn--primary'>Perdemos", faixa)
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
+
+    def test_sem_lista_lida_nao_se_propoe_nada(self):
+        id_ = self._proposta()
+        radar.gravar_config({"nif_da_empresa": self.A})
+        linhas = radar.desfecho_do_anuncio("1/2026")
+        self.assertIsNone(radar.consta_da_lista(linhas))      # nada lido
+        self.ler(ids=(2,))
+        self.assertIsNone(radar.consta_da_lista(linhas))      # lido, mas outro
+        faixa = radar.faixa_do_desfecho(radar.proposta(id_), linhas)
+        self.assertNotIn("consta da lista", faixa)
+        self.assertNotIn("mg-btn--primary'>Perdemos", faixa)
+        # lido, e a empresa não consta: não se propõe
+        self.ler(ids=(1,))
+        radar.gravar_config({"nif_da_empresa": "506666666"})
+        self.assertIs(radar.consta_da_lista(linhas), False)
+
+    # 4. a Situação
+
+    def test_a_situacao_diz_quem_nos_ganha(self):
+        self.ler()
+        radar.gravar_config({"nif_da_empresa": self.A})
+        h = self.pagina("/situacao")
+        self.assertIn("Quem nos ganha", h)
+        self.assertIn("A empresa consta da lista de concorrentes de 3 contratos "
+                      "lidos, e ganhou 1.", h)
+        self.assertIn("Beta, SA", h)
+
+    def test_a_situacao_sem_nif_ou_sem_dados_diz_porque(self):
+        self.assertIn("Falta o NIF da empresa", radar.quem_nos_ganha_cx())
+        radar.gravar_config({"nif_da_empresa": self.A})
+        h = radar.quem_nos_ganha_cx()
+        self.assertIn("ainda não leu nenhum contrato", h)
+        self.assertNotIn("<table", h)
+        self.ler(ids=(4,))
+        self.assertIn("ainda não consta de nenhuma lista",
+                      radar.quem_nos_ganha_cx())
+
+
 
 class TestOsPlanos(BaseTemporaria):
     """L2.1 do plano de Outubro, com os planos de 1/10/2026 (decisão
