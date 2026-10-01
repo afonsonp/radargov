@@ -13612,7 +13612,7 @@ class TestSitePublico(BaseTemporaria):
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
     BOM = {"nome": "Ana Silva", "empresa": "Obras Lda",
            "email": "ana@obras.pt", "sector": "Obras públicas e construção",
-           "mensagem": "CPV 45", "nif": "123456789", "plano": "equipa"}
+           "mensagem": "CPV 45", "nif": "123456789", "plano": "duo"}
 
     def setUp(self):
         super().setUp()
@@ -18196,14 +18196,14 @@ class TestConvites(BaseTemporaria):
         self.assertEqual(radar.empresas_existentes(), [1, 2])
 
     def test_aceitar_poe_o_plano_que_o_pedido_escolheu(self):
-        """L2.1: a oferta de fundador é o Equipa a preço de fundador."""
+        """L2.1: a oferta de fundador é o Duo a preço de fundador."""
         with radar.liga() as c:
             c.execute("UPDATE pedidos_acesso SET plano='fundador' WHERE id=?",
                       (self.pedido,))
         self.aceitar()
         with radar.liga() as c:
             p = radar.contas.plano_da_empresa(c, 2)
-        self.assertEqual((p["plano"], p["fundador"], p["utilizadores"]), ("equipa", 1, 5))
+        self.assertEqual((p["plano"], p["fundador"], p["utilizadores"]), ("duo", 1, 2))
 
     def test_o_nif_do_pedido_passa_para_a_empresa(self):
         """30/09/2026: o site pede o NIF, que é o da fatura; aceitar o
@@ -25970,7 +25970,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
 
     def test_o_nif_escrito_a_mao_grava_se_limpo(self):
         self.assertTrue(self.pedir(nif=" PT 123 456 789 ").get_json()["ok"])
-        self.assertEqual(tuple(self.ultimo()), ("123456789", "equipa"))
+        self.assertEqual(tuple(self.ultimo()), ("123456789", "duo"))
 
     def test_um_nif_errado_diz_se_como_tal(self):
         r = self.pedir(nif="123456788")
@@ -25998,7 +25998,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
                 lambda assunto, corpo, cfg=None: enviados.append(corpo) or (True, "ok")):
             TestSitePublico._avisar_original(0, dict(self.BOM))
         self.assertIn("NIF: 123456789", enviados[0])
-        self.assertIn("Interessa-lhe: Equipa", enviados[0])
+        self.assertIn("Interessa-lhe: Duo", enviados[0])
 
     def test_o_site_diz_os_planos_e_nao_a_beta_gratuita(self):
         with open(radar.SITE, encoding="utf-8") as f:
@@ -27329,12 +27329,13 @@ class TestOsEcrasDosConcorrentes(BaseTemporaria):
 
 class TestOsPlanos(BaseTemporaria):
     """L2.1 do plano de Outubro, com os planos de 1/10/2026 (decisão
-    dele): Solo (1 utilizador, uma sessão de cada vez), Equipa (até 5) e
-    Corporate (o número acordado). O que estes testes seguram: o limite
+    dele): Solo (1 utilizador, uma sessão de cada vez), Duo (2, desde o
+    mesmo dia, em vez do Equipa até 5) e Corporate (o número acordado).
+    Todos têm as mesmas funcionalidades: só muda o número de pessoas. O que estes testes seguram: o limite
     conta as contas E os convites por usar; o convite volta a conferir ao
     ser usado; no Solo a última entrada fecha as outras e quem foi fechado
     sabe porquê; a empresa sem plano não tem limites; aceitar um pedido
-    põe o plano que ele escolheu; e o cofre fecha-se no Solo."""
+    põe o plano que ele escolheu; e o cofre abre em todos."""
 
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
 
@@ -27367,21 +27368,48 @@ class TestOsPlanos(BaseTemporaria):
                 radar.contas.criar_convite(c, 1, "", "tester")
         self.assertIn("O plano Solo da empresa tem 1 utilizador", str(erro.exception))
 
-    def test_o_equipa_tem_cinco_e_o_corporate_o_acordado(self):
-        self.plano("equipa")
+    def test_o_duo_tem_dois_e_o_terceiro_convite_recusa(self):
+        """1/10/2026, decisão dele: «a equipa tem no máximo 2 utilizadores».
+        Com o Equipa de 5, o segundo convite passava."""
+        self.plano("duo")
+        self.conta("ana")
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 1)
+            radar.contas.criar_convite(c, 1, "", "tester")
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 0)
+            with self.assertRaises(ValueError) as erro:
+                radar.contas.criar_convite(c, 1, "", "tester")
+        self.assertIn("O plano Duo da empresa tem 2 utilizadores", str(erro.exception))
+        self.assertEqual(radar.contas.PLANOS["duo"], ("Duo", 2))
+        self.assertNotIn("equipa", radar.contas.PLANOS)
+        with radar.liga() as c, self.assertRaises(ValueError):
+            radar.contas.gravar_plano(c, 1, "equipa")
+
+    def test_o_corporate_tem_o_acordado(self):
+        self.plano("corporate", utilizadores=10)
         for i in range(3):
             self.conta("pessoa%d" % i)
-        with radar.liga() as c:
-            self.assertEqual(radar.contas.lugares_livres(c, 1), 2)
-        self.plano("corporate", utilizadores=10)
         with radar.liga() as c:
             self.assertEqual(radar.contas.lugares_livres(c, 1), 7)
         self.plano("corporate")
         with radar.liga() as c:
             self.assertIsNone(radar.contas.lugares_livres(c, 1))
 
+    def test_uma_linha_do_equipa_passa_a_duo(self):
+        """A tabela estava vazia quando o Equipa saiu, mas uma base que o
+        tivesse gravado passa a Duo, com 2 lugares, ao arrancar; e passar
+        outra vez não muda nada."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO planos (empresa_id, plano, periodo, fundador, "
+                      "utilizadores, desde) VALUES (1, 'equipa', 'anual', 1, 5, '2026-10-01')")
+            radar.contas.iniciar_tabelas(c)
+            radar.contas.iniciar_tabelas(c)
+            p = radar.contas.plano_da_empresa(c, 1)
+        self.assertEqual((p["plano"], p["utilizadores"], p["periodo"], p["fundador"]),
+                         ("duo", 2, "anual", 1))
+
     def test_o_convite_confere_outra_vez_ao_ser_usado(self):
-        self.plano("equipa")
+        self.plano("duo")
         with radar.liga() as c:
             codigo = radar.contas.criar_convite(c, 1, "", "tester")
         self.plano("solo")                 # desceu depois do convite
@@ -27402,8 +27430,8 @@ class TestOsPlanos(BaseTemporaria):
             self.assertTrue(radar.contas.foi_fechada_por_outra(c, primeira))
             self.assertFalse(radar.contas.foi_fechada_por_outra(c, primeira))  # uma vez
 
-    def test_no_equipa_as_sessoes_ficam(self):
-        self.plano("equipa")
+    def test_no_duo_as_sessoes_ficam(self):
+        self.plano("duo")
         self.conta("ana")
         with radar.liga() as c:
             primeira, _ = radar.contas.entrar(c, "ana", "senha-comprida")
@@ -27423,15 +27451,53 @@ class TestOsPlanos(BaseTemporaria):
         h = self.cliente.get("/entrar?fechada=1", environ_base=self.FORA).get_data(as_text=True)
         self.assertIn("entrou noutro aparelho", h)
 
-    def test_o_cofre_fecha_no_solo(self):
-        self.assertFalse(radar.cofre_fechado())       # sem plano, aberto
-        self.plano("solo")
-        self.assertTrue(radar.cofre_fechado())
-        h = self.cliente.get("/configuracoes/documentos").get_data(as_text=True)
-        self.assertIn("é do plano Equipa", h)
-        self.plano("equipa")
-        self.assertFalse(radar.cofre_fechado())
+    def test_o_cofre_abre_em_todos_os_planos(self):
+        """1/10/2026: «todos os planos têm exactamente a mesma coisa, só
+        muda o número de pessoas». O cofre fechava no Solo."""
+        self.assertFalse(hasattr(radar, "cofre_fechado"))
+        for plano in ("solo", "duo", "corporate"):
+            self.plano(plano)
+            h = self.cliente.get("/configuracoes/documentos").get_data(as_text=True)
+            self.assertNotIn("no Solo não há cofre", h, plano)
+            self.assertIn("Acrescentar", h, plano)
+            r = self.cliente.post("/configuracoes/documentos",
+                                  data={"tipo": radar.TIPOS_DE_DOCUMENTO[0],
+                                        "descricao": plano, "validade": ""})
+            self.assertEqual(r.status_code, 302, plano)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM documentos_da_empresa"
+                                       ).fetchone()[0], 3)
 
+    def test_o_site_e_os_termos_nao_separam_os_planos_por_funcionalidades(self):
+        """Os três planos têm o mesmo; o que muda é o número de pessoas. O
+        site dizia «Tudo o que o Solo tem» e listava o trabalho em equipa
+        só no Equipa, e as exportações só no Corporate; e o título dizia
+        «Preços sem IVA»."""
+        pasta = os.path.dirname(radar.SITE)
+        textos = {}
+        for nome in ("index.html", "termos.html", "llms.txt"):
+            with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                textos[nome] = f.read()
+        site = textos["index.html"]
+        titulo = re.search(r'<h2 id="t-planos">(.*?)</h2>', site).group(1)
+        self.assertEqual(titulo, "Três planos.")
+        cartoes = site.split('<div class="planos">', 1)[1].split("</section>", 1)[0]
+        self.assertEqual(len(re.findall(r'<article class="plano', cartoes)), 3)
+        for h3 in ("Solo", "Duo", "Corporate"):
+            self.assertIn(">%s</h3>" % h3, cartoes)
+        for nome, texto in textos.items():
+            for frase in ("Tudo o que o Solo", "Tudo o que o Duo", "Equipa tem", "o Equipa", "no Equipa",
+                          "plano Equipa", "Até 5", "até cinco", "Até cinco",
+                          "As exportações", "e as exportações",
+                          "mais o trabalho em equipa"):
+                self.assertNotIn(frase, texto, "%s: %s" % (nome, frase))
+        self.assertNotIn('"name": "Equipa"', site)
+        self.assertIn('"name": "Duo"', site)
+        self.assertNotIn('value="equipa"', site)
+        self.assertNotIn('data-plano="equipa"', site)
+        # nenhum cartão lista funcionalidades suas: a lista é uma, para todos
+        for artigo in re.findall(r'<article class="plano.*?</article>', cartoes, re.S):
+            self.assertNotIn("<li>", artigo)
 
 
 
