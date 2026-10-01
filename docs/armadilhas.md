@@ -3825,9 +3825,12 @@ botões ou no calendário.
   não se troca.** O `mil_pt()` usa um espaço inquebrável de propósito
   (com um normal, o browser parte «1 363 300» ao fim da linha), mas a
   30px esse espaço tem a largura de um algarismo e «209 903» lê-se como
-  dois números. O `.kpi .v` leva `word-spacing:-.3em`, e mais nada: a
+  dois números. O `.kpi .v` levava `word-spacing:-.3em`, e mais nada: a
   11 ou 12px o espaço está certo, e o `mil_pt()` serve também a consola
-  e os dois CSV.
+  e os dois CSV. (O `.kpi` saiu a 1/10/2026 com o CSS morto: o número
+  grande é o `.mg-stat__value` do sistema, que não aperta. Se o «209 903»
+  voltar a ler-se como dois, o aperto vai para a nossa folha, nesse
+  selector.)
 
 - **A escala de texto nova tem um patamar só.** A antiga tinha dois —
   `--t1..--t4` passavam AA em todo o lado e `--t5`/`--t6` só nalguns —
@@ -4630,6 +4633,20 @@ botões ou no calendário.
   desenhava-se por cima da primeira, sem erro. A segunda desce para a
   linha 4 (`.topo>.abas-mercado+.mg-tabs`). Uma página do `TOPO` que
   passe mais de uma barra em `abas=` precisa da sua linha.
+- **Uma regra de CSS que nenhum HTML gera sai, e um teste di-lo**
+  (o 18 da auditoria dos pesos, 1/10/2026). O `CSS` e o `CSS_NOVO`
+  guardavam 98 regras de ecrãs que já não existiam (o `.kpi`, o `h1.tit`
+  e o `p.subtit`, o cartão `.item-*`, o `.hj-l` e o `.hj-p`, os `.sit-n`,
+  os `.delta`, o `.cx`, as `.abas`), com pesos 620, 680 e 700 que
+  ninguém via e que enganavam quem lia a folha à procura do que pinta um
+  ecrã. O `test_nenhuma_regra_do_css_pede_uma_classe_que_o_codigo_nao_gera`
+  confere que cada classe de uma regra aparece numa cadeia do código —
+  é uma prova por baixo (uma palavra noutro sentido conta como usada), e
+  por isso o `.cx` e as `.abas` vão nele pelo nome. **Quando um ecrã
+  troca de marcação, as regras da marcação velha saem no mesmo commit**;
+  ficarem «por via das dúvidas» é como chegaram a cem. O
+  `.mg-tag:has(.mg-tag__dot)::before` da nossa folha fica: é para as
+  etiquetas que ainda não existem.
 
 ## Convenções
 

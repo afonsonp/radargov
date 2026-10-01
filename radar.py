@@ -14753,18 +14753,6 @@ details.porque > summary > .mg-disc__q{align-self:center}
 details.porque-bloco > summary{gap:7px}
 details.porque-bloco .rot{margin:0}
 details.porque-bloco > .nota{margin:6px 0 12px}
-h1.tit{margin:8px 0 0;font:700 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);
- letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
-p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);
- max-width:820px;text-wrap:pretty}
-.abas{display:flex;align-items:center;gap:4px;margin-top:14px}
-.abas a{padding:9px 14px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font:600 var(--text-xs)/1 var(--font-sans);
- background:transparent;color:var(--ink-secondary);border:1px solid transparent;
- border-bottom:none;margin-bottom:-1px}
-.abas a:hover{color:var(--ink)}
-.abas a.on{background:var(--surface-raised);color:var(--ink);border-color:var(--line);font-weight:700}
-.abas a i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted);margin-left:4px}
-.abas a.on i{color:var(--ink-secondary)}
 /* A escada (15/09/2026): dez ranhuras mais o "todos" nao cabem numa
    linha de tabuladores como as quatro abas de antes. Rolam na
    horizontal, e as tres naturezas distinguem-se -- as duas pontas (a
@@ -14798,8 +14786,6 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .larg{max-width:1560px}
 
 /* pecas comuns */
-.cx{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);
- box-shadow:var(--shadow-sm)}
 .rot{font:700 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);text-transform:uppercase;
  letter-spacing:.07em}
 .nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
@@ -14812,13 +14798,6 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .flash form.desfazer{margin-left:10px;vertical-align:middle}
 .flash code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
  padding:2px 6px;border-radius:var(--radius-sm)}
-.tag{font:500 var(--text-xs)/1 var(--font-sans);padding:4px 7px;border-radius:var(--radius-sm);
- background:var(--surface-sunken);color:var(--ink-secondary);white-space:nowrap}
-.tag.mono{font-family:var(--font-mono)}
-.tag.ok{background:var(--success-soft);color:var(--success);font-weight:600}
-.tag.avisa{background:var(--warning-soft);color:var(--warning);font-weight:600}
-.tag.mau{background:var(--danger-soft);color:var(--danger);font-weight:600}
-.tag.info{background:var(--brand-soft);color:var(--brand);font-weight:600}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
@@ -14968,9 +14947,6 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .ent-nomes>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .ent-nomes span{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
  background:var(--surface-sunken);padding:4px 8px;border-radius:var(--radius-sm)}
-.kpis.dois{grid-template-columns:repeat(2,minmax(0,1fr))}
-.kpi .r{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
- letter-spacing:.07em}
 .ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
  background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
@@ -15098,21 +15074,11 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .tab-mercado tr:last-child td{border-bottom:0}
 /* a coluna do objecto pode ser longa; a tabela rola dentro da caixa em
    vez de empurrar a ficha toda para o lado */
-.ref-preco{border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;
- margin-bottom:14px;background:var(--surface-raised);
- font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-secondary)}
-.ref-preco b.bom{color:var(--success)}
-.ref-preco b.mau{color:var(--danger)}
 .escada{display:flex;gap:8px;margin:12px 0 4px}
 .escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
  border-radius:var(--radius-sm);background:var(--surface-raised);border:1px solid var(--line);
  font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:center}
 .escada span b{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
-/* o rotulo desta esta sobre fundo azul-claro e nao sobre branco: com
-   --t4 ficava a 4,3:1, por baixo do limite */
-.escada span.med{border-color:var(--brand);background:var(--brand-soft)}
-.escada span.med{color:var(--ink-secondary)}
-.escada span.med b{color:var(--brand)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
 .mercado code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
@@ -15267,24 +15233,9 @@ details.painel-filtros .pf-sub{font:400 var(--text-xs)/1.4 var(--font-sans);colo
  border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
  overflow:hidden}
 .item:hover{border-color:var(--line-strong)}
-.item-corpo{padding:14px 17px;min-width:0}
 .item-titulo{font:700 var(--text-md)/1.35 var(--font-sans);color:var(--brand);display:block;
  letter-spacing:-.1px;text-wrap:pretty}
 .item-titulo:hover{color:var(--ink)}
-.item-entidade{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary);margin-top:5px}
-.item-entidade .quando{color:var(--ink-muted)}
-.item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-.item-lado{padding:14px 17px;border-left:1px solid var(--surface-sunken);display:flex;
- flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}
-/* O prazo e o que decide, e le-se antes do preco. As tres cores sao as
-   mesmas das etiquetas de estado (etiqueta_prazo devolve a classe): o
-   que muda e o peso -- aqui e um numero, nao um distintivo. */
-.item-prazo{font:700 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary)}
-.item-prazo.mau{color:var(--danger)}
-.item-prazo.avisa{color:var(--warning)}
-.item-prazo.ok{color:var(--success)}
-.item-preco{font:600 var(--text-sm)/1.2 var(--font-mono);color:var(--ink)}
-.item-accoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 /* o motivo do abandono pergunta-se numa caixa por cima (decisao do
    Afonso a 01/09/2026): um selector ao lado do botao punha uma pergunta
    permanente em cada uma das vinte linhas da lista, e a lista e para
@@ -15337,8 +15288,6 @@ dialog.mg-dialog .escolhas .motivo-bt{justify-content:flex-start;text-align:left
  font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);display:inline-block;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .bt-leve:hover{color:var(--brand);text-decoration:underline}
-/* um titulo vazio nao ocupa espaco: a ficha nao usa o cabecalho grande */
-h1.tit:empty,p.subtit:empty{display:none}
 .facto{background:var(--surface-raised);padding:12px 15px;flex:1 1 180px;min-width:0}
 .facto .k{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.08em}
@@ -15501,10 +15450,6 @@ button.tirar:hover{color:var(--danger)}
    Com o quadro fora, é este o controlo que move um concurso na escada:
    oito destinos não cabem em botões, e dois botões de avançar/recuar
    davam vários gestos a qualquer salto -- e saltar é o caso. */
-/* Na mesma linha dos botoes e nao por baixo deles: a linha da lista
-   ficava com duas alturas, e vinte linhas assim sao um ecra a mais. */
-.item-accoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
- justify-content:flex-end}
 .ranhura{display:flex;align-items:center;gap:4px}
 /* A coluna da ranhura tem de caber a palavra mais comprida ("A
    preparar proposta"): numa `td.curta` o select encolhia e mostrava "A
@@ -15538,7 +15483,6 @@ td.celula-ranhura{white-space:nowrap;width:1%}
  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
 .prop-campos button:not(.mg-btn):hover{border-color:var(--brand);color:var(--brand)}
-.prop-accoes{display:flex;gap:6px;flex-wrap:wrap}
 /* o que falta fazer, por proposta */
 .prop-tarefas{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-strong)}
 .prop-tarefas .rot{margin-bottom:8px}
@@ -15672,13 +15616,6 @@ a.ct-l{color:var(--brand)}
  margin:0 0 12px;font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 
 /* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`. */
-.kpis a.kpi{display:block;color:inherit}
-.kpis a.kpi:hover{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
-.kpis a.kpi:hover .r{color:var(--brand)}
-.entrada-hoje{margin:14px 0 18px}
-.entrada-hoje.mau{color:var(--danger)}
-.cx.hoje > h2{font:620 var(--text-lg)/1.3 var(--font-sans);color:var(--ink);
- margin:0 0 14px;letter-spacing:-.2px}
 /* Quatro baldes e nao uma ordem por data: o atrasado de ontem e outra
    categoria e nao um dia pior, e uma lista so por data poe-no a seguir
    ao de hoje como se fosse a mesma coisa. */
@@ -15689,33 +15626,11 @@ a.ct-l{color:var(--brand)}
 .hj-t i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted)}
 .hj-g.mau .hj-t{color:var(--danger)}
 .hj-g.avisa .hj-t{color:var(--warning)}
-.hj-l{display:grid;grid-template-columns:96px minmax(0,1fr) minmax(0,1fr);
- gap:12px;align-items:baseline;padding:7px 9px;border-radius:var(--radius-sm);
- border-left:2px solid var(--line-strong);color:inherit}
-.hj-l:hover{background:var(--surface-sunken)}
-.hj-g.mau .hj-l{border-left-color:var(--danger)}
-.hj-g.avisa .hj-l{border-left-color:var(--warning)}
 .hj-q{font:600 var(--text-xs)/1.4 var(--font-mono);color:var(--ink-secondary)}
 .hj-q.vago{color:var(--ink-muted);font-weight:400}
 .hj-o{font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink);min-width:0}
-.hj-l:hover .hj-o{color:var(--brand)}
 .hj-c{font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:900px){.hj-l{grid-template-columns:minmax(0,1fr);gap:2px}}
-/* O cabecalho do grupo: as tarefas agrupam-se por PROPOSTA e nao por
-   data dentro do balde (D-c do CICLOS.md) -- 55 tarefas sao ~25
-   concursos, e uma lista de 55 linhas iguais nao diz de que concurso
-   cada uma e. */
-.hj-p{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
- margin:10px 0 3px;padding:0 9px}
-.hj-p a{font:600 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-secondary)}
-.hj-p a:hover{color:var(--brand)}
-.hj-p .tag{font:500 var(--text-xs)/1.5 var(--font-sans)}
-.hj-p form.ranhura{margin-left:auto}
-.hj-l .hj-bts{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
-.hj-l .hj-bts input[type=text]{width:88px;font:400 var(--text-xs)/1.4 var(--font-sans);
- padding:2px 4px}
-.hj-l .hj-bts input[name=quem]{width:76px}
 
 /* --- movimento (17/09/2026)
    As curvas e os keyframes vêm do Open Props, em `estilo/` -- ver o
@@ -15741,7 +15656,7 @@ a.ct-l{color:var(--brand)}
  /* O que responde ao rato ou ao teclado acompanha, em vez de trocar de
     cor de um fotograma para o outro. .12s é o que as duas transitions
     que já existiam usavam -- segue-se o que a casa já tinha. */
- .hj-l,.hj-p a,.ent-num,.hist a,.kpis a.kpi{
+ .ent-num,.hist a{
   transition:background .12s var(--ease-3),color .12s var(--ease-3)}
  .bt,.mini,button{transition:background .12s var(--ease-3),
   border-color .12s var(--ease-3),color .12s var(--ease-3)}
@@ -15763,16 +15678,6 @@ details.perigo[open] > summary{color:var(--danger)}
 .ent-nossas .rot i{font-style:normal;color:var(--ink-muted)}
 
 /* indicadores */
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
- gap:14px}
-.kpi{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);padding:20px;
- box-shadow:var(--shadow-sm)}
-.kpi .r{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
- letter-spacing:.09em}
-.kpi .v{font:700 var(--text-2xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;margin:12px 0 6px}
-.kpi .d{font:500 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
-.ind-grelha{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;
- align-items:start}
 /* A coluna e uma GRELHA de tres faixas -- valor, barra, rotulo -- e nao
    uma coluna flex (16/09/2026). Em flex, o `height:N%` da barra
    resolvia-se contra os 180px do grupo e depois era travado pelo espaco
@@ -15812,9 +15717,6 @@ details.perigo[open] > summary{color:var(--danger)}
  background:var(--surface-sunken);color:var(--ink-muted);font:600 var(--text-xs)/1.3 var(--font-sans);
  text-transform:uppercase;letter-spacing:.06em;vertical-align:middle}
 
-@media (max-width:1100px){
- .ind-grelha{grid-template-columns:minmax(0,1fr)}
-}
 
 /* Ecras estreitos (8/09/2026, pedido do Afonso: "quero que o frontend
    seja responsive"). Ate aqui a barra lateral de 140px comia um terco
@@ -15832,16 +15734,9 @@ details.perigo[open] > summary{color:var(--danger)}
  .barra nav{order:10;flex-basis:100%;margin:2px 0 0}
  .topo{padding:12px 16px 0}
  .corpo{padding:14px 12px 44px}
- h1.tit{font-size:var(--text-lg)}
- .abas{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
- .abas a{white-space:nowrap;padding:9px 10px}
  .linha-conta{flex-wrap:wrap}
  .linha-conta a{margin-left:0}
  .item{grid-template-columns:minmax(0,1fr)}
- .item-corpo{padding:12px 14px}
- .item-lado{border-left:0;border-top:1px solid var(--surface-sunken);flex-direction:row;
-  flex-wrap:wrap;justify-content:space-between;align-items:center;padding:10px 14px;gap:8px}
- .item-accoes{justify-content:flex-start}
  .filtros input[type=text]{min-width:0;flex-basis:100%}
  .filtros select,.filtros input.campo-data{flex:1 1 40%;min-width:0}
  .filtros input#filtro-cpv-excl{width:auto!important;flex:1 1 40%!important}
@@ -15856,7 +15751,6 @@ details.perigo[open] > summary{color:var(--danger)}
  .barras{gap:8px}
  .barras .col{min-width:0}
  .barras .l{white-space:normal;text-align:center;overflow-wrap:anywhere}
- .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
  .conf-indice a i{display:none}
  /* Sete colunas em 375px dao 49px cada, e o titulo sai "Ex...". E a
     mesma avaria do calendario antigo, que mostrava "A pr..." numa celula
@@ -15870,8 +15764,6 @@ details.perigo[open] > summary{color:var(--danger)}
 }
 @media (max-width:600px){
  .barra nav a{padding:7px 7px;font-size:var(--text-xs)}
- h1.tit{font-size:var(--text-lg)}
- .kpis{grid-template-columns:minmax(0,1fr)}
  .filtros select,.filtros input.campo-data{flex-basis:100%}
  .filtros input#filtro-cpv-excl{flex-basis:100%!important}
  .entrar{padding:20px 18px 18px}
@@ -15931,20 +15823,18 @@ CSS_NOVO = r"""
  font-variant-numeric:tabular-nums}
 
 /* Regra 3: as superficies separam-se por tom, nao por risco. */
-[data-pele=novo] .item,[data-pele=novo] .cx,[data-pele=novo] .sec,
-[data-pele=novo] .kpi,[data-pele=novo] .conf-cx,[data-pele=novo] .prop{
+[data-pele=novo] .item,[data-pele=novo] .sec,[data-pele=novo] .conf-cx,[data-pele=novo] .prop{
  border-color:var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
 
 /* Regra 1: hierarquia pelo tamanho e pelo peso. */
-[data-pele=novo] h1.tit{font:680 var(--text-3xl)/1.2 var(--font-sans);letter-spacing:-.6px}
 [data-pele=novo] .item-titulo{font:620 var(--text-lg)/1.3 var(--font-sans);
  letter-spacing:-.2px}
-[data-pele=novo] .abas a,[data-pele=novo] .bt{font-size:var(--text-sm)}
+[data-pele=novo] .bt{font-size:var(--text-sm)}
 
 /* Regra d do diagnostico: as maiusculas espacadas saem. Um rotulo de
    bloco passa a caixa normal, peso 600, --f2 -- le-se melhor, ocupa
    menos, e deixa de obrigar a letra a descer a 9px para caber. */
-[data-pele=novo] .rot,[data-pele=novo] .kpi .r,[data-pele=novo] .facto .k,
+[data-pele=novo] .rot,[data-pele=novo] .facto .k,
 [data-pele=novo] details.sec .st,[data-pele=novo] .prop-campos label,
 [data-pele=novo] details.painel-filtros .pf-tit,
 [data-pele=novo] .desfecho-som span{
@@ -16007,14 +15897,6 @@ CSS_NOVO = r"""
 [data-pele=novo] .mini.perigo:focus-visible{
  background:var(--danger);border-color:var(--danger);color:var(--on-brand)}
 
-/* O separador de milhares e um espaco INQUEBRAVEL (mil_pt), e faz falta:
-   com um normal, o browser parte "1 363 300" ao fim da linha. Mas a
-   30px, na Plex, esse espaco tem a largura de um algarismo e "209 903"
-   le-se como dois numeros. Aperta-se so aqui, no numero de display --
-   a 11 ou 12px o espaco esta certo e nao se toca. Nao se troca o
-   caractere: o mil_pt serve tambem a consola e os dois CSV. */
-[data-pele=novo] .kpi .v{word-spacing:-.3em}
-
 /* --------------------------------------------------------------------
    A ABERTURA REDESENHADA (17/09/2026, pacote «Radar Gov UI redesign»,
    design_handoff_radar/README.md §1).
@@ -16023,20 +15905,6 @@ CSS_NOVO = r"""
    numeros; a linha de factos diz os mesmos quatro numa linha de 20px, e
    o que sobra e a fita da semana -- que responde a "o que fecha esta
    semana" sem ninguem ter de ir ao calendario. */
-
-/* A linha de factos vai na ranhura das abas, logo por baixo do titulo:
-   e onde uma barra de separadores estaria, e por isso nao empurra nada.
-   Cada facto abre a lista que o produz -- a regra da empresa. */
-[data-pele=novo] .factos-linha{display:flex;flex-wrap:wrap;
- align-items:baseline;gap:6px 22px;padding:2px 0 12px}
-[data-pele=novo] .factos-linha a{color:var(--ink-muted);
- font:500 var(--text-sm)/1.5 var(--font-sans)}
-[data-pele=novo] .factos-linha a:hover{color:var(--brand)}
-[data-pele=novo] .factos-linha b{font:600 var(--text-md)/1 var(--font-mono);
- color:var(--ink);margin-right:4px;word-spacing:-.3em}
-[data-pele=novo] .factos-linha b.avisa{color:var(--warning)}
-[data-pele=novo] .factos-linha b.mau{color:var(--danger)}
-[data-pele=novo] .factos-linha .adiante{margin-left:auto;color:var(--ink-secondary)}
 
 /* A fita da semana: sete celulas, 1px de intervalo sobre a linha -- a
    separacao e o fundo a aparecer, nao um risco desenhado (regra 3). */
@@ -16068,7 +15936,6 @@ CSS_NOVO = r"""
  grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:18px;
  align-items:start}
 [data-pele=novo] .lado{display:flex;flex-direction:column;gap:14px}
-[data-pele=novo] .lado .cx{padding:14px 18px}
 
 /* O cabecalho do "Para fazer": o rotulo, as pilhas de pessoa e o
    "esconder as feitas". */
@@ -16083,10 +15950,6 @@ CSS_NOVO = r"""
  color:var(--on-brand)}
 [data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
  margin-left:4px}
-[data-pele=novo] .fazer-fundo{display:flex;gap:18px;padding:12px 16px;
- border-top:1px solid var(--line);flex-wrap:wrap;
- font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
-[data-pele=novo] .fazer-fundo .adiante{margin-left:auto}
 
 /* Os baldes dobram com o <details> do browser -- nao ha JS nenhum a
    guardar isto, e por isso tambem nao ha estado escondido para
@@ -16190,31 +16053,6 @@ CSS_NOVO = r"""
 @media (max-width:900px){
  [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
 
-/* O PONTO DE SITUACAO (redesenho §2). Os quatro numeros sao uma grelha
-   de celulas separadas por 1px de fundo, e nao quatro cartoes: dentro
-   de uma caixa que ja e um cartao, quatro cartoes sao cinco caixas. */
-[data-pele=novo] .sit-numeros{display:grid;
- grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
- background:var(--line);border:1px solid var(--line);border-radius:var(--radius-lg);
- overflow:hidden}
-[data-pele=novo] .sit-n{background:var(--surface-raised);padding:16px 18px;
- display:flex;flex-direction:column;gap:6px}
-[data-pele=novo] .sit-n .r{font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
-[data-pele=novo] .sit-n b{font:600 var(--text-2xl)/1 var(--font-mono);color:var(--ink);
- letter-spacing:-1px;word-spacing:-.3em}
-[data-pele=novo] .sit-n .d{font:400 var(--text-xs)/1.45 var(--font-sans);
- color:var(--ink-muted)}
-/* O `word-spacing` volta ao normal: o aperto de -.3em é do NÚMERO de
-   display (senão "209 903" lê-se como dois números), e aqui o `b` leva
-   uma FRASE -- saía "1de1decididos—ataxadiz-seapartirde5". */
-[data-pele=novo] .sit-n.por-haver b{font:400 var(--text-sm)/1.45 var(--font-sans);
- color:var(--ink-muted);letter-spacing:0;word-spacing:normal}
-[data-pele=novo] .delta{font:600 var(--text-sm)/1 var(--font-mono)}
-[data-pele=novo] .delta.sobe{color:var(--success)}
-[data-pele=novo] .delta.desce{color:var(--danger)}
-[data-pele=novo] .delta.igual,[data-pele=novo] .delta.vago{color:var(--ink-muted);
- font-weight:400}
-
 /* AS ENTIDADES (redesenho §3). A fita do "connosco": um quadrado por
    proposta, com a cor do desfecho. Seis quadrados dizem se correram bem
    antes de se ler a taxa; "6 propostas" nao diz nada disso. */
@@ -16243,12 +16081,8 @@ CSS_NOVO = r"""
 /* A ficha da entidade (redesenho §4): os seis factos, e o NOSSO lado à
    esquerda. Empilhados, o que já fizemos com ela ficava debaixo de seis
    gráficos do mercado -- e é a primeira pergunta ao abrir uma ficha. */
-[data-pele=novo] .sit-numeros.seis{margin:0 0 14px;
- grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
-[data-pele=novo] .sit-numeros.seis .sit-n b{font-size:var(--text-xl)}
 [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,360px) minmax(0,1fr);
  margin-top:14px}
-[data-pele=novo] .ent-dois .lado-nosso > .cx{margin:0}
 @media (max-width:900px){
  [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:760px){

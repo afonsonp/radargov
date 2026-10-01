@@ -495,9 +495,11 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 
 /* Vieram do `miragov-pontes.css` quando ele saiu (24/09/2026): sao as
    duas regras que nao eram pontes, e continuam a fazer falta. */
-/* O CSS antigo pinta fundos a #fff à mão em .cx, .item, .bt, .entrar input, .abas a.on:
-   no tema escuro e no contraste isso quebra. Enquanto a fase 3 não chega, esta regra corrige. */
-[data-theme] .cx, [data-theme] .item, [data-theme] .vazio, [data-theme] .abas a.on, [data-theme] .bt, [data-theme] .entrar input { background: var(--surface-raised); }
+/* O CSS antigo pinta fundos a #fff à mão em .item, .bt, .entrar input:
+   no tema escuro e no contraste isso quebra. Enquanto a fase 3 não chega, esta regra corrige.
+   (O `.cx` e o `.abas a.on` saíram a 1/10/2026, com as regras do CSS antigo que
+   já nenhum ecrã gerava.) */
+[data-theme] .item, [data-theme] .vazio, [data-theme] .bt, [data-theme] .entrar input { background: var(--surface-raised); }
 /* A barra de topo fazia `background:var(--ink)`, que no sistema antigo
    era o quase-preto e no novo é a cor do TEXTO. O sistema tem uma cor
    própria para ela -- `--surface-header`, o azul institucional --, e é

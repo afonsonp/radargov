@@ -15262,12 +15262,12 @@ class TestEcraEstreito(unittest.TestCase):
         # sao da nossa folha, e passam a uma coluna abaixo de 720px
         self.assertIn(".ficha-factos{grid-template-columns:minmax(0,1fr)}",
                       radar.ler_estilo("miragov-radar.css"))
-        self.assertIn(".kpis{grid-template-columns:repeat(2,minmax(0,1fr))}", b)
 
     def test_o_que_e_largo_rola_dentro_de_si_e_nao_na_pagina(self):
         b = self.bloco()
-        for regra in (".abas{overflow-x:auto",
-                      ".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
+        # (o `.abas` saiu a 1/10/2026 com o CSS morto: as abas sao o
+        # `.mg-tabs` do sistema, que rola na nossa folha)
+        for regra in (".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
             self.assertIn(regra, b, regra)
         # o indice da ficha sao pilulas desde 24/09/2026: dobram, e por
         # isso nao ha nada a rolar de lado
@@ -17050,6 +17050,81 @@ class TestConfigPorEmpresa(BaseTemporaria):
                                "WHERE ref='5/2026'").fetchall()
         self.assertEqual([tuple(l) for l in linhas],
                          [("leitura", "peças lidas", "radar")])
+
+
+class TestPesquisaGeralERepor(BaseTemporaria):
+    """Três trabalhos de 1/10/2026 («Faz todos», decisão dele):
+
+    - a pesquisa geral (J1 da auditoria das sete leis, o 2R-D8 do
+      BACKLOG): uma caixa na barra, com Ctrl+K e «/», que acha concurso,
+      proposta, entidade e NIF -- por um índice de texto (`trigram`),
+      porque sem ele cada tecla varria os 210 mil anúncios;
+    - o «esqueci-me» por e-mail (J7): a pessoa pede a ligação de repor
+      sem passar pelo gestor. É uma rota aberta, e por isso cada guarda
+      tem aqui o seu teste;
+    - o CSS morto (o 18 da auditoria dos ícones e dos pesos): regras que
+      nenhum HTML gerado pode usar."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    # ------------------------------------------------------------ o CSS
+
+    @staticmethod
+    def _classes_das_regras(css):
+        """{classe: [selector]} de todas as regras da folha."""
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        saida = {}
+        for cabeca in re.findall(r"([^{}]+)\{", css):
+            for selector in cabeca.split(","):
+                if selector.strip().startswith("@"):
+                    continue
+                for classe in re.findall(r"\.(-?[A-Za-z_][\w-]*)",
+                                         re.sub(r"\[[^\]]*\]", "", selector)):
+                    saida.setdefault(classe, []).append(" ".join(selector.split()))
+        return saida
+
+    def test_nenhuma_regra_do_css_pede_uma_classe_que_o_codigo_nao_gera(self):
+        """O 18 da auditoria dos pesos (1/10/2026): o `CSS` e o `CSS_NOVO`
+        guardavam regras de ecrãs que já não existem -- o `.kpi` dos
+        indicadores antigos, o `h1.tit` e o `p.subtit` da faixa de antes
+        do sistema de desenho, o cartão `.item-*` dos Concursos, o
+        `.hj-l` e o `.hj-p` da abertura agrupada por proposta, os
+        `.sit-n` e os `.delta` da Situação. Pesos soltos (620, 680, 700)
+        que ninguém via e que confundiam quem lia a folha.
+
+        A regra: cada classe que uma regra destas duas folhas pede
+        aparece numa cadeia do `radar.py` (ou do `icones.py`) fora das
+        próprias folhas e das docstrings. É uma prova por baixo -- uma
+        palavra que apareça noutro sentido conta como usada --, e por
+        isso as duas que só existiam assim (`.cx`, que só aparece como
+        atributo de um `<circle>`, e `.abas`, que só é a marca do molde)
+        vão à parte, pelo nome."""
+        import ast
+        arvore = ast.parse(radar_fonte())
+        docs = {id(no.body[0].value) for no in ast.walk(arvore)
+                if isinstance(no, (ast.Module, ast.FunctionDef, ast.ClassDef))
+                and no.body and isinstance(no.body[0], ast.Expr)
+                and isinstance(no.body[0].value, ast.Constant)}
+        folhas = {id(no.value) for no in ast.walk(arvore)
+                  if isinstance(no, ast.Assign) and len(no.targets) == 1
+                  and isinstance(no.targets[0], ast.Name)
+                  and no.targets[0].id in ("CSS", "CSS_NOVO")}
+        cadeias = [no.value for no in ast.walk(arvore)
+                   if isinstance(no, ast.Constant) and isinstance(no.value, str)
+                   and id(no) not in docs and id(no) not in folhas]
+        with open(os.path.join(os.path.dirname(radar.__file__), "icones.py"),
+                  encoding="utf-8") as f:
+            cadeias.append(f.read())
+        palavras = set(re.findall(r"[A-Za-z_][\w-]*", "\n".join(cadeias)))
+        for nome in ("CSS", "CSS_NOVO"):
+            classes = self._classes_das_regras(getattr(radar, nome))
+            mortas = {c: s[:2] for c, s in classes.items()
+                      if c not in palavras or c in ("cx", "abas")}
+            self.assertEqual(mortas, {}, nome)
+
+    # ------------------------------------------------- a pesquisa geral
+
+    # ---------------------------------------------- o «esqueci-me»
 
 
 class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
@@ -19475,7 +19550,7 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         self.assertNotIn("<style>", corpo)
         # a folha inteira não pode estar lá dentro: procura-se uma regra
         # que só existe no CSS, não a marcação
-        self.assertNotIn(".hj-l{display:grid", corpo)
+        self.assertNotIn(".hj-g{margin:0 0 16px}", corpo)
 
     def test_a_folha_serve_se_com_cache_para_sempre(self):
         r = self.cliente.get(radar.FOLHA_CSS)
