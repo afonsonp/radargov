@@ -25470,7 +25470,9 @@ class TestUXMercadoDe1Outubro(_CicloDoTesteComUtilizadores):
         self.assertNotIn("<th>Lote</th>", sem)
         cabecalho = sem.split("<thead><tr>", 1)[1].split("</tr>", 1)[0]
         linha = sem.split("<tbody>", 1)[1].split("</tr>", 1)[0]
-        self.assertEqual(cabecalho.count("<th>"), linha.count("<td"))
+        # "<th" e não "<th>": desde os Concursos (J4) as colunas que
+        # ordenam levam atributos no cabeçalho
+        self.assertEqual(cabecalho.count("<th"), linha.count("<td"))
         with radar.liga() as c:
             c.execute("UPDATE propostas SET lote=2 WHERE id=?", (id_,))
         com = self._ver("/propostas?estado=analisar")
