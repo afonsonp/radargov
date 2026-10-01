@@ -29611,6 +29611,134 @@ def mercado_cx(a, chave, r=None):
         id_="mercado", porque=porque)
 
 
+# Abaixo disto o bloco nao da a media de concorrentes por contrato.
+MINIMO_DE_LIDOS = 3
+
+
+def concorrentes_da_entidade(chave, cpv, topo=8):
+    """Quem concorre aos contratos desta entidade neste CPV, nos ultimos
+    dois anos (L5 do plano de Outubro): a partir do corpus (que contratos
+    sao, e quem os ganhou) e do `contratos-concorrentes.db` (quem
+    concorreu, contrato a contrato). Devolve None sem corpus, CPV ou
+    entidade; senao o ambito, quantos lidos, quantos com lista, a media,
+    e os que mais aparecem -- com quantas vezes ganharam e o desconto
+    mediano sobre o preco base quando ganham neste CPV (a nota dele de
+    1/10/2026). Os concorrentes sem NIF (pessoas) nao entram no topo:
+    a chave e o NIF, nunca o nome.
+
+    ponytail: corre a cada ficha, sem memoria -- 0,6 s no pior caso
+    medido (uma entidade com 27 mil contratos no CPV), mais a leitura do
+    ficheiro dos concorrentes. Se pesar, guarda-se por (chave, CPV, numero
+    de lidos), que muda quando a recolha avanca."""
+    prefixos = [p for p in (prefixo_cpv(x) for x in (cpv or "").split(",")) if p]
+    if not (chave and prefixos and ha_corpus()):
+        return None
+    desde = (datetime.now() - timedelta(days=365 * ANOS_DOS_CONCORRENTES)
+             ).strftime("%Y-%m-%d")
+    frag, vals = prefixos_em_cpv8(prefixos)
+    with liga_corpus() as c:
+        ids = [r[0] for r in c.execute(
+            "SELECT c.id FROM contratos c WHERE c.adjudicante_chave=? AND "
+            "c.data_publicacao >= ? AND " + cpv_da_entidade(frag),
+            [chave, desde] + vals)]
+        ganhos = {}
+        for i in range(0, len(ids), 500):
+            parte = ids[i:i + 500]
+            for r in c.execute("SELECT contrato_id, chave FROM contrato_adjudicatario "
+                               "WHERE contrato_id IN (%s)" % ",".join("?" * len(parte)),
+                               parte):
+                ganhos.setdefault(r[0], set()).add(r[1])
+    detalhe, linhas = {}, []
+    if ids and os.path.exists(ficheiro_dos_concorrentes()):
+        with liga_concorrentes() as k:
+            for i in range(0, len(ids), 500):
+                parte = ids[i:i + 500]
+                marcas = ",".join("?" * len(parte))
+                detalhe.update((r[0], r[1]) for r in k.execute(
+                    "SELECT contrato_id, n_concorrentes FROM detalhe "
+                    "WHERE contrato_id IN (%s)" % marcas, parte))
+                linhas += k.execute("SELECT contrato_id, chave, nome FROM concorrente "
+                                    "WHERE contrato_id IN (%s)" % marcas, parte).fetchall()
+    com_lista = [n for n in detalhe.values() if n]
+    por_chave = {}
+    for contrato_id, ch, nome in linhas:
+        if not ch:
+            continue
+        f = por_chave.setdefault(ch, {"chave": ch, "nome": nome, "vezes": 0, "ganhou": 0})
+        f["vezes"] += 1
+        f["ganhou"] += ch in ganhos.get(contrato_id, ())
+    mais = sorted(por_chave.values(), key=lambda f: (-f["vezes"], -f["ganhou"], f["nome"]))
+    mais = mais[:topo]
+    with liga_corpus() as c:
+        for f in mais:
+            descs = descontos_por_procedimento(
+                c, " WHERE c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
+                   "WHERE chave=?) AND " + cpv_da_entidade(frag), [f["chave"]] + vals)
+            f["descontos"] = len(descs)
+            f["desconto"] = (escaloes_de_desconto(descs)[1]
+                             if len(descs) >= MINIMO_PARA_DESCONTO else None)
+    return {"ambito": len(ids), "lidos": len(detalhe), "com_lista": len(com_lista),
+            "media": (sum(com_lista) / len(com_lista)) if com_lista else None,
+            "mais": mais}
+
+
+def concorrentes_cx(a, chave):
+    """«Quem costuma concorrer» na ficha (L5 do plano de Outubro). Mapeia
+    e nao decide: os numeros sao de quantos contratos lidos, e o bloco
+    di-lo sempre -- a recolha do Portal BASE leva meses."""
+    cpv = (a["cpv"] or "").split(",")[0].strip()
+    try:
+        d = concorrentes_da_entidade(chave, a["cpv"] or "")
+    except sqlite3.Error:
+        d = None
+    if d is None or not d["ambito"]:
+        return ""
+    porque = ("O Portal BASE publica, contrato a contrato, quem concorreu e "
+              "não só quem ganhou. O Mira Gov lê-os um a um, devagar, e por "
+              "isso os números dizem em quantos contratos se baseiam.")
+    meta = ("Portal BASE, contrato a contrato &middot; esta entidade, CPV %s, "
+            "últimos %d anos" % (html.escape(cpv), ANOS_DOS_CONCORRENTES))
+    if not d["lidos"]:
+        return cartao(
+            "Quem costuma concorrer",
+            "<p class='ficha-nota'>Esta entidade tem %s neste CPV nos últimos "
+            "%d anos, e nenhum foi lido ainda: o Mira Gov está a ler o Portal "
+            "BASE contrato a contrato, e chega lá.</p>"
+            % (plural(d["ambito"], "contrato"), ANOS_DOS_CONCORRENTES),
+            meta=meta, id_="concorrentes", porque=porque)
+    base = ("%s lidos de %s neste CPV, %s com a lista de concorrentes"
+            % (mil_pt(d["lidos"]), mil_pt(d["ambito"]), mil_pt(d["com_lista"])))
+    if d["com_lista"] >= MINIMO_DE_LIDOS:
+        media = _celula("Concorrentes por contrato",
+                        ("%.1f" % d["media"]).replace(".", ","),
+                        "Média nos %s com lista" % plural(d["com_lista"], "contrato"),
+                        classe="n")
+    else:
+        media = _celula("Concorrentes por contrato", "poucos contratos para dizer",
+                        "São precisos %d com lista." % MINIMO_DE_LIDOS, apagado=True)
+    tabela = ""
+    if d["mais"]:
+        tabela = (
+            "<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
+            "<th>Fornecedor</th><th class='p'>Concorreu</th><th class='p'>Ganhou</th>"
+            "<th class='p'>Desconto quando ganha</th></tr></thead><tbody>%s</tbody>"
+            "</table></div><p class='ficha-nota'>O desconto é a mediana sobre o "
+            "preço base nos procedimentos que cada um ganhou neste CPV, em todas "
+            "as entidades; só com %d ou mais.</p>"
+            % ("".join(
+                "<tr><td>%s</td><td class='p'>%d</td><td class='p'>%d</td>"
+                "<td class='p'>%s</td></tr>"
+                % (liga_entidade(f["chave"], f["nome"]), f["vezes"], f["ganhou"],
+                   pct_pt(f["desconto"], 0) + " <small>em %d</small>" % f["descontos"]
+                   if f["desconto"] is not None else "—")
+                for f in d["mais"]), MINIMO_PARA_DESCONTO))
+    return cartao(
+        "Quem costuma concorrer",
+        "<p class='ficha-nota'>%s.</p><div class='factos-grelha mercado-grelha'>%s</div>%s"
+        % (base, media, tabela),
+        meta=meta, id_="concorrentes", porque=porque)
+
+
 def volta_a_lista():
     """A lista de onde se veio, com o filtro e a pagina que tinha.
 
@@ -30216,7 +30344,8 @@ def ficha(ref):
                 lotes_html + desfecho_html + pedem_cx +
                 # os homologos e o historico sao tabelas de contratos, e
                 # ficam no mercado: na coluna estreita cortavam-se
-                mercado_cx(a, ch_ent, ref_preco) + docs_cx + anuncio_cx + "</div>" +
+                mercado_cx(a, ch_ent, ref_preco) + concorrentes_cx(a, ch_ent) +
+                docs_cx + anuncio_cx + "</div>" +
                 # a coluna da direita fica presa ao rolar, no computador;
                 # com a proposta deixa de caber e rola com a página (E7)
                 "<div class='ficha-lado%s'>"
