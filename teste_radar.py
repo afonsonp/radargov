@@ -14119,10 +14119,13 @@ class TestContas(BaseTemporaria):
                        # E o ecrã do código do segundo factor
                        # (28/09/2026): a guarda é o pendente
                        # (TestSegundoFactorDoDono)
+                       # E o «esqueci-me» por e-mail (1/10/2026): quem o
+                       # usa não consegue entrar, e a guarda é a origem,
+                       # o tecto e a resposta igual (TestPesquisaGeralERepor)
                        and r.rule not in ("/entrar", "/pedir-acesso",
                                           "/convite/<codigo>",
                                           "/repor/<codigo>",
-                                          "/entrar/codigo"))
+                                          "/entrar/codigo", "/esqueci-me"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -15262,12 +15265,12 @@ class TestEcraEstreito(unittest.TestCase):
         # sao da nossa folha, e passam a uma coluna abaixo de 720px
         self.assertIn(".ficha-factos{grid-template-columns:minmax(0,1fr)}",
                       radar.ler_estilo("miragov-radar.css"))
-        self.assertIn(".kpis{grid-template-columns:repeat(2,minmax(0,1fr))}", b)
 
     def test_o_que_e_largo_rola_dentro_de_si_e_nao_na_pagina(self):
         b = self.bloco()
-        for regra in (".abas{overflow-x:auto",
-                      ".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
+        # (o `.abas` saiu a 1/10/2026 com o CSS morto: as abas sao o
+        # `.mg-tabs` do sistema, que rola na nossa folha)
+        for regra in (".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
             self.assertIn(regra, b, regra)
         # o indice da ficha sao pilulas desde 24/09/2026: dobram, e por
         # isso nao ha nada a rolar de lado
@@ -17050,6 +17053,421 @@ class TestConfigPorEmpresa(BaseTemporaria):
                                "WHERE ref='5/2026'").fetchall()
         self.assertEqual([tuple(l) for l in linhas],
                          [("leitura", "peças lidas", "radar")])
+
+
+class TestPesquisaGeralERepor(BaseTemporaria):
+    """Três trabalhos de 1/10/2026 («Faz todos», decisão dele):
+
+    - a pesquisa geral (J1 da auditoria das sete leis, o 2R-D8 do
+      BACKLOG): uma caixa na barra, com Ctrl+K e «/», que acha concurso,
+      proposta, entidade e NIF -- por um índice de texto (`trigram`),
+      porque sem ele cada tecla varria os 210 mil anúncios;
+    - o «esqueci-me» por e-mail (J7): a pessoa pede a ligação de repor
+      sem passar pelo gestor. É uma rota aberta, e por isso cada guarda
+      tem aqui o seu teste;
+    - o CSS morto (o 18 da auditoria dos ícones e dos pesos): regras que
+      nenhum HTML gerado pode usar."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    # ------------------------------------------------------------ o CSS
+
+    @staticmethod
+    def _classes_das_regras(css):
+        """{classe: [selector]} de todas as regras da folha."""
+        css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+        saida = {}
+        for cabeca in re.findall(r"([^{}]+)\{", css):
+            for selector in cabeca.split(","):
+                if selector.strip().startswith("@"):
+                    continue
+                for classe in re.findall(r"\.(-?[A-Za-z_][\w-]*)",
+                                         re.sub(r"\[[^\]]*\]", "", selector)):
+                    saida.setdefault(classe, []).append(" ".join(selector.split()))
+        return saida
+
+    def test_nenhuma_regra_do_css_pede_uma_classe_que_o_codigo_nao_gera(self):
+        """O 18 da auditoria dos pesos (1/10/2026): o `CSS` e o `CSS_NOVO`
+        guardavam regras de ecrãs que já não existem -- o `.kpi` dos
+        indicadores antigos, o `h1.tit` e o `p.subtit` da faixa de antes
+        do sistema de desenho, o cartão `.item-*` dos Concursos, o
+        `.hj-l` e o `.hj-p` da abertura agrupada por proposta, os
+        `.sit-n` e os `.delta` da Situação. Pesos soltos (620, 680, 700)
+        que ninguém via e que confundiam quem lia a folha.
+
+        A regra: cada classe que uma regra destas duas folhas pede
+        aparece numa cadeia do `radar.py` (ou do `icones.py`) fora das
+        próprias folhas e das docstrings. É uma prova por baixo -- uma
+        palavra que apareça noutro sentido conta como usada --, e por
+        isso as duas que só existiam assim (`.cx`, que só aparece como
+        atributo de um `<circle>`, e `.abas`, que só é a marca do molde)
+        vão à parte, pelo nome."""
+        arvore = ast.parse(radar_fonte())
+        docs = {id(no.body[0].value) for no in ast.walk(arvore)
+                if isinstance(no, (ast.Module, ast.FunctionDef, ast.ClassDef))
+                and no.body and isinstance(no.body[0], ast.Expr)
+                and isinstance(no.body[0].value, ast.Constant)}
+        folhas = {id(no.value) for no in ast.walk(arvore)
+                  if isinstance(no, ast.Assign) and len(no.targets) == 1
+                  and isinstance(no.targets[0], ast.Name)
+                  and no.targets[0].id in ("CSS", "CSS_NOVO")}
+        cadeias = [no.value for no in ast.walk(arvore)
+                   if isinstance(no, ast.Constant) and isinstance(no.value, str)
+                   and id(no) not in docs and id(no) not in folhas]
+        with open(os.path.join(os.path.dirname(radar.__file__), "icones.py"),
+                  encoding="utf-8") as f:
+            cadeias.append(f.read())
+        palavras = set(re.findall(r"[A-Za-z_][\w-]*", "\n".join(cadeias)))
+        for nome in ("CSS", "CSS_NOVO"):
+            classes = self._classes_das_regras(getattr(radar, nome))
+            mortas = {c: s[:2] for c, s in classes.items()
+                      if c not in palavras or c in ("cx", "abas")}
+            self.assertEqual(mortas, {}, nome)
+
+    # ------------------------------------------------- a pesquisa geral
+
+    # fora da ordem da data, de propósito: o índice enche-se pela data, e
+    # é isso que deixa a pesquisa dar os mais recentes primeiro
+    ANUNCIOS = (("102/2026", "Vigilância humana", "Hospital do Norte",
+                 "2026-09-22", "503000003"),
+                ("100/2026", "Sistema de videovigilância", "Município de Évora",
+                 "2026-09-20", "501000001"),
+                ("101/2026", "Limpeza de edifícios", "Câmara de Lagos",
+                 "2026-09-21", "502000002"))
+
+    def _semear_anuncios(self, indice=True):
+        with radar.liga() as c:
+            for ref, titulo, entidade, data, nif in self.ANUNCIOS:
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                          "estado, nif, titulo_norm, entidade_norm) VALUES "
+                          "(?,?,?,?,'novo',?,simplifica(?),simplifica(?))",
+                          (ref, titulo, entidade, data, nif, titulo, entidade))
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                                          pela_consola=True)
+        if indice:
+            self.assertTrue(radar.construir_indice_da_pesquisa(avisar=lambda *_: None))
+
+    def _entrar(self, quem="admin"):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def procurar(self, cliente, q):
+        r = cliente.get("/pesquisa?" + urlencode({"q": q}), environ_base=self.FORA,
+                        headers={"Accept": "application/json"})
+        self.assertEqual(r.status_code, 200, q)
+        # cada resposta diz quanto levou (o objectivo: < 0,3 s a quente)
+        self.assertIn("total;dur=", r.headers.get("Server-Timing", ""))
+        return r.get_json()
+
+    @staticmethod
+    def _refs(resultado):
+        return sorted(c["ref"] for c in resultado["concursos"])
+
+    def test_a_pesquisa_acha_o_concurso_por_pedaco_de_palavra_entidade_ref_e_nif(self):
+        """O `trigram` responde ao pedaço de palavra, como o `LIKE` de
+        sempre: «vigilância» acha a «videovigilância» -- a troca que o
+        BACKLOG temia com um índice por palavras não se faz."""
+        self._semear_anuncios()
+        cliente = self._entrar()
+        self.assertEqual(self._refs(self.procurar(cliente, "Vigilância")),
+                         ["100/2026", "102/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "evora")), ["100/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "101/2026")), ["101/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "503000003")), ["102/2026"])
+        # as palavras têm de estar todas, como na caixa dos Concursos
+        self.assertEqual(self._refs(self.procurar(cliente, "vigilancia norte")),
+                         ["102/2026"])
+        # o mais recente primeiro
+        self.assertEqual([c["ref"] for c in self.procurar(cliente, "vigil")["concursos"]],
+                         ["102/2026", "100/2026"])
+        # e a página, sem JavaScript, escapa o que se escreveu
+        corpo = cliente.get("/pesquisa?q=%3Cscript%3Evigil",
+                            environ_base=self.FORA).get_data(as_text=True)
+        self.assertNotIn("<script>vigil", corpo)
+        corpo = cliente.get("/pesquisa?q=vigil", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("/anuncio/100/2026", corpo)
+
+    def test_a_sintaxe_do_fts5_que_vem_do_pedido_e_texto_literal(self):
+        """Revisão de segurança do PR #187 (1/10/2026): o que se escreve na
+        caixa vai para um `MATCH`, e o FTS5 tem sintaxe sua -- aspas,
+        `OR`, `NEAR`, `*`, `coluna:`. Cada palavra entra como uma frase
+        entre aspas, com as aspas de dentro dobradas, e por isso nada
+        disto é operador: não rebenta (sem as aspas, `"evil`, `*ola*` e
+        `col:evil` são erros de sintaxe, e `col:` pede uma coluna que não
+        existe) e não acha o que não diz literalmente."""
+        self._semear_anuncios()
+        with radar.liga() as c:      # entra pelo gatilho do índice
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado, titulo_norm, entidade_norm) VALUES ('104/2026', "
+                      "'Obra teste evil ola', 'Escola', '2026-09-24', 'novo', "
+                      "'obra teste evil ola', 'escola')")
+        cliente = self._entrar()
+        self.assertTrue(radar.indice_da_pesquisa_pronto())
+        for q in ('"evil', 'a" OR 1=1--', '*ola*', 'col:evil', 'a NEAR b',
+                  '"""', "obra'teste", 'ob;ra'):
+            with self.subTest(q=q):
+                resultado = self.procurar(cliente, q)
+                self.assertEqual(resultado["concursos"], [], q)
+                self.assertEqual(resultado["propostas"], [], q)
+                r = cliente.get("/pesquisa?" + urlencode({"q": q}),
+                                environ_base=self.FORA)
+                self.assertEqual(r.status_code, 200, q)
+        # e o mesmo termo, sem a sintaxe à volta, acha-o: a prova de que o
+        # vazio de cima é o literal, e não um índice que não responde
+        self.assertEqual(self._refs(self.procurar(cliente, "evil ola")), ["104/2026"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM erros").fetchone()[0], 0)
+
+    def test_o_indice_acompanha_as_escritas(self):
+        self._semear_anuncios()
+        cliente = self._entrar()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado, titulo_norm, entidade_norm) VALUES ('103/2026', "
+                      "'Refeições escolares', 'Escola', '2026-09-23', 'novo', "
+                      "'refeicoes escolares', 'escola')")
+        self.assertEqual(self._refs(self.procurar(cliente, "refeic")), ["103/2026"])
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET entidade_norm='agrupamento de escolas',"
+                      " nif='600000001' WHERE ref='103/2026'")
+        self.assertEqual(self._refs(self.procurar(cliente, "agrupamento")), ["103/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "600000001")), ["103/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "escola escolares")),
+                         ["103/2026"])
+        with radar.liga() as c:
+            c.execute("DELETE FROM anuncios WHERE ref='103/2026'")
+        self.assertEqual(self._refs(self.procurar(cliente, "refeic")), [])
+
+    def test_sem_o_indice_a_pesquisa_responde_na_mesma(self):
+        """O índice constrói-se em fundo no primeiro arranque (~1 min na
+        base de tamanho real): até lá, a pesquisa vai pelo `LIKE`."""
+        self._semear_anuncios(indice=False)
+        cliente = self._entrar()
+        self.assertFalse(radar.indice_da_pesquisa_pronto())
+        self.assertEqual(self._refs(self.procurar(cliente, "vigilancia")),
+                         ["100/2026", "102/2026"])
+
+    def test_a_empresa_so_ve_as_propostas_dela(self):
+        self._semear_anuncios()
+        criada = radar.criar_proposta(titulo="Manutenção de elevadores da A",
+                                      entidade="Município de Évora",
+                                      porque_sem_ref="consulta prévia")
+        b = radar.criar_empresa("Empresa B")
+        with radar.com_empresa(b):
+            radar.criar_proposta(titulo="Projecto secreto da B",
+                                 entidade="Câmara de Lagos",
+                                 porque_sem_ref="consulta prévia")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "gestora-b", "senha-comprida",
+                                          papel="admin", empresa_id=b)
+        a = self._entrar()
+        self.assertEqual(self.procurar(a, "secreto")["propostas"], [])
+        self.assertEqual([p["id"] for p in self.procurar(a, "elevadores")["propostas"]],
+                         [criada])
+        corpo = a.get("/pesquisa?q=secreto", environ_base=self.FORA).get_data(as_text=True)
+        self.assertNotIn("Projecto secreto", corpo)
+        b_ = self._entrar("gestora-b")
+        achadas = self.procurar(b_, "secreto")["propostas"]
+        self.assertEqual([p["titulo"] for p in achadas], ["Projecto secreto da B"])
+        self.assertEqual(self.procurar(b_, "elevadores")["propostas"], [])
+        # os concursos são da plataforma: os dois veem-nos
+        self.assertEqual(self._refs(self.procurar(b_, "lagos")), ["101/2026"])
+
+    def test_a_pesquisa_acha_a_entidade_pelo_nome_e_pelo_nif(self):
+        semear_corpus()
+        self._semear_anuncios()
+        cliente = self._entrar()
+        # pela pergunta inteira: o «3» sozinho não chega ao índice dos
+        # concursos, mas a entidade procura-se por todas as grafias
+        nomes = [e["nome"] for e in self.procurar(cliente, "empresa 3")["entidades"]]
+        self.assertEqual(nomes, ["Empresa 3, Lda"])
+        achadas = self.procurar(cliente, "506000003")["entidades"]
+        self.assertEqual([e["chave"] for e in achadas], ["506000003"])
+        corpo = cliente.get("/pesquisa?q=506000003",
+                            environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("/entidade/506000003", corpo)
+
+    def test_a_barra_tem_a_caixa_com_ctrl_k_e_a_barra(self):
+        self._semear_anuncios()
+        corpo = self._entrar().get("/concursos", environ_base=self.FORA).get_data(as_text=True)
+        caixa = re.search(r"<form[^>]*role='search'[^>]*>.*?</form>", corpo, re.S)
+        self.assertTrue(caixa, "a caixa da pesquisa na barra")
+        self.assertIn("action='/pesquisa'", caixa.group(0))
+        self.assertIn("name='q'", caixa.group(0))
+        self.assertIn("aria-keyshortcuts='Control+K /'", caixa.group(0))
+        # o atalho: Ctrl+K (ou Cmd+K) em qualquer sitio, e «/» fora de um campo
+        self.assertIn("e.key === '/'", corpo)
+        self.assertIn("(e.ctrlKey || e.metaKey) && (e.key === 'k'", corpo)
+        # e o dono sem empresa também procura (os concursos são da plataforma)
+        self.assertTrue(radar.dono_le("/pesquisa"))
+
+    # ---------------------------------------------- o «esqueci-me»
+
+    class _JaCorre:
+        """Uma thread que corre logo, no `start()`: o e-mail sai em fundo
+        (o servidor de correio espera até 30 s), e o teste quer saber o
+        que saiu sem depender do escalonador."""
+
+        def __init__(self, target=None, args=(), kwargs=None, **_):
+            self.alvo, self.args, self.kwargs = target, args, kwargs or {}
+
+        def start(self):
+            self.alvo(*self.args, **self.kwargs)
+
+    def _prepara_o_correio(self):
+        self.mandados = []
+
+        def enviar(assunto, corpo, cfg=None, html_corpo=None):
+            self.mandados.append({"assunto": assunto, "texto": corpo,
+                                  "para": (cfg or {}).get("email", {}).get("para"),
+                                  "html": html_corpo or ""})
+            return True, "enviado"
+        self.enterContext(unittest.mock.patch.object(radar, "enviar_email", enviar))
+        self.enterContext(unittest.mock.patch.object(
+            radar.threading, "Thread", self._JaCorre))
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "dono@miragov.pt", "senha-comprida",
+                                          pela_consola=True)
+            radar.contas.criar_utilizador(c, "ana@empresa.pt", "senha-comprida",
+                                          "Ana", papel="tester")
+            radar.contas.criar_utilizador(c, "rui", "senha-comprida", papel="tester")
+
+    def esqueci(self, email, ambiente=None, **cabecalhos):
+        return radar.app.test_client().post(
+            "/esqueci-me", data={"email": email},
+            environ_base=ambiente or self.FORA, headers=cabecalhos)
+
+    def _codigo_do_email(self):
+        self.assertEqual(len(self.mandados), 1)
+        return re.search(r"/repor/([\w-]+)", self.mandados[0]["texto"]).group(1)
+
+    def test_o_esqueci_me_manda_uma_ligacao_de_uma_hora_e_uso_unico(self):
+        self._prepara_o_correio()
+        ana = radar.app.test_client()       # uma sessão da Ana, já aberta
+        self.assertEqual(ana.post("/entrar", data={
+            "email": "ana@empresa.pt", "senha": "senha-comprida"},
+            environ_base=self.FORA).status_code, 302)
+        r = self.esqueci("  Ana@Empresa.pt ")
+        self.assertEqual(r.status_code, 200)
+        codigo = self._codigo_do_email()
+        self.assertEqual(self.mandados[0]["para"], "ana@empresa.pt")
+        # o e-mail é o da casa: em HTML, com o botão, e diz o prazo
+        self.assertIn("/repor/" + codigo, self.mandados[0]["html"])
+        self.assertIn("Escolher a palavra-passe nova", self.mandados[0]["html"])
+        # só o resumo na base, e vale uma hora
+        with radar.liga() as c:
+            linha = c.execute("SELECT * FROM reposicoes").fetchone()
+        self.assertNotEqual(linha["resumo"], codigo)
+        criado = datetime.datetime.strptime(linha["criado_em"], "%Y-%m-%d %H:%M:%S")
+        expira = datetime.datetime.strptime(linha["expira"], "%Y-%m-%d %H:%M:%S")
+        self.assertEqual(expira - criado, datetime.timedelta(hours=1))
+        fora = radar.app.test_client()
+        r = fora.post("/repor/" + codigo, data={"senha": "outra-chave-boa",
+                                                "outra": "outra-chave-boa"},
+                      environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        # a sessão que estava aberta caiu; e a ligação gastou-se
+        self.assertEqual(ana.get("/concursos", environ_base=self.FORA).status_code, 302)
+        r = radar.app.test_client().post(
+            "/repor/" + codigo, data={"senha": "terceira-chave-boa",
+                                      "outra": "terceira-chave-boa"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+
+    def test_a_resposta_e_a_mesma_exista_ou_nao_a_conta(self):
+        """Não se enumera: o estado, o texto e os cabeçalhos que contam
+        são iguais para uma conta que existe, uma que não existe, uma
+        que entra por nome de utilizador e a do dono."""
+        self._prepara_o_correio()
+        respostas = {}
+        for email in ("ana@empresa.pt", "ninguem@empresa.pt", "rui@x.pt",
+                      "dono@miragov.pt"):
+            r = self.esqueci(email, ambiente={"REMOTE_ADDR": "198.51.100.%d"
+                                              % len(respostas)})
+            corpo = r.get_data(as_text=True).replace(html.escape(email), "EMAIL")
+            respostas[email] = (r.status_code, corpo,
+                                r.headers.get("Set-Cookie"))
+        self.assertEqual(len(set(respostas.values())), 1, respostas.keys())
+        self.assertEqual(respostas["rui@x.pt"][0], 200)
+        # e só a da Ana recebeu
+        self.assertEqual([m["para"] for m in self.mandados], ["ana@empresa.pt"])
+
+    def test_a_conta_do_dono_nao_se_repoe_por_aqui(self):
+        """O dono tem o segundo factor e repõe-se pela consola: uma
+        ligação por e-mail para a conta mais poderosa era a porta do
+        lado. Nada se cria, nada sai -- e fica escrito que alguém
+        pediu."""
+        self._prepara_o_correio()
+        self.assertEqual(self.esqueci("dono@miragov.pt").status_code, 200)
+        self.assertEqual(self.mandados, [])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM reposicoes").fetchone()[0], 0)
+            eventos = [r[0] for r in c.execute("SELECT detalhe FROM eventos")]
+        self.assertTrue(any("dono" in e for e in eventos), eventos)
+
+    def test_um_post_de_outro_sitio_e_recusado(self):
+        self._prepara_o_correio()
+        r = self.esqueci("ana@empresa.pt", Origin="https://mal.exemplo")
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.mandados, [])
+        # e do próprio sítio passa
+        r = self.esqueci("ana@empresa.pt", Origin="http://localhost")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(self.mandados), 1)
+
+    def test_o_tecto_e_por_ip_e_por_conta_e_nao_fecha_o_entrar(self):
+        self._prepara_o_correio()
+        n = radar.contas.FALHAS_ATE_TRINCO
+        # o mesmo IP, endereços diferentes: o IP fecha
+        for i in range(n):
+            self.assertEqual(self.esqueci("x%d@empresa.pt" % i).status_code, 200)
+        r = self.esqueci("ana@empresa.pt")
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("demasiadas tentativas", r.get_data(as_text=True).lower())
+        self.assertEqual(self.mandados, [])
+        # IPs diferentes, a mesma conta: a conta fecha (não se enche a
+        # caixa de ninguém por muitos IP)
+        for i in range(n):
+            self.esqueci("ana@empresa.pt", ambiente={"REMOTE_ADDR": "198.51.100.%d" % i})
+        self.assertEqual(len(self.mandados), n)
+        r = self.esqueci("ana@empresa.pt", ambiente={"REMOTE_ADDR": "198.51.100.99"})
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(len(self.mandados), n)
+        # e nada disto conta no trinco do /entrar, do IP nem da conta
+        r = radar.app.test_client().post("/entrar", data={
+            "email": "ana@empresa.pt", "senha": "senha-comprida"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+
+    def test_o_codigo_nao_fica_em_registo_nenhum(self):
+        """Nem nos eventos, nem nas falhas, nem nos erros -- e um 500 na
+        ligação de repor não escreve o caminho com o código."""
+        self._prepara_o_correio()
+        self.esqueci("ana@empresa.pt")
+        codigo = self._codigo_do_email()
+        with unittest.mock.patch.object(radar.contas, "reposicao_valida",
+                                        side_effect=RuntimeError("avaria")):
+            r = radar.app.test_client().get("/repor/" + codigo, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 500)
+        with radar.liga() as c:
+            tabelas = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%'")]
+            for tabela in tabelas:
+                for linha in c.execute("SELECT * FROM %s" % tabela):
+                    self.assertNotIn(codigo, " ".join(str(v) for v in linha), tabela)
+            self.assertTrue(c.execute("SELECT 1 FROM erros").fetchone())
+
+    def test_a_entrada_leva_ao_esqueci_me(self):
+        cliente = radar.app.test_client()
+        corpo = cliente.get("/entrar", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("href=\"/esqueci-me\"", corpo)
+        r = cliente.get("/esqueci-me", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("name=\"email\"", r.get_data(as_text=True))
 
 
 class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
@@ -19475,7 +19893,7 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         self.assertNotIn("<style>", corpo)
         # a folha inteira não pode estar lá dentro: procura-se uma regra
         # que só existe no CSS, não a marcação
-        self.assertNotIn(".hj-l{display:grid", corpo)
+        self.assertNotIn(".hj-g{margin:0 0 16px}", corpo)
 
     def test_a_folha_serve_se_com_cache_para_sempre(self):
         r = self.cliente.get(radar.FOLHA_CSS)
@@ -24594,8 +25012,10 @@ class TestTerceiraRondaCoerenciaDeDesenhoETexto(_CicloDoTesteComUtilizadores):
     def test_g97_o_erro_de_entrar_e_uma_frase(self):
         self.assertEqual(
             radar.frase_do_aviso_de_entrar("utilizador ou palavra-passe errados"),
+            # desde 1/10/2026 (J7) a ligação pede-se por e-mail, logo abaixo
             "Utilizador ou palavra-passe errados. Se se esqueceu da "
-            "palavra-passe, peça ao gestor da sua empresa uma ligação para a repor.")
+            "palavra-passe, peça uma ligação para a repor em «Esqueceu-se "
+            "da palavra-passe?», mais abaixo.")
         self.assertEqual(radar.frase_do_aviso_de_entrar("Já tem ponto."), "Já tem ponto.")
 
     def test_g97_o_resumo_aberto_a_mao_vai_para_o_mercado(self):

@@ -1447,6 +1447,16 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 
 ---
 
+- **Numa procura por nome, os nomes primeiro e as entidades depois**
+  (1/10/2026, a pesquisa geral). O `sugestoes_de_entidade_do_corpus()`
+  fazia o `JOIN` com as `entidades` por fora, e o SQLite escolhia
+  percorrer as 180 mil entidades e ir a cada uma buscar os nomes pelo
+  `ix_nomes_chave`: 0,17 s a quente, a cada tecla. Com os nomes
+  achados numa CTE `MATERIALIZED` (uma passagem pelos 257 mil, 0,04 s)
+  e só depois as entidades deles, as linhas são as mesmas (conferido em
+  cinco perguntas numa cópia). O `MATERIALIZED` não é enfeite: sem ele o
+  SQLite junta a subconsulta de volta e escolhe o plano antigo.
+
 ## Alertas e interesse
 
 Um alerta é um filtro com a marca posta; o interesse é outra coisa.
@@ -2771,6 +2781,24 @@ SQLite, cópias, e a pen que manda nos números.
   que cria a coluna. **Um índice que custe mais de ~2 s a construir não
   entra no arranque síncrono**: vai para fundo, como o índice de texto
   do corpus (5 minutos, na vigia).
+- **O índice da pesquisa geral não se prende às `rowid` dos anúncios, e
+  constrói-se aos lotes** (1/10/2026). Três escolhas, cada uma com a
+  razão: (1) a `anuncios` não tem INTEGER PRIMARY KEY, e um VACUUM pode
+  renumerar as `rowid` — a regra que o `+rowid IN` já respeitava —, por
+  isso a `pesquisa_refs` dá a cada `ref` um número seu e o FTS5 é
+  `contentless_delete` sobre esse número; (2) uma transacção só, como a
+  do `contratos_fts`, prendia a escrita no `radar.db` um minuto inteiro,
+  e as sessões do painel escrevem nele a cada pedido (o `busy_timeout` é
+  de 30 s): os gatilhos nascem primeiro, e o resto entra em lotes de
+  `PESQUISA_POR_LOTE`, cada um na sua transacção; (3) enche-se **pela
+  ordem da `data_pub`**, e é isso que deixa a pesquisa ordenar pelo
+  `rowid` do índice e parar aos oito — ordenar pela `data_pub` lia a
+  linha larga de cada anúncio que responde (15 mil em «lisboa», 65 ms).
+  O gatilho do UPDATE só reescreve quando o título, a entidade ou o NIF
+  mudam: o `ler_detalhes()` regrava a entidade de todos. **Uma coluna
+  nova que a pesquisa deva procurar entra no FTS, nos três gatilhos e
+  no lote — e o índice refaz-se** (apagar a marca `indice_da_pesquisa`
+  e as duas tabelas). As cópias diárias passam a levar ~115 MB a mais.
 - **Um `GROUP BY` sobre uma expressão não anda pelo índice.** A lista
   das plataformas agrupava por `COALESCE(NULLIF(plataforma,''),?)` e o
   SQLite ordenava as 200 mil linhas numa árvore temporária, apesar do
@@ -3107,10 +3135,10 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   loopback é a porta aberta ao mundo.** `arranque_permitido()`
   recusa-se a arrancar nessa combinação; hoje `ENDERECO` é uma
   constante em `127.0.0.1` e a guarda parece supérflua — é para o dia
-  em que deixar de ser. Recuperar a palavra-passe é por consola
+  em que deixar de ser. A conta do dono recupera-se por consola
   (`--palavra-passe EMAIL`, o mesmo `criar_utilizador()` que troca o
-  hash se o e-mail existir), não por e-mail, de propósito: é um fluxo
-  a menos exposto.
+  hash se o e-mail existir), e nunca por e-mail; as outras, desde
+  1/10/2026, também pelo `/esqueci-me` (ver em baixo).
 
 - **A ref de um anúncio não é um nome de pasta até passar por
   `ref_de_pasta()`.** As quatro rotas que servem ficheiros
@@ -3237,6 +3265,31 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   empresa dele (`contas.pode_repor()`): o dono é admin da empresa 1, e
   repor-lha era ficar dono da plataforma.
 
+- **O «esqueci-me» por e-mail diz o mesmo a todos, e o tempo também**
+  (J7, 1/10/2026). O `/esqueci-me` é rota aberta (por igualdade em
+  `ROTAS_ABERTAS`, com a guarda no `esqueci_me()`) e é o sítio mais fácil
+  para perguntar «esta conta existe?». Três coisas o fecham, e cada uma
+  tem teste: a **mesma página** (estado, texto, cabeçalhos) para a conta
+  que existe, a que não existe, a que entra por nome e a do dono; o
+  **tecto conta todos os pedidos** — por IP e pelo endereço escrito,
+  exista ou não a conta (`contas.contar_pedido_de_reposicao()`), com o
+  `PREFIXO_DO_REPOR` para não fechar o `/entrar` (G50) —; e **procurar a
+  conta, criar a ligação e mandar o e-mail é tudo em fundo**
+  (`_repor_por_email()`): só o envio em fundo não chegava, porque
+  escrever a ligação na base custava uns milissegundos só a quem tinha
+  conta. A ligação leva o `endereco_do_painel()` do config, **nunca o
+  `Host` do pedido** — senão quem pedisse por outro nome recebia a
+  ligação de outra pessoa a apontar para o sítio dele. Vale uma hora
+  (`HORAS_DE_REPOSICAO_POR_EMAIL`), e o dono nunca: tem segundo factor e
+  repõe-se pela consola. Duas consequências aceites: pedir uma ligação
+  anula a que o gestor tivesse gerado (só a última vale), e quem souber
+  o e-mail de alguém consegue fechar-lhe este caminho durante quinze
+  minutos de cada vez — o do gestor fica.
+- **Um 500 não escreve o código de uma ligação** (1/10/2026). O
+  `rebentou()` guardava o caminho do pedido na lista dos erros, e o de
+  uma ligação de repor ou de um convite leva o código, que vale uma
+  palavra-passe ou uma conta: o `/repor/…` e o `/convite/…` ficam sem
+  ele. O werkzeug já não escreve os pedidos no registo (23/09/2026).
 - **A conta do dono só o dono a tira, e o último dono nunca**
   (26/09/2026). O `pode_repor()` já guardava o repor, mas o «tirar» das
   Configurações › Conta só perguntava se a conta era da mesma empresa —
@@ -3825,9 +3878,12 @@ botões ou no calendário.
   não se troca.** O `mil_pt()` usa um espaço inquebrável de propósito
   (com um normal, o browser parte «1 363 300» ao fim da linha), mas a
   30px esse espaço tem a largura de um algarismo e «209 903» lê-se como
-  dois números. O `.kpi .v` leva `word-spacing:-.3em`, e mais nada: a
+  dois números. O `.kpi .v` levava `word-spacing:-.3em`, e mais nada: a
   11 ou 12px o espaço está certo, e o `mil_pt()` serve também a consola
-  e os dois CSV.
+  e os dois CSV. (O `.kpi` saiu a 1/10/2026 com o CSS morto: o número
+  grande é o `.mg-stat__value` do sistema, que não aperta. Se o «209 903»
+  voltar a ler-se como dois, o aperto vai para a nossa folha, nesse
+  selector.)
 
 - **A escala de texto nova tem um patamar só.** A antiga tinha dois —
   `--t1..--t4` passavam AA em todo o lado e `--t5`/`--t6` só nalguns —
@@ -4630,6 +4686,28 @@ botões ou no calendário.
   desenhava-se por cima da primeira, sem erro. A segunda desce para a
   linha 4 (`.topo>.abas-mercado+.mg-tabs`). Uma página do `TOPO` que
   passe mais de uma barra em `abas=` precisa da sua linha.
+- **A caixa da pesquisa ouve o Ctrl+K em todo o lado, e o «/» só fora de
+  um campo** (1/10/2026). O teclado da lista (`j k i a`) sai quando há
+  Ctrl, Cmd ou Alt, por isso não se pisam; o «/» dentro de um campo é
+  um «/» (uma referência leva-o). O que vem do `/pesquisa` entra na
+  lista por `textContent`, nunca por `innerHTML`: são títulos e nomes
+  da base. Sem JavaScript a caixa é um formulário GET para a página.
+  E a pergunta só sai 200 ms depois da última tecla, e uma resposta
+  que chegue depois de outra mais nova deita-se fora (`vez`).
+- **Uma regra de CSS que nenhum HTML gera sai, e um teste di-lo**
+  (o 18 da auditoria dos pesos, 1/10/2026). O `CSS` e o `CSS_NOVO`
+  guardavam 98 regras de ecrãs que já não existiam (o `.kpi`, o `h1.tit`
+  e o `p.subtit`, o cartão `.item-*`, o `.hj-l` e o `.hj-p`, os `.sit-n`,
+  os `.delta`, o `.cx`, as `.abas`), com pesos 620, 680 e 700 que
+  ninguém via e que enganavam quem lia a folha à procura do que pinta um
+  ecrã. O `test_nenhuma_regra_do_css_pede_uma_classe_que_o_codigo_nao_gera`
+  confere que cada classe de uma regra aparece numa cadeia do código —
+  é uma prova por baixo (uma palavra noutro sentido conta como usada), e
+  por isso o `.cx` e as `.abas` vão nele pelo nome. **Quando um ecrã
+  troca de marcação, as regras da marcação velha saem no mesmo commit**;
+  ficarem «por via das dúvidas» é como chegaram a cem. O
+  `.mg-tag:has(.mg-tag__dot)::before` da nossa folha fica: é para as
+  etiquetas que ainda não existem.
 
 ## Convenções
 

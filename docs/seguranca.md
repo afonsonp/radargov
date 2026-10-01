@@ -48,7 +48,11 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    (origem, armadilha, tectos), o `/convite/<código>` e, desde
    26/09/2026, o `/repor/<código>` (o código de 32 bytes guardado só em
    resumo, a origem, o prazo, o uso único e um trinco por IP, só dele —
-   não conta no do `/entrar`) e, desde
+   não conta no do `/entrar`), desde 1/10/2026 o `/esqueci-me` (a
+   origem, o tecto por IP e pelo endereço escrito, a mesma resposta
+   exista ou não a conta — com a procura e o envio em fundo, para o
+   tempo não o dizer —, a ligação a uma hora, o endereço do config e
+   não o `Host` do pedido, e nunca a conta do dono) e, desde
    28/09/2026, o `/entrar/codigo` do segundo factor (o pendente, só em
    resumo, cinco minutos e cinco tentativas, o trinco e a origem).
    **Uma porta que abra sessões passa pelo `contas.entrar()`**, que é
@@ -61,7 +65,9 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    só a gera quem pode (`contas.pode_repor()` — o dono para qualquer
    conta, o admin para as da empresa dele e nunca para a do dono), só
    se mostra na resposta do POST, e usá-la fecha todas as sessões da
-   conta. **E o mesmo vale para tirar uma conta**: até 26/09/2026 o
+   conta. **Um 500 não guarda o código**: o `rebentou()` corta o
+   caminho do `/repor/…` e do `/convite/…` antes de o escrever nos
+   erros. **E o mesmo vale para tirar uma conta**: até 26/09/2026 o
    admin da empresa onde o dono tem conta tirava-o, e numa base sem
    dono o admin seguinte nascia dono. Toda a acção de um admin sobre
    uma conta pergunta se é da empresa dele **e** se é o dono

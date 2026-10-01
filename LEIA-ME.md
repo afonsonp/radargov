@@ -346,6 +346,15 @@ as Configurações, a Ajuda, a conta e o sair. Em cima fica só a marca
 (o Hoje) e o teu nome. No computador e no tablet deitado fica tudo em
 cima, como sempre.
 
+**A caixa «Procurar»** (desde 1/10/2026), na barra de cima, ao lado do
+teu nome: escreve o título ou a referência de um concurso, uma
+proposta, o nome ou o NIF de uma entidade, e a lista aparece por baixo.
+Chega-se lá de qualquer página com **Ctrl+K**, ou com **«/»** quando não
+estás a escrever num campo. Enter abre a página com tudo. No primeiro
+arranque do painel depois desta versão, o radar constrói o índice dela
+em fundo (meio minuto a um minuto); até lá procura na mesma, mais
+devagar.
+
 Desde 26/09/2026 o ecrã diz **«fase»** onde dizia «ranhura», e as fases
 concordam com a proposta: **A preparar**, **Submetida**, **Ganha**,
 **Perdida**, **Cancelada**. As chaves por baixo são as mesmas, e o
@@ -851,9 +860,15 @@ linhas mais escuros, sem sombras). É de cada pessoa e fica guardado na
 conta, por isso vale no telemóvel e no computador. O ecrã de entrar,
 que ainda não sabe quem é, segue o computador.
 
-**Quando alguém se esquece da palavra-passe** (desde 26/09/2026) não há
-e-mail de recuperação — o ecrã de entrar diz para pedir ao
-gestor da empresa. Quem repõe:
+**Quando alguém se esquece da palavra-passe**, desde 1/10/2026 pode
+pedir a ligação por e-mail: no ecrã de entrar, «Receba uma ligação por
+e-mail», escreve o e-mail da conta e, se a conta existir, a ligação
+chega lá (vale uma hora e uma vez). Só funciona com o correio da
+plataforma configurado (`/plataforma` › Correio) e com contas que
+entram por e-mail; **a tua nunca** — repões a tua pela consola, com
+`--palavra-passe`. Se alguém o pedir para a tua conta, fica nos
+eventos. Para quem entra com um nome de utilizador, ou se o e-mail não
+chegar, continua a haver quem reponha à mão:
 
 - o **admin da empresa**, para as contas dela: em Configurações ›
   Conta, na lista dos utilizadores, **repor palavra-passe**;

@@ -628,9 +628,15 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
 # recuperacao: quem repoe e uma pessoa -- o admin da empresa, para as
 # contas dela, ou o dono da plataforma, para qualquer uma --, que gera
 # uma ligacao e a entrega a mao. O molde e o do convite: 32 bytes, so o
-# resumo na base, prazo e uso unico.
+# resumo na base, prazo e uso unico. Desde 1/10/2026 (J7) a propria
+# pessoa pode pedi-la por e-mail (`reposicao_por_email()`), com uma hora
+# de prazo e o tecto do `contar_pedido_de_reposicao()`.
 
 HORAS_DE_REPOSICAO = 24
+# A que vai por e-mail (J7, 1/10/2026) vale uma hora, e nao um dia: a de
+# cima entrega-a uma pessoa a outra, e esta fica numa caixa de correio
+# que pode ser lida por quem nao devia.
+HORAS_DE_REPOSICAO_POR_EMAIL = 1
 
 
 def pode_repor(quem, alvo):
@@ -650,7 +656,8 @@ def pode_repor(quem, alvo):
         and quem.get("empresa_id") == alvo.get("empresa_id")
 
 
-def criar_reposicao(c, utilizador_id, criado_por=None, agora=None):
+def criar_reposicao(c, utilizador_id, criado_por=None, agora=None,
+                    horas=HORAS_DE_REPOSICAO):
     """Uma ligacao nova para repor a palavra-passe da conta. Devolve o
     CODIGO, que so existe aqui. As ligacoes anteriores da mesma conta
     que ainda nao se usaram deixam de servir: so a ultima vale."""
@@ -662,9 +669,40 @@ def criar_reposicao(c, utilizador_id, criado_por=None, agora=None):
               "criado_em, expira) VALUES (?,?,?,?,?)",
               (_resumo(codigo), utilizador_id, criado_por,
                agora.strftime("%Y-%m-%d %H:%M:%S"),
-               (agora + timedelta(hours=HORAS_DE_REPOSICAO)).strftime(
+               (agora + timedelta(hours=horas)).strftime(
                    "%Y-%m-%d %H:%M:%S")))
     return codigo
+
+
+def contar_pedido_de_reposicao(c, email, ip, agora=None):
+    """O tecto do «esqueci-me» por e-mail (J7): segundos de espera, ou 0
+    e o pedido fica contado. Conta TODOS os pedidos, exista a conta ou
+    nao -- um tecto que so contasse as que existem dizia quais existem
+    --, pelo IP e pelo endereco escrito: o do IP trava quem experimenta
+    enderecos, o do endereco trava quem enche a caixa de alguem a partir
+    de muitos IP. As chaves levam o PREFIXO_DO_REPOR, e por isso nada
+    disto conta no trinco do /entrar (G50)."""
+    chaves = (PREFIXO_DO_REPOR + "pedido:" + (ip or ""),
+              PREFIXO_DO_REPOR + "conta:" + email_limpo(email))
+    espera = max(segundos_de_trinco(c, chave, "", agora) for chave in chaves)
+    if not espera:
+        for chave in chaves:
+            registar_falha(c, chave, ip, agora)
+    return espera
+
+
+def reposicao_por_email(c, email, agora=None):
+    """(codigo, conta) da ligacao que vai por e-mail, ou (None, conta ou
+    None) quando nao vai. Nunca para o dono: tem o segundo factor, e
+    repoe-se pela consola (`--palavra-passe`) -- uma ligacao por e-mail
+    para a conta mais poderosa era a porta do lado. Quem chama decide o
+    que dizer, e diz o mesmo nos tres casos."""
+    linha = c.execute("SELECT id, email, nome, dono FROM utilizadores "
+                      "WHERE email=?", (email_limpo(email),)).fetchone()
+    if not linha or e_dono(dict(linha)):
+        return None, (dict(linha) if linha else None)
+    return (criar_reposicao(c, linha["id"], None, agora,
+                            horas=HORAS_DE_REPOSICAO_POR_EMAIL), dict(linha))
 
 
 def reposicao_valida(c, codigo, agora=None):

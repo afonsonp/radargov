@@ -269,9 +269,16 @@ def NUMEROS():
             # As da empresa nao contam, estejam onde estiverem: a F1
             # (23/09/2026) leva-as para o ficheiro dela no primeiro
             # arranque, e ate la ainda moram aqui.
+            # E o indice da pesquisa geral (1/10/2026) tambem nao: e
+            # derivado, como um indice -- a `pesquisa_refs`, a
+            # `pesquisa_fts` e as quatro tabelas por baixo dela --, e so
+            # existe depois do primeiro arranque do painel com esse codigo.
             return len({r[0] for r in c.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'"
-                " AND name NOT LIKE 'sqlite_%'")} - set(radar.TABELAS_DA_EMPRESA))
+                " AND name NOT LIKE 'sqlite_%'")
+                if not r[0].startswith((radar.REFS_DA_PESQUISA,
+                                        radar.INDICE_DA_PESQUISA))}
+                - set(radar.TABELAS_DA_EMPRESA))
         finally:
             c.close()
 

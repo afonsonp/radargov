@@ -495,9 +495,11 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 
 /* Vieram do `miragov-pontes.css` quando ele saiu (24/09/2026): sao as
    duas regras que nao eram pontes, e continuam a fazer falta. */
-/* O CSS antigo pinta fundos a #fff à mão em .cx, .item, .bt, .entrar input, .abas a.on:
-   no tema escuro e no contraste isso quebra. Enquanto a fase 3 não chega, esta regra corrige. */
-[data-theme] .cx, [data-theme] .item, [data-theme] .vazio, [data-theme] .abas a.on, [data-theme] .bt, [data-theme] .entrar input { background: var(--surface-raised); }
+/* O CSS antigo pinta fundos a #fff à mão em .item, .bt, .entrar input:
+   no tema escuro e no contraste isso quebra. Enquanto a fase 3 não chega, esta regra corrige.
+   (O `.cx` e o `.abas a.on` saíram a 1/10/2026, com as regras do CSS antigo que
+   já nenhum ecrã gerava.) */
+[data-theme] .item, [data-theme] .vazio, [data-theme] .bt, [data-theme] .entrar input { background: var(--surface-raised); }
 /* A barra de topo fazia `background:var(--ink)`, que no sistema antigo
    era o quase-preto e no novo é a cor do TEXTO. O sistema tem uma cor
    própria para ela -- `--surface-header`, o azul institucional --, e é
@@ -1401,3 +1403,38 @@ a.citacao{color:var(--link);white-space:nowrap}
 /* Os pedidos de acesso em dois blocos, os por decidir primeiro (M5). */
 .pedidos-titulo{margin:var(--space-5) 0 var(--space-3)}
 .pedidos-titulo:first-child{margin-top:0}
+
+/* A pesquisa geral (J1, 1/10/2026): a caixa vive na barra escura, entre
+   a navegação e a conta, e a lista dos resultados cai por baixo dela no
+   painel claro do menu da conta. Em ecrã estreito a navegação vai para
+   a sua linha (ou para a barra de baixo), e a caixa estica. */
+.pesquisa-geral{position:relative;flex:0 1 260px;min-width:0}
+.pesquisa-geral__campo{width:100%;box-sizing:border-box;min-height:36px;
+ padding:var(--space-1) var(--space-3);border-radius:var(--radius-full);
+ border:var(--border-hairline) solid color-mix(in srgb,var(--on-header) 30%,transparent);
+ background:color-mix(in srgb,var(--on-header) 10%,transparent);
+ color:var(--on-header);font:400 var(--text-sm)/20px var(--font-sans)}
+.pesquisa-geral__campo::placeholder{color:var(--on-header-muted)}
+.pesquisa-lista{position:absolute;right:0;top:100%;margin-top:6px;z-index:30;
+ width:min(440px,calc(100vw - 2 * var(--space-4)));max-height:70vh;overflow-y:auto;
+ background:var(--surface-raised);border:var(--border-hairline) solid var(--line);
+ border-radius:var(--radius-lg);padding:var(--space-2);box-shadow:var(--shadow-md)}
+.pesquisa-lista__grupo{margin:var(--space-2) var(--space-3) var(--space-1);
+ font:600 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
+.pesquisa-lista__item{display:flex;flex-direction:column;gap:2px;min-height:40px;
+ box-sizing:border-box;padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);
+ color:var(--ink);text-decoration:none;font:500 var(--text-sm)/20px var(--font-sans)}
+.pesquisa-lista__item small{font:400 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
+.pesquisa-lista__item:hover,.pesquisa-lista__item:focus{background:var(--surface-sunken)}
+.pesquisa-lista__todos{color:var(--brand);border-top:var(--border-hairline) solid var(--line);
+ border-radius:0;margin-top:var(--space-1)}
+@media (max-width:900px){.pesquisa-geral{flex:1 1 160px}}
+/* No telemóvel a marca e a conta não deixam lugar a uma caixa que se
+   leia: ela desce para uma linha sua, por baixo das duas. */
+@media (max-width:600px){.pesquisa-geral{order:10;flex:1 1 100%}}
+.pesquisa-grupos{display:grid;gap:var(--space-4)}
+.pesquisa-itens{list-style:none;margin:0;padding:0}
+.pesquisa-itens li{display:flex;flex-direction:column;gap:2px;
+ padding:var(--space-2) 0;border-top:var(--border-hairline) solid var(--line)}
+.pesquisa-itens li:first-child{border-top:0}
+.pesquisa-itens small{color:var(--ink-muted);font:400 var(--text-xs)/16px var(--font-sans)}

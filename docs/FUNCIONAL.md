@@ -148,6 +148,14 @@ as exactas e salta as outras.
 `posicao`, `top3`, `motivo_perda`. São as colunas de CRM que saíram para
 `propostas` a 15/09/2026 — **não as uses: estão mortas.**
 
+**O índice da pesquisa geral** (1/10/2026) não conta nas tabelas de
+cima: é derivado, como um índice. São a `pesquisa_fts` (FTS5 `trigram`,
+sem o texto — só os trigramas do título, da entidade, da referência e
+do NIF de cada anúncio, ~111 MB) e a `pesquisa_refs`, que dá a cada
+`ref` um número que um VACUUM não muda (~4 MB). Constroem-se em fundo
+no primeiro arranque do painel com este código (~30 a 60 s), e daí em
+diante os gatilhos dos `anuncios` mantêm-nas em todas as escritas.
+
 ### 2.1a `empresas/<id>/empresa.db` — o trabalho de uma empresa (16 tabelas)
 
 **Um ficheiro por empresa** (fase F1, 23/09/2026; hoje só há a empresa
@@ -824,7 +832,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**134 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**136 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -871,6 +879,23 @@ plataforma, é o que impede de triar na errada sem dar por isso. Uma
 conta continua a ser de **uma** empresa só. O menu é o mesmo `mg-menu` do «Mais» da barra de baixo
 («A conta», «Sair», «Sair de todos os aparelhos»), e fecha com o Esc, com
 o Tab para fora ou com um clique fora (3.ª ronda, G71).
+
+**A pesquisa geral** (J1 da auditoria das sete leis, 2R-D8; 1/10/2026):
+entre a navegação e o menu da conta há uma caixa só, «Procurar
+(Ctrl+K)», que acha **concursos** (pelo título, pela entidade, pela
+referência e pelo NIF, por pedaço de palavra, com todas as palavras
+lá — os mais recentes primeiro, sem as republicações), as **propostas
+da empresa** de quem procura (nunca as de outra: vivem no ficheiro
+dela) e as **entidades do Portal BASE** (por todas as grafias do nome,
+ou pelo NIF). **Ctrl+K** (ou Cmd+K) em qualquer sítio, e **«/»** fora de
+um campo, levam lá; a lista cai por baixo 200 ms depois da última
+tecla, a partir de três letras, e as setas andam por ela. Enter abre a
+página `/pesquisa?q=…`, que também serve quem não tem JavaScript, com
+as ligações «Ver todos na lista dos Concursos» e «Procurar mais
+entidades». O dono sem empresa também procura (está na
+`LEITURA_DO_DONO`), e as propostas dele são nenhumas. Os concursos vão
+por um índice de texto (§2.1); as respostas medidas numa cópia das
+bases ficaram entre 0,02 e 0,09 s a quente.
 
 ### 4.1 Hoje — `/`
 
@@ -1486,9 +1511,23 @@ consola e a ligação de repor —, porque todas passam pelo
 `contas.criar_utilizador()`; a recusa diz qual das regras falhou
 (`contas.problema_da_senha()`).
 
-**Repor a palavra-passe** (D17, 26/09/2026). Não há e-mail de
-recuperação: o `/entrar` diz «peça ao gestor da sua empresa».
-O **admin** gera, em Configurações › Conta, uma ligação para uma conta
+**Repor a palavra-passe** (D17, 26/09/2026). Há dois caminhos para a
+mesma ligação. O **«esqueci-me» por e-mail** (J7, 1/10/2026): o `/entrar`
+leva ao **`/esqueci-me`**, onde a pessoa escreve o e-mail da conta e, se
+houver conta, recebe lá a ligação (`esqueci_me()`, rota aberta por
+igualdade, com a guarda dentro). A resposta é **a mesma** exista ou não
+a conta — e procurar a conta, criar a ligação e mandar o e-mail
+acontece em fundo (`_repor_por_email()`), para o tempo de resposta
+também não o dizer; a ligação vale **uma hora**
+(`HORAS_DE_REPOSICAO_POR_EMAIL`) e uma vez; há tecto de cinco pedidos
+em quinze minutos **por IP e pelo endereço escrito**, contados exista
+ou não a conta e fora do trinco do `/entrar`
+(`contas.contar_pedido_de_reposicao()`); a **conta do dono nunca** se
+repõe por aqui (`contas.reposicao_por_email()`; fica nos eventos que
+alguém pediu); e só sai com o correio da plataforma configurado — uma
+falha do envio fica nos eventos. Quem entra com um nome de utilizador
+e não com um e-mail continua a pedir ao gestor.
+O outro caminho é o de antes: o **admin** gera, em Configurações › Conta, uma ligação para uma conta
 da empresa dele — nunca a do dono —, e o **dono** gera-a para qualquer
 conta, na `/plataforma` (`contas.pode_repor()`). A ligação mostra-se
 **uma vez**, nessa página, e nunca vai no endereço nem no histórico;
@@ -1674,6 +1713,10 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
   `contratos-memoria.db`, ao lado do corpus: um reinício encontra-as
   feitas. A mesma thread constrói, uma vez, o índice de texto dos
   objectos (~5 minutos), por onde a pesquisa do Mercado passa a ir.
+- **O índice da pesquisa geral** (1/10/2026): outra thread, no
+  arranque do painel, constrói-o uma vez se falta (~30 a 60 s, aos
+  lotes, sem prender a base); até lá, a caixa da barra procura pelo
+  `LIKE`, mais devagar.
 - **Cópia de segurança** diária, por `VACUUM INTO` (a quente, com a
   base em WAL), sete guardadas de cada: `radar-<data>.db` (a
   plataforma) e `empresa-<id>-<data>.db` por empresa (`VACUUM emp
@@ -1724,6 +1767,7 @@ mesma rota sem sair da página (§4.3).
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
 | Gerar a ligação de repor a palavra-passe | Configurações › Conta (admin), página da empresa na `/plataforma` (dono) |
+| Pedir a ligação de repor por e-mail | `/esqueci-me`, a partir do `/entrar` (sem sessão; nunca a conta do dono) |
 | Recusar um pedido de acesso, com o motivo | `/pedidos-de-acesso` (dono) |
 | Criar · anular · gerar de novo um convite | página da empresa (dono); anular também em Configurações › Conta (admin) |
 | Suspender · reactivar uma empresa | página da empresa (dono) |

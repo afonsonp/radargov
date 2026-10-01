@@ -10657,6 +10657,23 @@ def _em_paragrafo(conteudo):
     return "<p style=\"margin:0 0 14px\">%s</p>" % conteudo
 
 
+def _em_botao(ligacao, rotulo):
+    """O botão de um e-mail, e o endereço por extenso por baixo para
+    quando o botão não abre. Em tabela: é o que o Outlook respeita."""
+    return (
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
+        "style=\"margin:6px 0 16px\"><tr><td style=\"background:%s;"
+        "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
+        "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
+        "%s</a></td></tr></table>"
+        % (_EM_INK, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
+        + _em_paragrafo(
+            "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
+            "copie este endereço para o browser:<br><span style=\"font-family:%s;"
+            "word-break:break-all\">%s</span></span>"
+            % (_EM_T3, _EM_MONO, html.escape(ligacao))))
+
+
 RX_URL = re.compile(r"https?://[^\s<>\"]+")
 
 
@@ -13122,14 +13139,265 @@ def vigiar_o_corpus(voltas=None, esperar=time.sleep):
         esperar(INTERVALO_DA_VIGIA)
 
 
+# A PESQUISA GERAL (J1 da auditoria das sete leis, 2R-D8 do BACKLOG;
+# 1/10/2026). Uma caixa na barra que acha concurso, proposta, entidade e
+# NIF. Sem indice, cada tecla varria os 210 mil anuncios: 0,77 s a
+# quente numa copia para um termo raro, porque o `titulo_norm` e o
+# `entidade_norm` vivem DEPOIS do `texto` (ver o motor de filtros nas
+# armadilhas).
+#
+# O indice e FTS5 com o tokenizador `trigram`, como o `contratos_fts`:
+# responde ao pedaco de palavra, a mesma semantica do `LIKE '%termo%'`
+# -- «vigilancia» acha a «videovigilancia», que um indice por palavras
+# (`unicode61`) perdia (2 188 contra 2 409 numa copia). Medido numa
+# copia da base de 1/10/2026 (211 108 anuncios): 47 s a construir, +117
+# MB no ficheiro, e 0,1 a 18 ms por pergunta; o de palavras eram 19 s e
+# 23 MB. So o que se pesquisa: titulo, entidade, referencia e NIF -- o
+# `anuncios.texto` sao 840 MB.
+#
+# Duas tabelas, e nao uma: o FTS5 nao tem indice pela `ref`, e as
+# `rowid` dos `anuncios` nao servem de chave porque um VACUUM as pode
+# renumerar (a tabela nao tem INTEGER PRIMARY KEY). A `pesquisa_refs`
+# da a cada `ref` um numero que nao muda; o indice e `contentless` (so
+# os trigramas, o texto fica na `anuncios`) com `contentless_delete`, e
+# os gatilhos mantem-no em todas as escritas, de qualquer processo.
+INDICE_DA_PESQUISA = "pesquisa_fts"
+REFS_DA_PESQUISA = "pesquisa_refs"
+MARCA_DA_PESQUISA = "indice_da_pesquisa"
+# Anuncios por transaccao ao construir: cada lote prende a escrita ao
+# ficheiro da plataforma ~1 s, e as sessoes do painel escrevem nele a
+# cada pedido.
+PESQUISA_POR_LOTE = 4000
+# O que a caixa e a pagina mostram de cada coisa.
+NA_PESQUISA = {"concursos": 8, "propostas": 5, "entidades": 5}
+TECTO_DA_PESQUISA = 200
+
+_CORPO_DO_GATILHO = (
+    "DELETE FROM pesquisa_fts WHERE rowid = "
+    "(SELECT id FROM pesquisa_refs WHERE ref = new.ref); "
+    "INSERT OR IGNORE INTO pesquisa_refs (ref) VALUES (new.ref); "
+    "INSERT INTO pesquisa_fts (rowid, titulo, entidade, ref, nif) "
+    "SELECT id, new.titulo_norm, new.entidade_norm, lower(new.ref), new.nif "
+    "FROM pesquisa_refs WHERE ref = new.ref;")
+GATILHOS_DA_PESQUISA = (
+    "CREATE TRIGGER IF NOT EXISTS pesquisa_ins AFTER INSERT ON anuncios "
+    "BEGIN %s END" % _CORPO_DO_GATILHO,
+    # so quando o que se pesquisa muda: o `ler_detalhes()` reescreve a
+    # entidade de cada anuncio, quase sempre igual
+    "CREATE TRIGGER IF NOT EXISTS pesquisa_upd AFTER UPDATE OF titulo_norm, "
+    "entidade_norm, nif ON anuncios WHEN old.titulo_norm IS NOT new.titulo_norm "
+    "OR old.entidade_norm IS NOT new.entidade_norm OR old.nif IS NOT new.nif "
+    "BEGIN %s END" % _CORPO_DO_GATILHO,
+    "CREATE TRIGGER IF NOT EXISTS pesquisa_del AFTER DELETE ON anuncios BEGIN "
+    "DELETE FROM pesquisa_fts WHERE rowid = "
+    "(SELECT id FROM pesquisa_refs WHERE ref = old.ref); "
+    "DELETE FROM pesquisa_refs WHERE ref = old.ref; END")
+
+
+def indice_da_pesquisa_pronto(c=None):
+    """Se o indice da pesquisa geral esta construido (a marca so se
+    escreve no fim do `construir_indice_da_pesquisa()`)."""
+    def pergunta(c):
+        return bool(c.execute("SELECT 1 FROM estado WHERE chave=? AND valor='ok'",
+                              (MARCA_DA_PESQUISA,)).fetchone())
+    try:
+        if c is not None:
+            return pergunta(c)
+        with liga() as c:
+            return pergunta(c)
+    except sqlite3.Error:
+        return False
+
+
+def construir_indice_da_pesquisa(avisar=print, lote=PESQUISA_POR_LOTE,
+                                 esperar=time.sleep):
+    """Constroi o indice da pesquisa geral, se falta. ~1 min na base de
+    tamanho real: corre SO em fundo (`trabalhos_de_fundo_do_painel()`),
+    nunca no arranque sincrono nem num pedido.
+
+    Os gatilhos nascem PRIMEIRO, numa transaccao curta, e o resto
+    enche-se aos lotes, cada um na sua: uma transaccao so prendia a
+    escrita quase um minuto, e as sessoes do painel escrevem a cada
+    pedido. Um anuncio que chegue a meio entra pelo gatilho, e o lote
+    que o apanhe depois salta-o (`INSERT OR IGNORE` nas refs, e so as
+    refs novas DESTE lote vao ao indice). `esperar` e para os testes.
+
+    **Enche-se pela ordem da publicacao**, e e isso que deixa a pesquisa
+    ordenar pelo indice: o numero de cada ref cresce com a data, e os
+    anuncios que chegam depois (pelo gatilho) levam numeros maiores. Ordenar
+    pela `data_pub` dos `anuncios` obrigava a ler a linha de cada um dos
+    que respondem -- 15 mil em «lisboa», 64 ms --; pelo `rowid` do indice,
+    o SQLite para aos oito.
+    ponytail: um anuncio antigo que entre tarde (o `--historico`) fica
+    a frente dos recentes; se incomodar, refaz-se o indice."""
+    if indice_da_pesquisa_pronto():
+        return False
+    inicio = time.time()
+    with liga() as c:
+        c.execute("BEGIN IMMEDIATE")
+        c.execute("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, "
+                  "ref TEXT UNIQUE NOT NULL)" % REFS_DA_PESQUISA)
+        c.execute("CREATE VIRTUAL TABLE IF NOT EXISTS %s USING fts5(titulo, "
+                  "entidade, ref, nif, content='', contentless_delete=1, "
+                  "tokenize='trigram')" % INDICE_DA_PESQUISA)
+        for gatilho in GATILHOS_DA_PESQUISA:
+            c.execute(gatilho)
+        c.commit()
+    # so leitura, e a data vive antes do `texto`: uns segundos, sem trinco
+    with liga() as c:
+        todas = [r[0] for r in c.execute(
+            "SELECT ref FROM anuncios ORDER BY data_pub, ref")]
+    for n in range(0, len(todas), lote):
+        refs = todas[n:n + lote]
+        with liga() as c:
+            c.execute("BEGIN IMMEDIATE")
+            antes = c.execute("SELECT COALESCE(MAX(id), 0) FROM %s"
+                              % REFS_DA_PESQUISA).fetchone()[0]
+            c.executemany("INSERT OR IGNORE INTO %s (ref) VALUES (?)"
+                          % REFS_DA_PESQUISA, [(r,) for r in refs])
+            c.execute("INSERT INTO %s (rowid, titulo, entidade, ref, nif) "
+                      "SELECT p.id, a.titulo_norm, a.entidade_norm, lower(a.ref), "
+                      "a.nif FROM %s p JOIN anuncios a ON a.ref = p.ref "
+                      "WHERE p.id > ?" % (INDICE_DA_PESQUISA, REFS_DA_PESQUISA),
+                      (antes,))
+            c.commit()
+        esperar(0.05)       # deixa passar quem esta a espera da escrita
+    marca(MARCA_DA_PESQUISA, "ok")
+    avisar("indice da pesquisa geral construido em %.0f s" % (time.time() - inicio))
+    return True
+
+
+def _indice_da_pesquisa_em_fundo():
+    try:
+        construir_indice_da_pesquisa()
+    except Exception as erro:
+        # sem indice a pesquisa vai pelo LIKE: lenta, mas responde
+        try:
+            marca_erro("ultimo_erro_indice_pesquisa", "pesquisa", "%s: %s"
+                       % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                          str(erro)[:200]))
+        except Exception:
+            pass
+
+
+def termos_da_pesquisa(q):
+    """As palavras de uma pergunta, normalizadas como o indice (sem
+    acentos e em minusculas), e so as de tres letras ou mais: um
+    trigrama e o mais pequeno que o indice sabe procurar."""
+    return [t for t in simplifica(" ".join((q or "").split())[:TECTO_DA_PESQUISA]).split()
+            if len(t) >= 3]
+
+
+def concursos_da_pesquisa(c, termos, limite):
+    """Os anuncios -- sem as alteracoes, como o «Todos» da lista -- em
+    que TODAS as palavras aparecem no titulo, na entidade, na referencia
+    ou no NIF; os mais recentes primeiro (pela ordem do indice, ver o
+    `construir_indice_da_pesquisa()`). Sem o indice (o primeiro minuto
+    depois do primeiro arranque) vai pelo `LIKE`.
+
+    Sem total, de proposito: contar custava tanto como a lista (65 ms em
+    «lisboa»), e um numero ao lado do «ver na lista» tinha de dar a
+    lista que a ligacao abre -- e a caixa dos Concursos procura so no
+    titulo e na entidade, nao na referencia nem no NIF."""
+    if not termos:
+        return []
+    if indice_da_pesquisa_pronto(c):
+        base = ("FROM %s f JOIN %s p ON p.id = f.rowid JOIN anuncios a "
+                "ON a.ref = p.ref WHERE %s MATCH ? AND a.estado != 'alteracao'"
+                % (INDICE_DA_PESQUISA, REFS_DA_PESQUISA, INDICE_DA_PESQUISA))
+        # cada palavra entre aspas: no `trigram`, o pedaco de texto
+        valores = [" AND ".join('"%s"' % t.replace('"', '""') for t in termos)]
+        ordem = "f.rowid DESC"
+    else:
+        um = ("(a.titulo_norm LIKE ? ESCAPE '{0}' OR a.entidade_norm LIKE ? "
+              "ESCAPE '{0}' OR lower(a.ref) LIKE ? ESCAPE '{0}' OR a.nif LIKE ? "
+              "ESCAPE '{0}')".format(ESCAPE_LIKE))
+        base = ("FROM anuncios a WHERE a.estado != 'alteracao' AND "
+                + " AND ".join([um] * len(termos)))
+        valores = [v for t in termos for v in ["%" + para_like(t) + "%"] * 4]
+        ordem = "a.data_pub DESC"
+    return c.execute("SELECT a.ref, a.titulo, a.entidade, a.data_pub "
+                     + base + " ORDER BY " + ordem + " LIMIT ?",
+                     valores + [limite]).fetchall()
+
+
+def propostas_da_pesquisa(c, termos, limite):
+    """As propostas DA EMPRESA ACTIVA (a `propostas` e do ficheiro dela,
+    junto como `emp`) com todas as palavras no titulo, na entidade ou na
+    referencia -- os da proposta, ou os do anuncio quando ela os nao
+    tem. Sao dezenas de linhas: o `LIKE` chega."""
+    if not termos:
+        return []
+    texto = ("simplifica(COALESCE(NULLIF(p.titulo,''), a.titulo, '') || ' ' || "
+             "COALESCE(NULLIF(p.entidade,''), a.entidade, '') || ' ' || "
+             "COALESCE(p.ref, ''))")
+    return c.execute(
+        "SELECT p.id, p.ref, p.estado, COALESCE(NULLIF(p.titulo,''), a.titulo, '') "
+        "titulo, COALESCE(NULLIF(p.entidade,''), a.entidade, '') entidade "
+        "FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref WHERE "
+        + " AND ".join(["%s LIKE ? ESCAPE '%s'" % (texto, ESCAPE_LIKE)] * len(termos))
+        + " ORDER BY p.id DESC LIMIT ?",
+        ["%" + para_like(t) + "%" for t in termos] + [limite]).fetchall()
+
+
+def entidades_da_pesquisa(q, limite):
+    """[{chave, nome}] das entidades do Portal BASE: pelo NIF, se a
+    pergunta e um, e pelo nome em todas as grafias
+    (`sugestoes_de_entidade_do_corpus()`). Sem corpus, nenhuma."""
+    if not ha_corpus():
+        return []
+    digitos = re.sub(r"\D", "", q or "")
+    if len(digitos) == 9 and digitos == (q or "").replace(" ", ""):
+        # um NIF e a chave: nenhum nome tem nove algarismos seguidos, e
+        # procurar nos nomes custava 0,15 s por nada
+        with liga_corpus() as c:
+            r = c.execute("SELECT chave, nome FROM entidades WHERE chave=?",
+                          (digitos,)).fetchone()
+        return [{"chave": r["chave"], "nome": r["nome"] or r["chave"]}] if r else []
+    # ponytail: um LIKE pelas 257 mil grafias, ~0,05 s a quente; se
+    # crescer, um indice `trigram` na `entidade_nomes`, como o dos contratos
+    return [{"chave": e["nif"], "nome": e["nome"]}
+            for e in sugestoes_de_entidade_do_corpus(q, limite)]
+
+
+def resultados_da_pesquisa(q):
+    """O que a caixa e a pagina mostram, num dict pronto para JSON."""
+    termos = termos_da_pesquisa(q)
+    with liga() as c:
+        concursos = concursos_da_pesquisa(c, termos, NA_PESQUISA["concursos"])
+        propostas = propostas_da_pesquisa(c, termos, NA_PESQUISA["propostas"])
+    # a entidade procura-se pela pergunta inteira: «Município 3» tem uma
+    # palavra de um algarismo, que o indice dos concursos nao sabe ler
+    entidades = entidades_da_pesquisa(q, NA_PESQUISA["entidades"]) if termos else []
+    return {
+        "q": q, "curta": not termos and bool((q or "").strip()),
+        "concursos": [{"ref": a["ref"], "titulo": a["titulo"] or "",
+                       "entidade": a["entidade"] or "",
+                       "data": data_pt(a["data_pub"] or ""),
+                       "url": "/anuncio/" + quote(a["ref"], safe="/")}
+                      for a in concursos],
+        "propostas": [{"id": p["id"], "titulo": p["titulo"] or p["ref"] or "",
+                       "entidade": p["entidade"] or "",
+                       "estado": ROTULOS_DA_ESCADA.get(p["estado"], p["estado"] or ""),
+                       "url": "/proposta/%d" % p["id"]} for p in propostas],
+        "entidades": [dict(e, url="/entidade/" + quote(e["chave"], safe=""))
+                      for e in entidades],
+        "mais": {"concursos": LISTA + "?" + urlencode({"estado": "", "q": q or ""}),
+                 "entidades": "/entidade/procurar?" + urlencode({"q": q or ""})},
+    }
+
+
 def trabalhos_de_fundo_do_painel():
     """O que o painel arranca em fundo, alem do relogio: a vigia do
-    corpus e a recolha dos concorrentes (L5). Em threads daemon -- o
-    arranque nao espera por elas."""
+    corpus, a recolha dos concorrentes (L5) e o indice da pesquisa geral
+    (uma vez, se falta). Em threads daemon -- o arranque nao espera por
+    elas."""
     threading.Thread(target=vigiar_o_corpus, daemon=True,
                      name="vigia-do-corpus").start()
     threading.Thread(target=vigiar_os_concorrentes, daemon=True,
                      name="concorrentes").start()
+    threading.Thread(target=_indice_da_pesquisa_em_fundo, daemon=True,
+                     name="indice-da-pesquisa").start()
 
 
 # --------------------------------------- os concorrentes de cada contrato
@@ -13554,10 +13822,15 @@ def volta_ao_referer(omissao):
 # /llms.txt (29/09/2026): o resumo do site para os agentes de IA, na
 # mesma condicao -- um ficheiro do `site/`, sem dados, so GET. E a
 # /afonso-pinto.jpg (30/09/2026), a fotografia do site, idem.
+# /esqueci-me (J7, 1/10/2026): quem se esqueceu da palavra-passe pede a
+# ligacao de repor por e-mail. A guarda e dentro da rota
+# (`esqueci_me()`): a origem, o tecto por IP e por endereco, a mesma
+# resposta exista ou nao a conta, e nunca a conta do dono.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
-                 "/partilha.png", "/llms.txt", "/afonso-pinto.jpg")
+                 "/partilha.png", "/llms.txt", "/afonso-pinto.jpg",
+                 "/esqueci-me")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -13612,7 +13885,10 @@ def sou_dono():
 # ranhuras da empresa (as propostas) ficam fora -- ver dono_le().
 LEITURA_DO_DONO = ("/concursos", "/anuncio/", "/documento/", "/peca/",
                    "/peca-pagina/", "/contratos", "/entidades",
-                   "/entidade/", "/csv", "/cpv.json", "/procedimento/")
+                   "/entidade/", "/csv", "/cpv.json", "/procedimento/",
+                   # a pesquisa geral (1/10/2026): as propostas dele são
+                   # as da empresa vazia, e por isso nenhuma
+                   "/pesquisa")
 
 
 def dono_le(caminho, args=None):
@@ -14118,10 +14394,14 @@ def rebentou(_erro):
     mais a linha na serie, e uma pagina da empresa. O registo nunca pode
     derrubar a resposta: se a base e que esta mal, fica so a pagina."""
     causa = getattr(_erro, "original_exception", None) or _erro
+    # O codigo de uma ligacao (repor, convite) vale uma palavra-passe ou
+    # uma conta, e o caminho leva-o: a lista dos erros e lida pelo dono e
+    # vai nas copias (J7, 1/10/2026).
+    caminho = re.sub(r"^/(repor|convite)/.*", r"/\1/…", request.path)
     try:
         marca_erro("painel_ultimo_erro", "painel",
                    "%s em %s %s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                        request.method, request.path[:80],
+                                        request.method, caminho[:80],
                                         ("%s: %s" % (type(causa).__name__, causa))[:400]))
     except Exception:
         pass
@@ -14327,7 +14607,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="s
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
- <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao gestor da sua empresa uma ligação para a repor.</p>
+ <p class="entrar-nota">Esqueceu-se da palavra-passe? <a href="/esqueci-me">Receba uma ligação por e-mail</a>. Se entra com um nome de utilizador e não com um e-mail, Peça ao gestor da sua empresa uma ligação para a repor.</p>
  <p class="entrar-nota">Sem conta? <a href="/#acesso">Peça acesso</a>.</p>
  </div></section>
 </main></body></html>"""
@@ -14382,8 +14662,8 @@ def frase_do_aviso_de_entrar(aviso):
     if not frase.endswith((".", "!", "?")):
         frase += "."
     if "palavra-passe errados" in aviso:
-        frase += (" Se se esqueceu da palavra-passe, peça ao gestor da sua "
-                  "empresa uma ligação para a repor.")
+        frase += (" Se se esqueceu da palavra-passe, peça uma ligação para "
+                  "a repor em «Esqueceu-se da palavra-passe?», mais abaixo.")
     return frase
 
 
@@ -14753,18 +15033,6 @@ details.porque > summary > .mg-disc__q{align-self:center}
 details.porque-bloco > summary{gap:7px}
 details.porque-bloco .rot{margin:0}
 details.porque-bloco > .nota{margin:6px 0 12px}
-h1.tit{margin:8px 0 0;font:700 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);
- letter-spacing:-.4px;max-width:900px;text-wrap:pretty}
-p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);
- max-width:820px;text-wrap:pretty}
-.abas{display:flex;align-items:center;gap:4px;margin-top:14px}
-.abas a{padding:9px 14px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;font:600 var(--text-xs)/1 var(--font-sans);
- background:transparent;color:var(--ink-secondary);border:1px solid transparent;
- border-bottom:none;margin-bottom:-1px}
-.abas a:hover{color:var(--ink)}
-.abas a.on{background:var(--surface-raised);color:var(--ink);border-color:var(--line);font-weight:700}
-.abas a i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted);margin-left:4px}
-.abas a.on i{color:var(--ink-secondary)}
 /* A escada (15/09/2026): dez ranhuras mais o "todos" nao cabem numa
    linha de tabuladores como as quatro abas de antes. Rolam na
    horizontal, e as tres naturezas distinguem-se -- as duas pontas (a
@@ -14798,8 +15066,6 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .larg{max-width:1560px}
 
 /* pecas comuns */
-.cx{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);
- box-shadow:var(--shadow-sm)}
 .rot{font:700 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);text-transform:uppercase;
  letter-spacing:.07em}
 .nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
@@ -14812,13 +15078,6 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .flash form.desfazer{margin-left:10px;vertical-align:middle}
 .flash code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
  padding:2px 6px;border-radius:var(--radius-sm)}
-.tag{font:500 var(--text-xs)/1 var(--font-sans);padding:4px 7px;border-radius:var(--radius-sm);
- background:var(--surface-sunken);color:var(--ink-secondary);white-space:nowrap}
-.tag.mono{font-family:var(--font-mono)}
-.tag.ok{background:var(--success-soft);color:var(--success);font-weight:600}
-.tag.avisa{background:var(--warning-soft);color:var(--warning);font-weight:600}
-.tag.mau{background:var(--danger-soft);color:var(--danger);font-weight:600}
-.tag.info{background:var(--brand-soft);color:var(--brand);font-weight:600}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
@@ -14968,9 +15227,6 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .ent-nomes>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .ent-nomes span{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
  background:var(--surface-sunken);padding:4px 8px;border-radius:var(--radius-sm)}
-.kpis.dois{grid-template-columns:repeat(2,minmax(0,1fr))}
-.kpi .r{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
- letter-spacing:.07em}
 .ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
  background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
@@ -15098,21 +15354,11 @@ p.subtit{margin:5px 0 0;font:400 var(--text-xs)/1.45 var(--font-sans);color:var(
 .tab-mercado tr:last-child td{border-bottom:0}
 /* a coluna do objecto pode ser longa; a tabela rola dentro da caixa em
    vez de empurrar a ficha toda para o lado */
-.ref-preco{border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;
- margin-bottom:14px;background:var(--surface-raised);
- font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-secondary)}
-.ref-preco b.bom{color:var(--success)}
-.ref-preco b.mau{color:var(--danger)}
 .escada{display:flex;gap:8px;margin:12px 0 4px}
 .escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
  border-radius:var(--radius-sm);background:var(--surface-raised);border:1px solid var(--line);
  font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:center}
 .escada span b{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
-/* o rotulo desta esta sobre fundo azul-claro e nao sobre branco: com
-   --t4 ficava a 4,3:1, por baixo do limite */
-.escada span.med{border-color:var(--brand);background:var(--brand-soft)}
-.escada span.med{color:var(--ink-secondary)}
-.escada span.med b{color:var(--brand)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
 .mercado code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
@@ -15267,24 +15513,9 @@ details.painel-filtros .pf-sub{font:400 var(--text-xs)/1.4 var(--font-sans);colo
  border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow-sm);
  overflow:hidden}
 .item:hover{border-color:var(--line-strong)}
-.item-corpo{padding:14px 17px;min-width:0}
 .item-titulo{font:700 var(--text-md)/1.35 var(--font-sans);color:var(--brand);display:block;
  letter-spacing:-.1px;text-wrap:pretty}
 .item-titulo:hover{color:var(--ink)}
-.item-entidade{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary);margin-top:5px}
-.item-entidade .quando{color:var(--ink-muted)}
-.item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-.item-lado{padding:14px 17px;border-left:1px solid var(--surface-sunken);display:flex;
- flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}
-/* O prazo e o que decide, e le-se antes do preco. As tres cores sao as
-   mesmas das etiquetas de estado (etiqueta_prazo devolve a classe): o
-   que muda e o peso -- aqui e um numero, nao um distintivo. */
-.item-prazo{font:700 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary)}
-.item-prazo.mau{color:var(--danger)}
-.item-prazo.avisa{color:var(--warning)}
-.item-prazo.ok{color:var(--success)}
-.item-preco{font:600 var(--text-sm)/1.2 var(--font-mono);color:var(--ink)}
-.item-accoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 /* o motivo do abandono pergunta-se numa caixa por cima (decisao do
    Afonso a 01/09/2026): um selector ao lado do botao punha uma pergunta
    permanente em cada uma das vinte linhas da lista, e a lista e para
@@ -15337,8 +15568,6 @@ dialog.mg-dialog .escolhas .motivo-bt{justify-content:flex-start;text-align:left
  font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);display:inline-block;
  padding:6px 5px;margin:-6px 0;min-height:24px;box-sizing:border-box}
 .bt-leve:hover{color:var(--brand);text-decoration:underline}
-/* um titulo vazio nao ocupa espaco: a ficha nao usa o cabecalho grande */
-h1.tit:empty,p.subtit:empty{display:none}
 .facto{background:var(--surface-raised);padding:12px 15px;flex:1 1 180px;min-width:0}
 .facto .k{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
  letter-spacing:.08em}
@@ -15501,10 +15730,6 @@ button.tirar:hover{color:var(--danger)}
    Com o quadro fora, é este o controlo que move um concurso na escada:
    oito destinos não cabem em botões, e dois botões de avançar/recuar
    davam vários gestos a qualquer salto -- e saltar é o caso. */
-/* Na mesma linha dos botoes e nao por baixo deles: a linha da lista
-   ficava com duas alturas, e vinte linhas assim sao um ecra a mais. */
-.item-accoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
- justify-content:flex-end}
 .ranhura{display:flex;align-items:center;gap:4px}
 /* A coluna da ranhura tem de caber a palavra mais comprida ("A
    preparar proposta"): numa `td.curta` o select encolhia e mostrava "A
@@ -15538,7 +15763,6 @@ td.celula-ranhura{white-space:nowrap;width:1%}
  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
 .prop-campos button:not(.mg-btn):hover{border-color:var(--brand);color:var(--brand)}
-.prop-accoes{display:flex;gap:6px;flex-wrap:wrap}
 /* o que falta fazer, por proposta */
 .prop-tarefas{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-strong)}
 .prop-tarefas .rot{margin-bottom:8px}
@@ -15672,13 +15896,6 @@ a.ct-l{color:var(--brand)}
  margin:0 0 12px;font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 
 /* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`. */
-.kpis a.kpi{display:block;color:inherit}
-.kpis a.kpi:hover{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
-.kpis a.kpi:hover .r{color:var(--brand)}
-.entrada-hoje{margin:14px 0 18px}
-.entrada-hoje.mau{color:var(--danger)}
-.cx.hoje > h2{font:620 var(--text-lg)/1.3 var(--font-sans);color:var(--ink);
- margin:0 0 14px;letter-spacing:-.2px}
 /* Quatro baldes e nao uma ordem por data: o atrasado de ontem e outra
    categoria e nao um dia pior, e uma lista so por data poe-no a seguir
    ao de hoje como se fosse a mesma coisa. */
@@ -15689,33 +15906,11 @@ a.ct-l{color:var(--brand)}
 .hj-t i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted)}
 .hj-g.mau .hj-t{color:var(--danger)}
 .hj-g.avisa .hj-t{color:var(--warning)}
-.hj-l{display:grid;grid-template-columns:96px minmax(0,1fr) minmax(0,1fr);
- gap:12px;align-items:baseline;padding:7px 9px;border-radius:var(--radius-sm);
- border-left:2px solid var(--line-strong);color:inherit}
-.hj-l:hover{background:var(--surface-sunken)}
-.hj-g.mau .hj-l{border-left-color:var(--danger)}
-.hj-g.avisa .hj-l{border-left-color:var(--warning)}
 .hj-q{font:600 var(--text-xs)/1.4 var(--font-mono);color:var(--ink-secondary)}
 .hj-q.vago{color:var(--ink-muted);font-weight:400}
 .hj-o{font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink);min-width:0}
-.hj-l:hover .hj-o{color:var(--brand)}
 .hj-c{font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:900px){.hj-l{grid-template-columns:minmax(0,1fr);gap:2px}}
-/* O cabecalho do grupo: as tarefas agrupam-se por PROPOSTA e nao por
-   data dentro do balde (D-c do CICLOS.md) -- 55 tarefas sao ~25
-   concursos, e uma lista de 55 linhas iguais nao diz de que concurso
-   cada uma e. */
-.hj-p{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
- margin:10px 0 3px;padding:0 9px}
-.hj-p a{font:600 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-secondary)}
-.hj-p a:hover{color:var(--brand)}
-.hj-p .tag{font:500 var(--text-xs)/1.5 var(--font-sans)}
-.hj-p form.ranhura{margin-left:auto}
-.hj-l .hj-bts{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
-.hj-l .hj-bts input[type=text]{width:88px;font:400 var(--text-xs)/1.4 var(--font-sans);
- padding:2px 4px}
-.hj-l .hj-bts input[name=quem]{width:76px}
 
 /* --- movimento (17/09/2026)
    As curvas e os keyframes vêm do Open Props, em `estilo/` -- ver o
@@ -15741,7 +15936,7 @@ a.ct-l{color:var(--brand)}
  /* O que responde ao rato ou ao teclado acompanha, em vez de trocar de
     cor de um fotograma para o outro. .12s é o que as duas transitions
     que já existiam usavam -- segue-se o que a casa já tinha. */
- .hj-l,.hj-p a,.ent-num,.hist a,.kpis a.kpi{
+ .ent-num,.hist a{
   transition:background .12s var(--ease-3),color .12s var(--ease-3)}
  .bt,.mini,button{transition:background .12s var(--ease-3),
   border-color .12s var(--ease-3),color .12s var(--ease-3)}
@@ -15763,16 +15958,6 @@ details.perigo[open] > summary{color:var(--danger)}
 .ent-nossas .rot i{font-style:normal;color:var(--ink-muted)}
 
 /* indicadores */
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
- gap:14px}
-.kpi{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);padding:20px;
- box-shadow:var(--shadow-sm)}
-.kpi .r{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-transform:uppercase;
- letter-spacing:.09em}
-.kpi .v{font:700 var(--text-2xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;margin:12px 0 6px}
-.kpi .d{font:500 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
-.ind-grelha{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;
- align-items:start}
 /* A coluna e uma GRELHA de tres faixas -- valor, barra, rotulo -- e nao
    uma coluna flex (16/09/2026). Em flex, o `height:N%` da barra
    resolvia-se contra os 180px do grupo e depois era travado pelo espaco
@@ -15812,9 +15997,6 @@ details.perigo[open] > summary{color:var(--danger)}
  background:var(--surface-sunken);color:var(--ink-muted);font:600 var(--text-xs)/1.3 var(--font-sans);
  text-transform:uppercase;letter-spacing:.06em;vertical-align:middle}
 
-@media (max-width:1100px){
- .ind-grelha{grid-template-columns:minmax(0,1fr)}
-}
 
 /* Ecras estreitos (8/09/2026, pedido do Afonso: "quero que o frontend
    seja responsive"). Ate aqui a barra lateral de 140px comia um terco
@@ -15832,16 +16014,9 @@ details.perigo[open] > summary{color:var(--danger)}
  .barra nav{order:10;flex-basis:100%;margin:2px 0 0}
  .topo{padding:12px 16px 0}
  .corpo{padding:14px 12px 44px}
- h1.tit{font-size:var(--text-lg)}
- .abas{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
- .abas a{white-space:nowrap;padding:9px 10px}
  .linha-conta{flex-wrap:wrap}
  .linha-conta a{margin-left:0}
  .item{grid-template-columns:minmax(0,1fr)}
- .item-corpo{padding:12px 14px}
- .item-lado{border-left:0;border-top:1px solid var(--surface-sunken);flex-direction:row;
-  flex-wrap:wrap;justify-content:space-between;align-items:center;padding:10px 14px;gap:8px}
- .item-accoes{justify-content:flex-start}
  .filtros input[type=text]{min-width:0;flex-basis:100%}
  .filtros select,.filtros input.campo-data{flex:1 1 40%;min-width:0}
  .filtros input#filtro-cpv-excl{width:auto!important;flex:1 1 40%!important}
@@ -15856,7 +16031,6 @@ details.perigo[open] > summary{color:var(--danger)}
  .barras{gap:8px}
  .barras .col{min-width:0}
  .barras .l{white-space:normal;text-align:center;overflow-wrap:anywhere}
- .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
  .conf-indice a i{display:none}
  /* Sete colunas em 375px dao 49px cada, e o titulo sai "Ex...". E a
     mesma avaria do calendario antigo, que mostrava "A pr..." numa celula
@@ -15870,8 +16044,6 @@ details.perigo[open] > summary{color:var(--danger)}
 }
 @media (max-width:600px){
  .barra nav a{padding:7px 7px;font-size:var(--text-xs)}
- h1.tit{font-size:var(--text-lg)}
- .kpis{grid-template-columns:minmax(0,1fr)}
  .filtros select,.filtros input.campo-data{flex-basis:100%}
  .filtros input#filtro-cpv-excl{flex-basis:100%!important}
  .entrar{padding:20px 18px 18px}
@@ -15931,20 +16103,18 @@ CSS_NOVO = r"""
  font-variant-numeric:tabular-nums}
 
 /* Regra 3: as superficies separam-se por tom, nao por risco. */
-[data-pele=novo] .item,[data-pele=novo] .cx,[data-pele=novo] .sec,
-[data-pele=novo] .kpi,[data-pele=novo] .conf-cx,[data-pele=novo] .prop{
+[data-pele=novo] .item,[data-pele=novo] .sec,[data-pele=novo] .conf-cx,[data-pele=novo] .prop{
  border-color:var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
 
 /* Regra 1: hierarquia pelo tamanho e pelo peso. */
-[data-pele=novo] h1.tit{font:680 var(--text-3xl)/1.2 var(--font-sans);letter-spacing:-.6px}
 [data-pele=novo] .item-titulo{font:620 var(--text-lg)/1.3 var(--font-sans);
  letter-spacing:-.2px}
-[data-pele=novo] .abas a,[data-pele=novo] .bt{font-size:var(--text-sm)}
+[data-pele=novo] .bt{font-size:var(--text-sm)}
 
 /* Regra d do diagnostico: as maiusculas espacadas saem. Um rotulo de
    bloco passa a caixa normal, peso 600, --f2 -- le-se melhor, ocupa
    menos, e deixa de obrigar a letra a descer a 9px para caber. */
-[data-pele=novo] .rot,[data-pele=novo] .kpi .r,[data-pele=novo] .facto .k,
+[data-pele=novo] .rot,[data-pele=novo] .facto .k,
 [data-pele=novo] details.sec .st,[data-pele=novo] .prop-campos label,
 [data-pele=novo] details.painel-filtros .pf-tit,
 [data-pele=novo] .desfecho-som span{
@@ -16007,14 +16177,6 @@ CSS_NOVO = r"""
 [data-pele=novo] .mini.perigo:focus-visible{
  background:var(--danger);border-color:var(--danger);color:var(--on-brand)}
 
-/* O separador de milhares e um espaco INQUEBRAVEL (mil_pt), e faz falta:
-   com um normal, o browser parte "1 363 300" ao fim da linha. Mas a
-   30px, na Plex, esse espaco tem a largura de um algarismo e "209 903"
-   le-se como dois numeros. Aperta-se so aqui, no numero de display --
-   a 11 ou 12px o espaco esta certo e nao se toca. Nao se troca o
-   caractere: o mil_pt serve tambem a consola e os dois CSV. */
-[data-pele=novo] .kpi .v{word-spacing:-.3em}
-
 /* --------------------------------------------------------------------
    A ABERTURA REDESENHADA (17/09/2026, pacote «Radar Gov UI redesign»,
    design_handoff_radar/README.md §1).
@@ -16023,20 +16185,6 @@ CSS_NOVO = r"""
    numeros; a linha de factos diz os mesmos quatro numa linha de 20px, e
    o que sobra e a fita da semana -- que responde a "o que fecha esta
    semana" sem ninguem ter de ir ao calendario. */
-
-/* A linha de factos vai na ranhura das abas, logo por baixo do titulo:
-   e onde uma barra de separadores estaria, e por isso nao empurra nada.
-   Cada facto abre a lista que o produz -- a regra da empresa. */
-[data-pele=novo] .factos-linha{display:flex;flex-wrap:wrap;
- align-items:baseline;gap:6px 22px;padding:2px 0 12px}
-[data-pele=novo] .factos-linha a{color:var(--ink-muted);
- font:500 var(--text-sm)/1.5 var(--font-sans)}
-[data-pele=novo] .factos-linha a:hover{color:var(--brand)}
-[data-pele=novo] .factos-linha b{font:600 var(--text-md)/1 var(--font-mono);
- color:var(--ink);margin-right:4px;word-spacing:-.3em}
-[data-pele=novo] .factos-linha b.avisa{color:var(--warning)}
-[data-pele=novo] .factos-linha b.mau{color:var(--danger)}
-[data-pele=novo] .factos-linha .adiante{margin-left:auto;color:var(--ink-secondary)}
 
 /* A fita da semana: sete celulas, 1px de intervalo sobre a linha -- a
    separacao e o fundo a aparecer, nao um risco desenhado (regra 3). */
@@ -16068,7 +16216,6 @@ CSS_NOVO = r"""
  grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:18px;
  align-items:start}
 [data-pele=novo] .lado{display:flex;flex-direction:column;gap:14px}
-[data-pele=novo] .lado .cx{padding:14px 18px}
 
 /* O cabecalho do "Para fazer": o rotulo, as pilhas de pessoa e o
    "esconder as feitas". */
@@ -16083,10 +16230,6 @@ CSS_NOVO = r"""
  color:var(--on-brand)}
 [data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
  margin-left:4px}
-[data-pele=novo] .fazer-fundo{display:flex;gap:18px;padding:12px 16px;
- border-top:1px solid var(--line);flex-wrap:wrap;
- font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
-[data-pele=novo] .fazer-fundo .adiante{margin-left:auto}
 
 /* Os baldes dobram com o <details> do browser -- nao ha JS nenhum a
    guardar isto, e por isso tambem nao ha estado escondido para
@@ -16190,31 +16333,6 @@ CSS_NOVO = r"""
 @media (max-width:900px){
  [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
 
-/* O PONTO DE SITUACAO (redesenho §2). Os quatro numeros sao uma grelha
-   de celulas separadas por 1px de fundo, e nao quatro cartoes: dentro
-   de uma caixa que ja e um cartao, quatro cartoes sao cinco caixas. */
-[data-pele=novo] .sit-numeros{display:grid;
- grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
- background:var(--line);border:1px solid var(--line);border-radius:var(--radius-lg);
- overflow:hidden}
-[data-pele=novo] .sit-n{background:var(--surface-raised);padding:16px 18px;
- display:flex;flex-direction:column;gap:6px}
-[data-pele=novo] .sit-n .r{font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
-[data-pele=novo] .sit-n b{font:600 var(--text-2xl)/1 var(--font-mono);color:var(--ink);
- letter-spacing:-1px;word-spacing:-.3em}
-[data-pele=novo] .sit-n .d{font:400 var(--text-xs)/1.45 var(--font-sans);
- color:var(--ink-muted)}
-/* O `word-spacing` volta ao normal: o aperto de -.3em é do NÚMERO de
-   display (senão "209 903" lê-se como dois números), e aqui o `b` leva
-   uma FRASE -- saía "1de1decididos—ataxadiz-seapartirde5". */
-[data-pele=novo] .sit-n.por-haver b{font:400 var(--text-sm)/1.45 var(--font-sans);
- color:var(--ink-muted);letter-spacing:0;word-spacing:normal}
-[data-pele=novo] .delta{font:600 var(--text-sm)/1 var(--font-mono)}
-[data-pele=novo] .delta.sobe{color:var(--success)}
-[data-pele=novo] .delta.desce{color:var(--danger)}
-[data-pele=novo] .delta.igual,[data-pele=novo] .delta.vago{color:var(--ink-muted);
- font-weight:400}
-
 /* AS ENTIDADES (redesenho §3). A fita do "connosco": um quadrado por
    proposta, com a cor do desfecho. Seis quadrados dizem se correram bem
    antes de se ler a taxa; "6 propostas" nao diz nada disso. */
@@ -16243,12 +16361,8 @@ CSS_NOVO = r"""
 /* A ficha da entidade (redesenho §4): os seis factos, e o NOSSO lado à
    esquerda. Empilhados, o que já fizemos com ela ficava debaixo de seis
    gráficos do mercado -- e é a primeira pergunta ao abrir uma ficha. */
-[data-pele=novo] .sit-numeros.seis{margin:0 0 14px;
- grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
-[data-pele=novo] .sit-numeros.seis .sit-n b{font-size:var(--text-xl)}
 [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,360px) minmax(0,1fr);
  margin-top:14px}
-[data-pele=novo] .ent-dois .lado-nosso > .cx{margin:0}
 @media (max-width:900px){
  [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:760px){
@@ -16412,6 +16526,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
 <header class="mg mg-topbar">%(faixa)s
  <a class="mg-topbar__brand" href="/" %(inicio_on)s aria-label="Hoje &mdash; Mira Gov" title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
  <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
+ %(procurar)s
  %(conta)s
 </header>
 <main class="mg" id="conteudo" tabindex="-1">
@@ -16445,6 +16560,81 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
     barra que so aparecia em telemovel. O `resize` nao dispara com uma
     fonte a carregar. */
  if (document.fonts && document.fonts.ready) document.fonts.ready.then(p);})();
+/* A pesquisa geral (J1, 1/10/2026). Ctrl+K (ou Cmd+K) em qualquer
+   sitio, e «/» fora de um campo, levam a caixa da barra; o que se
+   escreve pergunta ao /pesquisa (JSON) 200 ms depois da ultima tecla, e
+   as setas andam pela lista. O texto entra por textContent, nunca por
+   innerHTML: e o que veio da base. Sem JS a caixa e um formulario GET. */
+(function () {
+ var f = document.querySelector('form.pesquisa-geral');
+ if (!f) return;
+ var i = f.querySelector('input'), l = f.querySelector('.pesquisa-lista'),
+     vivo = f.querySelector('[role=status]'), espera = null, vez = 0;
+ document.addEventListener('keydown', function (e) {
+  var t = e.target, campo = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+      t.tagName === 'SELECT' || t.isContentEditable;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+   e.preventDefault(); i.focus(); i.select();
+  } else if (e.key === '/' && !campo && !e.ctrlKey && !e.metaKey && !e.altKey) {
+   e.preventDefault(); i.focus();
+  }
+ });
+ function fecha() {
+  l.hidden = true; l.textContent = ''; i.setAttribute('aria-expanded', 'false');
+ }
+ function grupo(titulo, itens, rotulo, nota) {
+  if (!itens.length) return;
+  var h = document.createElement('p');
+  h.className = 'pesquisa-lista__grupo'; h.textContent = titulo; l.appendChild(h);
+  itens.forEach(function (x) {
+   var a = document.createElement('a'), s = document.createElement('small');
+   a.href = x.url; a.className = 'pesquisa-lista__item';
+   a.textContent = rotulo(x); s.textContent = nota(x);
+   a.appendChild(s); l.appendChild(a);
+  });
+ }
+ function desenha(d) {
+  l.textContent = '';
+  grupo('Propostas', d.propostas, function (x) { return x.titulo; },
+        function (x) { return [x.entidade, x.estado].filter(Boolean).join(' · '); });
+  grupo('Concursos', d.concursos, function (x) { return x.titulo || x.ref; },
+        function (x) { return [x.ref, x.entidade, x.data].filter(Boolean).join(' · '); });
+  grupo('Entidades', d.entidades, function (x) { return x.nome; },
+        function (x) { return x.chave.indexOf('n:') === 0 ? 'sem NIF' : x.chave; });
+  var n = l.querySelectorAll('a').length, todos = document.createElement('a');
+  todos.href = '/pesquisa?q=' + encodeURIComponent(d.q);
+  todos.className = 'pesquisa-lista__item pesquisa-lista__todos';
+  todos.textContent = n ? 'Ver tudo o que responde' : 'Nada responde: abrir a página';
+  l.appendChild(todos);
+  l.hidden = false; i.setAttribute('aria-expanded', 'true');
+  vivo.textContent = n ? n + ' resultados; seta para baixo para os percorrer'
+                       : 'Nenhum resultado';
+ }
+ i.addEventListener('input', function () {
+  clearTimeout(espera);
+  var q = i.value.trim();
+  if (q.length < 3) { fecha(); return; }
+  espera = setTimeout(function () {
+   var esta = ++vez;
+   fetch('/pesquisa?q=' + encodeURIComponent(q),
+         {headers: {Accept: 'application/json'}, credentials: 'same-origin'})
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && esta === vez) desenha(d); })
+    .catch(function () {});
+  }, 200);
+ });
+ f.addEventListener('keydown', function (e) {
+  var itens = Array.prototype.slice.call(l.querySelectorAll('a')),
+      onde = itens.indexOf(document.activeElement);
+  if (e.key === 'Escape') { fecha(); i.focus(); }
+  else if (e.key === 'ArrowDown' && itens.length) {
+   e.preventDefault(); itens[Math.min(onde + 1, itens.length - 1)].focus();
+  } else if (e.key === 'ArrowUp' && onde >= 0) {
+   e.preventDefault(); (onde ? itens[onde - 1] : i).focus();
+  }
+ });
+ document.addEventListener('click', function (e) { if (!f.contains(e.target)) fecha(); });
+})();
 /* Um formulario GET com a classe `sem-vazios` nao leva os campos vazios
    para o endereco (varredura de 25/09/2026: a pergunta do Mercado dava
    `?q=x&adj=&entid=&ganhou=&vencid=&cpv=&de=&ate=`, feio de partilhar).
@@ -17741,6 +17931,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
+        "procurar": caixa_da_pesquisa(),
         "conf_on": ("aria-current='page'"
                     if activo == "configuracoes" else ""),
         "logo": logotipo(tamanho=26, inverso=True),
@@ -18829,13 +19020,19 @@ def sugestoes_de_entidade_do_corpus(texto, limite=10):
     if len(alvo) < 2 or not ha_corpus():
         return []
     padrao = para_like(alvo)
+    # Os nomes que respondem primeiro, e so depois as entidades deles
+    # (a pesquisa geral, 1/10/2026): com o JOIN por fora, o SQLite
+    # percorria as 180 mil entidades e ia a cada uma buscar os nomes --
+    # 0,17 s a quente numa copia; assim, uma passagem pelos 257 mil nomes
+    # e 0,04 s, com as mesmas linhas.
     with liga_corpus() as c:
         linhas = c.execute(
-            "SELECT e.chave, e.nome, COALESCE(e.variantes,1) n,"
-            " MAX(n.nome_norm LIKE ? ESCAPE '%s') comeca"
-            " FROM entidade_nomes n JOIN entidades e ON e.chave = n.chave"
-            " WHERE n.nome_norm LIKE ? ESCAPE '%s'"
-            " GROUP BY e.chave ORDER BY comeca DESC, n DESC LIMIT ?"
+            "WITH achadas AS MATERIALIZED (SELECT chave,"
+            " MAX(nome_norm LIKE ? ESCAPE '%s') comeca FROM entidade_nomes"
+            " WHERE nome_norm LIKE ? ESCAPE '%s' GROUP BY chave)"
+            " SELECT e.chave, e.nome, COALESCE(e.variantes,1) n, a.comeca"
+            " FROM achadas a JOIN entidades e ON e.chave = a.chave"
+            " ORDER BY a.comeca DESC, n DESC LIMIT ?"
             % (ESCAPE_LIKE, ESCAPE_LIKE),
             (padrao + "%", "%" + padrao + "%", limite)).fetchall()
     return [{"nome": r["nome"], "nif": r["chave"], "n": r["n"]} for r in linhas]
@@ -25050,6 +25247,90 @@ def entidade_procurar():
         "entidade já assinou.",
         corpo, migalhas=migalhas_de("contratos", "procurar"),
         titulo_aba="Procurar entidade")
+
+
+def caixa_da_pesquisa():
+    """A caixa da pesquisa geral na barra (J1, 1/10/2026): um formulário
+    GET para o `/pesquisa`, que sem JavaScript abre a página; com ele, o
+    JS do `BASE` mostra a lista por baixo e põe os atalhos (Ctrl+K e
+    «/»). O `aria-keyshortcuts` diz os atalhos ao leitor de ecrã."""
+    return ("<form class='pesquisa-geral' role='search' action='/pesquisa' "
+            "method='get'><label class='so-leitor' for='pesquisa-geral'>Procurar "
+            "concurso, proposta, entidade ou NIF</label>"
+            "<input class='pesquisa-geral__campo' id='pesquisa-geral' type='search' "
+            "name='q' maxlength='%d' autocomplete='off' placeholder='Procurar  (Ctrl+K)' "
+            "aria-keyshortcuts='Control+K /' aria-controls='pesquisa-geral-lista' "
+            "aria-expanded='false'>"
+            "<div class='pesquisa-lista' id='pesquisa-geral-lista' hidden></div>"
+            "<div class='so-leitor' role='status' aria-live='polite'></div></form>"
+            % TECTO_DA_PESQUISA)
+
+
+def _grupo_da_pesquisa(titulo, itens, mais="", mais_rotulo=""):
+    """Um grupo da página dos resultados: o título, as linhas e o «ver
+    todos»."""
+    if not itens:
+        return ""
+    return ("<section class='mg-card pesquisa-grupo'><h2 class='mg-card__title'>%s</h2>"
+            "<ul class='pesquisa-itens'>%s</ul>%s</section>"
+            % (titulo, "".join(
+                "<li><a href='%s'>%s</a><small>%s</small></li>"
+                % (html.escape(i["url"], quote=True), html.escape(i["rotulo"]),
+                   html.escape(i["nota"])) for i in itens),
+               "<p class='nota'><a href='%s'>%s</a></p>"
+               % (html.escape(mais, quote=True), html.escape(mais_rotulo))
+               if mais else ""))
+
+
+@app.route("/pesquisa")
+def pesquisa_geral():
+    """A pesquisa geral (J1, 1/10/2026): concursos (pelo índice de texto),
+    as propostas DA EMPRESA de quem pede, e as entidades do Portal BASE,
+    pelo nome ou pelo NIF. JSON para a caixa da barra (`Accept`), a
+    página para quem não tem JavaScript ou carregou em Enter."""
+    q = " ".join((request.args.get("q") or "").split())[:TECTO_DA_PESQUISA]
+    r = resultados_da_pesquisa(q)
+    if pede_json():
+        return Response(json.dumps(r, ensure_ascii=False),
+                        mimetype="application/json",
+                        headers={"Cache-Control": "private, no-store"})
+    grupos = (
+        _grupo_da_pesquisa("Propostas", [
+            {"url": p["url"], "rotulo": p["titulo"],
+             "nota": " · ".join(x for x in (p["entidade"], p["estado"]) if x)}
+            for p in r["propostas"]])
+        + _grupo_da_pesquisa(
+            "Concursos", [
+                {"url": a["url"], "rotulo": a["titulo"] or a["ref"],
+                 "nota": " · ".join(x for x in (a["ref"], a["entidade"], a["data"]) if x)}
+                for a in r["concursos"]],
+            r["mais"]["concursos"], "Ver todos na lista dos Concursos")
+        + _grupo_da_pesquisa("Entidades", [
+            {"url": e["url"], "rotulo": e["nome"], "nota": e["chave"]
+             if not e["chave"].startswith("n:") else "sem NIF"}
+            for e in r["entidades"]],
+            r["mais"]["entidades"], "Procurar mais entidades"))
+    if not q:
+        corpo = ("<div class='mg-empty'>Escreva o que procura na caixa da "
+                 "barra: o título ou a referência de um concurso, uma "
+                 "proposta, o nome ou o NIF de uma entidade.</div>")
+    elif r["curta"]:
+        corpo = ("<div class='mg-empty'>Escreva pelo menos três letras ou "
+                 "algarismos seguidos.</div>")
+    elif not grupos:
+        corpo = ("<div class='mg-empty'>Nada responde a «%s». Os concursos "
+                 "procuram-se pelo título, pela entidade, pela referência e "
+                 "pelo NIF; todas as palavras têm de estar lá.</div>"
+                 % html.escape(q))
+    else:
+        corpo = "<div class='pesquisa-grupos'>%s</div>" % grupos
+    return envolver(
+        "pesquisa", "Procurar", "", corpo,
+        cabeca=cabecalho_de_pagina(
+            "Procurar", "«%s»" % html.escape(q) if q else
+            "Concursos, propostas, entidades e NIF, numa caixa só.",
+            [("Hoje", "/"), ("Procurar", "")]),
+        titulo_aba="Procurar")
 
 
 @app.route("/alertas/enviar", methods=["POST"])
@@ -34473,6 +34754,14 @@ def _avisar_do_pedido(id_, p):
                   (resposta, id_))
 
 
+def ip_de_quem_pede():
+    """O IP para um tecto de uma rota aberta: o que a Cloudflare escreve.
+    O `remote_addr` vem do X-Forwarded-For pelo ProxyFix, e esse o
+    visitante pode mandar feito (revisao de seguranca de 23/09/2026)."""
+    return (request.headers.get("Cf-Connecting-Ip") or request.remote_addr
+            or "")[:64]
+
+
 @app.route("/pedir-acesso", methods=["POST"])
 def pedir_acesso():
     """O formulario do site. **A guarda e esta**, porque a rota e aberta
@@ -34532,11 +34821,7 @@ def pedir_acesso():
         return resposta(False, "Preencha o nome, a empresa, um e-mail válido, "
                                "o NIF e o sector, para podermos responder.", 400)
     agora = datetime.now()
-    # O IP do tecto e o que a Cloudflare escreve: o `remote_addr` vem do
-    # X-Forwarded-For pelo ProxyFix, e esse o visitante pode mandar feito
-    # (revisao de seguranca de 23/09/2026).
-    ip = (request.headers.get("Cf-Connecting-Ip") or request.remote_addr
-          or "")[:64]
+    ip = ip_de_quem_pede()
     with liga() as c:
         do_ip = c.execute(
             "SELECT COUNT(*) n FROM pedidos_acesso WHERE ip=? AND criado_em>=?",
@@ -34745,20 +35030,9 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False):
     texto = TEXTO_DO_CONVITE % {
         "ola": ola, "frase": frase, "ligacao": ligacao, "ate": ate,
         "passos": "\n".join("%d. %s" % (i, p) for i, p in enumerate(passos, 1))}
-    href = html.escape(ligacao, quote=True)
     corpo = (
         _em_paragrafo(html.escape(ola)) + _em_paragrafo(html.escape(frase))
-        # o botão em tabela: é o que o Outlook respeita
-        + "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
-          "style=\"margin:6px 0 16px\"><tr><td style=\"background:%s;"
-          "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
-          "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
-          "Criar a conta</a></td></tr></table>" % (_EM_INK, href, _EM_SANS)
-        + _em_paragrafo(
-            "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
-            "copie este endereço para o browser:<br><span style=\"font-family:%s;"
-            "word-break:break-all\">%s</span></span>"
-            % (_EM_T3, _EM_MONO, html.escape(ligacao)))
+        + _em_botao(ligacao, "Criar a conta")
         + _em_paragrafo("A ligação serve uma vez e é válida até <b>%s</b>." % ate)
         + "<p style=\"margin:18px 0 6px;font:700 11px/1.4 %s;color:%s;"
           "text-transform:uppercase;letter-spacing:.06em\">O que vem a seguir</p>"
@@ -34785,6 +35059,81 @@ def enviar_convite(email, ligacao, empresa, papel, nome="", pedido=False):
                             em_html)
     except Exception as erro:              # o servidor pode responder o que quiser
         return False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+
+
+TEXTO_DA_REPOSICAO = """%(ola)s
+
+Pediram uma ligação para repor a palavra-passe da sua conta no Mira Gov
+(%(conta)s). Para escolher uma nova, abra:
+
+%(ligacao)s
+
+A ligação serve uma vez e vale até às %(ate)s. Ao guardar a
+palavra-passe nova, as sessões abertas desta conta fecham-se todas.
+
+Se não foi você que pediu, ignore este e-mail: a palavra-passe só muda
+com a ligação.
+
+Mira Gov
+"""
+
+
+def texto_e_html_da_reposicao(ligacao, conta, nome="", agora=None):
+    """(assunto, texto, html) do «esqueci-me» por e-mail (J7). Na moldura
+    de todos os outros, com o botão, o prazo em hora e o «se não foi
+    você» -- quem recebe isto sem o ter pedido tem de saber que não
+    precisa de fazer nada."""
+    ate = ((agora or datetime.now())
+           + timedelta(hours=contas.HORAS_DE_REPOSICAO_POR_EMAIL)).strftime(
+               "%H:%M de %d/%m/%Y")
+    ola = "Olá %s," % nome if nome else "Olá,"
+    texto = TEXTO_DA_REPOSICAO % {"ola": ola, "conta": conta,
+                                  "ligacao": ligacao, "ate": ate}
+    corpo = (
+        _em_paragrafo(html.escape(ola))
+        + _em_paragrafo("Pediram uma ligação para repor a palavra-passe da "
+                        "sua conta no Mira Gov (<b>%s</b>)." % html.escape(conta))
+        + _em_botao(ligacao, "Escolher a palavra-passe nova")
+        + _em_paragrafo("A ligação serve uma vez e vale até às <b>%s</b>. Ao "
+                        "guardar a palavra-passe nova, as sessões abertas "
+                        "desta conta fecham-se todas." % ate))
+    return ("Repor a palavra-passe do Mira Gov", texto,
+            moldura_do_email("Repor a palavra-passe", _em_cartao_branco(corpo),
+                             "Se não foi você que pediu, ignore este e-mail: "
+                             "a palavra-passe só muda com a ligação."))
+
+
+def _repor_por_email(email):
+    """O «esqueci-me» depois da resposta, em fundo (J7): procurar a conta,
+    criar a ligação, registar e mandar o e-mail. Tudo isto fora do
+    pedido, e não só o envio: o envio espera até 30 s pelo servidor, e
+    até a escrita da ligação na base demorava uns milissegundos só
+    quando a conta existe -- um tempo de resposta que dizia quais
+    existem. O que se regista diz a conta, nunca a ligação; uma falha do
+    envio fica nos eventos."""
+    with liga() as c:
+        codigo, conta = contas.reposicao_por_email(c, email)
+    if not conta:
+        return
+    if not codigo:
+        registar_evento("", "conta", "pedida por e-mail a ligação de repor da "
+                        "conta do dono (%s): recusada, repõe-se pela consola"
+                        % conta["email"], quem="radar")
+        return
+    registar_evento("", "conta", "ligação de repor pedida por e-mail: %s"
+                    % conta["email"], quem="radar")
+    conta, nome = conta["email"], conta["nome"]
+    ligacao = "%s/repor/%s" % (endereco_do_painel().rstrip("/"), codigo)
+    assunto, texto, em_html = texto_e_html_da_reposicao(ligacao, conta, nome)
+    try:
+        bem, porque = enviar_email(
+            assunto, texto, _junta(dict(ler_config()), {"email": {"para": conta}}),
+            em_html)
+    except Exception as erro:              # nunca derruba a thread
+        bem, porque = False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+    if not bem:
+        registar_evento("", "conta", "a ligação de repor de %s não saiu por "
+                        "e-mail: %s" % (conta, porque), quem="radar")
 
 
 # O perfil que o dono prepara ao aceitar (D13 da segunda ronda,
@@ -35106,7 +35455,8 @@ def repor(codigo):
             contas.registar_falha(c, chave, ip)
     if not reposicao:
         return pagina_repor(porque[0].upper() + porque[1:] + ". Peça outra "
-                            "ao gestor da sua empresa.",
+                            "em «Esqueceu-se da palavra-passe?», na entrada, "
+                            "ou ao gestor da sua empresa.",
                             codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
         return pagina_repor("Escolha a palavra-passe nova. Ao guardar, as "
@@ -35143,6 +35493,82 @@ def repor(codigo):
                         httponly=True, samesite="Lax",
                         secure=request.is_secure)
     return resposta
+
+
+# O «esqueci-me» por e-mail (J7, 1/10/2026), no molde do convite.
+PAGINA_ESQUECI = PAGINA_CONVITE.replace("Criar a conta", "Repor a palavra-passe")
+
+FORMULARIO_ESQUECI = """<form method="post" action="/esqueci-me">
+  <div class="mg-field"><label class="mg-field__label" for="q-email">E-mail da conta</label>
+   <input class="mg-field__input" id="q-email" type="email" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" maxlength="200" required autofocus></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Enviar a ligação</button>
+ </form>
+ <p class="entrar-nota">Se entra com um nome de utilizador e não com um e-mail, peça a ligação ao gestor da sua empresa.</p>
+ <p class="entrar-nota"><a href="/entrar">Voltar a entrar</a></p>"""
+
+# A mesma frase para quem tem conta, para quem nao tem e para o dono: e
+# ela que nao deixa enumerar. So o endereco muda (o que a pessoa escreveu).
+RESPOSTA_DO_ESQUECI = ("Se houver uma conta com o e-mail %s, segue para lá "
+                       "dentro de momentos uma ligação para repor a "
+                       "palavra-passe. Vale %s e só uma vez. Se não chegar, "
+                       "veja a pasta de spam.")
+
+
+def pagina_esqueci(aviso="", email="", codigo=200, erro=True, formulario=True):
+    return Response(PAGINA_ESQUECI % {
+        "css": LIGACAO_CSS,
+        "logo": logotipo(tamanho=28),
+        "aviso": ("<div class='mg-alert mg-alert--%s'%s>%s</div>"
+                  % ("danger" if erro else "info",
+                     " role='alert'" if erro else " role='status'",
+                     html.escape(aviso)) if aviso else ""),
+        "formulario": (FORMULARIO_ESQUECI % {"email": html.escape(email, quote=True)}
+                       if formulario else
+                       "<p class='entrar-nota'><a href='/entrar'>Voltar a entrar</a></p>"),
+    }, codigo, mimetype="text/html")
+
+
+@app.route("/esqueci-me", methods=["GET", "POST"])
+def esqueci_me():
+    """O «esqueci-me» por e-mail (J7, 1/10/2026): a pessoa escreve o
+    e-mail e, se houver conta, recebe a ligação de repor. Rota ABERTA,
+    e por isso a guarda é aqui:
+
+    - a origem do POST tem de ser daqui (`origem_e_nossa()`);
+    - o tecto por IP e pelo endereço escrito
+      (`contas.contar_pedido_de_reposicao()`), que conta todos os
+      pedidos e não só os de contas que existem;
+    - a mesma resposta -- estado, texto, cabeçalhos -- exista ou não a
+      conta; e procurá-la, criar a ligação e mandá-la é tudo em fundo
+      (`_repor_por_email()`), para o tempo também não o dizer;
+    - a conta do dono nunca (`contas.reposicao_por_email()`): repõe-se
+      pela consola;
+    - a ligação vale uma hora e uma vez, e só o resumo fica na base; o
+      que se regista diz a conta, nunca a ligação."""
+    if request.method == "GET":
+        return pagina_esqueci("Escreva o e-mail com que entra no Mira Gov. "
+                              "Recebe lá uma ligação para escolher uma "
+                              "palavra-passe nova.", erro=False)
+    if not origem_e_nossa():
+        return pagina_esqueci("O pedido veio de outro sítio.", codigo=403,
+                              formulario=False)
+    email = " ".join((request.form.get("email") or "").split())[:200]
+    if not RX_EMAIL.match(email):
+        return pagina_esqueci("Escreva um e-mail válido, como nome@empresa.pt.",
+                              email=email, codigo=400)
+    ip = ip_de_quem_pede()
+    with liga() as c:
+        espera = contas.contar_pedido_de_reposicao(c, email, ip)
+        if espera:
+            recado = contas.recado_do_trinco(espera)
+            return pagina_esqueci(recado[0].upper() + recado[1:] + ".",
+                                  email=email, codigo=429)
+    # o mesmo para todos: quem existe só se sabe na thread
+    threading.Thread(target=_repor_por_email, args=(email,), daemon=True).start()
+    return pagina_esqueci(RESPOSTA_DO_ESQUECI % (
+        email, "uma hora" if contas.HORAS_DE_REPOSICAO_POR_EMAIL == 1
+        else "%d horas" % contas.HORAS_DE_REPOSICAO_POR_EMAIL),
+        erro=False, formulario=False)
 
 
 # O segundo ecra de entrar (28/09/2026), no molde do convite.
