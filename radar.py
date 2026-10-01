@@ -13743,6 +13743,148 @@ def estado_da_recolha():
             "cortes": cortes, "parado_ate": _estado_dos_concorrentes("parado_ate")}
 
 
+# --- o que os ecras fazem com os concorrentes (L5, segunda parte, 1/10/2026)
+#
+# Quatro ecras a partir do mesmo dado: a aba Concorrentes do Mercado, a
+# ficha de um fornecedor, a proposta quando o BASE fecha o contrato, e o
+# «Quem nos ganha» da Situacao. Contam CONTRATOS LIDOS, e dizem sempre
+# quantos: a recolha leva meses, e um «ganhou 3» sem o «de 40 lidos» ao
+# lado le-se como o mercado inteiro.
+#
+# Cruza-se por ATTACH do corpus na ligacao dos concorrentes (como o
+# `contratos_por_ler()`): parte-se das linhas lidas, que sao poucas, e o
+# corpus responde pela chave primaria. Quem ganhou e o que o CORPUS diz
+# (`contrato_adjudicatario`), nao a lista do detalhe.
+
+# Concorreu e ganhou, por fornecedor. O `{onde}` e um recorte sobre o
+# contrato `c` do corpus (o perfil, ou um fornecedor so).
+SQL_DA_CONCORRENCIA = (
+    "SELECT k.chave, MAX(k.nome) nome, COUNT(DISTINCT k.contrato_id) concorreu, "
+    "COUNT(DISTINCT CASE WHEN EXISTS (SELECT 1 FROM corpus.contrato_adjudicatario a "
+    " WHERE a.contrato_id = k.contrato_id AND (a.chave = k.chave OR a.nif = k.chave)) "
+    " THEN k.contrato_id END) ganhou "
+    "FROM concorrente k JOIN corpus.contratos c ON c.id = k.contrato_id "
+    "WHERE k.chave != '' AND c.data_publicacao >= ?{onde} "
+    "GROUP BY k.chave ORDER BY concorreu DESC, ganhou DESC, nome, k.chave")
+
+
+def _desde_dos_concorrentes():
+    return (datetime.now() - timedelta(days=365 * ANOS_DOS_CONCORRENTES)
+            ).strftime("%Y-%m-%d")
+
+
+def _liga_concorrentes_e_corpus():
+    c = liga_concorrentes()
+    c.execute("ATTACH DATABASE ? AS corpus", (CORPUS,))
+    return c
+
+
+def desconto_de_quem_ganha(c, chave, frag="", vals=()):
+    """(procedimentos, mediana ou None) do desconto sobre o preco base nos
+    procedimentos que este fornecedor ganhou, no recorte `frag` (um
+    `cpv_da_entidade()`, que e o que serve uma consulta presa a uma
+    chave). A mediana so a partir de `MINIMO_PARA_DESCONTO`."""
+    descs = descontos_por_procedimento(
+        c, " WHERE c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
+           "WHERE chave=?)" + (" AND " + frag if frag else ""),
+        [chave] + list(vals))
+    return len(descs), (escaloes_de_desconto(descs)[1]
+                        if len(descs) >= MINIMO_PARA_DESCONTO else None)
+
+
+def concorrencia_no_perfil(args=None, cfg=None):
+    """A aba Concorrentes do Mercado: os fornecedores que concorreram nos
+    contratos lidos do perfil da empresa (o CPV do interesse; sem perfil,
+    ou com `?interesse=nao`, todos), nos ultimos `ANOS_DOS_CONCORRENTES`.
+    Devolve o ambito (contratos do perfil no corpus), quantos lidos e
+    quantos com lista, e as linhas por fornecedor. Sem corpus, None.
+
+    A lista guarda-se pelo NUMERO DE LIDOS (`lembrado_do_corpus()`): muda
+    quando a recolha avanca, e so entao."""
+    if not ha_corpus():
+        return None
+    args = {} if args is None else args
+    desde = _desde_dos_concorrentes()
+    largo, vals = condicao_do_interesse_contratos(args, cfg)
+    preso, vals_p = condicao_do_interesse_contratos(args, cfg, presa=True)
+    onde = " AND (%s)" % largo if largo else ""
+    onde_p = " AND (%s)" % preso if preso else ""
+
+    def contar_o_ambito():
+        with liga_corpus() as k:
+            return k.execute("SELECT COUNT(*) FROM contratos c WHERE "
+                             "c.data_publicacao >= ?" + onde,
+                             [desde] + vals).fetchone()[0]
+    ambito = lembrado_do_corpus(("concorrencia-ambito", desde, onde, vals),
+                                contar_o_ambito)
+    with _liga_concorrentes_e_corpus() as c:
+        todos = c.execute("SELECT COUNT(*) FROM detalhe").fetchone()[0]
+
+        def contar_os_fornecedores():
+            lidos, com_lista = c.execute(
+                "SELECT COUNT(*), COUNT(d.n_concorrentes) FROM detalhe d "
+                "JOIN corpus.contratos c ON c.id = d.contrato_id "
+                "WHERE c.data_publicacao >= ?" + onde_p, [desde] + vals_p).fetchone()
+            return {"lidos": lidos, "com_lista": com_lista, "linhas": [
+                dict(r) for r in c.execute(SQL_DA_CONCORRENCIA.format(onde=onde_p),
+                                           [desde] + vals_p)] if lidos else []}
+        d = lembrado_do_corpus(("concorrencia", desde, onde_p, vals_p, todos),
+                               contar_os_fornecedores)
+    return dict(d, ambito=ambito, frag=preso, vals=vals_p)
+
+
+def concorrencia_do_fornecedor(chave, topo=8):
+    """Um fornecedor nos contratos lidos dos ultimos dois anos: a quantos
+    concorreu, quantos ganhou, e QUEM LHE GANHA -- os que mais vezes
+    ganharam contratos em que ele constou da lista e nao ganhou. Serve a
+    ficha da entidade e, com o NIF da empresa, o «Quem nos ganha» da
+    Situacao. Sem corpus ou sem chave, None; senao sempre o `lidos`, para
+    o ecra dizer em quantos se baseia: todos os do ficheiro, sem conferir
+    a janela -- a fila so le contratos da janela, e conferi-la eram meio
+    milhao de buscas ao corpus em cada ficha."""
+    if not (chave and ha_corpus()):
+        return None
+    desde = _desde_dos_concorrentes()
+    with _liga_concorrentes_e_corpus() as c:
+        lidos = c.execute("SELECT COUNT(*) FROM detalhe").fetchone()[0]
+        linha = c.execute(SQL_DA_CONCORRENCIA.format(onde=" AND k.chave = ?"),
+                          (desde, chave)).fetchone()
+        ganham = [dict(r) for r in c.execute(
+            "SELECT a.chave, COALESCE(MAX(g.nome), MAX(a.nome)) nome, "
+            "COUNT(DISTINCT a.contrato_id) vezes "
+            "FROM concorrente k JOIN corpus.contratos c ON c.id = k.contrato_id "
+            "JOIN corpus.contrato_adjudicatario a ON a.contrato_id = k.contrato_id "
+            "LEFT JOIN corpus.entidades g ON g.chave = a.chave "
+            "WHERE k.chave = ? AND c.data_publicacao >= ? "
+            "AND COALESCE(a.chave, '') NOT IN ('', ?) AND COALESCE(a.nif, '') != ? "
+            "AND NOT EXISTS (SELECT 1 FROM corpus.contrato_adjudicatario b "
+            " WHERE b.contrato_id = k.contrato_id AND (b.chave = ? OR b.nif = ?)) "
+            "GROUP BY a.chave ORDER BY vezes DESC, nome LIMIT ?",
+            (chave, desde, chave, chave, chave, chave, topo))] if linha else []
+    return {"lidos": lidos, "nome": linha["nome"] if linha else "",
+            "concorreu": linha["concorreu"] if linha else 0,
+            "ganhou": linha["ganhou"] if linha else 0, "ganham": ganham}
+
+
+def consta_da_lista(linhas, cfg=None):
+    """Se o NIF da empresa consta da lista de concorrentes de algum dos
+    contratos deste desfecho (as linhas do `desfecho_do_anuncio()`).
+    None quando nao se pode saber: sem NIF, ou sem nenhum destes
+    contratos lido -- «nao lido» nao e «nao constamos»."""
+    _, nif = _nome_da_empresa(cfg)
+    ids = [l["id"] for l in linhas]
+    if not (nif and ids and os.path.exists(ficheiro_dos_concorrentes())):
+        return None
+    marcas = ",".join("?" * len(ids))
+    with liga_concorrentes() as c:
+        lidos = c.execute("SELECT COUNT(*) FROM detalhe WHERE contrato_id IN (%s)"
+                          % marcas, ids).fetchone()[0]
+        if not lidos:
+            return None
+        return bool(c.execute("SELECT 1 FROM concorrente WHERE chave=? AND "
+                              "contrato_id IN (%s)" % marcas, [nif] + ids).fetchone())
+
+
 
 # ---------------------------------------------------------------- painel
 
@@ -17092,10 +17234,11 @@ ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
 # "Radar". A barra e hierarquia por cima das paginas, nao um nome novo
 # para elas.
 ITEM_DA_PAGINA.update({"contratos": "mercado", "renovacoes": "mercado",
-                       "entidades": "mercado"})
+                       "entidades": "mercado", "concorrentes": "mercado"})
 # As paginas que vivem num item e tem nome proprio nas migalhas (o item
 # por cima, a pagina a seguir).
-PAGINAS_DE_UM_ITEM = {"entidades": ("Entidades", "/entidades")}
+PAGINAS_DE_UM_ITEM = {"entidades": ("Entidades", "/entidades"),
+                      "concorrentes": ("Concorrentes", "/concorrentes")}
 
 # As paginas que NAO vivem em item nenhum da barra, e o nome com que se
 # apresentam nas migalhas. Sao duas e sao as duas de propositio: o Hoje
@@ -26950,6 +27093,78 @@ def entidades():
                     titulo_aba="Entidades")
 
 
+@app.route("/concorrentes")
+def concorrentes():
+    """A aba Concorrentes do Mercado (L5): os fornecedores que concorrem
+    nos contratos do perfil da empresa, nos últimos dois anos -- quantas
+    vezes concorreram, quantas ganharam, a taxa e o desconto mediano
+    quando ganham. Conta só os contratos que a recolha já leu, e a frase
+    do topo diz quantos são de quantos. Mapeia e não decide."""
+    if not ha_corpus():
+        return sem_corpus_html("Concorrentes")
+    d = concorrencia_no_perfil(request.args)
+    faixa = _faixa_do_interesse("/concorrentes", 0, so_cpv=True)
+    frase = ("<p class='nota'>%s lidos de %s %snos últimos %d anos; %s com a "
+             "lista de concorrentes. O Mira Gov lê o Portal BASE contrato a "
+             "contrato, e a recolha leva meses.</p>"
+             % (mil_pt(d["lidos"]), plural(d["ambito"], "contrato"),
+                "do perfil " if d["frag"] else "", ANOS_DOS_CONCORRENTES,
+                mil_pt(d["com_lista"])))
+    linhas = d["linhas"]
+    if not d["lidos"]:
+        frase = ""          # «0 lidos» lia-se como «ninguém concorreu»
+    if not linhas:
+        tabela = ("<div class='mg-empty comecar'><h2 class='mg-empty__title'>"
+                  "Ainda não há concorrentes para mostrar</h2><span>%s</span></div>"
+                  % ("Há %s %snos últimos %d anos, e a recolha ainda não "
+                     "leu nenhum: o Mira Gov lê o Portal BASE contrato a "
+                     "contrato, devagar, e chega lá."
+                     % (plural(d["ambito"], "contrato"),
+                        "do perfil " if d["frag"] else "", ANOS_DOS_CONCORRENTES)
+                     if not d["lidos"] else
+                     "Nenhum dos contratos lidos traz a lista de concorrentes "
+                     "com NIF."))
+        pe = ""
+    else:
+        paginas = max(1, -(-len(linhas) // CABEM_NA_LISTA))
+        pagina = min(max(1, pagina_pedida(request.args)), paginas)
+        desta = linhas[(pagina - 1) * CABEM_NA_LISTA:pagina * CABEM_NA_LISTA]
+        corpo = []
+        with liga_corpus() as c:
+            for f in desta:
+                n, mediana = desconto_de_quem_ganha(c, f["chave"], d["frag"], d["vals"])
+                corpo.append(
+                    "<tr><td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
+                    "<td class='p'>%s</td><td class='p'>%s</td></tr>"
+                    % (liga_entidade(f["chave"], f["nome"]), mil_pt(f["concorreu"]),
+                       mil_pt(f["ganhou"]), pct_pt(f["ganhou"] / f["concorreu"], 0),
+                       pct_pt(mediana, 0) + " <small>em %d</small>" % n
+                       if mediana is not None else "—"))
+        tabela = (
+            "<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
+            "<thead><tr><th>Fornecedor</th><th class='p'>Concorreu</th>"
+            "<th class='p'>Ganhou</th><th class='p'>Taxa</th>"
+            "<th class='p'>Desconto quando ganha</th></tr></thead><tbody>%s</tbody>"
+            "</table><div class='tab-pe'><span class='nota'>Concorreu e ganhou "
+            "contam contratos lidos; a taxa é ganhou a dividir por concorreu. Nos "
+            "ajustes directos o Portal BASE só lista o adjudicatário, e por isso "
+            "contam como ganhos. O desconto é a mediana sobre o preço base nos "
+            "procedimentos que ganhou%s, de sempre; só com %d ou mais.</span>"
+            "</div></div>"
+            % ("".join(corpo), " no perfil" if d["frag"] else "",
+               MINIMO_PARA_DESCONTO))
+        tabela += paginador(pagina, paginas, request.args, "/concorrentes")
+        pe = ("<p class='nota'><b>%s</b> com NIF nos contratos lidos.</p>"
+              % plural(len(linhas), "fornecedor", "fornecedores"))
+    return envolver("concorrentes", "Concorrentes",
+                    "Quem concorre nos contratos do perfil, quantas vezes "
+                    "ganha, e por quanto abaixo do preço base.",
+                    "<div class='larg'>%s%s%s%s</div>" % (faixa, frase, pe, tabela),
+                    migalhas=migalhas_de("concorrentes"),
+                    abas=abas_do_mercado("concorrentes"),
+                    titulo_aba="Concorrentes")
+
+
 def factos_da_entidade(chave, nosso, meses=24, args=None):
     """Os seis factos do topo da ficha de uma entidade (redesenho §4).
 
@@ -27079,10 +27294,16 @@ def entidade(chave):
     # 17/09/2026, e era a mais provável de interessar -- o concurso ainda
     # não foi adjudicado.
     d = ficha_entidade(chave, request.args) if ha_corpus() else None
-    nome = d["nome"] if d else nome_da_entidade(chave)
+    # A concorrência (L5): quem só perdeu não está nas `entidades` do
+    # corpus, que são quem adjudicou ou ganhou -- e a ligação da aba
+    # Concorrentes dava 404. Com a lista lida, a ficha existe.
+    conc = _concorrencia_ou_nada(chave)
+    nome = (d["nome"] if d else
+            (conc or {}).get("nome") or nome_da_entidade(chave))
     nosso = lado_da_empresa(chave, nome)
     if not d:
-        if not (nosso["anuncios"] or nosso["propostas"] or nosso["contactos"]):
+        if not (nosso["anuncios"] or nosso["propostas"] or nosso["contactos"]
+                or (conc and conc["concorreu"])):
             return pagina_de_erro(404)
         ident = ("<div class='mg-card ent-cab'><div class='n'>%s</div>"
                  "<div class='m'>%s</div></div>"
@@ -27097,7 +27318,7 @@ def entidade(chave):
             "O que sabemos desta entidade. O Portal BASE não a conhece.",
             "<div class='larg'>" + ident + _seguir_cx(chave)
             + factos_da_entidade(chave, nosso)
-            + nosso_lado_cx(nosso) + "</div>",
+            + concorrencia_cx(chave, conc) + nosso_lado_cx(nosso) + "</div>",
             migalhas=migalhas_de("entidades", corta(nome, 44)),
             titulo_aba="%s" % corta(nome, 40))
 
@@ -27256,6 +27477,7 @@ def entidade(chave):
                 + "<div class='dois ent-dois'><div class='lado-nosso'>"
                 + nosso_lado_cx(nosso) + "</div><div class='lado-base'>"
                 + filtro
+                + concorrencia_cx(chave, conc)
                 + "<div class='graf-corpo solto'>" + "".join(blocos)
                 # A tabela dos contratos recentes fica em LARGURA TODA,
                 # por baixo das duas colunas: são cinco colunas de texto
@@ -27483,12 +27705,13 @@ def abas_do_mercado(actual, args=None):
     para_fim = dict(para_celebracao, ver="fim")
     if args.get("meses"):
         para_fim["meses"] = args.get("meses")
-    if actual == "entidades":         # vem das Entidades: sem o filtro delas
+    if actual in ("entidades", "concorrentes"):   # outras listas: sem o filtro delas
         para_celebracao, para_fim = {}, {"ver": "fim"}
     vistas = (("contratos", "Por celebração", "/contratos"
                + ("?" + urlencode(para_celebracao) if para_celebracao else "")),
               ("fim", "Por fim estimado", "/contratos?" + urlencode(para_fim)),
-              ("entidades", "Entidades", "/entidades"))
+              ("entidades", "Entidades", "/entidades"),
+              ("concorrentes", "Concorrentes", "/concorrentes"))
     return ("<nav class='mg-tabs abas-mercado' aria-label='Vistas do Mercado'>%s</nav>"
             % "".join("<a class='mg-tab'%s href='%s'>%s</a>"
                       % (" aria-current='page'" if chave == actual else "",
@@ -30167,12 +30390,8 @@ def concorrentes_da_entidade(chave, cpv, topo=8):
     mais = mais[:topo]
     with liga_corpus() as c:
         for f in mais:
-            descs = descontos_por_procedimento(
-                c, " WHERE c.id IN (SELECT contrato_id FROM contrato_adjudicatario "
-                   "WHERE chave=?) AND " + cpv_da_entidade(frag), [f["chave"]] + vals)
-            f["descontos"] = len(descs)
-            f["desconto"] = (escaloes_de_desconto(descs)[1]
-                             if len(descs) >= MINIMO_PARA_DESCONTO else None)
+            f["descontos"], f["desconto"] = desconto_de_quem_ganha(
+                c, f["chave"], cpv_da_entidade(frag), vals)
     return {"ambito": len(ids), "lidos": len(detalhe), "com_lista": len(com_lista),
             "media": (sum(com_lista) / len(com_lista)) if com_lista else None,
             "mais": mais}
@@ -30189,9 +30408,7 @@ def concorrentes_cx(a, chave):
         d = None
     if d is None or not d["ambito"]:
         return ""
-    porque = ("O Portal BASE publica, contrato a contrato, quem concorreu e "
-              "não só quem ganhou. O Mira Gov lê-os um a um, devagar, e por "
-              "isso os números dizem em quantos contratos se baseiam.")
+    porque = PORQUE_DOS_CONCORRENTES
     meta = ("Portal BASE, contrato a contrato &middot; esta entidade, CPV %s, "
             "últimos %d anos" % (html.escape(cpv), ANOS_DOS_CONCORRENTES))
     if not d["lidos"]:
@@ -30233,6 +30450,101 @@ def concorrentes_cx(a, chave):
         "<p class='ficha-nota'>%s.</p><div class='factos-grelha mercado-grelha'>%s</div>%s"
         % (base, media, tabela),
         meta=meta, id_="concorrentes", porque=porque)
+
+
+PORQUE_DOS_CONCORRENTES = (
+    "O Portal BASE publica, contrato a contrato, quem concorreu e não só "
+    "quem ganhou. O Mira Gov lê-os um a um, devagar, e por isso os números "
+    "dizem em quantos contratos lidos se baseiam.")
+
+
+def _concorrencia_ou_nada(chave):
+    """A `concorrencia_do_fornecedor()` sem rebentar o ecrã: o ficheiro
+    dos concorrentes é escrito pela thread de fundo, e uma base presa
+    não pode levar a ficha atrás."""
+    try:
+        return concorrencia_do_fornecedor(chave)
+    except sqlite3.Error:
+        return None
+
+
+def _tabela_de_quem_ganha(ganham):
+    """A tabela «quem lhe ganha»: o fornecedor e quantas vezes ganhou um
+    contrato em que o outro constou e não ganhou."""
+    return ("<div class='mercado-tab'><table class='mg-table tab-mercado'><thead><tr>"
+            "<th>Fornecedor</th><th class='p'>Ganhou</th></tr></thead><tbody>%s"
+            "</tbody></table></div>"
+            % "".join("<tr><td>%s</td><td class='p'>%s</td></tr>"
+                      % (liga_entidade(g["chave"], g["nome"]),
+                         plural(g["vezes"], "contrato"))
+                      for g in ganham))
+
+
+def concorrencia_cx(chave, d=None):
+    """A concorrência de um fornecedor, na ficha da entidade (L5): a
+    quantos contratos lidos concorreu, quantos ganhou, e quem lhe ganha.
+    Sem nada lido diz que a recolha ainda não chegou, e não «0»; uma
+    entidade que não consta de nenhuma lista lida não tem cartão -- a
+    maior parte das fichas são de quem compra."""
+    if d is None:
+        d = _concorrencia_ou_nada(chave)
+    if not d or not d["concorreu"]:
+        return ""
+    meta = ("Portal BASE, contrato a contrato &middot; últimos %d anos &middot; "
+            "%s lidos" % (ANOS_DOS_CONCORRENTES, mil_pt(d["lidos"])))
+    frase = ("Concorreu a %s lidos, ganhou %s."
+             % (plural(d["concorreu"], "contrato"), mil_pt(d["ganhou"])))
+    if d["ganham"]:
+        resto = ("<p class='ficha-nota'>Quem lhe ganha: os fornecedores que mais "
+                 "vezes ganharam um contrato em que esta entidade constou da "
+                 "lista e não ganhou.</p>" + _tabela_de_quem_ganha(d["ganham"]))
+    elif d["ganhou"] < d["concorreu"]:
+        resto = ("<p class='ficha-nota'>Nos contratos lidos que não ganhou, o "
+                 "Portal BASE não diz quem ganhou.</p>")
+    else:
+        resto = ""
+    return cartao("Concorrência", "<p class='ficha-nota'><b>%s</b></p>%s"
+                  % (frase, resto), meta=meta, id_="concorrencia",
+                  porque=PORQUE_DOS_CONCORRENTES)
+
+
+def quem_nos_ganha_cx(cfg=None):
+    """«Quem nos ganha», na Situação (L5): os fornecedores que mais vezes
+    ganharam contratos em que a empresa constou da lista de concorrentes.
+    Sem NIF da empresa, sem corpus ou sem nada lido, diz porquê -- nunca
+    uma tabela vazia nem um «0» que se lê como «ninguém»."""
+    _, nif = _nome_da_empresa(cfg)
+    meta = ("Portal BASE, contrato a contrato &middot; últimos %d anos"
+            % ANOS_DOS_CONCORRENTES)
+    d = _concorrencia_ou_nada(nif)
+    if not nif:
+        corpo = ("Falta o NIF da empresa em <a href='/configuracoes/conta'>"
+                 "Configurações › Conta</a>: é por ele que o Mira Gov a encontra "
+                 "nas listas de concorrentes do Portal BASE.")
+    elif d is None:
+        corpo = ("Sem os contratos do Portal BASE não há listas de concorrentes "
+                 "para ler.")
+    elif not d["lidos"]:
+        corpo = ("A recolha ainda não leu nenhum contrato dos últimos %d anos: o "
+                 "Mira Gov lê o Portal BASE contrato a contrato, devagar, e "
+                 "chega lá." % ANOS_DOS_CONCORRENTES)
+    elif not d["concorreu"]:
+        corpo = ("Nos %s lidos até agora, a empresa ainda não consta de nenhuma "
+                 "lista de concorrentes. A recolha leva meses."
+                 % plural(d["lidos"], "contrato"))
+    else:
+        meta += " &middot; %s lidos" % mil_pt(d["lidos"])
+        corpo = ("<b>A empresa consta da lista de concorrentes de %s lidos, e "
+                 "ganhou %s.</b>"
+                 % (plural(d["concorreu"], "contrato"), mil_pt(d["ganhou"])))
+        if d["ganham"]:
+            return cartao("Quem nos ganha",
+                          "<p class='ficha-nota'>%s Nos outros, quem ganhou:</p>%s"
+                          % (corpo, _tabela_de_quem_ganha(d["ganham"])),
+                          meta=meta, id_="quem-nos-ganha",
+                          porque=PORQUE_DOS_CONCORRENTES)
+    return cartao("Quem nos ganha", "<p class='ficha-nota'>%s</p>" % corpo,
+                  meta=meta, id_="quem-nos-ganha", porque=PORQUE_DOS_CONCORRENTES)
 
 
 def volta_a_lista():
@@ -31625,8 +31937,18 @@ def faixa_do_desfecho(p, linhas, cfg=None):
     quando = max((l["data_celebracao"] or "") for l in linhas)
     nosso, _ = _nome_da_empresa(cfg)
     somos = fomos_nos(linhas, cfg)
+    # A lista dos concorrentes (L5): quando o NIF da empresa consta dela e
+    # o contrato foi para outro, PROPÕE-SE o «Perdemos» -- o botão passa
+    # a primário, e o gesto continua a ser de quem lê.
+    perdemos = somos is False and consta_da_lista(linhas, cfg) is True
     if somos is True:
         veredicto = "<b>A adjudicação é nossa.</b>"
+    elif perdemos:
+        veredicto = ("<b>A sua empresa consta da lista de concorrentes; o "
+                     "contrato foi para %s.</b> Proponho a ranhura «%s»: "
+                     "confirme com o botão." % (
+                         html.escape(" · ".join(dict.fromkeys(quem)) or "outro"),
+                         estado_da_empresa("perdido")))
     elif somos is False:
         veredicto = "<b>Não fomos nós.</b>"
     else:
@@ -31647,7 +31969,8 @@ def faixa_do_desfecho(p, linhas, cfg=None):
                (", a " + data_pt(quando)) if quando else "",
                veredicto, conta,
                _botao_do_desfecho(p, "ganho", "Ganhámos", "mini verde"),
-               _botao_do_desfecho(p, "perdido", "Perdemos", "mini")))
+               _botao_do_desfecho(p, "perdido", "Perdemos",
+                                  "mini forte" if perdemos else "mini")))
 
 
 def _botao_do_desfecho(p, estado, etiqueta, classe):
@@ -34082,7 +34405,7 @@ def situacao():
                  % (numeros, nota_periodo,
                     "".join(tabela_em_jogo(*g) for g in GRUPOS_EM_JOGO)
                     + tabela_das_decididas(decididas, rotulo_periodo),
-                    negocio_cx(),
+                    negocio_cx() + quem_nos_ganha_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
 
     return envolver(
