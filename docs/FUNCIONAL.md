@@ -1315,7 +1315,8 @@ criptografia estão no **`contas.py`**, que não importa o radar.
    um POST leva 403. **A excepção é a raiz**: um GET a `/` sem sessão
    recebe o **site público** (`site/index.html`, desde 23/09/2026), que
    é um ficheiro estático sem dados. Desde 30/09/2026 tem os três planos
-   (Vigia, VigIA+, Corporate, com preços sem IVA) e a oferta de fundador,
+   (Solo, Equipa e Corporate desde 1/10/2026, com preços sem IVA e a
+   leitura das peças por IA em todos) e a oferta de fundador,
    e o formulário pede o NIF da empresa e o plano que interessa. Com `?dia=` ou outro parâmetro é a
    mesma raiz, e é o site; todos os outros caminhos **que são rotas** vão
    ao login. Um caminho que não é rota nenhuma dá o **404** do painel,

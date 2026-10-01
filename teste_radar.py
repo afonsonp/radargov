@@ -13467,7 +13467,7 @@ class TestSitePublico(BaseTemporaria):
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
     BOM = {"nome": "Ana Silva", "empresa": "Obras Lda",
            "email": "ana@obras.pt", "sector": "Obras públicas e construção",
-           "mensagem": "CPV 45", "nif": "123456789", "plano": "vigia+"}
+           "mensagem": "CPV 45", "nif": "123456789", "plano": "equipa"}
 
     def setUp(self):
         super().setUp()
@@ -25732,7 +25732,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
 
     def test_o_nif_escrito_a_mao_grava_se_limpo(self):
         self.assertTrue(self.pedir(nif=" PT 123 456 789 ").get_json()["ok"])
-        self.assertEqual(tuple(self.ultimo()), ("123456789", "vigia+"))
+        self.assertEqual(tuple(self.ultimo()), ("123456789", "equipa"))
 
     def test_um_nif_errado_diz_se_como_tal(self):
         r = self.pedir(nif="123456788")
@@ -25760,15 +25760,17 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
                 lambda assunto, corpo, cfg=None: enviados.append(corpo) or (True, "ok")):
             TestSitePublico._avisar_original(0, dict(self.BOM))
         self.assertIn("NIF: 123456789", enviados[0])
-        self.assertIn("Interessa-lhe: VigIA+", enviados[0])
+        self.assertIn("Interessa-lhe: Equipa", enviados[0])
 
     def test_o_site_diz_os_planos_e_nao_a_beta_gratuita(self):
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
-        for frase in ("39 €", "99 €", "999 €", "55 €/mês + IVA", "31 de dezembro de 2026",
+        for frase in ("39 €", "75 €", "34 €/mês", "65 €/mês", "48 €/mês",
+                      "55 €/mês + IVA", "31 de dezembro de 2026", "por IA está em todos",
                       'name="nif"', 'name="plano"', 'id="planos"'):
             self.assertIn(frase, site)
         for frase in ("Contas para toda a equipa", "Todas as que precisar",
+                      '"name": "Vigia"', "VigIA+",
                       "Ainda não está decidido", '"price": "0"'):
             self.assertNotIn(frase, site)
         # os valores do formulário são os que o servidor aceita

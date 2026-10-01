@@ -34348,9 +34348,11 @@ SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
                       "Prestação de serviços", "Tecnologias de informação",
                       "Outro")
 # O que o formulario do site deixa escolher (30/09/2026): o valor e como
-# se diz. A oferta de fundador e o VigIA+ a preco de fundador.
-PLANOS_DO_PEDIDO = {"fundador": "Oferta de fundador", "vigia": "Vigia",
-                    "vigia+": "VigIA+", "corporate": "Corporate"}
+# se diz. A oferta de fundador e o Equipa a preco de fundador. Os planos
+# mudaram a 1/10/2026 (decisao dele): sairam o Vigia e o VigIA+, e os
+# pedidos de antes mostram o valor que gravaram.
+PLANOS_DO_PEDIDO = {"fundador": "Oferta de fundador", "solo": "Solo",
+                    "equipa": "Equipa", "corporate": "Corporate"}
 
 
 def nif_do_pedido(texto):
@@ -34925,7 +34927,7 @@ def pedidos_de_acesso():
                          _celula_da_tabela("Empresa", html.escape(l["empresa"])),
                          _celula_da_tabela("NIF", html.escape(l["nif"] or "—"), "mg-num"),
                          _celula_da_tabela("Plano", html.escape(
-                             PLANOS_DO_PEDIDO.get(l["plano"] or "", "—"))),
+                             PLANOS_DO_PEDIDO.get(l["plano"] or "", l["plano"] or "—"))),
                          _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>"
                                  % (html.escape(l["email"], quote=True), html.escape(l["email"]))),
                          _celula_da_tabela("Sector", html.escape(l["sector"])),
