@@ -70,20 +70,20 @@
    "offers": [
     {
      "@type": "Offer",
-     "name": "Vigia",
+     "name": "Solo",
      "price": "39",
      "priceCurrency": "EUR",
      "priceSpecification": {"@type": "UnitPriceSpecification", "price": "39", "priceCurrency": "EUR", "unitCode": "MON", "valueAddedTaxIncluded": false},
-     "description": "Um utilizador. Sem a leitura automática das peças.",
+     "description": "Um utilizador, uma sessão de cada vez, com a leitura das peças por IA. 34 € por mês no plano anual.",
      "url": "https://miragov.pt/#planos"
     },
     {
      "@type": "Offer",
-     "name": "VigIA+",
-     "price": "99",
+     "name": "Equipa",
+     "price": "75",
      "priceCurrency": "EUR",
-     "priceSpecification": {"@type": "UnitPriceSpecification", "price": "99", "priceCurrency": "EUR", "unitCode": "MON", "valueAddedTaxIncluded": false},
-     "description": "Dois utilizadores, com a leitura automática das peças. Também 999 € por ano.",
+     "priceSpecification": {"@type": "UnitPriceSpecification", "price": "75", "priceCurrency": "EUR", "unitCode": "MON", "valueAddedTaxIncluded": false},
+     "description": "Até cinco pessoas, com o trabalho em equipa e a leitura das peças por IA. 65 € por mês no plano anual.",
      "url": "https://miragov.pt/#planos"
     }
    ]
@@ -619,40 +619,42 @@ form .btn{justify-self:start}
       <div class="cabeca">
         <p class="sobre">Planos</p>
         <h2 id="t-planos">Três planos. Preços sem IVA.</h2>
-        <p>O serviço é pré-pago, ao mês ou ao ano, e basta não renovar para sair.</p>
+        <p>A leitura das peças por IA está em todos. O serviço é pré-pago, ao mês ou no plano anual, que oferece um mês e meio e se paga em 12 prestações; basta não renovar para sair.</p>
       </div>
       <div class="planos">
-        <article class="plano" aria-labelledby="p-vigia">
-          <h3 id="p-vigia">Vigia</h3>
+        <article class="plano" aria-labelledby="p-solo">
+          <h3 id="p-solo">Solo</h3>
           <p class="preco num">39 € <small>/mês + IVA</small></p>
-          <p class="quem">1 utilizador</p>
+          <p class="quem">1 utilizador, uma sessão de cada vez<br>34 €/mês no plano anual</p>
           <ul>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os anúncios do Diário da República e as consultas preliminares</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os concursos do Diário da República e as consultas preliminares, recortados pelos CPV da empresa</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os alertas por e-mail</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O mercado e as entidades, com os contratos do Portal BASE</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As propostas e as tarefas da equipa</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As peças dos concursos, para descarregar</span></li>
-            <li class="nao"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Sem a leitura automática das peças</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As peças descarregadas sozinhas e lidas por IA, com a página de onde vem cada linha</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O mercado: quem ganha e a que preço, do Portal BASE</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As propostas na escada e o calendário dos prazos</span></li>
           </ul>
-          <a class="btn btn-contorno" href="#acesso" data-plano="vigia">Pedir o Vigia</a>
+          <a class="btn btn-contorno" href="#acesso" data-plano="solo">Pedir o Solo</a>
         </article>
-        <article class="plano destaque" aria-labelledby="p-vigiamais">
-          <h3 id="p-vigiamais">VigIA+</h3>
-          <p class="preco num">99 € <small>/mês + IVA</small></p>
-          <p class="quem">ou 999 € por ano + IVA<br>2 utilizadores</p>
+        <article class="plano destaque" aria-labelledby="p-equipa">
+          <h3 id="p-equipa">Equipa</h3>
+          <p class="preco num">75 € <small>/mês + IVA</small></p>
+          <p class="quem">Até 5 pessoas<br>65 €/mês no plano anual</p>
           <ul>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o Vigia tem</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>A leitura automática das peças, com a página de onde vem cada linha</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o Solo tem</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Cada pessoa com a sua conta</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As tarefas atribuídas a alguém, com prazo</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O Hoje de cada pessoa</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As notas e o histórico partilhados em cada proposta</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O cofre dos documentos da empresa, com as validades</span></li>
           </ul>
-          <a class="btn btn-primario" href="#acesso" data-plano="vigia+">Pedir o VigIA+</a>
+          <a class="btn btn-primario" href="#acesso" data-plano="equipa">Pedir o Equipa</a>
         </article>
         <article class="plano" aria-labelledby="p-corporate">
           <h3 id="p-corporate">Corporate</h3>
           <p class="preco">Sob consulta</p>
-          <p class="quem">Utilizadores sem limite</p>
+          <p class="quem">Pelo número de utilizadores</p>
           <ul>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o VigIA+ tem</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o Equipa tem, para mais de 5 pessoas</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As exportações</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Condições acordadas por escrito com a sua empresa</span></li>
           </ul>
@@ -668,16 +670,16 @@ form .btn{justify-self:start}
         <div>
           <span class="selo">10 lugares</span>
           <h2 id="t-fundador">Oferta de fundador.</h2>
-          <p>O VigIA+ a <strong>55 €/mês + IVA</strong>, em vez de 99 €. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
+          <p>O Equipa a <strong>55 €/mês + IVA</strong>, em vez de 75 €, ou 48 €/mês no plano anual. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
           <p>Em troca, pedimos a sua opinião franca sobre o que falta, e autorização para citar o nome da empresa e uma apreciação sua.</p>
           <div class="accoes"><a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a></div>
           <p class="condicoes">Para as primeiras dez empresas convidadas. As condições estão nos <a href="/termos">termos de utilização</a>.</p>
         </div>
         <ul>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o VigIA+ tem, com dois utilizadores</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tudo o que o Equipa tem, até 5 pessoas</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Nada a pagar até 31 de dezembro de 2026</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Configuração do perfil da empresa feita connosco</span></li>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>55 €/mês + IVA a partir de janeiro, enquanto não interromper</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>55 €/mês + IVA a partir de janeiro, ou 48 €/mês no plano anual, enquanto não interromper</span></li>
         </ul>
       </div>
     </div>
@@ -709,7 +711,7 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Quantas pessoas da equipa podem usar?</summary>
-          <p>Depende do plano: uma no Vigia, duas no VigIA+, e sem limite no Corporate. Cada pessoa tem a sua conta, e quem gere a empresa no Mira Gov convida as restantes e escolhe o que cada uma pode fazer.</p>
+          <p>Depende do plano: uma no Solo, com uma sessão aberta de cada vez; até cinco no Equipa; e as que precisar no Corporate, com o preço pelo número de pessoas. Cada pessoa tem a sua conta, e quem gere a empresa no Mira Gov convida as restantes e escolhe o que cada uma pode fazer.</p>
         </details>
         <details>
           <summary>Os dados da minha empresa ficam protegidos?</summary>
@@ -725,7 +727,7 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Quanto custa?</summary>
-          <p>O Vigia custa 39 € por mês, e o VigIA+ 99 € por mês ou 999 € por ano; o Corporate é sob consulta. Aos preços acresce o IVA. As dez empresas fundadoras usam o VigIA+ sem pagar até 31 de dezembro de 2026, e depois a 55 € por mês + IVA.</p>
+          <p>O Solo custa 39 € por mês e o Equipa 75 €; o Corporate é sob consulta, pelo número de pessoas. No plano anual oferecemos um mês e meio: o Solo fica a 34 € e o Equipa a 65 € por mês, em 12 prestações. Aos preços acresce o IVA. A leitura das peças por IA está em todos. As dez empresas fundadoras usam o Equipa sem pagar até 31 de dezembro de 2026, e depois a 55 € por mês, ou 48 € no anual, + IVA.</p>
         </details>
         <details>
           <summary>Como se paga?</summary>
@@ -756,8 +758,8 @@ form .btn{justify-self:start}
           <label for="plano">O que lhe interessa</label>
           <select id="plano" name="plano" required>
             <option value="fundador">Oferta de fundador (55 €/mês)</option>
-            <option value="vigia">Vigia (39 €/mês)</option>
-            <option value="vigia+">VigIA+ (99 €/mês)</option>
+            <option value="solo">Solo (39 €/mês)</option>
+            <option value="equipa">Equipa (75 €/mês)</option>
             <option value="corporate">Corporate (sob consulta)</option>
           </select>
         </div>

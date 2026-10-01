@@ -1528,7 +1528,8 @@ cumpre da WCAG, o que ainda não cumpre, e que as barreiras se reportam
 pelo mesmo formulário. **Quando se corrigir uma das falhas que lá estão,
 tira-se da lista e muda-se a data.** O formulário «Pedir acesso»
 (desde 30/09/2026 com o NIF da empresa e o plano que lhe interessa: a
-oferta de fundador, o Vigia, o VigIA+ ou o Corporate)
+oferta de fundador, o Solo, o Equipa ou o Corporate; os planos mudaram
+a 1/10/2026)
 guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 (se o correio estiver configurado, em Configurações › Alertas). Os
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
