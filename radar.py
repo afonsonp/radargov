@@ -838,6 +838,14 @@ def iniciar_empresa(caminho=None):
         # das doze colunas).
         if "documentos_prontos" not in cols_p:
             c.execute("ALTER TABLE propostas ADD COLUMN documentos_prontos TEXT")
+        # O prazo de entrega de uma proposta SEM anúncio (E6 do
+        # UX-ECRAS-EM-FALTA-E-ESCURO, 1/10/2026): um convite tem data de
+        # entrega, e sem ela não havia passo «até …» nem tarefa. Com
+        # anúncio o prazo é o do DR e esta coluna fica a NULL. Não se
+        # chama `prazo` de propósito: num `SELECT p.*, a.prazo` o
+        # sqlite3.Row devolvia o primeiro dos dois.
+        if "prazo_entrega" not in cols_p:
+            c.execute("ALTER TABLE propostas ADD COLUMN prazo_entrega TEXT")
         # Os motivos da LATD passam aos genéricos. Idempotente: o WHERE
         # só apanha os antigos.
         for estado, mudaram in (("perdido", MOTIVOS_QUE_MUDARAM),
@@ -3482,7 +3490,7 @@ def _valor_no_historico(p, nome, valor):
         return "(apagado)"
     if nome in ("valor_proposta", "preco_base", "valor_adjudicado"):
         return preco_pt(valor)
-    if nome in ("data_adjudicacao", "audiencia_em"):
+    if nome in ("data_adjudicacao", "audiencia_em", "prazo_entrega"):
         return data_pt(valor)
     if nome == "responsavel":
         return nome_da_pessoa(valor)
@@ -3545,7 +3553,8 @@ TEXTO_DA_AUDIENCIA = ("pronunciar-se em audiência prévia (%d dias úteis, o "
 ORIGEM_DO_DOCUMENTO = "documento"
 # De onde vem cada tarefa que nao se escreveu a mao, para quem a le.
 DE_ONDE_VEM = {"esclarecimentos": "vem das datas do DR e acompanha-as",
-               "entrega": "vem das datas do DR e acompanha-as",
+               # do DR, ou do escrito numa proposta sem anúncio (E6)
+               "entrega": "vem do prazo do concurso e acompanha-o",
                ORIGEM_DA_AUDIENCIA: "vem da data da notificação do relatório "
                                     "preliminar",
                ORIGEM_DO_DOCUMENTO: "vem da validade do documento, em "
@@ -3591,8 +3600,10 @@ def sincronizar_tarefas(ref=None):
         if ref:
             onde, vals = " WHERE p.ref = ?", [ref]
         linhas = c.execute(
+            # o prazo de uma sem anúncio é o que se escreveu nela (E6)
             "SELECT p.id, p.ref, p.estado, p.responsavel, p.audiencia_em, "
-            "a.data_pub, a.prazo FROM propostas p "
+            "a.data_pub, COALESCE(a.prazo, p.prazo_entrega) AS prazo "
+            "FROM propostas p "
             "LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
             vals).fetchall()
         # As que existem, para nao ser uma consulta por proposta
@@ -9912,7 +9923,7 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
                        "notas", "criada_em", "fechada_em",
                        "data_adjudicacao", "audiencia_em", "valor_adjudicado",
-                       "documentos_prontos")
+                       "documentos_prontos", "prazo_entrega")
 COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
                      "feita_em", "origem", "criada_em", "documento_id")
 COLUNAS_DA_NOTA = ("id", "proposta_id", "texto", "quem", "quando")
@@ -15257,12 +15268,8 @@ ul.tarefas{list-style:none;margin:0 0 10px;padding:0;display:flex;
 ul.tarefas li{display:flex;align-items:center;gap:7px;
  font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary)}
 ul.tarefas li .t{flex:1}
-/* O ✓ só se vê ao passar por cima ou com o foco (3.ª ronda, G94): já
-   desenhado a cinzento, a caixa de uma tarefa por fazer parecia marcada. */
-button.tq{cursor:pointer;width:24px;min-height:24px;padding:0;flex:none;
- border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--surface-raised);
- color:transparent;font:600 var(--text-xs)/1 var(--font-sans);box-sizing:border-box}
-button.tq:hover,button.tq:focus-visible{border-color:var(--success);color:var(--success)}
+/* (A caixa própria da ficha saiu a 1/10/2026: é a `.chk` do Hoje,
+   vazia até estar feita -- UX-ICONES-DICAS-PESOS, 17.) */
 .tarefa-nova{display:flex;gap:6px;flex-wrap:wrap}
 .tarefa-nova input[type=text]{flex:1;min-width:140px}
 .tarefa-nova input,.tarefa-nova select,.tarefa-nova button:not(.mg-btn){font:400 var(--text-xs)/1.2 var(--font-sans);
@@ -15385,8 +15392,7 @@ a.ct-l{color:var(--brand)}
 .cal-legenda{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
  margin:0 0 12px;font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
 
-/* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`
-   porque `tq` ja e o botao de marcar uma tarefa feita (button.tq). */
+/* A abertura (fase 4 do docs/design.md, 16/09/2026). Prefixo `hj-`. */
 .kpis a.kpi{display:block;color:inherit}
 .kpis a.kpi:hover{border-color:var(--line-strong);box-shadow:var(--shadow-md)}
 .kpis a.kpi:hover .r{color:var(--brand)}
@@ -19313,7 +19319,7 @@ def _lista_de_anuncios():
         "<form class='mg-card filtros%s' id='filtros-lista' method='get' action='%s'>"
         "<label class='mg-field f-q'><span class='mg-field__label'>Pesquisar</span>"
         "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência' "
-        "title='Palavras soltas: têm de estar todas. Separe com vírgula para qualquer uma; entre aspas, a frase exacta.'></label>"
+        "aria-describedby='sintaxe-q'></label>"
         "<label class='mg-field f-ent'><span class='mg-field__label'>Entidade</span>"
         "<input class='mg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
         "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
@@ -19339,6 +19345,10 @@ def _lista_de_anuncios():
         "%s</div>"
         "<input type='hidden' name='estado' value='%s'>"
         "%s"
+        # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
+        "<p class='mg-field__hint f-sintaxe' id='sintaxe-q'>Pesquisar: as "
+        "palavras soltas têm de estar todas; separe com vírgula para "
+        "qualquer uma; entre aspas, a frase exacta.</p>"
         "</form><datalist id='entidades'></datalist>"
         % (" aberto" if em_uso_escondidos else "",
            html.escape(rota, quote=True),
@@ -19647,11 +19657,16 @@ def _preco_da_proposta(p):
     return "&mdash;"
 
 
-def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True):
+def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
+                      docs=None):
     """Uma proposta na tabela. A ligacao e para a ficha do anuncio
     quando ha anuncio, e para a propria proposta quando nao ha (D2) --
-    uma consulta previa nao tem ficha do DR para abrir."""
-    prazo = prazos.get(p["ref"] or "")
+    uma consulta previa nao tem ficha do DR para abrir.
+
+    `docs` e (prontos, pedidos) dos documentos que o Programa pede, ou
+    None quando ainda nao foi lido (G1)."""
+    # sem anuncio, o prazo e o que se escreveu na proposta (E6)
+    prazo = prazos.get(p["ref"] or "") or _valor(p, "prazo_entrega")
     if prazo:
         texto_prazo, classe_prazo = etiqueta_prazo(prazo, urgente)
         # A partir do Submetido o prazo ter passado e o estado normal: a
@@ -19695,6 +19710,12 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True):
                         if falta["quando"] else ""))
     else:
         cel_falta = ""
+    # Quantos dos documentos que o Programa pede estão prontos (UX-7-LEIS,
+    # G1): o «3 de 7» só se via dentro da ficha. Só nas ranhuras onde
+    # ainda há o que preparar; depois de entregue já não é trabalho.
+    if docs and p["estado"] in ESTADOS_COM_TAREFAS:
+        cel_falta = " ".join(x for x in (
+            cel_falta, "<span class='mg-mono'>docs %d/%d</span>" % docs) if x)
     if p["estado"] == "ganho":
         cel_falta = ("<span class='mg-num'>%s</span> <span class='nota'>%s</span>"
                      % (html.escape(euros(valor_ganho(p))),
@@ -19854,13 +19875,30 @@ def _lista_de_propostas():
                     "ORDER BY COALESCE(NULLIF(quando,''),'9999'), id"
                     % ",".join("?" * len(ids)), ids):
                 falta.setdefault(r["proposta_id"], r)
+        # Os documentos que o Programa pede (o campo 12 lido), para o
+        # «docs 3/7» da coluna «Falta» (UX-7-LEIS, G1) -- numa consulta,
+        # pela mesma razão.
+        pedidos = {}
+        if refs:
+            pedidos = {r["ref"]: itens_da_proposta(r["documentos_proposta"])
+                       for r in c.execute(
+                           "SELECT ref, documentos_proposta FROM analise "
+                           "WHERE ref IN (%s)" % ",".join("?" * len(refs)), refs)}
+    docs = {}
+    for p in linhas:
+        itens = pedidos.get(p["ref"] or "")
+        if itens:
+            docs[p["id"]] = (len(set(documentos_prontos(p)) & set(itens)),
+                             len(itens))
     # Pelo prazo (o mais perto primeiro) ou pelo preço base (o maior), no
     # cabeçalho, como nos Concursos (J4 da UX-7-LEIS, 1/10/2026). São
     # dezenas de linhas: ordenam-se aqui, e os sem valor vão para o fim.
     ordem = request.args.get("ordem") or ""
     if ordem == "prazo":
-        linhas = sorted(linhas, key=lambda p: (not prazos.get(p["ref"] or ""),
-                                               prazos.get(p["ref"] or "") or ""))
+        # sem anuncio, o prazo escrito na proposta (E6), como na coluna
+        def prazo_de(p):
+            return prazos.get(p["ref"] or "") or _valor(p, "prazo_entrega") or ""
+        linhas = sorted(linhas, key=lambda p: (not prazo_de(p), prazo_de(p)))
     elif ordem == "preco":
         linhas = sorted(linhas, key=lambda p: (
             euros_do_texto(p["preco_base"] or "") is None,
@@ -19894,7 +19932,8 @@ def _lista_de_propostas():
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
                  % ("".join(cabecalho(t) for t in colunas_da_ranhura(estado_actual, com_lote)),
                     "".join(linha_da_pipeline(p, urgente, prazos,
-                                              falta.get(p["id"]), com_lote)
+                                              falta.get(p["id"]), com_lote,
+                                              docs.get(p["id"]))
                             for p in linhas)))
     elif procura:
         # A ranhura pode estar cheia: o que esta vazio e a RESPOSTA. Dizer
@@ -26783,8 +26822,7 @@ def contratos():
                 "id='filtro-cpv' name='cpv' value='%s' "
                 "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
                 "autocomplete='off' data-cpv-sugere='contratos' "
-                "title='Um ou mais códigos CPV, separados por |. Os zeros à "
-                "direita alargam ao grupo: 45000000 é toda a construção.'>")
+                "aria-describedby='sintaxe-cpv'>")
         + "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         + campo("Procedimento", "%s")
@@ -26800,6 +26838,10 @@ def contratos():
         + campo("Preço mínimo", "<input class='mg-field__input' type='text' "
                 "name='min' value='%s' placeholder='€'>")
         + botoes_de_filtro("%s") +
+        # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
+        "<p class='mg-field__hint f-sintaxe' id='sintaxe-cpv'>CPV: um ou "
+        "mais códigos, separados por |; os zeros à direita alargam ao "
+        "grupo (45000000 é toda a construção).</p>"
         "</form><datalist id='entidades-contratos'></datalist>"
         "<datalist id='cpv-sugestoes'></datalist>")
         % (escondidos_modo, v("q"), v("adj"), v("entid"),
@@ -29870,9 +29912,12 @@ def ficha(ref):
                 lotes_html + desfecho_html + pedem_cx +
                 # os homologos e o historico sao tabelas de contratos, e
                 # ficam no mercado: na coluna estreita cortavam-se
-                mercado_cx(a, ch_ent, ref_preco) + docs_cx + anuncio_cx + "</div>"
-                # a coluna da direita fica presa ao rolar, no computador
-                "<div class='ficha-lado'>" + prazo_cx +
+                mercado_cx(a, ch_ent, ref_preco) + docs_cx + anuncio_cx + "</div>" +
+                # a coluna da direita fica presa ao rolar, no computador;
+                # com a proposta deixa de caber e rola com a página (E7)
+                "<div class='ficha-lado%s'>"
+                % (" com-proposta" if minhas and not sem_empresa else "")
+                + prazo_cx +
                 # o dono sem empresa le o anuncio; a proposta, os
                 # contactos e o historico sao de uma empresa (24/09/2026)
                 ("" if sem_empresa else
@@ -30999,6 +31044,12 @@ def _campos_que_a_ranhura_pede(p):
                 "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'></label>"
                 % (html.escape(titulo, quote=True), rotulo, nome,
                    html.escape(data_pt(_valor(p, nome), ""), quote=True)))
+    # Sem anúncio, o prazo escreve-se aqui (E6, 1/10/2026); com anúncio é
+    # o do DR, e um segundo campo gravava o mesmo facto por dois caminhos.
+    if not p["ref"]:
+        pecas.insert(0, data(
+            "prazo_entrega", "Prazo de entrega",
+            "Dá o passo «até …» e a tarefa «entregar a proposta»"))
     if estado in ("relatorio", "ganho", "perdido") or _valor(p, "audiencia_em"):
         pecas.append(data(
             "audiencia_em", "Notificação do relatório preliminar",
@@ -31038,7 +31089,9 @@ def _tarefas_da_ficha(p):
         texto_prazo, classe = etiqueta_prazo(t["quando"], dias_urgente())
         linhas.append(
             "<li id='t%d'>%s<span class='t'>%s</span>%s%s%s%s</li>"
-            % (t["id"], accao("/tarefa/%d/feita" % t["id"], "&#10003;", "tq",
+            # a mesma caixa do Hoje, que é a mesma acção e a mesma rota
+            # (UX-ICONES-DICAS-PESOS, 17): eram duas caixas diferentes
+            % (t["id"], accao("/tarefa/%d/feita" % t["id"], "", "chk",
                      rotulo="Marcar como feita: %s" % corta(t["o_que"], 60)),
                html.escape(t["o_que"]),
                ("<span class='mg-tag %s'>%s</span>"
@@ -31344,6 +31397,14 @@ def proposta_da_ficha(id_):
     if "top3" in request.form:
         campos.append("top3")
         valores.append(texto_de_campo(request.form.get("top3"), 300) or None)
+    # O prazo só de uma proposta sem anúncio (E6): com anúncio é o do DR
+    if "prazo_entrega" in request.form and not p["ref"]:
+        bruto = " ".join((request.form.get("prazo_entrega") or "").split())
+        prazo = data_de_filtro(bruto) if bruto else None
+        if bruto and not prazo:
+            return recusa("«%s» não é uma data (dd/mm/aaaa)." % corta(bruto, 20))
+        campos.append("prazo_entrega")
+        valores.append(prazo)
     # As listas da empresa mandam quando existem; o valor que a proposta
     # já tinha continua a valer (a lista pode ter mudado depois). Sem
     # lista, o ecrã não mostra o campo e aceita-se o texto, como antes.
@@ -31396,8 +31457,11 @@ def proposta_da_ficha(id_):
     if recado:
         return recusa(recado)
     _depois_do_desfecho(p, desfecho)
+    if "prazo_entrega" in campos:
+        # a tarefa «entregar a proposta» acompanha o prazo escrito
+        sincronizar_tarefas()
     gravar_nota(id_, request.form.get("nota_nova"))
-    ccp = (aviso_do_ccp(id_) if "valor_proposta" in campos
+    ccp =(aviso_do_ccp(id_) if "valor_proposta" in campos
            or "data_adjudicacao" in desfecho else "")
     if ccp:
         return _volta_com_aviso("Gravado. " + ccp, erro=True,
@@ -31576,7 +31640,11 @@ def ficha_da_proposta(id_):
         % accao("/proposta/%d/apagar" % id_, "apagar", "mini cuidado",
                 confirmar="Apagar «%s»? Não há volta."
                           % (nome or "").replace("'", " ")))
-    corpo = (bloco
+    # Os quatro passos da ficha do anúncio (E6, 1/10/2026): a fase só se
+    # lia no selector. O prazo é o que se escreveu na proposta.
+    escada = passos_da_escada({"estado": "", "prazo": _valor(p, "prazo_entrega")},
+                              [p])
+    corpo = (escada + bloco
              + "<p class='nota'>Sem anúncio do DR: %s. Criada a %s.%s</p>"
              # dd/mm/aaaa, como as notas da mesma ficha (G91)
              % (html.escape(p["porque_sem_ref"] or "não vem do DR"),
