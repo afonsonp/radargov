@@ -17190,6 +17190,37 @@ class TestPesquisaGeralERepor(BaseTemporaria):
         corpo = cliente.get("/pesquisa?q=vigil", environ_base=self.FORA).get_data(as_text=True)
         self.assertIn("/anuncio/100/2026", corpo)
 
+    def test_a_sintaxe_do_fts5_que_vem_do_pedido_e_texto_literal(self):
+        """Revisão de segurança do PR #187 (1/10/2026): o que se escreve na
+        caixa vai para um `MATCH`, e o FTS5 tem sintaxe sua -- aspas,
+        `OR`, `NEAR`, `*`, `coluna:`. Cada palavra entra como uma frase
+        entre aspas, com as aspas de dentro dobradas, e por isso nada
+        disto é operador: não rebenta (sem as aspas, `"evil`, `*ola*` e
+        `col:evil` são erros de sintaxe, e `col:` pede uma coluna que não
+        existe) e não acha o que não diz literalmente."""
+        self._semear_anuncios()
+        with radar.liga() as c:      # entra pelo gatilho do índice
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado, titulo_norm, entidade_norm) VALUES ('104/2026', "
+                      "'Obra teste evil ola', 'Escola', '2026-09-24', 'novo', "
+                      "'obra teste evil ola', 'escola')")
+        cliente = self._entrar()
+        self.assertTrue(radar.indice_da_pesquisa_pronto())
+        for q in ('"evil', 'a" OR 1=1--', '*ola*', 'col:evil', 'a NEAR b',
+                  '"""', "obra'teste", 'ob;ra'):
+            with self.subTest(q=q):
+                resultado = self.procurar(cliente, q)
+                self.assertEqual(resultado["concursos"], [], q)
+                self.assertEqual(resultado["propostas"], [], q)
+                r = cliente.get("/pesquisa?" + urlencode({"q": q}),
+                                environ_base=self.FORA)
+                self.assertEqual(r.status_code, 200, q)
+        # e o mesmo termo, sem a sintaxe à volta, acha-o: a prova de que o
+        # vazio de cima é o literal, e não um índice que não responde
+        self.assertEqual(self._refs(self.procurar(cliente, "evil ola")), ["104/2026"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM erros").fetchone()[0], 0)
+
     def test_o_indice_acompanha_as_escritas(self):
         self._semear_anuncios()
         cliente = self._entrar()
