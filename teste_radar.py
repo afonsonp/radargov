@@ -9174,8 +9174,8 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
     # Os botões que não são `mg-btn`, e porquê. Um botão novo ou é do
     # sistema, ou entra aqui com a razão.
     BOTOES_PROPRIOS = {
-        "chk": "a caixa de marcar de uma tarefa do Hoje",
-        "tq": "o ✓ de uma tarefa na ficha, do tamanho da caixa",
+        # e da ficha desde 1/10/2026: o `tq` saiu (UX-ICONES-DICAS-PESOS, 17)
+        "chk": "a caixa de marcar de uma tarefa, no Hoje e na ficha",
         "interruptor": "o interruptor que liga e desliga um alerta",
         "apagar": "o ícone de remover um alerta, na linha dele",
         "aviso-fechar": "o × do aviso da vez",
@@ -9529,7 +9529,7 @@ class TestAlvosDeTextoA24px(unittest.TestCase):
     # 15/09/2026: os alvos do cartão do quadro saíram com ele, e
     # entraram os do selector de ranhura e os da lista de tarefas --
     # que são os controlos novos que se carregam vinte vezes seguidas.
-    ALVOS = ("button.tirar", ".ranhura select", "button.tq", ".bt-leve",
+    ALVOS = ("button.tirar", ".ranhura select", ".bt-leve",
              ".sou button", "button.etq-x", ".alerta .apagar")
 
     def test_cada_alvo_de_texto_tem_24px_de_altura(self):
@@ -9538,6 +9538,15 @@ class TestAlvosDeTextoA24px(unittest.TestCase):
             self.assertIsNotNone(m, selector)
             self.assertIn("min-height:24px", m.group(1), selector)
             self.assertIn("box-sizing:border-box", m.group(1), selector)
+
+    def test_a_caixa_da_tarefa_tem_24px(self):
+        # O `button.tq` da ficha estava na lista de cima; saiu a 1/10/2026
+        # para a `.chk` do Hoje (UX-ICONES-DICAS-PESOS, 17), que tem os 24
+        # na nossa folha -- e é essa que tem de os continuar a ter.
+        with open(os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               "estilo", "miragov-radar.css"),
+                  encoding="utf-8") as f:
+            self.assertIn("[data-pele=novo] .chk{width:24px;height:24px}", f.read())
 
 
 class TestPaginaSemNadaDeFora(unittest.TestCase):
@@ -26063,6 +26072,154 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
                           "<p class='mg-pagehead__sub'>" % titulo, h, rota)
 
 
+
+
+class TestUXFichasDe1Outubro(_CicloDoTesteComUtilizadores):
+    """As fichas, a proposta e as tarefas, das correcções que as
+    auditorias de 30/09/2026 deixavam para depois de 5/10 e que ele
+    mandou fazer a 1/10/2026 («Faz todos»). Cada método diz de que achado
+    vem; todos falhavam com o código de antes."""
+
+    _sem_anuncio = TestAsCorreccoesDeUXDoLancamento._sem_anuncio
+
+    @staticmethod
+    def _folha():
+        with open(os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               "estilo", "miragov-radar.css"),
+                  encoding="utf-8") as f:
+            return f.read()
+
+    # -- UX-ECRAS-EM-FALTA-E-ESCURO.md ---------------------------------
+
+    def test_e6_a_migracao_da_o_prazo_a_uma_base_que_nao_o_tem(self):
+        """E6: a `propostas` não tinha coluna de prazo. A migração corre
+        sobre um ficheiro de empresa de antes, e não perde nada."""
+        caminho = os.path.join(self.pasta, "empresa-antiga.db")
+        # a tabela como estava a 30/09/2026: todas as colunas menos esta
+        antigas = [k for k in radar.COLUNAS_DA_PROPOSTA
+                   if k not in ("id", "prazo_entrega")]
+        with contextlib.closing(sqlite3.connect(caminho)) as c:
+            c.execute("CREATE TABLE propostas (id INTEGER PRIMARY KEY "
+                      "AUTOINCREMENT, %s)" % ", ".join(antigas))
+            c.execute("INSERT INTO propostas (titulo, estado) "
+                      "VALUES ('Consulta prévia', 'proposta')")
+            c.commit()
+        radar.iniciar_empresa(caminho)
+        radar.iniciar_empresa(caminho)              # idempotente
+        with contextlib.closing(sqlite3.connect(caminho)) as c:
+            colunas = [r[1] for r in c.execute("PRAGMA table_info(propostas)")]
+            linha = c.execute("SELECT titulo, estado, prazo_entrega "
+                              "FROM propostas").fetchall()
+        self.assertIn("prazo_entrega", colunas)
+        self.assertIn("prazo_entrega", radar.COLUNAS_DA_PROPOSTA)
+        self.assertEqual(linha, [("Consulta prévia", "proposta", None)])
+
+    def test_e6_a_proposta_sem_anuncio_tem_prazo_e_os_quatro_passos(self):
+        """E6: sem anúncio não havia prazo nem stepper -- a fase só se lia
+        no selector, e a data de entrega de um convite não chegava às
+        tarefas: o ecrã dizia «Nada por fazer.»"""
+        sem = self._sem_anuncio()
+        h = self.cliente.get("/proposta/%d" % sem).get_data(as_text=True)
+        self.assertIn("name='prazo_entrega'", h)
+        self.assertIn("class='mg mg-stepper ficha-escada'", h)
+        fim = datetime.date.today() + datetime.timedelta(days=20)
+        self.cliente.post("/proposta/%d/ficha" % sem,
+                          data={"prazo_entrega": fim.strftime("%d/%m/%Y")})
+        self.assertEqual(radar.proposta(sem)["prazo_entrega"], fim.isoformat())
+        h = self.cliente.get("/proposta/%d" % sem).get_data(as_text=True)
+        self.assertIn("até %s" % fim.strftime("%d/%m"), h)
+        with radar.liga() as c:
+            tarefas = c.execute("SELECT o_que, quando FROM tarefas WHERE "
+                                "proposta_id=? AND origem='entrega'",
+                                (sem,)).fetchall()
+        self.assertEqual([tuple(t) for t in tarefas],
+                         [(radar.TEXTO_AUTOMATICO["entrega"], fim.isoformat())])
+        self.assertNotIn("Nada por fazer.", h)
+        # uma data que não se lê recusa-se, e não apaga a que lá está
+        self.cliente.post("/proposta/%d/ficha" % sem,
+                          data={"prazo_entrega": "31 de Março"})
+        self.assertEqual(radar.proposta(sem)["prazo_entrega"], fim.isoformat())
+
+    def test_e6_o_prazo_proprio_so_existe_sem_anuncio(self):
+        """E6: com anúncio, o prazo é o do DR, e um segundo campo para o
+        mesmo facto gravava-o por dois caminhos."""
+        id_ = self._proposta()
+        self.assertNotIn("name='prazo_entrega'", self._ficha())
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"prazo_entrega": "01/12/2026"})
+        self.assertIsNone(radar.proposta(id_)["prazo_entrega"])
+
+    def test_e7_com_proposta_a_coluna_da_direita_nao_rola_por_dentro(self):
+        """E7: a 1280 × 900 a coluna da direita tinha 1 874 px numa caixa
+        de 820, e o fim dela só se alcançava rolando por dentro."""
+        self.assertIn("<div class='ficha-lado'>", self._ficha())
+        self._proposta()
+        self.assertIn("<div class='ficha-lado com-proposta'>", self._ficha())
+        computador = self._folha().split("@media (min-width:1101px){", 1)[1] \
+            .split("}}", 1)[0]
+        self.assertIn(".ficha-lado.com-proposta{position:static;"
+                      "max-height:none;overflow:visible", computador)
+
+    # -- UX-7-LEIS.md ----------------------------------------------------
+
+    def test_g1_a_coluna_falta_diz_quantos_documentos_estao_prontos(self):
+        """G1: o «3 de 7 prontos» só se via dentro da ficha; a lista das
+        Propostas não dizia quanto faltava a cada uma."""
+        id_ = self._proposta()
+        rota = "/propostas?estado=analisar"
+        self.assertNotIn("docs ", self.cliente.get(rota).get_data(as_text=True))
+        with radar.liga() as c:
+            c.execute("INSERT INTO analise (ref, documentos_proposta) "
+                      "VALUES ('60/2026', ?)",
+                      (TestAPropostaDeCadaEmpresa.CAMPO_12,))
+        radar.gravar_campos_da_proposta(id_, ["documentos_prontos"],
+                                        [json.dumps(["DEUCP"])])
+        h = self.cliente.get(rota).get_data(as_text=True)
+        falta = h.split("<td class='falta'>", 1)[1].split("</td>", 1)[0]
+        self.assertIn("docs 1/3", falta)
+
+    # -- UX-ICONES-DICAS-PESOS.md ----------------------------------------
+
+    def test_14_a_sintaxe_da_pesquisa_e_do_cpv_esta_a_vista(self):
+        """14 (B.1 #6): a sintaxe da pesquisa e a do CPV só estavam no
+        `title` do campo, que não aparece no toque nem ao focar."""
+        h = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        form = h.split("id='filtros-lista'", 1)[1].split("</form>", 1)[0]
+        self.assertIn("aria-describedby='sintaxe-q'", form)
+        dica = form.split("id='sintaxe-q'>", 1)[1].split("</p>", 1)[0]
+        self.assertIn("entre aspas, a frase exacta", dica)
+        self.assertNotIn("title='Palavras soltas", form)
+        semear_corpus()
+        h = self.cliente.get("/contratos").get_data(as_text=True)
+        form = h.split("id='filtros-mercado'", 1)[1].split("</form>", 1)[0]
+        self.assertIn("aria-describedby='sintaxe-cpv'", form)
+        dica = form.split("id='sintaxe-cpv'>", 1)[1].split("</p>", 1)[0]
+        self.assertIn("separados por |", dica)
+        self.assertNotIn("title='Um ou mais códigos CPV", form)
+        # fora do «Mais filtros» recolhido: à vista com ele fechado, em
+        # todas as larguras, e nenhuma regra a esconde
+        h = self.cliente.get(radar.LISTA).get_data(as_text=True)
+        # o bloco recolhido fecha antes do campo escondido do estado
+        self.assertLess(h.index("id='filtros-mais'"),
+                        h.index("<input type='hidden' name='estado'"))
+        self.assertGreater(h.index("id='sintaxe-q'"),
+                           h.index("<input type='hidden' name='estado'"))
+        self.assertIn(".f-sintaxe{grid-column:1/-1;order:2;margin:0}", self._folha())
+        self.assertNotRegex(self._folha(), r"\.f-sintaxe[^{]*\{[^}]*display:none")
+
+    def test_17_uma_caixa_de_tarefa_so(self):
+        """17 (A.1): a mesma acção tinha duas caixas -- a `.chk` do Hoje
+        e o `button.tq` da ficha, com um ✓ transparente."""
+        id_ = self._proposta()
+        radar.criar_tarefa("ligar ao júri", None, proposta_id=id_,
+                           ref="60/2026")
+        h = self._ficha()
+        tarefas = h.split("<ul class='tarefas'>", 1)[1].split("</ul>", 1)[0]
+        self.assertIn("<button type='submit' class='chk' "
+                      "aria-label='Marcar como feita: ligar ao júri'></button>",
+                      tarefas)
+        self.assertNotIn("class='tq'", h)
+        self.assertNotIn("button.tq", radar.CSS)
 
 
 if __name__ == "__main__":

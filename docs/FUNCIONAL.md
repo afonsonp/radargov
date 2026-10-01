@@ -197,6 +197,7 @@ comparadas antes de apagar.
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
 | `lote` | 0 | Existe, ainda não se usou |
 | `porque_sem_ref` | 0 | Propostas sem anúncio: existe, ainda não se usou |
+| `prazo_entrega` | 0 | O prazo de entrega de uma proposta **sem anúncio** (1/10/2026): dá o «até …» dos quatro passos, a coluna «Prazo» da lista e a tarefa automática «entregar a proposta». Com anúncio fica vazia — o prazo é o do DR |
 
 ### 2.2 `contratos.db` — o mercado (2,66 GB, 6 tabelas)
 
@@ -1011,7 +1012,10 @@ contagem. A ordem não é um filtro: não se guarda num alerta.
 A caixa **Pesquisar** procura **todas as palavras**, por qualquer ordem
 (26/09/2026: «limpeza manutenção» dava 0, porque se procurava a frase);
 a vírgula ou a barra separam alternativas, e entre aspas procura-se a
-frase exacta. Vale igual para os alertas, que usam o mesmo motor. Sem
+frase exacta. Vale igual para os alertas, que usam o mesmo motor. **A
+regra está escrita por baixo dos filtros** desde 1/10/2026 (fora do
+«Mais filtros»: vê-se com ele fechado), e a do CPV por baixo dos do Mercado: estavam
+só no `title` do campo, que não aparece no toque nem ao focar. Sem
 resultados dentro do perfil da empresa, a lista diz quantos há fora dele.
 
 Filtros: à vista só a **Pesquisa**, a **Entidade** e o **«Mais
@@ -1136,8 +1140,14 @@ decidem**: abrem a caixa da escada quando falta o preço proposto, e o
 ### 4.5 Ficha da proposta — `/proposta/<id>`
 
 Para as propostas **sem anúncio** (consulta prévia, ajuste directo,
-convite) e para qualquer proposta. Tem o bloco inteiro, os contactos, a
-cronologia e o apagar. `/proposta/nova` cria uma.
+convite) e para qualquer proposta. Tem os quatro passos da escada, o
+bloco inteiro, os contactos, a cronologia e o apagar. `/proposta/nova`
+cria uma. **Sem anúncio, o prazo de entrega escreve-se no bloco**
+(1/10/2026, E6 do `docs/historico/UX-ECRAS-EM-FALTA-E-ESCURO.md`): é ele
+que dá o «até …» do passo «Submetida», a coluna «Prazo» das Propostas e
+a tarefa automática «entregar a proposta», que acompanha a data como as
+do DR. Não chega ainda ao cartão «Prazos a chegar» do Hoje nem ao
+Calendário, que lêem os prazos dos anúncios.
 
 ### 4.6 Mercado — `/contratos`
 
