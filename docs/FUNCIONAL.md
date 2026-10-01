@@ -832,7 +832,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**136 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**137 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1298,6 +1298,23 @@ pelo claro ou pelo escuro do computador. O ecrã de entrar, o do convite
 e os de erro seguem o computador (não há a quem perguntar).
 
 ### 4.9 A porta
+
+**Os planos** (desde 1/10/2026, L2.1 do plano de Outubro, com os planos
+desse dia): cada empresa tem um — **Solo** (1 utilizador, uma sessão de
+cada vez), **Equipa** (até 5) ou **Corporate** (o número acordado) —, na
+tabela `planos` do `radar.db`, que é da plataforma como as contas. Quem o
+põe é o dono: ao aceitar um pedido nasce com o plano que o formulário
+escolheu (a oferta de fundador é o Equipa, marcado como fundador), e
+muda-se no cartão «Plano» da página da empresa
+(`plataforma_gravar_plano()`). **O limite conta as contas e os convites
+por usar** (`contas.lugares_livres()`): o `criar_convite()` recusa com a
+frase do plano, e o `usar_convite()` volta a conferir, porque o plano
+pode ter descido entretanto. **No Solo, a última entrada ganha**: o
+`_abrir_sessao()` fecha as outras sessões da conta e guarda-as na
+`sessoes_fechadas`, e quem as tinha vê, no pedido seguinte, «a sua sessão
+foi fechada porque entrou noutro aparelho». **O cofre dos documentos
+fecha-se no Solo** (`cofre_fechado()`). A leitura das peças por IA é de
+todos. **Uma empresa sem plano não tem limites**, e o cartão avisa.
 
 Tudo passa por um só sítio antes de qualquer rota: o
 `porta_de_entrada()`, logo a seguir ao `app`. As tabelas e a

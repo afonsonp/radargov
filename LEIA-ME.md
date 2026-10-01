@@ -1535,6 +1535,14 @@ guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
 site»** — e é aí que os vês se o e-mail não tiver chegado.
 
+**O plano de cada empresa** (desde 1/10/2026): ao aceitar um pedido, a
+empresa nasce com o plano que escolheu no formulário — a oferta de
+fundador fica Equipa, marcada como fundador. Para o mudar, abre a página
+da empresa na plataforma e usa o cartão **«Plano»**: Solo (1 utilizador,
+uma sessão de cada vez), Equipa (até 5) ou Corporate (o número que
+acordaste, no campo «Utilizadores»). Mudar para um plano mais pequeno
+não tira contas a ninguém; só deixa de se poder convidar.
+
 **Para dar acesso a quem pediu**, carrega em **«aceitar…»** na linha do
 pedido. Abre primeiro **o perfil da empresa nova** (desde 26/09/2026:
 o site promete «configuramos o perfil consigo»): os CPV já vêm do

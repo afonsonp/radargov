@@ -18050,6 +18050,16 @@ class TestConvites(BaseTemporaria):
         self.aceitar()
         self.assertEqual(radar.empresas_existentes(), [1, 2])
 
+    def test_aceitar_poe_o_plano_que_o_pedido_escolheu(self):
+        """L2.1: a oferta de fundador é o Equipa a preço de fundador."""
+        with radar.liga() as c:
+            c.execute("UPDATE pedidos_acesso SET plano='fundador' WHERE id=?",
+                      (self.pedido,))
+        self.aceitar()
+        with radar.liga() as c:
+            p = radar.contas.plano_da_empresa(c, 2)
+        self.assertEqual((p["plano"], p["fundador"], p["utilizadores"]), ("equipa", 1, 5))
+
     def test_o_nif_do_pedido_passa_para_a_empresa(self):
         """30/09/2026: o site pede o NIF, que é o da fatura; aceitar o
         pedido grava-o como o NIF da empresa, sem o dono o reescrever."""
@@ -26880,6 +26890,113 @@ class TestQuemCostumaConcorrer(BaseTemporaria):
     def test_sem_cpv_ou_sem_contratos_nao_ha_bloco(self):
         self.assertEqual(radar.concorrentes_cx({"cpv": ""}, self.ENTIDADE), "")
         self.assertEqual(radar.concorrentes_cx(self.a, "599999999"), "")
+
+
+
+class TestOsPlanos(BaseTemporaria):
+    """L2.1 do plano de Outubro, com os planos de 1/10/2026 (decisão
+    dele): Solo (1 utilizador, uma sessão de cada vez), Equipa (até 5) e
+    Corporate (o número acordado). O que estes testes seguram: o limite
+    conta as contas E os convites por usar; o convite volta a conferir ao
+    ser usado; no Solo a última entrada fecha as outras e quem foi fechado
+    sabe porquê; a empresa sem plano não tem limites; aceitar um pedido
+    põe o plano que ele escolheu; e o cofre fecha-se no Solo."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def conta(self, email, empresa_id=1, papel="admin"):
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, email, "senha-comprida", papel=papel,
+                                          empresa_id=empresa_id)
+
+    def plano(self, plano, **k):
+        with radar.liga() as c:
+            radar.contas.gravar_plano(c, 1, plano, **k)
+
+    def test_sem_plano_nao_ha_limite(self):
+        self.conta("ana")
+        with radar.liga() as c:
+            self.assertIsNone(radar.contas.lugares_livres(c, 1))
+            radar.contas.criar_convite(c, 1, "", "tester")      # não recusa
+
+    def test_o_solo_tem_um_lugar_e_o_convite_conta(self):
+        self.plano("solo")
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 1)
+            radar.contas.criar_convite(c, 1, "", "admin")
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 0)
+            with self.assertRaises(ValueError) as erro:
+                radar.contas.criar_convite(c, 1, "", "tester")
+        self.assertIn("O plano Solo da empresa tem 1 utilizador", str(erro.exception))
+
+    def test_o_equipa_tem_cinco_e_o_corporate_o_acordado(self):
+        self.plano("equipa")
+        for i in range(3):
+            self.conta("pessoa%d" % i)
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 2)
+        self.plano("corporate", utilizadores=10)
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 7)
+        self.plano("corporate")
+        with radar.liga() as c:
+            self.assertIsNone(radar.contas.lugares_livres(c, 1))
+
+    def test_o_convite_confere_outra_vez_ao_ser_usado(self):
+        self.plano("equipa")
+        with radar.liga() as c:
+            codigo = radar.contas.criar_convite(c, 1, "", "tester")
+        self.plano("solo")                 # desceu depois do convite
+        self.conta("ana")
+        with radar.liga() as c:
+            token, porque = radar.contas.usar_convite(c, codigo, "rui", "senha-comprida")
+        self.assertIsNone(token)
+        self.assertIn("Solo", porque)
+
+    def test_no_solo_a_ultima_entrada_fecha_as_outras(self):
+        self.plano("solo")
+        self.conta("ana")
+        with radar.liga() as c:
+            primeira, _ = radar.contas.entrar(c, "ana", "senha-comprida")
+            segunda, _ = radar.contas.entrar(c, "ana", "senha-comprida")
+            self.assertIsNone(radar.contas.utilizador_da_sessao(c, primeira))
+            self.assertTrue(radar.contas.utilizador_da_sessao(c, segunda))
+            self.assertTrue(radar.contas.foi_fechada_por_outra(c, primeira))
+            self.assertFalse(radar.contas.foi_fechada_por_outra(c, primeira))  # uma vez
+
+    def test_no_equipa_as_sessoes_ficam(self):
+        self.plano("equipa")
+        self.conta("ana")
+        with radar.liga() as c:
+            primeira, _ = radar.contas.entrar(c, "ana", "senha-comprida")
+            radar.contas.entrar(c, "ana", "senha-comprida")
+            self.assertTrue(radar.contas.utilizador_da_sessao(c, primeira))
+
+    def test_quem_foi_fechado_ve_porque(self):
+        self.plano("solo")
+        self.conta("ana")
+        with radar.liga() as c:
+            primeira, _ = radar.contas.entrar(c, "ana", "senha-comprida")
+            radar.contas.entrar(c, "ana", "senha-comprida")
+        self.cliente.set_cookie("sessao", primeira)
+        r = self.cliente.get("/concursos", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/entrar?fechada=1&para=", r.headers["Location"])
+        h = self.cliente.get("/entrar?fechada=1", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("entrou noutro aparelho", h)
+
+    def test_o_cofre_fecha_no_solo(self):
+        self.assertFalse(radar.cofre_fechado())       # sem plano, aberto
+        self.plano("solo")
+        self.assertTrue(radar.cofre_fechado())
+        h = self.cliente.get("/configuracoes/documentos").get_data(as_text=True)
+        self.assertIn("é do plano Equipa", h)
+        self.plano("equipa")
+        self.assertFalse(radar.cofre_fechado())
 
 
 
