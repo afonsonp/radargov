@@ -5927,6 +5927,31 @@ class TestPecasDoDR(BaseTemporaria):
             self.SCRIPT, "DataActionGetPesquisas"), "PRsQKjEXDVBC3ZSqkS8k6A")
         self.assertEqual(radar.api_version_do_script(self.SCRIPT, "Outra"), "")
 
+    # O pedaco que o portal devolveu a 1/10/2026, tal e qual: desde 30/09
+    # o OutSystems mete uma chave (GUID) entre o nome e o caminho.
+    SCRIPT_30_09 = ('return controller.callDataAction("DataActionGetPesquisas", '
+                    '"1ea5416b-281b-438c-8873-522eb560c938", '
+                    '"screenservices/dr/Pesquisas/PesquisaResultado/'
+                    'DataActionGetPesquisas", "PRsQKjEXDVBC3ZSqkS8k6A", '
+                    'function (b) {')
+
+    def test_api_version_com_a_chave_que_o_outsystems_meteu_a_30_09(self):
+        # 30/09/2026: a expressao contava posicoes e leu o CAMINHO como
+        # apiVersion; o DR respondeu hasApiVersionChanged a todas as
+        # pesquisas, 24 verificacoes seguidas, e o erro dizia «captura».
+        self.assertEqual(radar.api_version_do_script(
+            self.SCRIPT_30_09, "DataActionGetPesquisas"),
+            "PRsQKjEXDVBC3ZSqkS8k6A")
+
+    def test_uma_api_version_que_nao_parece_uma_nao_se_aceita(self):
+        # se a forma mudar outra vez, mais vale "sem apiVersion" (fica a
+        # da captura, e a marca pecas-dr diz o que foi) do que mandar um
+        # caminho ao DR e culpar a captura
+        script = ('callDataAction("DataActionGetPesquisas", "a/b", '
+                  '"x/DataActionGetPesquisas", "screenservices/y/z", f)')
+        self.assertEqual(radar.api_version_do_script(
+            script, "DataActionGetPesquisas"), "")
+
     def test_tres_gets_renovam_as_tres_pecas(self):
         urls = []
         pecas = radar.renovar_pecas_dr([self.URL], buscar=self._buscar(urls))
@@ -18594,6 +18619,31 @@ class TestSaudeVeARecolha(BaseTemporaria):
                          (503, "a recolha parou"))
         with unittest.mock.patch.object(radar, "recolha_atrasada", return_value=False):
             self.assertEqual(cliente.get("/saude").status_code, 200)
+
+    def test_verificacoes_a_falhar_seguidas_tambem_dao_503(self):
+        # 30/09-1/10/2026: 24 verificacoes seguidas falharam (o DR recusava
+        # a pesquisa) e o /saude dizia «ok» -- so via se a verificacao
+        # CORRIA, nao se trazia alguma coisa. A falha avulsa (um soluco de
+        # rede) nao acorda o vigia; a terceira seguida acorda.
+        cliente = radar.app.test_client()
+        fora = {"REMOTE_ADDR": "203.0.113.7"}
+        with unittest.mock.patch.object(radar, "recolha_atrasada", return_value=False):
+            for _ in range(radar.FALHAS_PARA_O_VIGIA - 1):
+                radar.marcar_resultado(False)
+            self.assertEqual(cliente.get("/saude", environ_base=fora).status_code, 200)
+            radar.marcar_resultado(False)
+            r = cliente.get("/saude", environ_base=fora)
+            self.assertEqual((r.status_code, r.get_data(as_text=True)),
+                             (503, "a recolha está a falhar"))
+            self.assertEqual(radar.le_marca("ultima_ok"), "0")
+            # e o semaforo da plataforma diz o mesmo, a vermelho
+            radar.marca("ultima_verificacao", "2026-10-01 08:00")
+            recolha = radar.semaforos_da_plataforma()[0]
+            self.assertEqual(recolha[:2], ("Recolha", "mau"))
+            self.assertIn("3 vezes seguidas", recolha[2])
+            radar.marcar_resultado(True)                  # uma boa repoe
+            self.assertEqual(cliente.get("/saude", environ_base=fora).status_code, 200)
+            self.assertEqual(radar.le_marca("ultima_ok"), "1")
 
 
 class CicloDasTarefas(BaseTemporaria):

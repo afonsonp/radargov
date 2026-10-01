@@ -4066,9 +4066,19 @@ def api_version_do_script(js, accao):
     """A apiVersion da accao no script compilado do ecra. Lido de um
     script real: controller.callDataAction("DataActionGetPesquisas",
     "screenservices/dr/Pesquisas/PesquisaResultado/DataActionGetPesquisas",
-    "PRsQKjEXDVBC3ZSqkS8k6A", ...)."""
-    m = re.search(r'callDataAction\(\s*"%s"\s*,\s*"[^"]*"\s*,\s*"([^"]+)"'
-                  % re.escape(accao), js)
+    "PRsQKjEXDVBC3ZSqkS8k6A", ...).
+
+    A 30/09/2026 o OutSystems do DR passou a meter uma chave (um GUID)
+    entre o nome e o caminho -- callDataAction("X", "1ea5416b-...",
+    "screenservices/.../X", "PRsQ...", ...) -- e a expressao antiga, que
+    contava posicoes, leu o caminho como apiVersion: o DR recusou todas
+    as pesquisas. Agora ancora-se no caminho que acaba na accao, e o
+    valor e o argumento a seguir, so letras, digitos, _ e - (uma
+    apiVersion nunca tem barras): se a forma mudar outra vez da "", a
+    renovacao falha com marca propria, e fica a apiVersion da captura."""
+    m = re.search(r'callDataAction\(\s*"%s"\s*,(?:\s*"[^"]*"\s*,)*?'
+                  r'\s*"[^"]*/%s"\s*,\s*"([\w-]+)"'
+                  % (re.escape(accao), re.escape(accao)), js)
     return m.group(1) if m else ""
 
 
@@ -10997,6 +11007,26 @@ def trabalho_da_empresa(cfg, bem, diz):
     return quantos_avisos
 
 
+# Quantas verificacoes seguidas a falhar fazem o /saude dar 503. Uma
+# avulsa e um soluco de rede; tres sao tres horas sem anuncios.
+FALHAS_PARA_O_VIGIA = 3
+
+
+def marcar_resultado(bem):
+    """O `ultima_ok` e a contagem das falhas seguidas, num sitio so. A
+    contagem existe porque o /saude so via se a verificacao CORRIA: a
+    30/09/2026 falharam 24 seguidas (o DR recusava a pesquisa) e o
+    vigia de fora ouviu «ok» o dia inteiro."""
+    marca("ultima_ok", "1" if bem else "0")
+    seguidas = 0
+    if not bem:
+        try:
+            seguidas = int(le_marca("falhas_seguidas", "0")) + 1
+        except ValueError:
+            seguidas = 1
+    marca("falhas_seguidas", seguidas)
+
+
 def avisar_o_vigia(bem, cfg=None, pedir=None):
     """Bate no vigia externo (F8): o endereco `vigia_url`, e o mesmo com
     `/fail` quando a verificacao correu mal (e a convencao do
@@ -11125,7 +11155,7 @@ def verificar(cfg=None, passo=None):
 
     marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
     marca("ultima_mensagem", mensagem)
-    marca("ultima_ok", "1" if bem else "0")
+    marcar_resultado(bem)
     avisar_o_vigia(bem, cfg)
     if novos and cfg.get("abrir_browser_ao_encontrar"):
         try:
@@ -12974,7 +13004,7 @@ def comecar_verificacao(slot=None):
             # A thread morre em silencio; o painel tem de ficar a saber.
             marca("ultima_verificacao", datetime.now().strftime("%Y-%m-%d %H:%M"))
             marca("ultima_mensagem", "a verificação falhou: %s" % str(erro)[:150])
-            marca("ultima_ok", "0")
+            marcar_resultado(False)
         finally:
             _VERIFICACAO["a_correr"] = False
             _VERIFICACAO["passo"] = ""
@@ -14437,6 +14467,11 @@ def saude():
     if recolha_atrasada():
         return Response("a recolha parou", 503, mimetype="text/plain",
                         headers={"Cache-Control": "no-store"})
+    # E a recolha que corre mas nao traz nada (1/10/2026): ver o
+    # marcar_resultado().
+    if recolha_a_falhar():
+        return Response("a recolha está a falhar", 503, mimetype="text/plain",
+                        headers={"Cache-Control": "no-store"})
     return Response("ok", 200, mimetype="text/plain",
                     headers={"Cache-Control": "no-store"})
 
@@ -14465,6 +14500,14 @@ def recolha_atrasada(agora=None, cfg=None):
     # do /saude falhavam a partir das 17:40, conforme a hora a que corriam.)
     ultima = le_marca("ultima_verificacao", "")
     return bool(ultima) and ultima < marcada.strftime("%Y-%m-%d %H:%M")
+
+
+def recolha_a_falhar():
+    """True com FALHAS_PARA_O_VIGIA verificacoes seguidas a falhar."""
+    try:
+        return int(le_marca("falhas_seguidas", "0")) >= FALHAS_PARA_O_VIGIA
+    except ValueError:
+        return False
 
 
 def csrf_da_pagina():
@@ -22581,6 +22624,10 @@ def semaforos_da_plataforma():
     elif recolha_atrasada(cfg=cfg):
         fora.append(("Recolha", "mau", "parada: a última foi a %s"
                      % data_hora_pt(quando), "#recolha"))
+    elif recolha_a_falhar():
+        fora.append(("Recolha", "mau", "a falhar %s vezes seguidas: a última "
+                     "foi a %s" % (le_marca("falhas_seguidas"),
+                                   data_hora_pt(quando)), "#recolha"))
     else:
         fora.append(("Recolha", "aviso" if le_marca("ultima_ok", "") == "0" else "bom",
                      "a última foi a %s" % data_hora_pt(quando), "#recolha"))
