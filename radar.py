@@ -1251,8 +1251,10 @@ def iniciar_db():
         # `pergunta` (D8 da 3.ª ronda): a versão da pergunta com que a
         # leitura se fez -- vazia é uma versão anterior. `caucao` e
         # `habilitacao` (G39): o que o Programa diz, ao lado do anúncio.
+        # `pagamentos` (L4 do plano de Outubro, 1/10/2026): as condicoes
+        # de pagamento que o Caderno de Encargos fixa.
         for nome in ("preco_anormalmente_baixo", "localizacao", "pergunta",
-                     "caucao", "habilitacao"):
+                     "caucao", "habilitacao", "pagamentos"):
             if nome not in cols_an:
                 c.execute("ALTER TABLE analise ADD COLUMN %s TEXT" % nome)
         cols_doc = [r["name"] for r in c.execute("PRAGMA table_info(documentos)")]
@@ -6933,6 +6935,14 @@ ANCORAS_OBJECTO = (
     # «localizacao» so como titulo: no corpo de uma especificacao de SIG
     # (22001) ha trinta, e comiam a reserva do peso 0
     (1, r"local d[aeo]|localizacao|instalacoes|teletrabalho|presencial|regime de trabalho"),
+    # As condicoes de pagamento (L4 do plano de Outubro, 1/10/2026): estao
+    # no CE, que e o documento deste pedido. PESO 1 e no fim dos de peso 1,
+    # por decisao dele: medido com a regua, o peso 0 trazia 4 das 5
+    # passagens de pagamento mas tirava a localizacao a 2 Cadernos; no
+    # peso 1 nao tira nada a ninguem, e o pagamento so chega quando sobra
+    # recorte. Subir o peso e trocar localizacao por pagamento.
+    (1, r"(condicoes|modo|forma|prazo) de pagamento|pagamentos? (sera|serao|e|sao) "
+        r"(efe(c)?tuad|realizad)|devem ser pag|fa(c)?tura(cao)? ele(c)?tronica"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
 )
@@ -7056,7 +7066,15 @@ Extrai duas coisas do Caderno de Encargos:
   da entidade, NÃO é local de execução. Se nenhuma cláusula disser onde
   nem como, responde "não consta".
 
-Responde SÓ com {"objecto": "...", "localizacao": "..."}."""
+- "pagamentos": as condições de pagamento do contrato, tal como o
+  documento as fixa, uma por linha: a periodicidade (mensal, por auto de
+  medição, por entrega, no fim); o prazo de pagamento depois da fatura,
+  em dias; se há adiantamento, e de quanto; as retenções ou descontos de
+  garantia; e se a fatura tem de ser eletrónica. Copia os números tal
+  como estão. Se o documento não fala de pagamento, responde "não
+  consta".
+
+Responde SÓ com {"objecto": "...", "localizacao": "...", "pagamentos": "..."}."""
 
 INSTRUCOES_EQUIPA = PREAMBULO + """
 
@@ -7336,7 +7354,15 @@ descritiva, projecto, Caderno de Encargos):
   entidade, do cabeçalho ou do rodapé NÃO é o local da obra. Se as peças
   não o disserem, responde "não consta".
 
-Responde SÓ com {"objecto": "...", "localizacao": "..."}."""
+- "pagamentos": as condições de pagamento do contrato, tal como o
+  documento as fixa, uma por linha: a periodicidade (mensal, por auto de
+  medição, por entrega, no fim); o prazo de pagamento depois da fatura,
+  em dias; se há adiantamento, e de quanto; as retenções ou descontos de
+  garantia; e se a fatura tem de ser eletrónica. Copia os números tal
+  como estão. Se o documento não fala de pagamento, responde "não
+  consta".
+
+Responde SÓ com {"objecto": "...", "localizacao": "...", "pagamentos": "..."}."""
 
 # A leitura do objecto que muda com a familia: (quais, ancoras, pergunta).
 OBJECTO_DA_FAMILIA = {
@@ -8547,7 +8573,7 @@ def espera_pedida(resposta, tecto=70):
 
 CAMPOS_DA_ANALISE = ("objecto", "equipa", "documentos_proposta",
                      "preco_anormalmente_baixo", "localizacao",
-                     "caucao", "habilitacao")
+                     "caucao", "habilitacao", "pagamentos")
 
 
 def juntar_leituras(dados, anterior):
@@ -8904,13 +8930,13 @@ def analisar_pecas(ref):
     with liga() as c:
         c.execute("""INSERT OR REPLACE INTO analise
             (ref,objecto,equipa,documentos_proposta,preco_anormalmente_baixo,
-             localizacao,caucao,habilitacao,modelo,fontes,quando,pergunta)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+             localizacao,caucao,habilitacao,pagamentos,modelo,fontes,quando,pergunta)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                   (ref, campos["objecto"], campos["equipa"],
                    campos["documentos_proposta"],
                    campos["preco_anormalmente_baixo"],
                    campos["localizacao"], campos["caucao"],
-                   campos["habilitacao"], modelos, fontes,
+                   campos["habilitacao"], campos["pagamentos"], modelos, fontes,
                    datetime.now().strftime("%Y-%m-%d %H:%M"), pergunta))
     if sem_orcamento:
         return True, SEM_ORCAMENTO_HOJE
@@ -29601,6 +29627,20 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
     linhas.append(_linha_das_pecas(
         "Preço anormalmente baixo",
         cita(valor) if valor else html.escape(_onde_esta(falta)), apagado=not valor))
+
+    # As condicoes de pagamento (L4 do plano de Outubro, 1/10/2026). Uma
+    # leitura de antes da pergunta nova nao as tem, e di-lo -- «nao
+    # encontrado» seria mentir sobre o que se perguntou.
+    pagamentos = (_valor(analise, "pagamentos") or "").strip()
+    if not pagamentos:
+        linhas.append(_linha_das_pecas(
+            "Pagamento", "Esta leitura é de antes da pergunta do pagamento.",
+            apagado=True))
+    elif simplifica(pagamentos).strip(" .") in ("nao consta", "—"):
+        linhas.append(_linha_das_pecas(
+            "Pagamento", "Não encontrado nas páginas lidas", apagado=True))
+    else:
+        linhas.append(_linha_das_pecas("Pagamento", desenha_valor(pagamentos, cita)))
 
     # Quem leu: o nome do modelo é para o dono; a um cliente diz-se só que
     # foi lido automaticamente (teste com utilizadores, 25/09/2026).

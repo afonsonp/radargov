@@ -677,6 +677,17 @@ Excel — listam-se por nome, «Não lido» (`pecas_nao_lidas()`).
 `analise.habilitacao`) vão ao lado do que o anúncio diz, cada um com a
 fonte: quando se contradizem, vêem-se as duas versões, e o Mira Gov não
 escolhe.
+**As condições de pagamento** (`analise.pagamentos`, L4 do plano de
+Outubro, 1/10/2026) perguntam-se no pedido do objecto, que é o do Caderno
+de Encargos: a periodicidade, o prazo depois da fatura, o adiantamento,
+as retenções e a fatura eletrónica, copiados como estão e com os números
+conferidos como os outros. A ficha mostra-as na linha «Pagamento» de «O
+que as peças pedem»; uma leitura de antes da pergunta diz que é de
+antes, e não «não encontrado». **A âncora tem peso 1**, decisão dele:
+com o peso 0 chegavam ao modelo 4 das 5 passagens de pagamento medidas,
+mas a localização saía de 2 Cadernos; com o peso 1 não sai nada a
+ninguém, e o pagamento só entra quando sobra recorte (medido nesse dia:
+0 das 5).
 São **três pedidos, um por campo** — não um pedido grande —, porque o
 tecto da conta é por minuto e manda no tamanho do recorte
 (`TECTO_RECORTE`). Cada pedido desce a cadeia `FORNECEDORES` até
