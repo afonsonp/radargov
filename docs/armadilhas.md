@@ -9,9 +9,9 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 16
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 17
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 28
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 30
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 129
 - [Convenções](#convencoes) &middot; 7
 
-São **438** ao todo, contados a 30/09/2026. Contam-se por secção com
+São **441** ao todo, contados a 1/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -802,6 +802,24 @@ Orçamento, cadeia de reserva, chaves.
   releituras julgadas nesse dia, o `gpt-oss-20b` foi o único que errou
   números («61 unidades» com 129 no cadastro da 23389) e o sentido do
   IVA (23265). Fica para quando todos os outros acabaram o dia.
+
+- **Uma corrida do modelo não é uma medida: um terço das falhas some só
+  por repetir** (1/10/2026). O nemotron achou 17, 15 e 15 das 31
+  frases-prova do grupo a do campo 11 em três corridas iguais — o mesmo
+  recorte, o mesmo pedido, `temperature` 0 —, e uma frase achada numa
+  corrida falta na seguinte. Comparar o recorte A numa corrida com o B
+  noutra mede metade de ruído. **Qualquer comparação leva um controlo**:
+  a mesma configuração corrida outra vez, e só conta a diferença que
+  passar a que o controlo deu sozinho.
+
+- **O Gemini gratuito conta pedidos por dia, e não tokens** (1/10/2026).
+  O 429 do fim do dia do `gemini-3.6-flash` diz
+  `free_tier_requests` e `GenerateRequestsPerDayPerProjectPerModel-FreeTier`,
+  com um «retry in 58 s» que é mentira; o `orcamento_do_dia_esgotado()`
+  só reconhecia «tokens per day», e o `_um_pedido()` esperava três vezes
+  um minuto em cada pedido sem o marcar como esgotado. Agora reconhece o
+  `PerDay`. E o 503 «high demand» passa ao seguinte à primeira (só o 429
+  se repete): no gratuito cada 503 gasta um dos 20 pedidos do dia.
 
 
 ---
