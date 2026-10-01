@@ -691,6 +691,19 @@ errar números nas leituras julgadas nesse dia. Todos gratuitos; a conta de 28/0
 dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
 publicado.
 
+**O campo 11 desce outra cadeia, com outro recorte** (1/10/2026,
+decisão dele): a NVIDIA primeiro, depois o Cerebras, depois o resto pela
+ordem de cima (`PRIMEIROS_NO_CAMPO_11`, `cadeia_do_campo_11()`). E o
+recorte depende de quem lê (`TECTO_DO_FORNECEDOR`): a NVIDIA e o
+Cerebras levam o dobro do `TECTO_RECORTE` por peça (e 1,5 × isso no
+total, como sempre); quando o pedido cai na Groq, ou noutro de limite
+apertado, vai o recorte de sempre, que o dobro dava 413. O recorte
+monta-se outra vez só quando o tecto muda ao descer a cadeia
+(`_perguntar_com_o_recorte_de_cada_um()`), e as páginas e os números
+por confirmar conferem-se contra o recorte de quem respondeu. O objecto
+e a proposta ficam com a cadeia e o recorte de cima. Medido nesse dia
+sobre as frases-prova que faltavam ao campo 11 (`docs/diario/2026-10.md`).
+
 Três regras que decidem o que se vê:
 
 - **Uma leitura que ficou a meio volta a tentar-se sozinha.** Incompleta

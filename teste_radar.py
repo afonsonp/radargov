@@ -2143,6 +2143,126 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
         self.assertIn("nvidia", aviso)
 
 
+# O corpo verdadeiro do 429 do Gemini gratuito no fim do dia, a 1/10/2026
+# (sem a chave, que nunca lá vem).
+GEMINI_429_DO_DIA = """[{
+  "error": {
+    "code": 429,
+    "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 58.60733785s.",
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [
+      {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+       "violations": [{
+         "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+         "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+         "quotaDimensions": {"location": "global", "model": "gemini-3.6-flash"},
+         "quotaValue": "20"}]},
+      {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "58s"}
+    ]
+  }
+}
+]"""
+
+
+class TestOFimDoDiaDoGemini(unittest.TestCase):
+    """O Gemini gratuito conta PEDIDOS por dia, e o 429 dele não dizia
+    «tokens per day» (1/10/2026): o `_um_pedido()` esperava três vezes
+    ~59 s e não marcava o fornecedor como esgotado -- em cada concurso, e
+    a gastar o dia de 20 pedidos que já não havia."""
+
+    class Resposta:
+        def __init__(self, codigo, texto):
+            self.status_code, self.text, self.headers = codigo, texto, {}
+
+    def pedido(self, *respostas):
+        chamadas = []
+
+        def post(*a, **k):
+            chamadas.append(1)
+            return respostas[min(len(chamadas), len(respostas)) - 1]
+        with unittest.mock.patch.object(radar.requests, "post", post), \
+             unittest.mock.patch.object(radar.time, "sleep", lambda s: None):
+            dados, aviso = radar._um_pedido("u", "k", "gemini-3.6-flash", "i", "t")
+        return dados, aviso, len(chamadas)
+
+    def test_o_429_de_pedidos_por_dia_e_o_fim_do_dia(self):
+        self.assertTrue(radar.orcamento_do_dia_esgotado(
+            self.Resposta(429, GEMINI_429_DO_DIA)))
+
+    def test_o_de_pedidos_por_minuto_continua_a_esperar(self):
+        por_minuto = GEMINI_429_DO_DIA.replace("PerDay", "PerMinute")
+        self.assertFalse(radar.orcamento_do_dia_esgotado(self.Resposta(429, por_minuto)))
+
+    def test_um_pedido_so_e_sai_sem_orcamento(self):
+        dados, aviso, vezes = self.pedido(self.Resposta(429, GEMINI_429_DO_DIA))
+        self.assertIsNone(dados)
+        self.assertEqual(aviso, radar.SEM_ORCAMENTO_HOJE)
+        self.assertEqual(vezes, 1)
+
+    def test_o_503_da_procura_passa_ao_seguinte_a_primeira(self):
+        # no gratuito cada 503 gasta um dos 20 pedidos do dia: repetir
+        # era gastar o dia a ouvir «high demand»
+        dados, aviso, vezes = self.pedido(self.Resposta(
+            503, '{"error": {"code": 503, "message": "This model is currently '
+                 'experiencing high demand."}}'))
+        self.assertIsNone(dados)
+        self.assertIn("503", aviso)
+        self.assertEqual(vezes, 1)
+        self.assertNotEqual(aviso, radar.SEM_ORCAMENTO_HOJE)
+
+
+class TestACadeiaDoCampo11(unittest.TestCase):
+    """O campo 11 (1/10/2026, decisão dele): a NVIDIA (nemotron) e o
+    Cerebras à frente, com o dobro do recorte; quem cai na Groq leva o
+    recorte de sempre, que o dobro dava 413."""
+
+    CADEIA = [("groq", "u", "m-groq", "k", {}), ("cerebras", "u", "m-cb", "k", {}),
+              ("nvidia", "u", "m-nv", "k", {}), ("openrouter", "u", "m-or", "k", {}),
+              ("gemini", "u", "m-ge", "k", {}), ("groq-reserva", "u", "m-20b", "k", {})]
+
+    def test_a_ordem(self):
+        self.assertEqual([f[0] for f in radar.cadeia_do_campo_11(self.CADEIA)],
+                         ["nvidia", "cerebras", "groq", "openrouter", "gemini",
+                          "groq-reserva"])
+
+    def test_sem_a_nvidia_o_cerebras_e_o_primeiro(self):
+        sem = [f for f in self.CADEIA if f[0] != "nvidia"]
+        self.assertEqual(radar.cadeia_do_campo_11(sem)[0][0], "cerebras")
+
+    def test_cada_troco_leva_o_seu_recorte_e_monta_se_uma_vez(self):
+        pedidos, montados = [], []
+
+        def perguntar(cadeia, instrucao, texto):
+            pedidos.append(([f[0] for f in cadeia], texto))
+            if cadeia[0][0] == "groq":
+                return {"equipa": "x"}, "", "groq:m-groq"
+            return None, "falhou", ""
+
+        def recorte(tecto):
+            montados.append(tecto)
+            return "recorte de %d" % tecto, ["CE.pdf (pág. %d)" % tecto]
+        with unittest.mock.patch.object(radar, "_perguntar", perguntar):
+            dados, aviso, usado, texto, fontes = radar._perguntar_com_o_recorte_de_cada_um(
+                radar.cadeia_do_campo_11(self.CADEIA), "i", recorte)
+        dobro, um = 2 * radar.TECTO_RECORTE, radar.TECTO_RECORTE
+        self.assertEqual(pedidos, [(["nvidia", "cerebras"], "recorte de %d" % dobro),
+                                   (["groq", "openrouter", "gemini", "groq-reserva"],
+                                    "recorte de %d" % um)])
+        self.assertEqual(montados, [dobro, um])
+        # o texto e as fontes são os de quem respondeu
+        self.assertEqual((dados, usado, texto, fontes),
+                         ({"equipa": "x"}, "groq:m-groq", "recorte de %d" % um,
+                          ["CE.pdf (pág. %d)" % um]))
+
+    def test_falhando_todos_o_aviso_junta_os_trocos(self):
+        with unittest.mock.patch.object(
+                radar, "_perguntar", lambda c, i, t: (None, c[0][0] + ": falhou", "")):
+            dados, aviso, *_ = radar._perguntar_com_o_recorte_de_cada_um(
+                radar.cadeia_do_campo_11(self.CADEIA), "i", lambda t: ("r", []))
+        self.assertIsNone(dados)
+        self.assertEqual(aviso, "nvidia: falhou; groq: falhou")
+
+
 class TestModeloGuardadoNaReleitura(unittest.TestCase):
     """A coluna analise.modelo passou a dizer quem respondeu.
 
@@ -23842,6 +23962,64 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
         ramo = js[js.index("sel.value === 'porver'"):]
         ramo = ramo[:ramo.index("return;")]
         self.assertIn("defaultSelected", ramo)
+
+
+class TestOCampo11NaLeitura(BaseTemporaria):
+    """O `analisar_pecas()` com a cadeia do campo 11 (1/10/2026): a
+    equipa vai primeiro à NVIDIA, com o dobro do recorte, e o objecto e a
+    proposta continuam a ir primeiro à Groq, com o recorte de sempre. O
+    modelo nunca é chamado: o `_um_pedido()` é um duplo."""
+
+    CADEIA = [("groq", "u", "m-groq", "k", {}), ("cerebras", "u", "m-cb", "k", {}),
+              ("nvidia", "u", "m-nv", "k", {})]
+
+    def _ler(self, falham=()):
+        perfis = "".join("Perfil %d: engenheiro informático com %d anos de "
+                         "experiência em sistemas de informação.\n" % (n, n % 9 + 2)
+                         for n in range(400))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, texto) "
+                      "VALUES ('90/2026','Serviços','novo','')")
+            for nome, texto in (
+                    ("CE.pdf", "Cláusula 1.ª - Objeto\nA prestação de serviços.\n"
+                               "Cláusula 5.ª - Equipa técnica\n" + perfis),
+                    ("PC.pdf", "Artigo 7.º - Documentos da proposta\nA proposta é "
+                               "constituída pelos seguintes documentos:\na) Proposta.\n")):
+                c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                          "VALUES ('90/2026',?,?,'ok')", (nome, texto))
+        pedidos = []
+
+        def um_pedido(url, chave, modelo, instrucao, texto, extras=None):
+            campo = "equipa" if '{"equipa"' in instrucao.replace(" ", "") else "outro"
+            pedidos.append((campo, modelo, len(texto)))
+            if modelo in falham:
+                return None, "respondeu 500"
+            return {"equipa": "Perfil 1"} if campo == "equipa" else {"objecto": "- x"}, ""
+
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: list(self.CADEIA)), \
+             unittest.mock.patch.object(radar, "extrair_textos", lambda ref: None), \
+             unittest.mock.patch.object(radar, "_um_pedido", um_pedido):
+            ok, _ = radar.analisar_pecas("90/2026")
+        self.assertTrue(ok)
+        return pedidos
+
+    def test_a_equipa_vai_a_nvidia_com_o_dobro(self):
+        pedidos = self._ler()
+        equipa = [p for p in pedidos if p[0] == "equipa"]
+        outros = [p for p in pedidos if p[0] == "outro"]
+        self.assertEqual([p[1] for p in equipa], ["m-nv"])
+        self.assertEqual({p[1] for p in outros}, {"m-groq"})
+        # o recorte da equipa passa o total de sempre (1,5 x o tecto)
+        self.assertGreater(equipa[0][2], 1.5 * radar.TECTO_RECORTE)
+
+    def test_caindo_na_groq_a_equipa_leva_o_recorte_de_sempre(self):
+        pedidos = self._ler(falham=("m-nv", "m-cb"))
+        equipa = [p for p in pedidos if p[0] == "equipa"]
+        self.assertEqual([p[1] for p in equipa], ["m-nv", "m-cb", "m-groq"])
+        self.assertEqual(equipa[0][2], equipa[1][2])
+        self.assertLessEqual(equipa[2][2], 1.5 * radar.TECTO_RECORTE)
+        self.assertLess(equipa[2][2], equipa[0][2])
 
 
 # --- o lote 4 da 3.ª ronda de testes: a leitura das peças (29/09/2026) --
