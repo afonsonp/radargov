@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 17 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 19 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -115,15 +115,17 @@ as exactas e salta as outras.
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
-| `utilizadores` | **2** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
+| `utilizadores` | **1** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
-| `estado` | 21 | Marcas do sistema (última verificação, migrações feitas) |
+| `estado` | 22 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
-| `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
+| `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
 | `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |
+| `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
+| `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -689,6 +691,19 @@ errar números nas leituras julgadas nesse dia. Todos gratuitos; a conta de 28/0
 dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
 publicado.
 
+**O campo 11 desce outra cadeia, com outro recorte** (1/10/2026,
+decisão dele): a NVIDIA primeiro, depois o Cerebras, depois o resto pela
+ordem de cima (`PRIMEIROS_NO_CAMPO_11`, `cadeia_do_campo_11()`). E o
+recorte depende de quem lê (`TECTO_DO_FORNECEDOR`): a NVIDIA e o
+Cerebras levam o dobro do `TECTO_RECORTE` por peça (e 1,5 × isso no
+total, como sempre); quando o pedido cai na Groq, ou noutro de limite
+apertado, vai o recorte de sempre, que o dobro dava 413. O recorte
+monta-se outra vez só quando o tecto muda ao descer a cadeia
+(`_perguntar_com_o_recorte_de_cada_um()`), e as páginas e os números
+por confirmar conferem-se contra o recorte de quem respondeu. O objecto
+e a proposta ficam com a cadeia e o recorte de cima. Medido nesse dia
+sobre as frases-prova que faltavam ao campo 11 (`docs/diario/2026-10.md`).
+
 Três regras que decidem o que se vê:
 
 - **Uma leitura que ficou a meio volta a tentar-se sozinha.** Incompleta
@@ -832,7 +847,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**137 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**138 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1018,6 +1033,14 @@ comparação com o período anterior **do mesmo tamanho**.
   saiu a 1/10/2026 (UX-7-LEIS M1): eram as quatro primeiras barras do
   das oito, na mesma página. Cada cartão tem o seu título `h2`, e os
   subtítulos são `h3`.
+- **Quem nos ganha** (no Negócio, desde 1/10/2026, L5): os fornecedores
+  que mais vezes ganharam contratos em que a empresa **constou da lista
+  de concorrentes** e não ganhou (`quem_nos_ganha_cx()`), com a frase «a
+  empresa consta da lista de N contratos lidos, e ganhou M». Lê os
+  contratos dos últimos dois anos que a recolha do Portal BASE já leu, e
+  procura a empresa pelo **NIF** (Configurações › Conta). Sem NIF, sem
+  corpus, sem nada lido, ou sem a empresa em lista nenhuma, o cartão diz
+  qual das quatro — nunca uma tabela vazia.
 - **Triagem**: o funil — entrados · sem decisão · triados · interessa.
   O segundo chama-se «sem decisão» e não «por ver» (G26): conta também
   os que já expiraram, e a aba «Por ver» só os que ainda têm prazo.
@@ -1197,6 +1220,15 @@ a tarefa automática «entregar a proposta», que acompanha a data como as
 do DR. Não chega ainda ao cartão «Prazos a chegar» do Hoje nem ao
 Calendário, que lêem os prazos dos anúncios.
 
+**Quando o Portal BASE fecha o contrato** (a faixa do desfecho, aqui e
+na ficha do anúncio; `faixa_do_desfecho()`): diz a quem foi adjudicado,
+por quanto, e oferece «Ganhámos» e «Perdemos». **Desde 1/10/2026 (L5)**,
+se o NIF da empresa consta da lista de concorrentes de um contrato
+desse procedimento e o adjudicatário é outro (`consta_da_lista()`), diz
+«A sua empresa consta da lista de concorrentes; o contrato foi para X»
+e **propõe** a ranhura Perdida: o «Perdemos» passa a botão primário. A
+ranhura não muda sozinha. Sem a lista lida, a faixa fica como era.
+
 ### 4.6 Mercado — `/contratos`
 
 O corpus do Portal BASE. Lista com filtros (objecto, CPV, entidade que
@@ -1210,9 +1242,22 @@ objecto (com o procedimento por baixo) · entidade · quem ganhou ·
 preço, com o corpo a 14 px como o dos Concursos (1/10/2026). Os
 gráficos vão por baixo da tabela, em grelha, e só passam a coluna à
 direita dela em ecrãs com mais de 1600px. **As três vistas** (por
-celebração · por fim estimado · Entidades) estão logo por baixo do
-cabeçalho, por cima do filtro, e são as mesmas nas Entidades (J2,
-1/10/2026).
+celebração · por fim estimado · Entidades · Concorrentes) estão logo
+por baixo do cabeçalho, por cima do filtro, e são as mesmas nas
+Entidades e nos Concorrentes (J2, 1/10/2026).
+
+**Concorrentes** (`/concorrentes`, desde 1/10/2026, L5): os fornecedores
+que concorreram nos contratos do perfil da empresa (o CPV do interesse;
+sem perfil, ou com «ver tudo», todos) nos últimos dois anos, a partir
+das listas que a recolha já leu (`concorrencia_no_perfil()`). Uma frase
+no topo diz **quantos contratos foram lidos de quantos**, e quantos
+traziam lista. Tabela: fornecedor (abre a ficha) · concorreu · ganhou
+(contratos lidos) · taxa (ganhou ÷ concorreu) · desconto mediano sobre o
+preço base quando ganha (no perfil, de sempre, só com 5 procedimentos
+ou mais). Pagina a 20, e o «N fornecedores» é o total da lista. Nos
+ajustes directos o BASE só lista o adjudicatário, e a nota di-lo. Sem
+nada lido, diz que a recolha ainda não chegou — sem tabela nem zeros. A
+lista guarda-se pelo número de lidos (`lembrado_do_corpus()`).
 
 `/contratos/resumo`: sete gráficos — quem ganha, quem compra, como se
 compra, concentração, tamanho dos contratos, desconto, evolução —, cada
@@ -1260,6 +1305,14 @@ números e do nosso lado** (E11, 1/10/2026): vive no topo da coluna do
 Portal BASE, recolhido em «Filtrar os contratos», e abre quando está em
 uso. A tabela do fim chama-se «Os últimos contratos que ganhou».
 
+**A concorrência de um fornecedor** (desde 1/10/2026, L5): no topo da
+coluna do Portal BASE, o cartão «Concorrência» (`concorrencia_cx()`)
+diz «Concorreu a N contratos lidos, ganhou M» e **quem lhe ganha** — os
+que mais vezes ganharam um contrato em que ele constou da lista e não
+ganhou. Só aparece a quem consta de alguma lista lida. **Quem só
+concorreu e nunca ganhou** não está nas entidades do corpus, e a ficha
+existe na mesma: o nome vem da lista do BASE, e o cartão é o que tem.
+
 ### 4.8 Configurações — `/configuracoes/…`
 
 Dez secções, por esta ordem. **As cinco últimas são do sistema**, e só o
@@ -1301,10 +1354,11 @@ e os de erro seguem o computador (não há a quem perguntar).
 
 **Os planos** (desde 1/10/2026, L2.1 do plano de Outubro, com os planos
 desse dia): cada empresa tem um — **Solo** (1 utilizador, uma sessão de
-cada vez), **Equipa** (até 5) ou **Corporate** (o número acordado) —, na
+cada vez), **Duo** (2; substituiu no mesmo dia o Equipa, de 5) ou
+**Corporate** (o número acordado) —, na
 tabela `planos` do `radar.db`, que é da plataforma como as contas. Quem o
 põe é o dono: ao aceitar um pedido nasce com o plano que o formulário
-escolheu (a oferta de fundador é o Equipa, marcado como fundador), e
+escolheu (a oferta de fundador é o Duo, marcado como fundador), e
 muda-se no cartão «Plano» da página da empresa
 (`plataforma_gravar_plano()`). **O limite conta as contas e os convites
 por usar** (`contas.lugares_livres()`): o `criar_convite()` recusa com a
@@ -1312,9 +1366,11 @@ frase do plano, e o `usar_convite()` volta a conferir, porque o plano
 pode ter descido entretanto. **No Solo, a última entrada ganha**: o
 `_abrir_sessao()` fecha as outras sessões da conta e guarda-as na
 `sessoes_fechadas`, e quem as tinha vê, no pedido seguinte, «a sua sessão
-foi fechada porque entrou noutro aparelho». **O cofre dos documentos
-fecha-se no Solo** (`cofre_fechado()`). A leitura das peças por IA é de
-todos. **Uma empresa sem plano não tem limites**, e o cartão avisa.
+foi fechada porque entrou noutro aparelho». **Os três planos têm as
+mesmas funcionalidades** — a leitura das peças por IA, as tarefas
+atribuídas, o Hoje por pessoa, as notas partilhadas e o cofre —: o plano
+só conta pessoas (o cofre fechava no Solo até o Duo chegar). **Uma
+empresa sem plano não tem limites**, e o cartão avisa.
 
 Tudo passa por um só sítio antes de qualquer rota: o
 `porta_de_entrada()`, logo a seguir ao `app`. As tabelas e a
@@ -1332,8 +1388,9 @@ criptografia estão no **`contas.py`**, que não importa o radar.
    um POST leva 403. **A excepção é a raiz**: um GET a `/` sem sessão
    recebe o **site público** (`site/index.html`, desde 23/09/2026), que
    é um ficheiro estático sem dados. Desde 30/09/2026 tem os três planos
-   (Solo, Equipa e Corporate desde 1/10/2026, com preços sem IVA e a
-   leitura das peças por IA em todos) e a oferta de fundador,
+   (Solo, Duo e Corporate desde 1/10/2026, com as mesmas
+   funcionalidades, o preço + IVA e só o número de pessoas a mudar) e a
+   oferta de fundador,
    e o formulário pede o NIF da empresa e o plano que interessa. Com `?dia=` ou outro parâmetro é a
    mesma raiz, e é o site; todos os outros caminhos **que são rotas** vão
    ao login. Um caminho que não é rota nenhuma dá o **404** do painel,
@@ -1948,7 +2005,10 @@ Para não desenhares o que não se pode fazer:
   `causesPriceChange`, o PDF do contrato e o link das peças). É um pedido
   por contrato, não uma coluna. **Desde 1/10/2026 recolhe-se** (o
   `contratos-concorrentes.db`, §2.2), devagar, por causa da firewall do
-  BASE; os ecrãs que o mostram são a segunda parte do L5.
+  BASE. Mostram-no, desde o mesmo dia, o «Quem costuma concorrer» da
+  ficha do anúncio, a aba Concorrentes do Mercado (§4.6), a ficha do
+  fornecedor (§4.7), a faixa do desfecho da proposta (§4.5) e o «Quem
+  nos ganha» da Situação (§4.2).
 - **Preços das propostas perdedoras** — não estão em lado nenhum público.
 - **Relatórios preliminares e finais** — só chegam a quem concorre, pela
   plataforma, com sessão iniciada.

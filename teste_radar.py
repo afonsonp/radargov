@@ -2143,6 +2143,126 @@ class TestPerguntarDesceACadeia(unittest.TestCase):
         self.assertIn("nvidia", aviso)
 
 
+# O corpo verdadeiro do 429 do Gemini gratuito no fim do dia, a 1/10/2026
+# (sem a chave, que nunca lá vem).
+GEMINI_429_DO_DIA = """[{
+  "error": {
+    "code": 429,
+    "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.6-flash\\nPlease retry in 58.60733785s.",
+    "status": "RESOURCE_EXHAUSTED",
+    "details": [
+      {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+       "violations": [{
+         "quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+         "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+         "quotaDimensions": {"location": "global", "model": "gemini-3.6-flash"},
+         "quotaValue": "20"}]},
+      {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "58s"}
+    ]
+  }
+}
+]"""
+
+
+class TestOFimDoDiaDoGemini(unittest.TestCase):
+    """O Gemini gratuito conta PEDIDOS por dia, e o 429 dele não dizia
+    «tokens per day» (1/10/2026): o `_um_pedido()` esperava três vezes
+    ~59 s e não marcava o fornecedor como esgotado -- em cada concurso, e
+    a gastar o dia de 20 pedidos que já não havia."""
+
+    class Resposta:
+        def __init__(self, codigo, texto):
+            self.status_code, self.text, self.headers = codigo, texto, {}
+
+    def pedido(self, *respostas):
+        chamadas = []
+
+        def post(*a, **k):
+            chamadas.append(1)
+            return respostas[min(len(chamadas), len(respostas)) - 1]
+        with unittest.mock.patch.object(radar.requests, "post", post), \
+             unittest.mock.patch.object(radar.time, "sleep", lambda s: None):
+            dados, aviso = radar._um_pedido("u", "k", "gemini-3.6-flash", "i", "t")
+        return dados, aviso, len(chamadas)
+
+    def test_o_429_de_pedidos_por_dia_e_o_fim_do_dia(self):
+        self.assertTrue(radar.orcamento_do_dia_esgotado(
+            self.Resposta(429, GEMINI_429_DO_DIA)))
+
+    def test_o_de_pedidos_por_minuto_continua_a_esperar(self):
+        por_minuto = GEMINI_429_DO_DIA.replace("PerDay", "PerMinute")
+        self.assertFalse(radar.orcamento_do_dia_esgotado(self.Resposta(429, por_minuto)))
+
+    def test_um_pedido_so_e_sai_sem_orcamento(self):
+        dados, aviso, vezes = self.pedido(self.Resposta(429, GEMINI_429_DO_DIA))
+        self.assertIsNone(dados)
+        self.assertEqual(aviso, radar.SEM_ORCAMENTO_HOJE)
+        self.assertEqual(vezes, 1)
+
+    def test_o_503_da_procura_passa_ao_seguinte_a_primeira(self):
+        # no gratuito cada 503 gasta um dos 20 pedidos do dia: repetir
+        # era gastar o dia a ouvir «high demand»
+        dados, aviso, vezes = self.pedido(self.Resposta(
+            503, '{"error": {"code": 503, "message": "This model is currently '
+                 'experiencing high demand."}}'))
+        self.assertIsNone(dados)
+        self.assertIn("503", aviso)
+        self.assertEqual(vezes, 1)
+        self.assertNotEqual(aviso, radar.SEM_ORCAMENTO_HOJE)
+
+
+class TestACadeiaDoCampo11(unittest.TestCase):
+    """O campo 11 (1/10/2026, decisão dele): a NVIDIA (nemotron) e o
+    Cerebras à frente, com o dobro do recorte; quem cai na Groq leva o
+    recorte de sempre, que o dobro dava 413."""
+
+    CADEIA = [("groq", "u", "m-groq", "k", {}), ("cerebras", "u", "m-cb", "k", {}),
+              ("nvidia", "u", "m-nv", "k", {}), ("openrouter", "u", "m-or", "k", {}),
+              ("gemini", "u", "m-ge", "k", {}), ("groq-reserva", "u", "m-20b", "k", {})]
+
+    def test_a_ordem(self):
+        self.assertEqual([f[0] for f in radar.cadeia_do_campo_11(self.CADEIA)],
+                         ["nvidia", "cerebras", "groq", "openrouter", "gemini",
+                          "groq-reserva"])
+
+    def test_sem_a_nvidia_o_cerebras_e_o_primeiro(self):
+        sem = [f for f in self.CADEIA if f[0] != "nvidia"]
+        self.assertEqual(radar.cadeia_do_campo_11(sem)[0][0], "cerebras")
+
+    def test_cada_troco_leva_o_seu_recorte_e_monta_se_uma_vez(self):
+        pedidos, montados = [], []
+
+        def perguntar(cadeia, instrucao, texto):
+            pedidos.append(([f[0] for f in cadeia], texto))
+            if cadeia[0][0] == "groq":
+                return {"equipa": "x"}, "", "groq:m-groq"
+            return None, "falhou", ""
+
+        def recorte(tecto):
+            montados.append(tecto)
+            return "recorte de %d" % tecto, ["CE.pdf (pág. %d)" % tecto]
+        with unittest.mock.patch.object(radar, "_perguntar", perguntar):
+            dados, aviso, usado, texto, fontes = radar._perguntar_com_o_recorte_de_cada_um(
+                radar.cadeia_do_campo_11(self.CADEIA), "i", recorte)
+        dobro, um = 2 * radar.TECTO_RECORTE, radar.TECTO_RECORTE
+        self.assertEqual(pedidos, [(["nvidia", "cerebras"], "recorte de %d" % dobro),
+                                   (["groq", "openrouter", "gemini", "groq-reserva"],
+                                    "recorte de %d" % um)])
+        self.assertEqual(montados, [dobro, um])
+        # o texto e as fontes são os de quem respondeu
+        self.assertEqual((dados, usado, texto, fontes),
+                         ({"equipa": "x"}, "groq:m-groq", "recorte de %d" % um,
+                          ["CE.pdf (pág. %d)" % um]))
+
+    def test_falhando_todos_o_aviso_junta_os_trocos(self):
+        with unittest.mock.patch.object(
+                radar, "_perguntar", lambda c, i, t: (None, c[0][0] + ": falhou", "")):
+            dados, aviso, *_ = radar._perguntar_com_o_recorte_de_cada_um(
+                radar.cadeia_do_campo_11(self.CADEIA), "i", lambda t: ("r", []))
+        self.assertIsNone(dados)
+        self.assertEqual(aviso, "nvidia: falhou; groq: falhou")
+
+
 class TestModeloGuardadoNaReleitura(unittest.TestCase):
     """A coluna analise.modelo passou a dizer quem respondeu.
 
@@ -5926,6 +6046,31 @@ class TestPecasDoDR(BaseTemporaria):
         self.assertEqual(radar.api_version_do_script(
             self.SCRIPT, "DataActionGetPesquisas"), "PRsQKjEXDVBC3ZSqkS8k6A")
         self.assertEqual(radar.api_version_do_script(self.SCRIPT, "Outra"), "")
+
+    # O pedaco que o portal devolveu a 1/10/2026, tal e qual: desde 30/09
+    # o OutSystems mete uma chave (GUID) entre o nome e o caminho.
+    SCRIPT_30_09 = ('return controller.callDataAction("DataActionGetPesquisas", '
+                    '"1ea5416b-281b-438c-8873-522eb560c938", '
+                    '"screenservices/dr/Pesquisas/PesquisaResultado/'
+                    'DataActionGetPesquisas", "PRsQKjEXDVBC3ZSqkS8k6A", '
+                    'function (b) {')
+
+    def test_api_version_com_a_chave_que_o_outsystems_meteu_a_30_09(self):
+        # 30/09/2026: a expressao contava posicoes e leu o CAMINHO como
+        # apiVersion; o DR respondeu hasApiVersionChanged a todas as
+        # pesquisas, 24 verificacoes seguidas, e o erro dizia «captura».
+        self.assertEqual(radar.api_version_do_script(
+            self.SCRIPT_30_09, "DataActionGetPesquisas"),
+            "PRsQKjEXDVBC3ZSqkS8k6A")
+
+    def test_uma_api_version_que_nao_parece_uma_nao_se_aceita(self):
+        # se a forma mudar outra vez, mais vale "sem apiVersion" (fica a
+        # da captura, e a marca pecas-dr diz o que foi) do que mandar um
+        # caminho ao DR e culpar a captura
+        script = ('callDataAction("DataActionGetPesquisas", "a/b", '
+                  '"x/DataActionGetPesquisas", "screenservices/y/z", f)')
+        self.assertEqual(radar.api_version_do_script(
+            script, "DataActionGetPesquisas"), "")
 
     def test_tres_gets_renovam_as_tres_pecas(self):
         urls = []
@@ -13467,7 +13612,7 @@ class TestSitePublico(BaseTemporaria):
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
     BOM = {"nome": "Ana Silva", "empresa": "Obras Lda",
            "email": "ana@obras.pt", "sector": "Obras públicas e construção",
-           "mensagem": "CPV 45", "nif": "123456789", "plano": "equipa"}
+           "mensagem": "CPV 45", "nif": "123456789", "plano": "duo"}
 
     def setUp(self):
         super().setUp()
@@ -18051,14 +18196,14 @@ class TestConvites(BaseTemporaria):
         self.assertEqual(radar.empresas_existentes(), [1, 2])
 
     def test_aceitar_poe_o_plano_que_o_pedido_escolheu(self):
-        """L2.1: a oferta de fundador é o Equipa a preço de fundador."""
+        """L2.1: a oferta de fundador é o Duo a preço de fundador."""
         with radar.liga() as c:
             c.execute("UPDATE pedidos_acesso SET plano='fundador' WHERE id=?",
                       (self.pedido,))
         self.aceitar()
         with radar.liga() as c:
             p = radar.contas.plano_da_empresa(c, 2)
-        self.assertEqual((p["plano"], p["fundador"], p["utilizadores"]), ("equipa", 1, 5))
+        self.assertEqual((p["plano"], p["fundador"], p["utilizadores"]), ("duo", 1, 2))
 
     def test_o_nif_do_pedido_passa_para_a_empresa(self):
         """30/09/2026: o site pede o NIF, que é o da fatura; aceitar o
@@ -18594,6 +18739,31 @@ class TestSaudeVeARecolha(BaseTemporaria):
                          (503, "a recolha parou"))
         with unittest.mock.patch.object(radar, "recolha_atrasada", return_value=False):
             self.assertEqual(cliente.get("/saude").status_code, 200)
+
+    def test_verificacoes_a_falhar_seguidas_tambem_dao_503(self):
+        # 30/09-1/10/2026: 24 verificacoes seguidas falharam (o DR recusava
+        # a pesquisa) e o /saude dizia «ok» -- so via se a verificacao
+        # CORRIA, nao se trazia alguma coisa. A falha avulsa (um soluco de
+        # rede) nao acorda o vigia; a terceira seguida acorda.
+        cliente = radar.app.test_client()
+        fora = {"REMOTE_ADDR": "203.0.113.7"}
+        with unittest.mock.patch.object(radar, "recolha_atrasada", return_value=False):
+            for _ in range(radar.FALHAS_PARA_O_VIGIA - 1):
+                radar.marcar_resultado(False)
+            self.assertEqual(cliente.get("/saude", environ_base=fora).status_code, 200)
+            radar.marcar_resultado(False)
+            r = cliente.get("/saude", environ_base=fora)
+            self.assertEqual((r.status_code, r.get_data(as_text=True)),
+                             (503, "a recolha está a falhar"))
+            self.assertEqual(radar.le_marca("ultima_ok"), "0")
+            # e o semaforo da plataforma diz o mesmo, a vermelho
+            radar.marca("ultima_verificacao", "2026-10-01 08:00")
+            recolha = radar.semaforos_da_plataforma()[0]
+            self.assertEqual(recolha[:2], ("Recolha", "mau"))
+            self.assertIn("3 vezes seguidas", recolha[2])
+            radar.marcar_resultado(True)                  # uma boa repoe
+            self.assertEqual(cliente.get("/saude", environ_base=fora).status_code, 200)
+            self.assertEqual(radar.le_marca("ultima_ok"), "1")
 
 
 class CicloDasTarefas(BaseTemporaria):
@@ -23794,6 +23964,64 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
         self.assertIn("defaultSelected", ramo)
 
 
+class TestOCampo11NaLeitura(BaseTemporaria):
+    """O `analisar_pecas()` com a cadeia do campo 11 (1/10/2026): a
+    equipa vai primeiro à NVIDIA, com o dobro do recorte, e o objecto e a
+    proposta continuam a ir primeiro à Groq, com o recorte de sempre. O
+    modelo nunca é chamado: o `_um_pedido()` é um duplo."""
+
+    CADEIA = [("groq", "u", "m-groq", "k", {}), ("cerebras", "u", "m-cb", "k", {}),
+              ("nvidia", "u", "m-nv", "k", {})]
+
+    def _ler(self, falham=()):
+        perfis = "".join("Perfil %d: engenheiro informático com %d anos de "
+                         "experiência em sistemas de informação.\n" % (n, n % 9 + 2)
+                         for n in range(400))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, estado, texto) "
+                      "VALUES ('90/2026','Serviços','novo','')")
+            for nome, texto in (
+                    ("CE.pdf", "Cláusula 1.ª - Objeto\nA prestação de serviços.\n"
+                               "Cláusula 5.ª - Equipa técnica\n" + perfis),
+                    ("PC.pdf", "Artigo 7.º - Documentos da proposta\nA proposta é "
+                               "constituída pelos seguintes documentos:\na) Proposta.\n")):
+                c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                          "VALUES ('90/2026',?,?,'ok')", (nome, texto))
+        pedidos = []
+
+        def um_pedido(url, chave, modelo, instrucao, texto, extras=None):
+            campo = "equipa" if '{"equipa"' in instrucao.replace(" ", "") else "outro"
+            pedidos.append((campo, modelo, len(texto)))
+            if modelo in falham:
+                return None, "respondeu 500"
+            return {"equipa": "Perfil 1"} if campo == "equipa" else {"objecto": "- x"}, ""
+
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        lambda: list(self.CADEIA)), \
+             unittest.mock.patch.object(radar, "extrair_textos", lambda ref: None), \
+             unittest.mock.patch.object(radar, "_um_pedido", um_pedido):
+            ok, _ = radar.analisar_pecas("90/2026")
+        self.assertTrue(ok)
+        return pedidos
+
+    def test_a_equipa_vai_a_nvidia_com_o_dobro(self):
+        pedidos = self._ler()
+        equipa = [p for p in pedidos if p[0] == "equipa"]
+        outros = [p for p in pedidos if p[0] == "outro"]
+        self.assertEqual([p[1] for p in equipa], ["m-nv"])
+        self.assertEqual({p[1] for p in outros}, {"m-groq"})
+        # o recorte da equipa passa o total de sempre (1,5 x o tecto)
+        self.assertGreater(equipa[0][2], 1.5 * radar.TECTO_RECORTE)
+
+    def test_caindo_na_groq_a_equipa_leva_o_recorte_de_sempre(self):
+        pedidos = self._ler(falham=("m-nv", "m-cb"))
+        equipa = [p for p in pedidos if p[0] == "equipa"]
+        self.assertEqual([p[1] for p in equipa], ["m-nv", "m-cb", "m-groq"])
+        self.assertEqual(equipa[0][2], equipa[1][2])
+        self.assertLessEqual(equipa[2][2], 1.5 * radar.TECTO_RECORTE)
+        self.assertLess(equipa[2][2], equipa[0][2])
+
+
 # --- o lote 4 da 3.ª ronda de testes: a leitura das peças (29/09/2026) --
 
 
@@ -25742,7 +25970,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
 
     def test_o_nif_escrito_a_mao_grava_se_limpo(self):
         self.assertTrue(self.pedir(nif=" PT 123 456 789 ").get_json()["ok"])
-        self.assertEqual(tuple(self.ultimo()), ("123456789", "equipa"))
+        self.assertEqual(tuple(self.ultimo()), ("123456789", "duo"))
 
     def test_um_nif_errado_diz_se_como_tal(self):
         r = self.pedir(nif="123456788")
@@ -25770,7 +25998,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
                 lambda assunto, corpo, cfg=None: enviados.append(corpo) or (True, "ok")):
             TestSitePublico._avisar_original(0, dict(self.BOM))
         self.assertIn("NIF: 123456789", enviados[0])
-        self.assertIn("Interessa-lhe: Equipa", enviados[0])
+        self.assertIn("Interessa-lhe: Duo", enviados[0])
 
     def test_o_site_diz_os_planos_e_nao_a_beta_gratuita(self):
         with open(radar.SITE, encoding="utf-8") as f:
@@ -26894,15 +27122,220 @@ class TestQuemCostumaConcorrer(BaseTemporaria):
         self.assertEqual(radar.concorrentes_cx(self.a, "599999999"), "")
 
 
+class TestOsEcrasDosConcorrentes(BaseTemporaria):
+    """L5 do plano de Outubro, a segunda parte (1/10/2026): os quatro
+    ecrãs que leem a lista dos concorrentes -- a aba Concorrentes do
+    Mercado, a ficha de um fornecedor, a proposta quando o BASE fecha o
+    contrato, e o «Quem nos ganha» da Situação. Mapeiam e não decidem:
+    cada número diz em quantos contratos lidos se baseia, e sem nada
+    lido o ecrã diz que a recolha não chegou -- e não mostra «0»."""
+
+    ENTIDADE = "500000000"
+    A, B, C = "509999999", "508888888", "507777777"
+    NOMES = {A: "Alfa, Lda", B: "Beta, SA", C: "Gama, Lda"}
+
+    def setUp(self):
+        super().setUp()
+        radar._MEMORIA_DO_CORPUS.clear()
+        self.addCleanup(radar._MEMORIA_DO_CORPUS.clear)
+        self.cliente = radar.app.test_client()
+        radar.iniciar_corpus()
+        recente = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+        # (id, cpv, quem ganhou, quem concorreu)
+        self.contratos = ((1, "45000000", self.B, (self.A, self.B)),
+                          (2, "45000000", self.A, (self.A, self.B)),
+                          (3, "45000000", self.B, (self.A, self.B, self.C)),
+                          (4, "72000000", self.C, (self.C,)))
+        with radar.liga_corpus() as c:
+            for id_, cpv, ganhou, _ in self.contratos:
+                c.execute("INSERT INTO contratos (id, ano, adjudicante_chave, "
+                          "data_publicacao, data_celebracao, n_anuncio, preco_base, "
+                          "preco_contratual, tipo_procedimento) VALUES (?,?,?,?,?,?,?,?,?)",
+                          (id_, int(recente[:4]), self.ENTIDADE, recente, recente,
+                           "%d/2026" % id_, 100000, 90000, "Concurso público"))
+                c.execute("INSERT INTO contrato_cpv VALUES (?,?)", (id_, cpv))
+                c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                          "nome_norm, chave) VALUES (?,?,?,?,?)",
+                          (id_, ganhou, self.NOMES[ganhou], "x", ganhou))
+
+    def ler(self, ids=(1, 2, 3, 4)):
+        with radar.liga_concorrentes() as k:
+            for id_, _, _, quem in self.contratos:
+                if id_ in ids:
+                    radar.gravar_detalhe(k, id_, {"contestants": [
+                        {"nif": n, "description": self.NOMES[n]} for n in quem]},
+                        "2026-10-01 10:00:00")
+
+    def pagina(self, url):
+        r = self.cliente.get(url)
+        self.assertEqual(r.status_code, 200, url)
+        return r.get_data(as_text=True)
+
+    # 1. a aba Concorrentes do Mercado
+
+    def test_a_aba_conta_quem_concorre_e_quem_ganha(self):
+        self.ler()
+        d = radar.concorrencia_no_perfil({})
+        self.assertEqual((d["ambito"], d["lidos"], d["com_lista"]), (4, 4, 4))
+        self.assertEqual([(f["chave"], f["concorreu"], f["ganhou"]) for f in d["linhas"]],
+                         [(self.B, 3, 2), (self.A, 3, 1), (self.C, 2, 1)])
+        h = self.pagina("/concorrentes")
+        self.assertIn("4 lidos de 4 contratos nos últimos 2 anos", h)
+        self.assertIn("Beta, SA", h)
+        self.assertIn("/entidade/%s" % self.A, h)
+        self.assertIn(radar.pct_pt(2 / 3, 0), h)       # a taxa do Beta, 2 de 3
+
+    def test_a_aba_recorta_pelo_perfil(self):
+        self.ler()
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "45"})
+        d = radar.concorrencia_no_perfil({})
+        self.assertEqual((d["ambito"], d["lidos"]), (3, 3))
+        self.assertIn((self.C, 1, 0), [(f["chave"], f["concorreu"], f["ganhou"])
+                                       for f in d["linhas"]])
+        self.assertIn("3 lidos de 3 contratos do perfil",
+                      self.pagina("/concorrentes"))
+        # o «ver tudo» levanta o perfil
+        self.assertIn("4 lidos de 4 contratos nos",
+                      self.pagina("/concorrentes?interesse=nao"))
+
+    def test_a_aba_sem_nada_lido_diz_que_a_recolha_nao_chegou(self):
+        h = self.pagina("/concorrentes")
+        self.assertIn("a recolha ainda não leu nenhum", h)
+        self.assertNotIn("0 lidos", h)
+        self.assertNotIn("<table", h)
+
+    def test_o_numero_da_aba_e_a_lista_que_ela_mostra(self):
+        """A regra da casa: o «3 fornecedores» tem de dar exactamente as
+        linhas da lista, página a página."""
+        self.ler()
+        with unittest.mock.patch.object(radar, "CABEM_NA_LISTA", 2):
+            h1 = self.pagina("/concorrentes")
+            h2 = self.pagina("/concorrentes?pag=2")
+        self.assertIn("<b>3 fornecedores</b>", h1)
+        linhas = [re.findall(r"<tr><td><a class='' href='/entidade/(\d+)'", h)
+                  for h in (h1, h2)]
+        self.assertEqual([len(x) for x in linhas], [2, 1])
+        self.assertEqual(sorted(linhas[0] + linhas[1]), sorted([self.A, self.B, self.C]))
+
+    def test_um_nif_estrangeiro_que_ganha_conta_como_ganhou(self):
+        """A revisão do PR #198: a chave do concorrente é o NIF tal como vem
+        do BASE, e a do adjudicatário no corpus só é o NIF quando tem nove
+        algarismos (senão é «n:» e o nome). Um estrangeiro que ganhava
+        contava como perdedor, e aparecia a ganhar a si próprio."""
+        fora = "ESB12345678"
+        recente = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, ano, adjudicante_chave, "
+                      "data_publicacao, data_celebracao, n_anuncio, preco_base, "
+                      "preco_contratual, tipo_procedimento) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (5, int(recente[:4]), self.ENTIDADE, recente, recente,
+                       "5/2026", 100000, 90000, "Concurso público"))
+            c.execute("INSERT INTO contrato_cpv VALUES (?,?)", (5, "45000000"))
+            c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                      "nome_norm, chave) VALUES (?,?,?,?,?)",
+                      (5, fora, "Fora, SL", "fora sl", "n:fora sl"))
+        with radar.liga_concorrentes() as k:
+            radar.gravar_detalhe(k, 5, {"contestants": [
+                {"nif": fora, "description": "Fora, SL"},
+                {"nif": self.A, "description": self.NOMES[self.A]}]},
+                "2026-10-01 10:00:00")
+        d = radar.concorrencia_do_fornecedor(fora)
+        self.assertEqual((d["concorreu"], d["ganhou"], d["ganham"]), (1, 1, []))
+        # e para o Alfa, quem lhe ganhou o 5 foi o estrangeiro
+        self.assertIn("n:fora sl", [g["chave"] for g in
+                                    radar.concorrencia_do_fornecedor(self.A)["ganham"]])
+
+    def test_o_mercado_tem_a_vista(self):
+        for url in ("/entidades", "/concorrentes"):
+            self.assertIn("href='/concorrentes'>Concorrentes", self.pagina(url))
+
+    # 2. a ficha do fornecedor
+
+    def test_a_ficha_do_fornecedor_diz_a_quantos_concorreu_e_quem_lhe_ganha(self):
+        self.ler()
+        d = radar.concorrencia_do_fornecedor(self.A)
+        self.assertEqual((d["lidos"], d["concorreu"], d["ganhou"]), (4, 3, 1))
+        # o Beta ganhou o 1 e o 3, onde o Alfa constou e não ganhou
+        self.assertEqual([(g["chave"], g["vezes"]) for g in d["ganham"]], [(self.B, 2)])
+        # o Alfa não está nas `entidades` do corpus: a ligação da aba não
+        # pode dar 404
+        h = self.pagina("/entidade/%s" % self.A)
+        self.assertIn("Concorreu a 3 contratos lidos, ganhou 1.", h)
+        self.assertIn("Beta, SA", h)
+
+    def test_a_ficha_sem_nada_lido_nao_tem_cartao(self):
+        self.assertEqual(radar.concorrencia_cx(self.A), "")
+        self.assertEqual(self.cliente.get("/entidade/%s" % self.A).status_code, 404)
+
+    # 3. a proposta, quando o BASE fecha o contrato
+
+    def _proposta(self, ref="1/2026"):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo, "
+                      "url, estado) VALUES (?,?,?,?,?,?,'novo')",
+                      (ref, "Obras", "Município", "2026-03-01",
+                       "Anúncio de procedimento", "https://dr/1"))
+        return radar.criar_proposta(ref, estado="submetido")
+
+    def test_a_proposta_propoe_perdida_e_nao_muda_sozinha(self):
+        id_ = self._proposta()
+        self.ler()
+        radar.gravar_config({"nif_da_empresa": self.A})
+        linhas = radar.desfecho_do_anuncio("1/2026")
+        self.assertIs(radar.consta_da_lista(linhas), True)
+        faixa = radar.faixa_do_desfecho(radar.proposta(id_), linhas)
+        self.assertIn("A sua empresa consta da lista de concorrentes; o contrato "
+                      "foi para Beta, SA.", faixa)
+        self.assertIn("mg-btn--primary'>Perdemos", faixa)
+        self.assertEqual(radar.proposta(id_)["estado"], "submetido")
+
+    def test_sem_lista_lida_nao_se_propoe_nada(self):
+        id_ = self._proposta()
+        radar.gravar_config({"nif_da_empresa": self.A})
+        linhas = radar.desfecho_do_anuncio("1/2026")
+        self.assertIsNone(radar.consta_da_lista(linhas))      # nada lido
+        self.ler(ids=(2,))
+        self.assertIsNone(radar.consta_da_lista(linhas))      # lido, mas outro
+        faixa = radar.faixa_do_desfecho(radar.proposta(id_), linhas)
+        self.assertNotIn("consta da lista", faixa)
+        self.assertNotIn("mg-btn--primary'>Perdemos", faixa)
+        # lido, e a empresa não consta: não se propõe
+        self.ler(ids=(1,))
+        radar.gravar_config({"nif_da_empresa": "506666666"})
+        self.assertIs(radar.consta_da_lista(linhas), False)
+
+    # 4. a Situação
+
+    def test_a_situacao_diz_quem_nos_ganha(self):
+        self.ler()
+        radar.gravar_config({"nif_da_empresa": self.A})
+        h = self.pagina("/situacao")
+        self.assertIn("Quem nos ganha", h)
+        self.assertIn("A empresa consta da lista de concorrentes de 3 contratos "
+                      "lidos, e ganhou 1.", h)
+        self.assertIn("Beta, SA", h)
+
+    def test_a_situacao_sem_nif_ou_sem_dados_diz_porque(self):
+        self.assertIn("Falta o NIF da empresa", radar.quem_nos_ganha_cx())
+        radar.gravar_config({"nif_da_empresa": self.A})
+        h = radar.quem_nos_ganha_cx()
+        self.assertIn("ainda não leu nenhum contrato", h)
+        self.assertNotIn("<table", h)
+        self.ler(ids=(4,))
+        self.assertIn("ainda não consta de nenhuma lista",
+                      radar.quem_nos_ganha_cx())
+
+
 
 class TestOsPlanos(BaseTemporaria):
     """L2.1 do plano de Outubro, com os planos de 1/10/2026 (decisão
-    dele): Solo (1 utilizador, uma sessão de cada vez), Equipa (até 5) e
-    Corporate (o número acordado). O que estes testes seguram: o limite
+    dele): Solo (1 utilizador, uma sessão de cada vez), Duo (2, desde o
+    mesmo dia, em vez do Equipa até 5) e Corporate (o número acordado).
+    Todos têm as mesmas funcionalidades: só muda o número de pessoas. O que estes testes seguram: o limite
     conta as contas E os convites por usar; o convite volta a conferir ao
     ser usado; no Solo a última entrada fecha as outras e quem foi fechado
     sabe porquê; a empresa sem plano não tem limites; aceitar um pedido
-    põe o plano que ele escolheu; e o cofre fecha-se no Solo."""
+    põe o plano que ele escolheu; e o cofre abre em todos."""
 
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
 
@@ -26935,21 +27368,48 @@ class TestOsPlanos(BaseTemporaria):
                 radar.contas.criar_convite(c, 1, "", "tester")
         self.assertIn("O plano Solo da empresa tem 1 utilizador", str(erro.exception))
 
-    def test_o_equipa_tem_cinco_e_o_corporate_o_acordado(self):
-        self.plano("equipa")
+    def test_o_duo_tem_dois_e_o_terceiro_convite_recusa(self):
+        """1/10/2026, decisão dele: «a equipa tem no máximo 2 utilizadores».
+        Com o Equipa de 5, o segundo convite passava."""
+        self.plano("duo")
+        self.conta("ana")
+        with radar.liga() as c:
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 1)
+            radar.contas.criar_convite(c, 1, "", "tester")
+            self.assertEqual(radar.contas.lugares_livres(c, 1), 0)
+            with self.assertRaises(ValueError) as erro:
+                radar.contas.criar_convite(c, 1, "", "tester")
+        self.assertIn("O plano Duo da empresa tem 2 utilizadores", str(erro.exception))
+        self.assertEqual(radar.contas.PLANOS["duo"], ("Duo", 2))
+        self.assertNotIn("equipa", radar.contas.PLANOS)
+        with radar.liga() as c, self.assertRaises(ValueError):
+            radar.contas.gravar_plano(c, 1, "equipa")
+
+    def test_o_corporate_tem_o_acordado(self):
+        self.plano("corporate", utilizadores=10)
         for i in range(3):
             self.conta("pessoa%d" % i)
-        with radar.liga() as c:
-            self.assertEqual(radar.contas.lugares_livres(c, 1), 2)
-        self.plano("corporate", utilizadores=10)
         with radar.liga() as c:
             self.assertEqual(radar.contas.lugares_livres(c, 1), 7)
         self.plano("corporate")
         with radar.liga() as c:
             self.assertIsNone(radar.contas.lugares_livres(c, 1))
 
+    def test_uma_linha_do_equipa_passa_a_duo(self):
+        """A tabela estava vazia quando o Equipa saiu, mas uma base que o
+        tivesse gravado passa a Duo, com 2 lugares, ao arrancar; e passar
+        outra vez não muda nada."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO planos (empresa_id, plano, periodo, fundador, "
+                      "utilizadores, desde) VALUES (1, 'equipa', 'anual', 1, 5, '2026-10-01')")
+            radar.contas.iniciar_tabelas(c)
+            radar.contas.iniciar_tabelas(c)
+            p = radar.contas.plano_da_empresa(c, 1)
+        self.assertEqual((p["plano"], p["utilizadores"], p["periodo"], p["fundador"]),
+                         ("duo", 2, "anual", 1))
+
     def test_o_convite_confere_outra_vez_ao_ser_usado(self):
-        self.plano("equipa")
+        self.plano("duo")
         with radar.liga() as c:
             codigo = radar.contas.criar_convite(c, 1, "", "tester")
         self.plano("solo")                 # desceu depois do convite
@@ -26970,8 +27430,8 @@ class TestOsPlanos(BaseTemporaria):
             self.assertTrue(radar.contas.foi_fechada_por_outra(c, primeira))
             self.assertFalse(radar.contas.foi_fechada_por_outra(c, primeira))  # uma vez
 
-    def test_no_equipa_as_sessoes_ficam(self):
-        self.plano("equipa")
+    def test_no_duo_as_sessoes_ficam(self):
+        self.plano("duo")
         self.conta("ana")
         with radar.liga() as c:
             primeira, _ = radar.contas.entrar(c, "ana", "senha-comprida")
@@ -26991,15 +27451,53 @@ class TestOsPlanos(BaseTemporaria):
         h = self.cliente.get("/entrar?fechada=1", environ_base=self.FORA).get_data(as_text=True)
         self.assertIn("entrou noutro aparelho", h)
 
-    def test_o_cofre_fecha_no_solo(self):
-        self.assertFalse(radar.cofre_fechado())       # sem plano, aberto
-        self.plano("solo")
-        self.assertTrue(radar.cofre_fechado())
-        h = self.cliente.get("/configuracoes/documentos").get_data(as_text=True)
-        self.assertIn("é do plano Equipa", h)
-        self.plano("equipa")
-        self.assertFalse(radar.cofre_fechado())
+    def test_o_cofre_abre_em_todos_os_planos(self):
+        """1/10/2026: «todos os planos têm exactamente a mesma coisa, só
+        muda o número de pessoas». O cofre fechava no Solo."""
+        self.assertFalse(hasattr(radar, "cofre_fechado"))
+        for plano in ("solo", "duo", "corporate"):
+            self.plano(plano)
+            h = self.cliente.get("/configuracoes/documentos").get_data(as_text=True)
+            self.assertNotIn("no Solo não há cofre", h, plano)
+            self.assertIn("Acrescentar", h, plano)
+            r = self.cliente.post("/configuracoes/documentos",
+                                  data={"tipo": radar.TIPOS_DE_DOCUMENTO[0],
+                                        "descricao": plano, "validade": ""})
+            self.assertEqual(r.status_code, 302, plano)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM documentos_da_empresa"
+                                       ).fetchone()[0], 3)
 
+    def test_o_site_e_os_termos_nao_separam_os_planos_por_funcionalidades(self):
+        """Os três planos têm o mesmo; o que muda é o número de pessoas. O
+        site dizia «Tudo o que o Solo tem» e listava o trabalho em equipa
+        só no Equipa, e as exportações só no Corporate; e o título dizia
+        «Preços sem IVA»."""
+        pasta = os.path.dirname(radar.SITE)
+        textos = {}
+        for nome in ("index.html", "termos.html", "llms.txt"):
+            with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                textos[nome] = f.read()
+        site = textos["index.html"]
+        titulo = re.search(r'<h2 id="t-planos">(.*?)</h2>', site).group(1)
+        self.assertEqual(titulo, "Três planos.")
+        cartoes = site.split('<div class="planos">', 1)[1].split("</section>", 1)[0]
+        self.assertEqual(len(re.findall(r'<article class="plano', cartoes)), 3)
+        for h3 in ("Solo", "Duo", "Corporate"):
+            self.assertIn(">%s</h3>" % h3, cartoes)
+        for nome, texto in textos.items():
+            for frase in ("Tudo o que o Solo", "Tudo o que o Duo", "Equipa tem", "o Equipa", "no Equipa",
+                          "plano Equipa", "Até 5", "até cinco", "Até cinco",
+                          "As exportações", "e as exportações",
+                          "mais o trabalho em equipa"):
+                self.assertNotIn(frase, texto, "%s: %s" % (nome, frase))
+        self.assertNotIn('"name": "Equipa"', site)
+        self.assertIn('"name": "Duo"', site)
+        self.assertNotIn('value="equipa"', site)
+        self.assertNotIn('data-plano="equipa"', site)
+        # nenhum cartão lista funcionalidades suas: a lista é uma, para todos
+        for artigo in re.findall(r'<article class="plano.*?</article>', cartoes, re.S):
+            self.assertNotIn("<li>", artigo)
 
 
 

@@ -44,7 +44,11 @@ tudo o que a parte L publicar, e a triagem faz-se no painel.
 
 ## Como está a correr
 
-Funciona. Os números dos anúncios, das peças, das leituras e das
+Funciona — **com a recolha do DR parada de 30/09/2026 às 08:00 até
+chegar a release com o PR da apiVersion** (o DR mudou o script do ecrã e
+o radar lia mal a versão; ver o diário de outubro). Os 30/09 e 1/10
+entram sozinhos na primeira verificação depois dela, pela janela de 15
+dias. Os números dos anúncios, das peças, das leituras e das
 empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 
 | O quê | Quanto |
@@ -58,11 +62,11 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Corpus do Portal BASE | 2 009 640 contratos, 180 507 entidades (28/09/2026) |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e mais nenhuma desde que a LATD saiu (1/10/2026) |
-| Rotas Flask | 137 |
+| Rotas Flask | 138 |
 | Tabelas em `radar.db` | 19, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
 | Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB). E o índice da **pesquisa geral** (1/10/2026): `pesquisa_fts` + `pesquisa_refs` no `radar.db`, ~115 MB, 30 a 60 s **em fundo** no primeiro arranque com esse código, numa cópia |
-| Testes | **1 850**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 37 623 linhas · `teste_radar.py` 26 891 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
+| Testes | **1 887**, em ~200 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 38 155 linhas · `teste_radar.py` 27 506 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -179,8 +183,21 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.38`**, de
-  1/10/2026 — **os planos novos: Solo, Equipa e Corporate**, com a leitura
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.42`**, de
+  1/10/2026 — **os planos Solo, Duo e Corporate**: o Equipa deu lugar ao
+  Duo, de duas pessoas, e os três planos têm exactamente o mesmo — só muda
+  o número de pessoas (o cofre abre também no Solo). A `v2.0.41`, do mesmo
+  dia — **o campo 11 da leitura vai primeiro ao nemotron, com o
+  dobro do recorte** (as frases-prova do grupo «o modelo ignorou»
+  passam de 11 para 19 de 31, as do «faltava espaço» de 0 para 9 de 15,
+  sem números inventados), e o fim do dia do Gemini reconhecido. A
+  `v2.0.40`, do mesmo dia: **a recolha do Diário da República volta a funcionar**: o
+  portal foi republicado na noite de 29 para 30/09 e o script de onde o
+  radar lê a apiVersion ganhou mais um argumento; a leitura passou a
+  ancorar-se no caminho da acção, e o `/saude` dá 503 à terceira
+  verificação seguida que falha. A `v2.0.39`, do mesmo dia — **os planos no código (L2.1)**: o plano de cada empresa, o
+  limite de utilizadores, a sessão única do Solo e o cofre fechado no
+  Solo; e a LATD, de teste, saiu. A `v2.0.38`, do mesmo dia — **os planos novos: Solo, Equipa e Corporate**, com a leitura
   das peças por IA em todos, o Solo com uma sessão de cada vez e o plano
   anual pago de uma vez (Solo 408 €, Equipa 780 €, fundador 576 €). A
   `v2.0.37`, do mesmo dia — **a recolha dos concorrentes do Portal BASE** (L5): o painel

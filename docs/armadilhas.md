@@ -9,13 +9,13 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 16
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 17
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 28
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 30
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
-- [Contratos e entidades](#contratos-e-entidades) &middot; 37
+- [Contratos e entidades](#contratos-e-entidades) &middot; 38
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 129
 - [Convenções](#convencoes) &middot; 7
 
-São **438** ao todo, contados a 30/09/2026. Contam-se por secção com
+São **442** ao todo, contados a 1/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -270,6 +270,25 @@ O DR, a Vortal, e como um anúncio entra na base.
   — há teste a guardá-lo. O que resta à captura é a forma do corpo, e é
   só por essa que um dia se refaz (secção 3 do `LEIA-ME.md`). Nunca
   edites estas capturas: um hook bloqueia-o.
+
+- **A apiVersion lê-se ancorada no caminho da acção, nunca por
+  posição** (1/10/2026). A 30/09/2026, às 08:00, o OutSystems do DR
+  passou a compilar `callDataAction("X", "<GUID>", "screenservices/…/X",
+  "<apiVersion>", …)` — uma chave nova entre o nome e o caminho. A
+  expressão antiga contava argumentos e leu o **caminho** como
+  apiVersion; a renovação «correu bem», o DR respondeu
+  `hasApiVersionChanged` a todas as pesquisas, e o erro dizia «refaz a
+  captura» quando a captura estava boa (a apiVersion dela,
+  `PRsQKjEXDVBC3ZSqkS8k6A`, é a mesma do portal novo). 24 verificações
+  perdidas e zero anúncios do DR com data de 30/09.
+  `api_version_do_script()` procura agora o argumento a seguir ao
+  caminho que acaba na acção, e só aceita letras, dígitos, `_` e `-`:
+  se a forma mudar outra vez, dá vazio, a renovação falha com a marca
+  `pecas-dr` (que diz o que foi) e o pedido segue com a apiVersion da
+  captura. **Quando o erro disser «apiVersion … nem depois de renovar»,
+  confere primeiro o que o `renovar_pecas_dr()` leu do script** antes
+  de mandar o Afonso ao DevTools. O teste guarda o pedaço do script de
+  1/10 tal como veio.
 
 
 ---
@@ -784,6 +803,24 @@ Orçamento, cadeia de reserva, chaves.
   números («61 unidades» com 129 no cadastro da 23389) e o sentido do
   IVA (23265). Fica para quando todos os outros acabaram o dia.
 
+- **Uma corrida do modelo não é uma medida: um terço das falhas some só
+  por repetir** (1/10/2026). O nemotron achou 17, 15 e 15 das 31
+  frases-prova do grupo a do campo 11 em três corridas iguais — o mesmo
+  recorte, o mesmo pedido, `temperature` 0 —, e uma frase achada numa
+  corrida falta na seguinte. Comparar o recorte A numa corrida com o B
+  noutra mede metade de ruído. **Qualquer comparação leva um controlo**:
+  a mesma configuração corrida outra vez, e só conta a diferença que
+  passar a que o controlo deu sozinho.
+
+- **O Gemini gratuito conta pedidos por dia, e não tokens** (1/10/2026).
+  O 429 do fim do dia do `gemini-3.6-flash` diz
+  `free_tier_requests` e `GenerateRequestsPerDayPerProjectPerModel-FreeTier`,
+  com um «retry in 58 s» que é mentira; o `orcamento_do_dia_esgotado()`
+  só reconhecia «tokens per day», e o `_um_pedido()` esperava três vezes
+  um minuto em cada pedido sem o marcar como esgotado. Agora reconhece o
+  `PerDay`. E o 503 «high demand» passa ao seguinte à primeira (só o 429
+  se repete): no gratuito cada 503 gasta um dos 20 pedidos do dia.
+
 
 ---
 
@@ -1098,6 +1135,17 @@ Uma árvore, duas fontes de contagem, dois campos.
   prolonga. E o ficheiro é o `contratos-concorrentes.db`, **ao lado do
   corpus e não dentro**: o `--contratos` refaz o corpus, e isto leva
   semanas. Entra nas cópias diárias (só as duas últimas).
+- **Quem só concorreu não está nas `entidades` do corpus, e a ficha
+  tem de existir na mesma** (L5, ecrãs, 1/10/2026). As `entidades` são
+  quem adjudicou ou ganhou; um fornecedor que constou de listas e nunca
+  ganhou não tem linha lá, e a ligação do nome na aba Concorrentes dava
+  **404**. A `entidade()` pergunta também a `concorrencia_do_fornecedor()`,
+  e o nome vem da lista do BASE. E os ecrãs cruzam por `ATTACH` do corpus
+  na ligação dos concorrentes: o recorte do interesse cita o
+  `contrato_cpv` **sem esquema**, e só funciona porque o ficheiro dos
+  concorrentes não tem nenhuma tabela com esse nome — uma tabela nova lá
+  com o nome de uma do corpus passava a responder no lugar dela, sem
+  erro nenhum.
 - **Os «clientes» e os «concorrentes» das Entidades recortam pelo
   interesse, quando há** (`entidades_top()`, 25/09/2026). No corpus
   inteiro, os concorrentes de uma empresa de AVAC eram a Petrogal e a
@@ -3092,6 +3140,13 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   sempre, e nunca veria o painel cair. E o `liga()` da porta ficou
   dentro do `try` por isto: com a base indisponível tudo dava 500 na
   porta, incluindo a rota que existe para dizer 503.
+  E dá 503 em **dois** casos da recolha, não um: «a recolha parou» (a
+  hora marcada passou sem verificação, `recolha_atrasada()`) e «a
+  recolha está a falhar» (`FALHAS_PARA_O_VIGIA` verificações seguidas
+  sem sucesso, `recolha_a_falhar()`, contadas pelo `marcar_resultado()`,
+  que é o único sítio que escreve o `ultima_ok`). O segundo entrou a
+  1/10/2026: com o DR a recusar a pesquisa, a verificação corria de
+  hora a hora e falhava, e o `/saude` disse «ok» durante 24 horas.
 
 - **O túnel liga-se ao painel a partir de 127.0.0.1.** O `cloudflared`
   corre neste computador e fala com o Flask por loopback: só pelo IP,
