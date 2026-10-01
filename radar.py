@@ -6927,12 +6927,6 @@ ANCORAS_OBJECTO = (
     # O objecto numa ancora sua: cada ancora de peso 0 tem a sua janela
     # garantida, e o local nao a perde para o «tem por objecto» (29/09/2026)
     (0, r"tem por objec?to|constitui objec?to"),
-    # As condicoes de pagamento (L4 do plano de Outubro, 1/10/2026): estao
-    # no CE, que e o documento deste pedido, e numa ancora sua de peso 0
-    # para nao perderem a janela para o objecto. Medido com a regua: as
-    # cinco passagens de pagamento chegavam ao modelo zero vezes.
-    (0, r"(condicoes|modo|forma|prazo) de pagamento|pagamentos? (sera|serao|e|sao) "
-        r"(efe(c)?tuad|realizad)|devem ser pag|fa(c)?tura(cao)? ele(c)?tronica"),
     (1, r"objec?to\b|\bsolucao|\bambito|enquadramento"),
     # O regime -- presencial, remoto ou hibrido -- vem no mesmo pedido que
     # o objecto, por ser o mesmo documento. Prioridade 1 para nao ser o
@@ -6941,6 +6935,14 @@ ANCORAS_OBJECTO = (
     # «localizacao» so como titulo: no corpo de uma especificacao de SIG
     # (22001) ha trinta, e comiam a reserva do peso 0
     (1, r"local d[aeo]|localizacao|instalacoes|teletrabalho|presencial|regime de trabalho"),
+    # As condicoes de pagamento (L4 do plano de Outubro, 1/10/2026): estao
+    # no CE, que e o documento deste pedido. PESO 1 e no fim dos de peso 1,
+    # por decisao dele: medido com a regua, o peso 0 trazia 4 das 5
+    # passagens de pagamento mas tirava a localizacao a 2 Cadernos; no
+    # peso 1 nao tira nada a ninguem, e o pagamento so chega quando sobra
+    # recorte. Subir o peso e trocar localizacao por pagamento.
+    (1, r"(condicoes|modo|forma|prazo) de pagamento|pagamentos? (sera|serao|e|sao) "
+        r"(efe(c)?tuad|realizad)|devem ser pag|fa(c)?tura(cao)? ele(c)?tronica"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
 )

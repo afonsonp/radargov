@@ -24326,6 +24326,62 @@ class TestTerceiraRondaALeituraDasPecas(BaseTemporaria):
                          ["Manutenção corretiva de edifícios escolares"])
 
 
+class TestOsPagamentosDaLeitura(BaseTemporaria):
+    """L4 do plano de Outubro (1/10/2026): a leitura do Caderno de Encargos
+    pergunta também as condições de pagamento, e a ficha mostra-as numa
+    linha «Pagamento». A âncora tem PESO 1, decisão dele («Lote 4 B»):
+    medido com a régua, o peso 0 trazia 4 das 5 passagens de pagamento mas
+    tirava a localização a 2 Cadernos. Subir-lhe o peso sem falar com ele
+    é trocar uma pela outra em silêncio."""
+
+    ANUNCIO = TestTerceiraRondaALeituraDasPecas.ANUNCIO
+    OBRA = TestTerceiraRondaALeituraDasPecas.OBRA
+    TUDO = dict(TestTerceiraRondaALeituraDasPecas.TUDO, objecto={
+        "objecto": "- reabilitar a EB", "localizacao": "não consta",
+        "pagamentos": "Mensal, por auto de medição; 30 dias após a fatura"})
+    _ler = TestTerceiraRondaALeituraDasPecas._ler
+
+    def test_a_ancora_do_pagamento_tem_peso_1_e_vem_depois_da_localizacao(self):
+        pesos = [(peso, i) for i, (peso, padrao) in enumerate(radar.ANCORAS_OBJECTO)
+                 if "de pagamento" in padrao or "localizacao" in padrao]
+        self.assertEqual([p for p, _ in pesos], [1, 1])
+        self.assertIn("de pagamento", radar.ANCORAS_OBJECTO[pesos[1][1]][1])
+
+    def test_as_duas_perguntas_do_objecto_pedem_os_pagamentos(self):
+        for instrucao in (radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_OBJECTO_OBRAS):
+            self.assertIn('"pagamentos": "..."', instrucao)
+
+    def test_a_leitura_grava_os_pagamentos_e_confere_os_numeros(self):
+        """O prazo de pagamento é um número: passa pela mesma verificação
+        que o resto, e um «30» que não está nas peças leva o «confirmar»."""
+        linha, _ = self._ler(self.TUDO)
+        self.assertEqual(linha["pagamentos"],
+                         "Mensal, por auto de medição; 30 dias após a fatura "
+                         "[confirmar: o número 30 não está nas páginas lidas]")
+
+    def _linha_do_pagamento(self, pagamentos):
+        with radar.liga() as c:
+            c.execute("INSERT INTO analise (ref, objecto, quando, fontes, pagamentos) "
+                      "VALUES ('70/2026','- a obra','2026-10-01 10:00','CE.pdf (pág. 1)',?)",
+                      (pagamentos,))
+            analise = c.execute("SELECT * FROM analise WHERE ref='70/2026'").fetchone()
+        h = radar.pecas_pedem_cx(self.ANUNCIO, radar.seccoes_do_texto(self.OBRA), analise)
+        return h.split("Pagamento", 1)[1][:300]
+
+    def test_a_ficha_mostra_o_pagamento(self):
+        self.assertIn("30 dias após a fatura",
+                      self._linha_do_pagamento("30 dias após a fatura"))
+
+    def test_nao_consta_e_nao_encontrado(self):
+        self.assertIn("Não encontrado nas páginas lidas",
+                      self._linha_do_pagamento("não consta"))
+
+    def test_uma_leitura_de_antes_da_pergunta_diz_que_e_de_antes(self):
+        """«Não encontrado» seria mentir: a pergunta não se fez."""
+        self.assertIn("de antes da pergunta do pagamento",
+                      self._linha_do_pagamento(None))
+
+
 class TestTerceiraRondaPecasNaFicha(_CicloDoTesteComUtilizadores):
     """G48 (rel. 02 #13): numa proposta já «A preparar», as peças diziam
     «Ainda não foram trazidas. Vêm sozinhas ao marcar «interessa»» -- e

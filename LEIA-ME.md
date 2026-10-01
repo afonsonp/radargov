@@ -587,6 +587,10 @@ que se decide:
   **«Rascunho: confirmar nas peças»** uma vez, e por baixo as peças e as
   páginas que foram lidas: a leitura falha mais por omitir do que por
   inventar, e «não encontrado» quer dizer que não estava nessas páginas.
+  Desde 1/10/2026 traz também o **pagamento** (de quanto em quanto
+  tempo, quantos dias depois da fatura, adiantamento, retenções), quando
+  cabe no que se lê do Caderno de Encargos — muitas vezes não cabe, e
+  então diz «não encontrado».
   A **equipa** fecha-se num resumo («20 perfis · 2 a 8 anos · 5 com
   certificação · 30 a 55 €/h») e abre-se numa tabela, um perfil por
   linha (pessoas, anos, certificação, €/h); o nome de cada perfil abre a

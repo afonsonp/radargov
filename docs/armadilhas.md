@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 17
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 30
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 31
 - [O motor de filtros](#o-motor-de-filtros) &middot; 15
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 129
 - [Convenções](#convencoes) &middot; 7
 
-São **442** ao todo, contados a 1/10/2026. Contam-se por secção com
+São **443** ao todo, contados a 1/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -457,6 +457,13 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
 
 Orçamento, cadeia de reserva, chaves.
 
+- **A âncora do pagamento tem peso 1 de propósito, e subir-lho é
+  trocar a localização pelo pagamento** (L4, 1/10/2026). Os dois vivem
+  no recorte do Caderno de Encargos, que tem tecto: medido com a régua,
+  o peso 0 trazia 4 das 5 passagens de pagamento e tirava a
+  localização a 2 Cadernos; ele escolheu o peso 1, que não tira nada e
+  traz 0 das 5. O `TestOsPagamentosDaLeitura` guarda o peso e a
+  ordem. Antes de mexer, corre a régua e mostra-lhe os dois números.
 - **O tecto por empresa conta os PEDIDOS, e não as leituras** (F7,
   23/09/2026). A `leituras_pedidas` escreve-se na rota `/analisar/<ref>`, só
   quando o `pedir_analise()` pôs mesmo na fila e só para quem não é
