@@ -14119,10 +14119,13 @@ class TestContas(BaseTemporaria):
                        # E o ecrã do código do segundo factor
                        # (28/09/2026): a guarda é o pendente
                        # (TestSegundoFactorDoDono)
+                       # E o «esqueci-me» por e-mail (1/10/2026): quem o
+                       # usa não consegue entrar, e a guarda é a origem,
+                       # o tecto e a resposta igual (TestPesquisaGeralERepor)
                        and r.rule not in ("/entrar", "/pedir-acesso",
                                           "/convite/<codigo>",
                                           "/repor/<codigo>",
-                                          "/entrar/codigo"))
+                                          "/entrar/codigo", "/esqueci-me"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -17099,7 +17102,6 @@ class TestPesquisaGeralERepor(BaseTemporaria):
         isso as duas que só existiam assim (`.cx`, que só aparece como
         atributo de um `<circle>`, e `.abas`, que só é a marca do molde)
         vão à parte, pelo nome."""
-        import ast
         arvore = ast.parse(radar_fonte())
         docs = {id(no.body[0].value) for no in ast.walk(arvore)
                 if isinstance(no, (ast.Module, ast.FunctionDef, ast.ClassDef))
@@ -17125,6 +17127,169 @@ class TestPesquisaGeralERepor(BaseTemporaria):
     # ------------------------------------------------- a pesquisa geral
 
     # ---------------------------------------------- o «esqueci-me»
+
+    class _JaCorre:
+        """Uma thread que corre logo, no `start()`: o e-mail sai em fundo
+        (o servidor de correio espera até 30 s), e o teste quer saber o
+        que saiu sem depender do escalonador."""
+
+        def __init__(self, target=None, args=(), kwargs=None, **_):
+            self.alvo, self.args, self.kwargs = target, args, kwargs or {}
+
+        def start(self):
+            self.alvo(*self.args, **self.kwargs)
+
+    def _prepara_o_correio(self):
+        self.mandados = []
+
+        def enviar(assunto, corpo, cfg=None, html_corpo=None):
+            self.mandados.append({"assunto": assunto, "texto": corpo,
+                                  "para": (cfg or {}).get("email", {}).get("para"),
+                                  "html": html_corpo or ""})
+            return True, "enviado"
+        self.enterContext(unittest.mock.patch.object(radar, "enviar_email", enviar))
+        self.enterContext(unittest.mock.patch.object(
+            radar.threading, "Thread", self._JaCorre))
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "dono@miragov.pt", "senha-comprida",
+                                          pela_consola=True)
+            radar.contas.criar_utilizador(c, "ana@empresa.pt", "senha-comprida",
+                                          "Ana", papel="tester")
+            radar.contas.criar_utilizador(c, "rui", "senha-comprida", papel="tester")
+
+    def esqueci(self, email, ambiente=None, **cabecalhos):
+        return radar.app.test_client().post(
+            "/esqueci-me", data={"email": email},
+            environ_base=ambiente or self.FORA, headers=cabecalhos)
+
+    def _codigo_do_email(self):
+        self.assertEqual(len(self.mandados), 1)
+        return re.search(r"/repor/([\w-]+)", self.mandados[0]["texto"]).group(1)
+
+    def test_o_esqueci_me_manda_uma_ligacao_de_uma_hora_e_uso_unico(self):
+        self._prepara_o_correio()
+        ana = radar.app.test_client()       # uma sessão da Ana, já aberta
+        self.assertEqual(ana.post("/entrar", data={
+            "email": "ana@empresa.pt", "senha": "senha-comprida"},
+            environ_base=self.FORA).status_code, 302)
+        r = self.esqueci("  Ana@Empresa.pt ")
+        self.assertEqual(r.status_code, 200)
+        codigo = self._codigo_do_email()
+        self.assertEqual(self.mandados[0]["para"], "ana@empresa.pt")
+        # o e-mail é o da casa: em HTML, com o botão, e diz o prazo
+        self.assertIn("/repor/" + codigo, self.mandados[0]["html"])
+        self.assertIn("Escolher a palavra-passe nova", self.mandados[0]["html"])
+        # só o resumo na base, e vale uma hora
+        with radar.liga() as c:
+            linha = c.execute("SELECT * FROM reposicoes").fetchone()
+        self.assertNotEqual(linha["resumo"], codigo)
+        criado = datetime.datetime.strptime(linha["criado_em"], "%Y-%m-%d %H:%M:%S")
+        expira = datetime.datetime.strptime(linha["expira"], "%Y-%m-%d %H:%M:%S")
+        self.assertEqual(expira - criado, datetime.timedelta(hours=1))
+        fora = radar.app.test_client()
+        r = fora.post("/repor/" + codigo, data={"senha": "outra-chave-boa",
+                                                "outra": "outra-chave-boa"},
+                      environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        # a sessão que estava aberta caiu; e a ligação gastou-se
+        self.assertEqual(ana.get("/concursos", environ_base=self.FORA).status_code, 302)
+        r = radar.app.test_client().post(
+            "/repor/" + codigo, data={"senha": "terceira-chave-boa",
+                                      "outra": "terceira-chave-boa"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 410)
+
+    def test_a_resposta_e_a_mesma_exista_ou_nao_a_conta(self):
+        """Não se enumera: o estado, o texto e os cabeçalhos que contam
+        são iguais para uma conta que existe, uma que não existe, uma
+        que entra por nome de utilizador e a do dono."""
+        self._prepara_o_correio()
+        respostas = {}
+        for email in ("ana@empresa.pt", "ninguem@empresa.pt", "rui@x.pt",
+                      "dono@miragov.pt"):
+            r = self.esqueci(email, ambiente={"REMOTE_ADDR": "198.51.100.%d"
+                                              % len(respostas)})
+            corpo = r.get_data(as_text=True).replace(html.escape(email), "EMAIL")
+            respostas[email] = (r.status_code, corpo,
+                                r.headers.get("Set-Cookie"))
+        self.assertEqual(len(set(respostas.values())), 1, respostas.keys())
+        self.assertEqual(respostas["rui@x.pt"][0], 200)
+        # e só a da Ana recebeu
+        self.assertEqual([m["para"] for m in self.mandados], ["ana@empresa.pt"])
+
+    def test_a_conta_do_dono_nao_se_repoe_por_aqui(self):
+        """O dono tem o segundo factor e repõe-se pela consola: uma
+        ligação por e-mail para a conta mais poderosa era a porta do
+        lado. Nada se cria, nada sai -- e fica escrito que alguém
+        pediu."""
+        self._prepara_o_correio()
+        self.assertEqual(self.esqueci("dono@miragov.pt").status_code, 200)
+        self.assertEqual(self.mandados, [])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM reposicoes").fetchone()[0], 0)
+            eventos = [r[0] for r in c.execute("SELECT detalhe FROM eventos")]
+        self.assertTrue(any("dono" in e for e in eventos), eventos)
+
+    def test_um_post_de_outro_sitio_e_recusado(self):
+        self._prepara_o_correio()
+        r = self.esqueci("ana@empresa.pt", Origin="https://mal.exemplo")
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.mandados, [])
+        # e do próprio sítio passa
+        r = self.esqueci("ana@empresa.pt", Origin="http://localhost")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(self.mandados), 1)
+
+    def test_o_tecto_e_por_ip_e_por_conta_e_nao_fecha_o_entrar(self):
+        self._prepara_o_correio()
+        n = radar.contas.FALHAS_ATE_TRINCO
+        # o mesmo IP, endereços diferentes: o IP fecha
+        for i in range(n):
+            self.assertEqual(self.esqueci("x%d@empresa.pt" % i).status_code, 200)
+        r = self.esqueci("ana@empresa.pt")
+        self.assertEqual(r.status_code, 429)
+        self.assertIn("demasiadas tentativas", r.get_data(as_text=True).lower())
+        self.assertEqual(self.mandados, [])
+        # IPs diferentes, a mesma conta: a conta fecha (não se enche a
+        # caixa de ninguém por muitos IP)
+        for i in range(n):
+            self.esqueci("ana@empresa.pt", ambiente={"REMOTE_ADDR": "198.51.100.%d" % i})
+        self.assertEqual(len(self.mandados), n)
+        r = self.esqueci("ana@empresa.pt", ambiente={"REMOTE_ADDR": "198.51.100.99"})
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(len(self.mandados), n)
+        # e nada disto conta no trinco do /entrar, do IP nem da conta
+        r = radar.app.test_client().post("/entrar", data={
+            "email": "ana@empresa.pt", "senha": "senha-comprida"},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+
+    def test_o_codigo_nao_fica_em_registo_nenhum(self):
+        """Nem nos eventos, nem nas falhas, nem nos erros -- e um 500 na
+        ligação de repor não escreve o caminho com o código."""
+        self._prepara_o_correio()
+        self.esqueci("ana@empresa.pt")
+        codigo = self._codigo_do_email()
+        with unittest.mock.patch.object(radar.contas, "reposicao_valida",
+                                        side_effect=RuntimeError("avaria")):
+            r = radar.app.test_client().get("/repor/" + codigo, environ_base=self.FORA)
+        self.assertEqual(r.status_code, 500)
+        with radar.liga() as c:
+            tabelas = [r[0] for r in c.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%'")]
+            for tabela in tabelas:
+                for linha in c.execute("SELECT * FROM %s" % tabela):
+                    self.assertNotIn(codigo, " ".join(str(v) for v in linha), tabela)
+            self.assertTrue(c.execute("SELECT 1 FROM erros").fetchone())
+
+    def test_a_entrada_leva_ao_esqueci_me(self):
+        cliente = radar.app.test_client()
+        corpo = cliente.get("/entrar", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("href=\"/esqueci-me\"", corpo)
+        r = cliente.get("/esqueci-me", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("name=\"email\"", r.get_data(as_text=True))
 
 
 class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
@@ -24669,8 +24834,10 @@ class TestTerceiraRondaCoerenciaDeDesenhoETexto(_CicloDoTesteComUtilizadores):
     def test_g97_o_erro_de_entrar_e_uma_frase(self):
         self.assertEqual(
             radar.frase_do_aviso_de_entrar("utilizador ou palavra-passe errados"),
+            # desde 1/10/2026 (J7) a ligação pede-se por e-mail, logo abaixo
             "Utilizador ou palavra-passe errados. Se se esqueceu da "
-            "palavra-passe, peça ao gestor da sua empresa uma ligação para a repor.")
+            "palavra-passe, peça uma ligação para a repor em «Esqueceu-se "
+            "da palavra-passe?», mais abaixo.")
         self.assertEqual(radar.frase_do_aviso_de_entrar("Já tem ponto."), "Já tem ponto.")
 
     def test_g97_o_resumo_aberto_a_mao_vai_para_o_mercado(self):

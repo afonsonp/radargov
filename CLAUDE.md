@@ -202,7 +202,8 @@ python ferramentas/mede_antecipacao.py       # a hora do prazo DR × Vortal e a
                                    # ~/Desktop/radar num worktree. Resultados
                                    # em docs/diario/2026-10.md
 python radar.py --palavra-passe NOME     # troca-a pela consola (no painel, o "esqueci-me" é a
-                                   # ligação de repor que o admin ou o dono geram)
+                                   # ligação de repor: por e-mail, no /esqueci-me, ou
+                                   # gerada pelo admin ou pelo dono; a do dono, só aqui)
 python radar.py --desligar-segundo-factor NOME  # desliga o segundo factor (TOTP) da conta,
                                    # para quando o telemóvel e os códigos de recuperação se perdem
 ```
@@ -294,6 +295,8 @@ repor mostram-se por Post/Redirect/Get), o modo de suporte
 o trinco (`contas.segundos_de_trinco()`, por conta e com um tecto alto
 por IP desde 29/09/2026, e `plataforma_levantar_trinco()`, o «levantar»
 do dono), `metodo_errado()` (o 405 da casa),
+`esqueci_me()` e `_repor_por_email()` (J7, 1/10/2026: o «esqueci-me»
+por e-mail, rota aberta com a guarda dentro),
 `repor()` e `_gerar_reposicao()` (D17: a ligação de repor a
 palavra-passe, rota aberta com a guarda dentro, como o convite),
 `entrar_codigo()` e `_bloco_do_segundo_factor()` (28/09/2026: o
@@ -626,7 +629,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **431 pontos** (contados a 1/10/2026), cada um de um erro que
+São **433 pontos** (contados a 1/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

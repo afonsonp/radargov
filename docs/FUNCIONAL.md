@@ -824,7 +824,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**134 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**135 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1486,9 +1486,23 @@ consola e a ligação de repor —, porque todas passam pelo
 `contas.criar_utilizador()`; a recusa diz qual das regras falhou
 (`contas.problema_da_senha()`).
 
-**Repor a palavra-passe** (D17, 26/09/2026). Não há e-mail de
-recuperação: o `/entrar` diz «peça ao gestor da sua empresa».
-O **admin** gera, em Configurações › Conta, uma ligação para uma conta
+**Repor a palavra-passe** (D17, 26/09/2026). Há dois caminhos para a
+mesma ligação. O **«esqueci-me» por e-mail** (J7, 1/10/2026): o `/entrar`
+leva ao **`/esqueci-me`**, onde a pessoa escreve o e-mail da conta e, se
+houver conta, recebe lá a ligação (`esqueci_me()`, rota aberta por
+igualdade, com a guarda dentro). A resposta é **a mesma** exista ou não
+a conta — e procurar a conta, criar a ligação e mandar o e-mail
+acontece em fundo (`_repor_por_email()`), para o tempo de resposta
+também não o dizer; a ligação vale **uma hora**
+(`HORAS_DE_REPOSICAO_POR_EMAIL`) e uma vez; há tecto de cinco pedidos
+em quinze minutos **por IP e pelo endereço escrito**, contados exista
+ou não a conta e fora do trinco do `/entrar`
+(`contas.contar_pedido_de_reposicao()`); a **conta do dono nunca** se
+repõe por aqui (`contas.reposicao_por_email()`; fica nos eventos que
+alguém pediu); e só sai com o correio da plataforma configurado — uma
+falha do envio fica nos eventos. Quem entra com um nome de utilizador
+e não com um e-mail continua a pedir ao gestor.
+O outro caminho é o de antes: o **admin** gera, em Configurações › Conta, uma ligação para uma conta
 da empresa dele — nunca a do dono —, e o **dono** gera-a para qualquer
 conta, na `/plataforma` (`contas.pode_repor()`). A ligação mostra-se
 **uma vez**, nessa página, e nunca vai no endereço nem no histórico;
@@ -1724,6 +1738,7 @@ mesma rota sem sair da página (§4.3).
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
 | Gerar a ligação de repor a palavra-passe | Configurações › Conta (admin), página da empresa na `/plataforma` (dono) |
+| Pedir a ligação de repor por e-mail | `/esqueci-me`, a partir do `/entrar` (sem sessão; nunca a conta do dono) |
 | Recusar um pedido de acesso, com o motivo | `/pedidos-de-acesso` (dono) |
 | Criar · anular · gerar de novo um convite | página da empresa (dono); anular também em Configurações › Conta (admin) |
 | Suspender · reactivar uma empresa | página da empresa (dono) |

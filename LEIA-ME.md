@@ -851,9 +851,15 @@ linhas mais escuros, sem sombras). É de cada pessoa e fica guardado na
 conta, por isso vale no telemóvel e no computador. O ecrã de entrar,
 que ainda não sabe quem é, segue o computador.
 
-**Quando alguém se esquece da palavra-passe** (desde 26/09/2026) não há
-e-mail de recuperação — o ecrã de entrar diz para pedir ao
-gestor da empresa. Quem repõe:
+**Quando alguém se esquece da palavra-passe**, desde 1/10/2026 pode
+pedir a ligação por e-mail: no ecrã de entrar, «Receba uma ligação por
+e-mail», escreve o e-mail da conta e, se a conta existir, a ligação
+chega lá (vale uma hora e uma vez). Só funciona com o correio da
+plataforma configurado (`/plataforma` › Correio) e com contas que
+entram por e-mail; **a tua nunca** — repões a tua pela consola, com
+`--palavra-passe`. Se alguém o pedir para a tua conta, fica nos
+eventos. Para quem entra com um nome de utilizador, ou se o e-mail não
+chegar, continua a haver quem reponha à mão:
 
 - o **admin da empresa**, para as contas dela: em Configurações ›
   Conta, na lista dos utilizadores, **repor palavra-passe**;

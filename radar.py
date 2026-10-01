@@ -10657,6 +10657,23 @@ def _em_paragrafo(conteudo):
     return "<p style=\"margin:0 0 14px\">%s</p>" % conteudo
 
 
+def _em_botao(ligacao, rotulo):
+    """O botão de um e-mail, e o endereço por extenso por baixo para
+    quando o botão não abre. Em tabela: é o que o Outlook respeita."""
+    return (
+        "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
+        "style=\"margin:6px 0 16px\"><tr><td style=\"background:%s;"
+        "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
+        "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
+        "%s</a></td></tr></table>"
+        % (_EM_INK, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
+        + _em_paragrafo(
+            "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
+            "copie este endereço para o browser:<br><span style=\"font-family:%s;"
+            "word-break:break-all\">%s</span></span>"
+            % (_EM_T3, _EM_MONO, html.escape(ligacao))))
+
+
 RX_URL = re.compile(r"https?://[^\s<>\"]+")
 
 
@@ -13554,10 +13571,15 @@ def volta_ao_referer(omissao):
 # /llms.txt (29/09/2026): o resumo do site para os agentes de IA, na
 # mesma condicao -- um ficheiro do `site/`, sem dados, so GET. E a
 # /afonso-pinto.jpg (30/09/2026), a fotografia do site, idem.
+# /esqueci-me (J7, 1/10/2026): quem se esqueceu da palavra-passe pede a
+# ligacao de repor por e-mail. A guarda e dentro da rota
+# (`esqueci_me()`): a origem, o tecto por IP e por endereco, a mesma
+# resposta exista ou nao a conta, e nunca a conta do dono.
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
-                 "/partilha.png", "/llms.txt", "/afonso-pinto.jpg")
+                 "/partilha.png", "/llms.txt", "/afonso-pinto.jpg",
+                 "/esqueci-me")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -14118,10 +14140,14 @@ def rebentou(_erro):
     mais a linha na serie, e uma pagina da empresa. O registo nunca pode
     derrubar a resposta: se a base e que esta mal, fica so a pagina."""
     causa = getattr(_erro, "original_exception", None) or _erro
+    # O codigo de uma ligacao (repor, convite) vale uma palavra-passe ou
+    # uma conta, e o caminho leva-o: a lista dos erros e lida pelo dono e
+    # vai nas copias (J7, 1/10/2026).
+    caminho = re.sub(r"^/(repor|convite)/.*", r"/\1/…", request.path)
     try:
         marca_erro("painel_ultimo_erro", "painel",
                    "%s em %s %s: %s" % (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                        request.method, request.path[:80],
+                                        request.method, caminho[:80],
                                         ("%s: %s" % (type(causa).__name__, causa))[:400]))
     except Exception:
         pass
@@ -14327,7 +14353,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="s
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
- <p class="entrar-nota">Esqueceu-se da palavra-passe? Peça ao gestor da sua empresa uma ligação para a repor.</p>
+ <p class="entrar-nota">Esqueceu-se da palavra-passe? <a href="/esqueci-me">Receba uma ligação por e-mail</a>. Se entra com um nome de utilizador e não com um e-mail, Peça ao gestor da sua empresa uma ligação para a repor.</p>
  <p class="entrar-nota">Sem conta? <a href="/#acesso">Peça acesso</a>.</p>
  </div></section>
 </main></body></html>"""
@@ -14382,8 +14408,8 @@ def frase_do_aviso_de_entrar(aviso):
     if not frase.endswith((".", "!", "?")):
         frase += "."
     if "palavra-passe errados" in aviso:
-        frase += (" Se se esqueceu da palavra-passe, peça ao gestor da sua "
-                  "empresa uma ligação para a repor.")
+        frase += (" Se se esqueceu da palavra-passe, peça uma ligação para "
+                  "a repor em «Esqueceu-se da palavra-passe?», mais abaixo.")
     return frase
 
 
@@ -34307,6 +34333,14 @@ def _avisar_do_pedido(id_, p):
                   (resposta, id_))
 
 
+def ip_de_quem_pede():
+    """O IP para um tecto de uma rota aberta: o que a Cloudflare escreve.
+    O `remote_addr` vem do X-Forwarded-For pelo ProxyFix, e esse o
+    visitante pode mandar feito (revisao de seguranca de 23/09/2026)."""
+    return (request.headers.get("Cf-Connecting-Ip") or request.remote_addr
+            or "")[:64]
+
+
 @app.route("/pedir-acesso", methods=["POST"])
 def pedir_acesso():
     """O formulario do site. **A guarda e esta**, porque a rota e aberta
@@ -34366,11 +34400,7 @@ def pedir_acesso():
         return resposta(False, "Preencha o nome, a empresa, um e-mail válido, "
                                "o NIF e o sector, para podermos responder.", 400)
     agora = datetime.now()
-    # O IP do tecto e o que a Cloudflare escreve: o `remote_addr` vem do
-    # X-Forwarded-For pelo ProxyFix, e esse o visitante pode mandar feito
-    # (revisao de seguranca de 23/09/2026).
-    ip = (request.headers.get("Cf-Connecting-Ip") or request.remote_addr
-          or "")[:64]
+    ip = ip_de_quem_pede()
     with liga() as c:
         do_ip = c.execute(
             "SELECT COUNT(*) n FROM pedidos_acesso WHERE ip=? AND criado_em>=?",
@@ -34579,20 +34609,9 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False):
     texto = TEXTO_DO_CONVITE % {
         "ola": ola, "frase": frase, "ligacao": ligacao, "ate": ate,
         "passos": "\n".join("%d. %s" % (i, p) for i, p in enumerate(passos, 1))}
-    href = html.escape(ligacao, quote=True)
     corpo = (
         _em_paragrafo(html.escape(ola)) + _em_paragrafo(html.escape(frase))
-        # o botão em tabela: é o que o Outlook respeita
-        + "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
-          "style=\"margin:6px 0 16px\"><tr><td style=\"background:%s;"
-          "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
-          "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
-          "Criar a conta</a></td></tr></table>" % (_EM_INK, href, _EM_SANS)
-        + _em_paragrafo(
-            "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
-            "copie este endereço para o browser:<br><span style=\"font-family:%s;"
-            "word-break:break-all\">%s</span></span>"
-            % (_EM_T3, _EM_MONO, html.escape(ligacao)))
+        + _em_botao(ligacao, "Criar a conta")
         + _em_paragrafo("A ligação serve uma vez e é válida até <b>%s</b>." % ate)
         + "<p style=\"margin:18px 0 6px;font:700 11px/1.4 %s;color:%s;"
           "text-transform:uppercase;letter-spacing:.06em\">O que vem a seguir</p>"
@@ -34619,6 +34638,81 @@ def enviar_convite(email, ligacao, empresa, papel, nome="", pedido=False):
                             em_html)
     except Exception as erro:              # o servidor pode responder o que quiser
         return False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+
+
+TEXTO_DA_REPOSICAO = """%(ola)s
+
+Pediram uma ligação para repor a palavra-passe da sua conta no Mira Gov
+(%(conta)s). Para escolher uma nova, abra:
+
+%(ligacao)s
+
+A ligação serve uma vez e vale até às %(ate)s. Ao guardar a
+palavra-passe nova, as sessões abertas desta conta fecham-se todas.
+
+Se não foi você que pediu, ignore este e-mail: a palavra-passe só muda
+com a ligação.
+
+Mira Gov
+"""
+
+
+def texto_e_html_da_reposicao(ligacao, conta, nome="", agora=None):
+    """(assunto, texto, html) do «esqueci-me» por e-mail (J7). Na moldura
+    de todos os outros, com o botão, o prazo em hora e o «se não foi
+    você» -- quem recebe isto sem o ter pedido tem de saber que não
+    precisa de fazer nada."""
+    ate = ((agora or datetime.now())
+           + timedelta(hours=contas.HORAS_DE_REPOSICAO_POR_EMAIL)).strftime(
+               "%H:%M de %d/%m/%Y")
+    ola = "Olá %s," % nome if nome else "Olá,"
+    texto = TEXTO_DA_REPOSICAO % {"ola": ola, "conta": conta,
+                                  "ligacao": ligacao, "ate": ate}
+    corpo = (
+        _em_paragrafo(html.escape(ola))
+        + _em_paragrafo("Pediram uma ligação para repor a palavra-passe da "
+                        "sua conta no Mira Gov (<b>%s</b>)." % html.escape(conta))
+        + _em_botao(ligacao, "Escolher a palavra-passe nova")
+        + _em_paragrafo("A ligação serve uma vez e vale até às <b>%s</b>. Ao "
+                        "guardar a palavra-passe nova, as sessões abertas "
+                        "desta conta fecham-se todas." % ate))
+    return ("Repor a palavra-passe do Mira Gov", texto,
+            moldura_do_email("Repor a palavra-passe", _em_cartao_branco(corpo),
+                             "Se não foi você que pediu, ignore este e-mail: "
+                             "a palavra-passe só muda com a ligação."))
+
+
+def _repor_por_email(email):
+    """O «esqueci-me» depois da resposta, em fundo (J7): procurar a conta,
+    criar a ligação, registar e mandar o e-mail. Tudo isto fora do
+    pedido, e não só o envio: o envio espera até 30 s pelo servidor, e
+    até a escrita da ligação na base demorava uns milissegundos só
+    quando a conta existe -- um tempo de resposta que dizia quais
+    existem. O que se regista diz a conta, nunca a ligação; uma falha do
+    envio fica nos eventos."""
+    with liga() as c:
+        codigo, conta = contas.reposicao_por_email(c, email)
+    if not conta:
+        return
+    if not codigo:
+        registar_evento("", "conta", "pedida por e-mail a ligação de repor da "
+                        "conta do dono (%s): recusada, repõe-se pela consola"
+                        % conta["email"], quem="radar")
+        return
+    registar_evento("", "conta", "ligação de repor pedida por e-mail: %s"
+                    % conta["email"], quem="radar")
+    conta, nome = conta["email"], conta["nome"]
+    ligacao = "%s/repor/%s" % (endereco_do_painel().rstrip("/"), codigo)
+    assunto, texto, em_html = texto_e_html_da_reposicao(ligacao, conta, nome)
+    try:
+        bem, porque = enviar_email(
+            assunto, texto, _junta(dict(ler_config()), {"email": {"para": conta}}),
+            em_html)
+    except Exception as erro:              # nunca derruba a thread
+        bem, porque = False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+    if not bem:
+        registar_evento("", "conta", "a ligação de repor de %s não saiu por "
+                        "e-mail: %s" % (conta, porque), quem="radar")
 
 
 # O perfil que o dono prepara ao aceitar (D13 da segunda ronda,
@@ -34940,7 +35034,8 @@ def repor(codigo):
             contas.registar_falha(c, chave, ip)
     if not reposicao:
         return pagina_repor(porque[0].upper() + porque[1:] + ". Peça outra "
-                            "ao gestor da sua empresa.",
+                            "em «Esqueceu-se da palavra-passe?», na entrada, "
+                            "ou ao gestor da sua empresa.",
                             codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
         return pagina_repor("Escolha a palavra-passe nova. Ao guardar, as "
@@ -34977,6 +35072,82 @@ def repor(codigo):
                         httponly=True, samesite="Lax",
                         secure=request.is_secure)
     return resposta
+
+
+# O «esqueci-me» por e-mail (J7, 1/10/2026), no molde do convite.
+PAGINA_ESQUECI = PAGINA_CONVITE.replace("Criar a conta", "Repor a palavra-passe")
+
+FORMULARIO_ESQUECI = """<form method="post" action="/esqueci-me">
+  <div class="mg-field"><label class="mg-field__label" for="q-email">E-mail da conta</label>
+   <input class="mg-field__input" id="q-email" type="email" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" maxlength="200" required autofocus></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Enviar a ligação</button>
+ </form>
+ <p class="entrar-nota">Se entra com um nome de utilizador e não com um e-mail, peça a ligação ao gestor da sua empresa.</p>
+ <p class="entrar-nota"><a href="/entrar">Voltar a entrar</a></p>"""
+
+# A mesma frase para quem tem conta, para quem nao tem e para o dono: e
+# ela que nao deixa enumerar. So o endereco muda (o que a pessoa escreveu).
+RESPOSTA_DO_ESQUECI = ("Se houver uma conta com o e-mail %s, segue para lá "
+                       "dentro de momentos uma ligação para repor a "
+                       "palavra-passe. Vale %s e só uma vez. Se não chegar, "
+                       "veja a pasta de spam.")
+
+
+def pagina_esqueci(aviso="", email="", codigo=200, erro=True, formulario=True):
+    return Response(PAGINA_ESQUECI % {
+        "css": LIGACAO_CSS,
+        "logo": logotipo(tamanho=28),
+        "aviso": ("<div class='mg-alert mg-alert--%s'%s>%s</div>"
+                  % ("danger" if erro else "info",
+                     " role='alert'" if erro else " role='status'",
+                     html.escape(aviso)) if aviso else ""),
+        "formulario": (FORMULARIO_ESQUECI % {"email": html.escape(email, quote=True)}
+                       if formulario else
+                       "<p class='entrar-nota'><a href='/entrar'>Voltar a entrar</a></p>"),
+    }, codigo, mimetype="text/html")
+
+
+@app.route("/esqueci-me", methods=["GET", "POST"])
+def esqueci_me():
+    """O «esqueci-me» por e-mail (J7, 1/10/2026): a pessoa escreve o
+    e-mail e, se houver conta, recebe a ligação de repor. Rota ABERTA,
+    e por isso a guarda é aqui:
+
+    - a origem do POST tem de ser daqui (`origem_e_nossa()`);
+    - o tecto por IP e pelo endereço escrito
+      (`contas.contar_pedido_de_reposicao()`), que conta todos os
+      pedidos e não só os de contas que existem;
+    - a mesma resposta -- estado, texto, cabeçalhos -- exista ou não a
+      conta; e procurá-la, criar a ligação e mandá-la é tudo em fundo
+      (`_repor_por_email()`), para o tempo também não o dizer;
+    - a conta do dono nunca (`contas.reposicao_por_email()`): repõe-se
+      pela consola;
+    - a ligação vale uma hora e uma vez, e só o resumo fica na base; o
+      que se regista diz a conta, nunca a ligação."""
+    if request.method == "GET":
+        return pagina_esqueci("Escreva o e-mail com que entra no Mira Gov. "
+                              "Recebe lá uma ligação para escolher uma "
+                              "palavra-passe nova.", erro=False)
+    if not origem_e_nossa():
+        return pagina_esqueci("O pedido veio de outro sítio.", codigo=403,
+                              formulario=False)
+    email = " ".join((request.form.get("email") or "").split())[:200]
+    if not RX_EMAIL.match(email):
+        return pagina_esqueci("Escreva um e-mail válido, como nome@empresa.pt.",
+                              email=email, codigo=400)
+    ip = ip_de_quem_pede()
+    with liga() as c:
+        espera = contas.contar_pedido_de_reposicao(c, email, ip)
+        if espera:
+            recado = contas.recado_do_trinco(espera)
+            return pagina_esqueci(recado[0].upper() + recado[1:] + ".",
+                                  email=email, codigo=429)
+    # o mesmo para todos: quem existe só se sabe na thread
+    threading.Thread(target=_repor_por_email, args=(email,), daemon=True).start()
+    return pagina_esqueci(RESPOSTA_DO_ESQUECI % (
+        email, "uma hora" if contas.HORAS_DE_REPOSICAO_POR_EMAIL == 1
+        else "%d horas" % contas.HORAS_DE_REPOSICAO_POR_EMAIL),
+        erro=False, formulario=False)
 
 
 # O segundo ecra de entrar (28/09/2026), no molde do convite.

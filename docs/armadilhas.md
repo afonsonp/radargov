@@ -3107,10 +3107,10 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   loopback é a porta aberta ao mundo.** `arranque_permitido()`
   recusa-se a arrancar nessa combinação; hoje `ENDERECO` é uma
   constante em `127.0.0.1` e a guarda parece supérflua — é para o dia
-  em que deixar de ser. Recuperar a palavra-passe é por consola
+  em que deixar de ser. A conta do dono recupera-se por consola
   (`--palavra-passe EMAIL`, o mesmo `criar_utilizador()` que troca o
-  hash se o e-mail existir), não por e-mail, de propósito: é um fluxo
-  a menos exposto.
+  hash se o e-mail existir), e nunca por e-mail; as outras, desde
+  1/10/2026, também pelo `/esqueci-me` (ver em baixo).
 
 - **A ref de um anúncio não é um nome de pasta até passar por
   `ref_de_pasta()`.** As quatro rotas que servem ficheiros
@@ -3237,6 +3237,31 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   empresa dele (`contas.pode_repor()`): o dono é admin da empresa 1, e
   repor-lha era ficar dono da plataforma.
 
+- **O «esqueci-me» por e-mail diz o mesmo a todos, e o tempo também**
+  (J7, 1/10/2026). O `/esqueci-me` é rota aberta (por igualdade em
+  `ROTAS_ABERTAS`, com a guarda no `esqueci_me()`) e é o sítio mais fácil
+  para perguntar «esta conta existe?». Três coisas o fecham, e cada uma
+  tem teste: a **mesma página** (estado, texto, cabeçalhos) para a conta
+  que existe, a que não existe, a que entra por nome e a do dono; o
+  **tecto conta todos os pedidos** — por IP e pelo endereço escrito,
+  exista ou não a conta (`contas.contar_pedido_de_reposicao()`), com o
+  `PREFIXO_DO_REPOR` para não fechar o `/entrar` (G50) —; e **procurar a
+  conta, criar a ligação e mandar o e-mail é tudo em fundo**
+  (`_repor_por_email()`): só o envio em fundo não chegava, porque
+  escrever a ligação na base custava uns milissegundos só a quem tinha
+  conta. A ligação leva o `endereco_do_painel()` do config, **nunca o
+  `Host` do pedido** — senão quem pedisse por outro nome recebia a
+  ligação de outra pessoa a apontar para o sítio dele. Vale uma hora
+  (`HORAS_DE_REPOSICAO_POR_EMAIL`), e o dono nunca: tem segundo factor e
+  repõe-se pela consola. Duas consequências aceites: pedir uma ligação
+  anula a que o gestor tivesse gerado (só a última vale), e quem souber
+  o e-mail de alguém consegue fechar-lhe este caminho durante quinze
+  minutos de cada vez — o do gestor fica.
+- **Um 500 não escreve o código de uma ligação** (1/10/2026). O
+  `rebentou()` guardava o caminho do pedido na lista dos erros, e o de
+  uma ligação de repor ou de um convite leva o código, que vale uma
+  palavra-passe ou uma conta: o `/repor/…` e o `/convite/…` ficam sem
+  ele. O werkzeug já não escreve os pedidos no registo (23/09/2026).
 - **A conta do dono só o dono a tira, e o último dono nunca**
   (26/09/2026). O `pode_repor()` já guardava o repor, mas o «tirar» das
   Configurações › Conta só perguntava se a conta era da mesma empresa —
