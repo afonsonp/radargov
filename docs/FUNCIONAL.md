@@ -974,9 +974,12 @@ comparação com o período anterior **do mesmo tamanho**.
   do «em jogo» à sua lista, com o total (`tabela_em_jogo()`), os outros
   três à tabela **«Decididas»** do período — as ganhas e as perdidas,
   com a data, os três preços e o total.
-- **Negócio**: aviso das propostas por fechar · abertas por fase ·
-  porque se perde · porque não se vai · onde se ganha por área CPV · há
-  mais tempo sem se mexerem · propostas por ranhura.
+- **Negócio**: aviso das propostas por fechar · porque se perde ·
+  porque não se vai · onde se ganha por área CPV · há mais tempo sem se
+  mexerem · propostas por fase (as oito). O gráfico «Abertas, por fase»
+  saiu a 1/10/2026 (UX-7-LEIS M1): eram as quatro primeiras barras do
+  das oito, na mesma página. Cada cartão tem o seu título `h2`, e os
+  subtítulos são `h3`.
 - **Triagem**: o funil — entrados · sem decisão · triados · interessa.
   O segundo chama-se «sem decisão» e não «por ver» (G26): conta também
   os que já expiraram, e a aba «Por ver» só os que ainda têm prazo.
@@ -1146,11 +1149,18 @@ sugestões pelo número ou pelo nome, e é o mesmo que a árvore enche —
 a árvore só aparece sem perfil definido, o campo aparece sempre. A
 tabela tem cinco colunas: celebrado (com o fim estimado por baixo) ·
 objecto (com o procedimento por baixo) · entidade · quem ganhou ·
-preço. Os gráficos vão por baixo da tabela, em grelha, e só passam a
-coluna à direita dela em ecrãs com mais de 1600px.
+preço, com o corpo a 14 px como o dos Concursos (1/10/2026). Os
+gráficos vão por baixo da tabela, em grelha, e só passam a coluna à
+direita dela em ecrãs com mais de 1600px. **As três vistas** (por
+celebração · por fim estimado · Entidades) estão logo por baixo do
+cabeçalho, por cima do filtro, e são as mesmas nas Entidades (J2,
+1/10/2026).
 
-`/contratos/resumo`: seis agregações — quem compra, quem ganha, por CPV,
-por procedimento, descontos, evolução.
+`/contratos/resumo`: sete gráficos — quem ganha, quem compra, como se
+compra, concentração, tamanho dos contratos, desconto, evolução —, cada
+um com o título em `h2`. Um gráfico de barras que esconde valores (mais
+de seis barras) e a concentração levam um «ver os números» com a tabela
+deles (1/10/2026): estavam só no `title`.
 
 A ficha de uma entidade abre-se pelo nome em qualquer linha, ou pela aba
 **Entidades**; o formulário «Ficha de uma entidade» do pé do cartão do
@@ -1164,12 +1174,15 @@ de quantas.
 ### 4.7 Entidades — `/entidades` e `/entidade/<chave>`
 
 **Cinco abas**: com quem trabalhamos · seguidas · clientes que mais
-compram · concorrentes que mais ganham · **contratos a acabar · 90
-dias**.
+compram · concorrentes que mais ganham · **contratos a acabar · 3
+meses** — por baixo das três vistas do Mercado. **Pagina-se a 20**,
+como o Mercado (M4, 1/10/2026), e o número de cada aba é o total da
+lista paginada: o «a acabar» cortava nas 60 com a aba a contar todas.
 
 Tabela: entidade (nome + NIF) · papel (cliente / concorrente / ambos) ·
 compra · ganha (as duas **de sempre**, e o cabeçalho di-lo) · **fita do «connosco»** (um quadrado por proposta, com a
-cor do desfecho) · taxa connosco · a acabar. O nome leva à ficha (a
+cor do desfecho, e por baixo, em palavras, quantas de cada desfecho) ·
+taxa connosco · a acabar. O nome leva à ficha (a
 coluna «abrir», o mesmo destino, saiu a 30/09/2026). O papel é uma
 abreviatura neutra (CLI, CONC, C+C), explicada por baixo desta tabela e
 da dos contratos e no glossário. **Marcando duas linhas, comparam-se
@@ -1184,7 +1197,10 @@ seguir) e o **Portal BASE** à direita (o que compra, a quem, como, ao
 longo do tempo). **Sem corpus diz «sem BASE», não zero.** O filtro da
 ficha (CPV, datas, valor…) aplica-se aos três factos do Portal BASE e
 às listas; as listas são do acervo todo, ou das datas do filtro, e o
-título de cada uma di-lo («· sempre»).
+título de cada uma di-lo («· sempre»). **O filtro vem depois dos
+números e do nosso lado** (E11, 1/10/2026): vive no topo da coluna do
+Portal BASE, recolhido em «Filtrar os contratos», e abre quando está em
+uso. A tabela do fim chama-se «Os últimos contratos que ganhou».
 
 ### 4.8 Configurações — `/configuracoes/…`
 
@@ -1193,8 +1209,8 @@ dono da plataforma as abre; os **documentos** só o admin da empresa.
 
 | Secção | O que faz |
 |---|---|
-| **conta** | palavra-passe, sessões, o **aspecto** (normal, escuro, como o sistema ou alto contraste, por pessoa — D14, 26/09/2026; D1, 29/09/2026), a nossa empresa (nome + NIF), utilizadores |
-| **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos e o preço base mínimo |
+| **conta** | três cartões desde 1/10/2026 (M2): **a minha conta** — palavra-passe, sessões, o **aspecto** (normal, escuro, como o sistema ou alto contraste, por pessoa — D14, 26/09/2026; D1, 29/09/2026); **a empresa e a equipa** — a nossa empresa (nome + NIF), utilizadores, convites; e o **registo do suporte**, quando o há. Os dois últimos só o gestor |
+| **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos (agrupados por região, cada uma com o seu «todos» — M3, 1/10/2026; grava-se o mesmo de sempre) e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
 | **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
 | **documentos** | o cofre dos documentos da empresa (26/09/2026, D5): o alvará, as certidões da AT e da Segurança Social, as ISO 9001, 14001 e 45001, os seguros de responsabilidade civil e de acidentes de trabalho, outro — com o número e a validade, **sem os ficheiros**. Cada validade dá uma tarefa 15 dias antes (§3.5) |
