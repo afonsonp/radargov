@@ -27229,6 +27229,35 @@ class TestOsEcrasDosConcorrentes(BaseTemporaria):
 
     # 1. a aba Concorrentes do Mercado
 
+    def test_os_ajustes_directos_ficam_fora_das_contas(self):
+        """Decisão dele (1/10/2026): «Taxa de vitória tira o ajuste
+        directo». Num ajuste directo o BASE só lista o adjudicatário, e
+        cada um contava como uma vitória em concorrência -- as taxas
+        subiam sem ninguém ter concorrido com ninguém."""
+        recente = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, ano, adjudicante_chave, "
+                      "data_publicacao, data_celebracao, n_anuncio, preco_base, "
+                      "preco_contratual, tipo_procedimento) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (9, int(recente[:4]), self.ENTIDADE, recente, recente,
+                       "9/2026", 10000, 9000, "Ajuste Direto Regime Geral"))
+            c.execute("INSERT INTO contrato_cpv VALUES (?,?)", (9, "45000000"))
+            c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                      "nome_norm, chave) VALUES (?,?,?,?,?)",
+                      (9, self.A, self.NOMES[self.A], "x", self.A))
+        self.ler()
+        with radar.liga_concorrentes() as k:
+            radar.gravar_detalhe(k, 9, {"contestants": [
+                {"nif": self.A, "description": self.NOMES[self.A]}]},
+                "2026-10-01 10:00:00")
+        d = radar.concorrencia_no_perfil({})
+        self.assertEqual((d["ambito"], d["lidos"]), (4, 4))
+        self.assertIn((self.A, 3, 1), [(f["chave"], f["concorreu"], f["ganhou"])
+                                       for f in d["linhas"]])
+        f = radar.concorrencia_do_fornecedor(self.A)
+        self.assertEqual((f["concorreu"], f["ganhou"]), (3, 1))
+        self.assertIn("sem os ajustes directos", self.pagina("/concorrentes"))
+
     def test_a_aba_conta_quem_concorre_e_quem_ganha(self):
         self.ler()
         d = radar.concorrencia_no_perfil({})

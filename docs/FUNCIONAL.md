@@ -1265,8 +1265,11 @@ no topo diz **quantos contratos foram lidos de quantos**, e quantos
 traziam lista. Tabela: fornecedor (abre a ficha) · concorreu · ganhou
 (contratos lidos) · taxa (ganhou ÷ concorreu) · desconto mediano sobre o
 preço base quando ganha (no perfil, de sempre, só com 5 procedimentos
-ou mais). Pagina a 20, e o «N fornecedores» é o total da lista. Nos
-ajustes directos o BASE só lista o adjudicatário, e a nota di-lo. Sem
+ou mais). Pagina a 20, e o «N fornecedores» é o total da lista. **Os
+ajustes directos ficam fora de todas as contas da concorrência** (a aba,
+a ficha do fornecedor, o «Quem nos ganha»; decisão dele, 1/10/2026,
+`SEM_AJUSTE_DIRECTO`): neles o BASE só lista o adjudicatário, e cada um
+contava como uma vitória. A frase do topo e a nota dizem-no. Sem
 nada lido, diz que a recolha ainda não chegou — sem tabela nem zeros. A
 lista guarda-se pelo número de lidos (`lembrado_do_corpus()`).
 
