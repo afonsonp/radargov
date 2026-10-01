@@ -1447,6 +1447,16 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
 
 ---
 
+- **Numa procura por nome, os nomes primeiro e as entidades depois**
+  (1/10/2026, a pesquisa geral). O `sugestoes_de_entidade_do_corpus()`
+  fazia o `JOIN` com as `entidades` por fora, e o SQLite escolhia
+  percorrer as 180 mil entidades e ir a cada uma buscar os nomes pelo
+  `ix_nomes_chave`: 0,17 s a quente, a cada tecla. Com os nomes
+  achados numa CTE `MATERIALIZED` (uma passagem pelos 257 mil, 0,04 s)
+  e só depois as entidades deles, as linhas são as mesmas (conferido em
+  cinco perguntas numa cópia). O `MATERIALIZED` não é enfeite: sem ele o
+  SQLite junta a subconsulta de volta e escolhe o plano antigo.
+
 ## Alertas e interesse
 
 Um alerta é um filtro com a marca posta; o interesse é outra coisa.
@@ -2771,6 +2781,24 @@ SQLite, cópias, e a pen que manda nos números.
   que cria a coluna. **Um índice que custe mais de ~2 s a construir não
   entra no arranque síncrono**: vai para fundo, como o índice de texto
   do corpus (5 minutos, na vigia).
+- **O índice da pesquisa geral não se prende às `rowid` dos anúncios, e
+  constrói-se aos lotes** (1/10/2026). Três escolhas, cada uma com a
+  razão: (1) a `anuncios` não tem INTEGER PRIMARY KEY, e um VACUUM pode
+  renumerar as `rowid` — a regra que o `+rowid IN` já respeitava —, por
+  isso a `pesquisa_refs` dá a cada `ref` um número seu e o FTS5 é
+  `contentless_delete` sobre esse número; (2) uma transacção só, como a
+  do `contratos_fts`, prendia a escrita no `radar.db` um minuto inteiro,
+  e as sessões do painel escrevem nele a cada pedido (o `busy_timeout` é
+  de 30 s): os gatilhos nascem primeiro, e o resto entra em lotes de
+  `PESQUISA_POR_LOTE`, cada um na sua transacção; (3) enche-se **pela
+  ordem da `data_pub`**, e é isso que deixa a pesquisa ordenar pelo
+  `rowid` do índice e parar aos oito — ordenar pela `data_pub` lia a
+  linha larga de cada anúncio que responde (15 mil em «lisboa», 65 ms).
+  O gatilho do UPDATE só reescreve quando o título, a entidade ou o NIF
+  mudam: o `ler_detalhes()` regrava a entidade de todos. **Uma coluna
+  nova que a pesquisa deva procurar entra no FTS, nos três gatilhos e
+  no lote — e o índice refaz-se** (apagar a marca `indice_da_pesquisa`
+  e as duas tabelas). As cópias diárias passam a levar ~115 MB a mais.
 - **Um `GROUP BY` sobre uma expressão não anda pelo índice.** A lista
   das plataformas agrupava por `COALESCE(NULLIF(plataforma,''),?)` e o
   SQLite ordenava as 200 mil linhas numa árvore temporária, apesar do
@@ -4658,6 +4686,14 @@ botões ou no calendário.
   desenhava-se por cima da primeira, sem erro. A segunda desce para a
   linha 4 (`.topo>.abas-mercado+.mg-tabs`). Uma página do `TOPO` que
   passe mais de uma barra em `abas=` precisa da sua linha.
+- **A caixa da pesquisa ouve o Ctrl+K em todo o lado, e o «/» só fora de
+  um campo** (1/10/2026). O teclado da lista (`j k i a`) sai quando há
+  Ctrl, Cmd ou Alt, por isso não se pisam; o «/» dentro de um campo é
+  um «/» (uma referência leva-o). O que vem do `/pesquisa` entra na
+  lista por `textContent`, nunca por `innerHTML`: são títulos e nomes
+  da base. Sem JavaScript a caixa é um formulário GET para a página.
+  E a pergunta só sai 200 ms depois da última tecla, e uma resposta
+  que chegue depois de outra mais nova deita-se fora (`vez`).
 - **Uma regra de CSS que nenhum HTML gera sai, e um teste di-lo**
   (o 18 da auditoria dos pesos, 1/10/2026). O `CSS` e o `CSS_NOVO`
   guardavam 98 regras de ecrãs que já não existiam (o `.kpi`, o `h1.tit`

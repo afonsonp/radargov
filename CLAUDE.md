@@ -529,7 +529,11 @@ A ordem do ficheiro é a ordem do fluxo:
    26/09/2026), com quatro destinos e um «Mais». O Calendário tem três
    filtros seus (`FILTROS_DO_CALENDARIO`, D12) e não as abas da escada;
    o aspecto (claro, escuro, como o sistema, alto contraste) é da conta
-   (`tema_da_pessoa()`, D14; o escuro desde a D1 da 3.ª ronda). Configurações
+   (`tema_da_pessoa()`, D14; o escuro desde a D1 da 3.ª ronda). Na barra,
+   antes da conta, a **pesquisa geral** (`caixa_da_pesquisa()`, rota
+   `/pesquisa`, Ctrl+K e «/»; 1/10/2026): os concursos por um índice
+   `trigram` construído em fundo (`construir_indice_da_pesquisa()`, ver a
+   área «A base, as migrações e o disco» das armadilhas). Configurações
    (`/configuracoes/…`, etapa 2 do `ONLINE.md`, 8/09/2026 — **dez
    rotas literais**, não um `<seccao>`: procura-se pelo nome de cada
    uma):
@@ -629,7 +633,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **433 pontos** (contados a 1/10/2026), cada um de um erro que
+São **436 pontos** (contados a 1/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

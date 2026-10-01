@@ -17126,6 +17126,153 @@ class TestPesquisaGeralERepor(BaseTemporaria):
 
     # ------------------------------------------------- a pesquisa geral
 
+    # fora da ordem da data, de propósito: o índice enche-se pela data, e
+    # é isso que deixa a pesquisa dar os mais recentes primeiro
+    ANUNCIOS = (("102/2026", "Vigilância humana", "Hospital do Norte",
+                 "2026-09-22", "503000003"),
+                ("100/2026", "Sistema de videovigilância", "Município de Évora",
+                 "2026-09-20", "501000001"),
+                ("101/2026", "Limpeza de edifícios", "Câmara de Lagos",
+                 "2026-09-21", "502000002"))
+
+    def _semear_anuncios(self, indice=True):
+        with radar.liga() as c:
+            for ref, titulo, entidade, data, nif in self.ANUNCIOS:
+                c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                          "estado, nif, titulo_norm, entidade_norm) VALUES "
+                          "(?,?,?,?,'novo',?,simplifica(?),simplifica(?))",
+                          (ref, titulo, entidade, data, nif, titulo, entidade))
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida",
+                                          pela_consola=True)
+        if indice:
+            self.assertTrue(radar.construir_indice_da_pesquisa(avisar=lambda *_: None))
+
+    def _entrar(self, quem="admin"):
+        cliente = radar.app.test_client()
+        r = cliente.post("/entrar", data={"email": quem, "senha": "senha-comprida"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        return cliente
+
+    def procurar(self, cliente, q):
+        r = cliente.get("/pesquisa?" + urlencode({"q": q}), environ_base=self.FORA,
+                        headers={"Accept": "application/json"})
+        self.assertEqual(r.status_code, 200, q)
+        # cada resposta diz quanto levou (o objectivo: < 0,3 s a quente)
+        self.assertIn("total;dur=", r.headers.get("Server-Timing", ""))
+        return r.get_json()
+
+    @staticmethod
+    def _refs(resultado):
+        return sorted(c["ref"] for c in resultado["concursos"])
+
+    def test_a_pesquisa_acha_o_concurso_por_pedaco_de_palavra_entidade_ref_e_nif(self):
+        """O `trigram` responde ao pedaço de palavra, como o `LIKE` de
+        sempre: «vigilância» acha a «videovigilância» -- a troca que o
+        BACKLOG temia com um índice por palavras não se faz."""
+        self._semear_anuncios()
+        cliente = self._entrar()
+        self.assertEqual(self._refs(self.procurar(cliente, "Vigilância")),
+                         ["100/2026", "102/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "evora")), ["100/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "101/2026")), ["101/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "503000003")), ["102/2026"])
+        # as palavras têm de estar todas, como na caixa dos Concursos
+        self.assertEqual(self._refs(self.procurar(cliente, "vigilancia norte")),
+                         ["102/2026"])
+        # o mais recente primeiro
+        self.assertEqual([c["ref"] for c in self.procurar(cliente, "vigil")["concursos"]],
+                         ["102/2026", "100/2026"])
+        # e a página, sem JavaScript, escapa o que se escreveu
+        corpo = cliente.get("/pesquisa?q=%3Cscript%3Evigil",
+                            environ_base=self.FORA).get_data(as_text=True)
+        self.assertNotIn("<script>vigil", corpo)
+        corpo = cliente.get("/pesquisa?q=vigil", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("/anuncio/100/2026", corpo)
+
+    def test_o_indice_acompanha_as_escritas(self):
+        self._semear_anuncios()
+        cliente = self._entrar()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "estado, titulo_norm, entidade_norm) VALUES ('103/2026', "
+                      "'Refeições escolares', 'Escola', '2026-09-23', 'novo', "
+                      "'refeicoes escolares', 'escola')")
+        self.assertEqual(self._refs(self.procurar(cliente, "refeic")), ["103/2026"])
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET entidade_norm='agrupamento de escolas',"
+                      " nif='600000001' WHERE ref='103/2026'")
+        self.assertEqual(self._refs(self.procurar(cliente, "agrupamento")), ["103/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "600000001")), ["103/2026"])
+        self.assertEqual(self._refs(self.procurar(cliente, "escola escolares")),
+                         ["103/2026"])
+        with radar.liga() as c:
+            c.execute("DELETE FROM anuncios WHERE ref='103/2026'")
+        self.assertEqual(self._refs(self.procurar(cliente, "refeic")), [])
+
+    def test_sem_o_indice_a_pesquisa_responde_na_mesma(self):
+        """O índice constrói-se em fundo no primeiro arranque (~1 min na
+        base de tamanho real): até lá, a pesquisa vai pelo `LIKE`."""
+        self._semear_anuncios(indice=False)
+        cliente = self._entrar()
+        self.assertFalse(radar.indice_da_pesquisa_pronto())
+        self.assertEqual(self._refs(self.procurar(cliente, "vigilancia")),
+                         ["100/2026", "102/2026"])
+
+    def test_a_empresa_so_ve_as_propostas_dela(self):
+        self._semear_anuncios()
+        criada = radar.criar_proposta(titulo="Manutenção de elevadores da A",
+                                      entidade="Município de Évora",
+                                      porque_sem_ref="consulta prévia")
+        b = radar.criar_empresa("Empresa B")
+        with radar.com_empresa(b):
+            radar.criar_proposta(titulo="Projecto secreto da B",
+                                 entidade="Câmara de Lagos",
+                                 porque_sem_ref="consulta prévia")
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "gestora-b", "senha-comprida",
+                                          papel="admin", empresa_id=b)
+        a = self._entrar()
+        self.assertEqual(self.procurar(a, "secreto")["propostas"], [])
+        self.assertEqual([p["id"] for p in self.procurar(a, "elevadores")["propostas"]],
+                         [criada])
+        corpo = a.get("/pesquisa?q=secreto", environ_base=self.FORA).get_data(as_text=True)
+        self.assertNotIn("Projecto secreto", corpo)
+        b_ = self._entrar("gestora-b")
+        achadas = self.procurar(b_, "secreto")["propostas"]
+        self.assertEqual([p["titulo"] for p in achadas], ["Projecto secreto da B"])
+        self.assertEqual(self.procurar(b_, "elevadores")["propostas"], [])
+        # os concursos são da plataforma: os dois veem-nos
+        self.assertEqual(self._refs(self.procurar(b_, "lagos")), ["101/2026"])
+
+    def test_a_pesquisa_acha_a_entidade_pelo_nome_e_pelo_nif(self):
+        semear_corpus()
+        self._semear_anuncios()
+        cliente = self._entrar()
+        # pela pergunta inteira: o «3» sozinho não chega ao índice dos
+        # concursos, mas a entidade procura-se por todas as grafias
+        nomes = [e["nome"] for e in self.procurar(cliente, "empresa 3")["entidades"]]
+        self.assertEqual(nomes, ["Empresa 3, Lda"])
+        achadas = self.procurar(cliente, "506000003")["entidades"]
+        self.assertEqual([e["chave"] for e in achadas], ["506000003"])
+        corpo = cliente.get("/pesquisa?q=506000003",
+                            environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("/entidade/506000003", corpo)
+
+    def test_a_barra_tem_a_caixa_com_ctrl_k_e_a_barra(self):
+        self._semear_anuncios()
+        corpo = self._entrar().get("/concursos", environ_base=self.FORA).get_data(as_text=True)
+        caixa = re.search(r"<form[^>]*role='search'[^>]*>.*?</form>", corpo, re.S)
+        self.assertTrue(caixa, "a caixa da pesquisa na barra")
+        self.assertIn("action='/pesquisa'", caixa.group(0))
+        self.assertIn("name='q'", caixa.group(0))
+        self.assertIn("aria-keyshortcuts='Control+K /'", caixa.group(0))
+        # o atalho: Ctrl+K (ou Cmd+K) em qualquer sitio, e «/» fora de um campo
+        self.assertIn("e.key === '/'", corpo)
+        self.assertIn("(e.ctrlKey || e.metaKey) && (e.key === 'k'", corpo)
+        # e o dono sem empresa também procura (os concursos são da plataforma)
+        self.assertTrue(radar.dono_le("/pesquisa"))
+
     # ---------------------------------------------- o «esqueci-me»
 
     class _JaCorre:

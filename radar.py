@@ -13139,14 +13139,265 @@ def vigiar_o_corpus(voltas=None, esperar=time.sleep):
         esperar(INTERVALO_DA_VIGIA)
 
 
+# A PESQUISA GERAL (J1 da auditoria das sete leis, 2R-D8 do BACKLOG;
+# 1/10/2026). Uma caixa na barra que acha concurso, proposta, entidade e
+# NIF. Sem indice, cada tecla varria os 210 mil anuncios: 0,77 s a
+# quente numa copia para um termo raro, porque o `titulo_norm` e o
+# `entidade_norm` vivem DEPOIS do `texto` (ver o motor de filtros nas
+# armadilhas).
+#
+# O indice e FTS5 com o tokenizador `trigram`, como o `contratos_fts`:
+# responde ao pedaco de palavra, a mesma semantica do `LIKE '%termo%'`
+# -- «vigilancia» acha a «videovigilancia», que um indice por palavras
+# (`unicode61`) perdia (2 188 contra 2 409 numa copia). Medido numa
+# copia da base de 1/10/2026 (211 108 anuncios): 47 s a construir, +117
+# MB no ficheiro, e 0,1 a 18 ms por pergunta; o de palavras eram 19 s e
+# 23 MB. So o que se pesquisa: titulo, entidade, referencia e NIF -- o
+# `anuncios.texto` sao 840 MB.
+#
+# Duas tabelas, e nao uma: o FTS5 nao tem indice pela `ref`, e as
+# `rowid` dos `anuncios` nao servem de chave porque um VACUUM as pode
+# renumerar (a tabela nao tem INTEGER PRIMARY KEY). A `pesquisa_refs`
+# da a cada `ref` um numero que nao muda; o indice e `contentless` (so
+# os trigramas, o texto fica na `anuncios`) com `contentless_delete`, e
+# os gatilhos mantem-no em todas as escritas, de qualquer processo.
+INDICE_DA_PESQUISA = "pesquisa_fts"
+REFS_DA_PESQUISA = "pesquisa_refs"
+MARCA_DA_PESQUISA = "indice_da_pesquisa"
+# Anuncios por transaccao ao construir: cada lote prende a escrita ao
+# ficheiro da plataforma ~1 s, e as sessoes do painel escrevem nele a
+# cada pedido.
+PESQUISA_POR_LOTE = 4000
+# O que a caixa e a pagina mostram de cada coisa.
+NA_PESQUISA = {"concursos": 8, "propostas": 5, "entidades": 5}
+TECTO_DA_PESQUISA = 200
+
+_CORPO_DO_GATILHO = (
+    "DELETE FROM pesquisa_fts WHERE rowid = "
+    "(SELECT id FROM pesquisa_refs WHERE ref = new.ref); "
+    "INSERT OR IGNORE INTO pesquisa_refs (ref) VALUES (new.ref); "
+    "INSERT INTO pesquisa_fts (rowid, titulo, entidade, ref, nif) "
+    "SELECT id, new.titulo_norm, new.entidade_norm, lower(new.ref), new.nif "
+    "FROM pesquisa_refs WHERE ref = new.ref;")
+GATILHOS_DA_PESQUISA = (
+    "CREATE TRIGGER IF NOT EXISTS pesquisa_ins AFTER INSERT ON anuncios "
+    "BEGIN %s END" % _CORPO_DO_GATILHO,
+    # so quando o que se pesquisa muda: o `ler_detalhes()` reescreve a
+    # entidade de cada anuncio, quase sempre igual
+    "CREATE TRIGGER IF NOT EXISTS pesquisa_upd AFTER UPDATE OF titulo_norm, "
+    "entidade_norm, nif ON anuncios WHEN old.titulo_norm IS NOT new.titulo_norm "
+    "OR old.entidade_norm IS NOT new.entidade_norm OR old.nif IS NOT new.nif "
+    "BEGIN %s END" % _CORPO_DO_GATILHO,
+    "CREATE TRIGGER IF NOT EXISTS pesquisa_del AFTER DELETE ON anuncios BEGIN "
+    "DELETE FROM pesquisa_fts WHERE rowid = "
+    "(SELECT id FROM pesquisa_refs WHERE ref = old.ref); "
+    "DELETE FROM pesquisa_refs WHERE ref = old.ref; END")
+
+
+def indice_da_pesquisa_pronto(c=None):
+    """Se o indice da pesquisa geral esta construido (a marca so se
+    escreve no fim do `construir_indice_da_pesquisa()`)."""
+    def pergunta(c):
+        return bool(c.execute("SELECT 1 FROM estado WHERE chave=? AND valor='ok'",
+                              (MARCA_DA_PESQUISA,)).fetchone())
+    try:
+        if c is not None:
+            return pergunta(c)
+        with liga() as c:
+            return pergunta(c)
+    except sqlite3.Error:
+        return False
+
+
+def construir_indice_da_pesquisa(avisar=print, lote=PESQUISA_POR_LOTE,
+                                 esperar=time.sleep):
+    """Constroi o indice da pesquisa geral, se falta. ~1 min na base de
+    tamanho real: corre SO em fundo (`trabalhos_de_fundo_do_painel()`),
+    nunca no arranque sincrono nem num pedido.
+
+    Os gatilhos nascem PRIMEIRO, numa transaccao curta, e o resto
+    enche-se aos lotes, cada um na sua: uma transaccao so prendia a
+    escrita quase um minuto, e as sessoes do painel escrevem a cada
+    pedido. Um anuncio que chegue a meio entra pelo gatilho, e o lote
+    que o apanhe depois salta-o (`INSERT OR IGNORE` nas refs, e so as
+    refs novas DESTE lote vao ao indice). `esperar` e para os testes.
+
+    **Enche-se pela ordem da publicacao**, e e isso que deixa a pesquisa
+    ordenar pelo indice: o numero de cada ref cresce com a data, e os
+    anuncios que chegam depois (pelo gatilho) levam numeros maiores. Ordenar
+    pela `data_pub` dos `anuncios` obrigava a ler a linha de cada um dos
+    que respondem -- 15 mil em «lisboa», 64 ms --; pelo `rowid` do indice,
+    o SQLite para aos oito.
+    ponytail: um anuncio antigo que entre tarde (o `--historico`) fica
+    a frente dos recentes; se incomodar, refaz-se o indice."""
+    if indice_da_pesquisa_pronto():
+        return False
+    inicio = time.time()
+    with liga() as c:
+        c.execute("BEGIN IMMEDIATE")
+        c.execute("CREATE TABLE IF NOT EXISTS %s (id INTEGER PRIMARY KEY, "
+                  "ref TEXT UNIQUE NOT NULL)" % REFS_DA_PESQUISA)
+        c.execute("CREATE VIRTUAL TABLE IF NOT EXISTS %s USING fts5(titulo, "
+                  "entidade, ref, nif, content='', contentless_delete=1, "
+                  "tokenize='trigram')" % INDICE_DA_PESQUISA)
+        for gatilho in GATILHOS_DA_PESQUISA:
+            c.execute(gatilho)
+        c.commit()
+    # so leitura, e a data vive antes do `texto`: uns segundos, sem trinco
+    with liga() as c:
+        todas = [r[0] for r in c.execute(
+            "SELECT ref FROM anuncios ORDER BY data_pub, ref")]
+    for n in range(0, len(todas), lote):
+        refs = todas[n:n + lote]
+        with liga() as c:
+            c.execute("BEGIN IMMEDIATE")
+            antes = c.execute("SELECT COALESCE(MAX(id), 0) FROM %s"
+                              % REFS_DA_PESQUISA).fetchone()[0]
+            c.executemany("INSERT OR IGNORE INTO %s (ref) VALUES (?)"
+                          % REFS_DA_PESQUISA, [(r,) for r in refs])
+            c.execute("INSERT INTO %s (rowid, titulo, entidade, ref, nif) "
+                      "SELECT p.id, a.titulo_norm, a.entidade_norm, lower(a.ref), "
+                      "a.nif FROM %s p JOIN anuncios a ON a.ref = p.ref "
+                      "WHERE p.id > ?" % (INDICE_DA_PESQUISA, REFS_DA_PESQUISA),
+                      (antes,))
+            c.commit()
+        esperar(0.05)       # deixa passar quem esta a espera da escrita
+    marca(MARCA_DA_PESQUISA, "ok")
+    avisar("indice da pesquisa geral construido em %.0f s" % (time.time() - inicio))
+    return True
+
+
+def _indice_da_pesquisa_em_fundo():
+    try:
+        construir_indice_da_pesquisa()
+    except Exception as erro:
+        # sem indice a pesquisa vai pelo LIKE: lenta, mas responde
+        try:
+            marca_erro("ultimo_erro_indice_pesquisa", "pesquisa", "%s: %s"
+                       % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                          str(erro)[:200]))
+        except Exception:
+            pass
+
+
+def termos_da_pesquisa(q):
+    """As palavras de uma pergunta, normalizadas como o indice (sem
+    acentos e em minusculas), e so as de tres letras ou mais: um
+    trigrama e o mais pequeno que o indice sabe procurar."""
+    return [t for t in simplifica(" ".join((q or "").split())[:TECTO_DA_PESQUISA]).split()
+            if len(t) >= 3]
+
+
+def concursos_da_pesquisa(c, termos, limite):
+    """Os anuncios -- sem as alteracoes, como o «Todos» da lista -- em
+    que TODAS as palavras aparecem no titulo, na entidade, na referencia
+    ou no NIF; os mais recentes primeiro (pela ordem do indice, ver o
+    `construir_indice_da_pesquisa()`). Sem o indice (o primeiro minuto
+    depois do primeiro arranque) vai pelo `LIKE`.
+
+    Sem total, de proposito: contar custava tanto como a lista (65 ms em
+    «lisboa»), e um numero ao lado do «ver na lista» tinha de dar a
+    lista que a ligacao abre -- e a caixa dos Concursos procura so no
+    titulo e na entidade, nao na referencia nem no NIF."""
+    if not termos:
+        return []
+    if indice_da_pesquisa_pronto(c):
+        base = ("FROM %s f JOIN %s p ON p.id = f.rowid JOIN anuncios a "
+                "ON a.ref = p.ref WHERE %s MATCH ? AND a.estado != 'alteracao'"
+                % (INDICE_DA_PESQUISA, REFS_DA_PESQUISA, INDICE_DA_PESQUISA))
+        # cada palavra entre aspas: no `trigram`, o pedaco de texto
+        valores = [" AND ".join('"%s"' % t.replace('"', '""') for t in termos)]
+        ordem = "f.rowid DESC"
+    else:
+        um = ("(a.titulo_norm LIKE ? ESCAPE '{0}' OR a.entidade_norm LIKE ? "
+              "ESCAPE '{0}' OR lower(a.ref) LIKE ? ESCAPE '{0}' OR a.nif LIKE ? "
+              "ESCAPE '{0}')".format(ESCAPE_LIKE))
+        base = ("FROM anuncios a WHERE a.estado != 'alteracao' AND "
+                + " AND ".join([um] * len(termos)))
+        valores = [v for t in termos for v in ["%" + para_like(t) + "%"] * 4]
+        ordem = "a.data_pub DESC"
+    return c.execute("SELECT a.ref, a.titulo, a.entidade, a.data_pub "
+                     + base + " ORDER BY " + ordem + " LIMIT ?",
+                     valores + [limite]).fetchall()
+
+
+def propostas_da_pesquisa(c, termos, limite):
+    """As propostas DA EMPRESA ACTIVA (a `propostas` e do ficheiro dela,
+    junto como `emp`) com todas as palavras no titulo, na entidade ou na
+    referencia -- os da proposta, ou os do anuncio quando ela os nao
+    tem. Sao dezenas de linhas: o `LIKE` chega."""
+    if not termos:
+        return []
+    texto = ("simplifica(COALESCE(NULLIF(p.titulo,''), a.titulo, '') || ' ' || "
+             "COALESCE(NULLIF(p.entidade,''), a.entidade, '') || ' ' || "
+             "COALESCE(p.ref, ''))")
+    return c.execute(
+        "SELECT p.id, p.ref, p.estado, COALESCE(NULLIF(p.titulo,''), a.titulo, '') "
+        "titulo, COALESCE(NULLIF(p.entidade,''), a.entidade, '') entidade "
+        "FROM propostas p LEFT JOIN anuncios a ON a.ref = p.ref WHERE "
+        + " AND ".join(["%s LIKE ? ESCAPE '%s'" % (texto, ESCAPE_LIKE)] * len(termos))
+        + " ORDER BY p.id DESC LIMIT ?",
+        ["%" + para_like(t) + "%" for t in termos] + [limite]).fetchall()
+
+
+def entidades_da_pesquisa(q, limite):
+    """[{chave, nome}] das entidades do Portal BASE: pelo NIF, se a
+    pergunta e um, e pelo nome em todas as grafias
+    (`sugestoes_de_entidade_do_corpus()`). Sem corpus, nenhuma."""
+    if not ha_corpus():
+        return []
+    digitos = re.sub(r"\D", "", q or "")
+    if len(digitos) == 9 and digitos == (q or "").replace(" ", ""):
+        # um NIF e a chave: nenhum nome tem nove algarismos seguidos, e
+        # procurar nos nomes custava 0,15 s por nada
+        with liga_corpus() as c:
+            r = c.execute("SELECT chave, nome FROM entidades WHERE chave=?",
+                          (digitos,)).fetchone()
+        return [{"chave": r["chave"], "nome": r["nome"] or r["chave"]}] if r else []
+    # ponytail: um LIKE pelas 257 mil grafias, ~0,05 s a quente; se
+    # crescer, um indice `trigram` na `entidade_nomes`, como o dos contratos
+    return [{"chave": e["nif"], "nome": e["nome"]}
+            for e in sugestoes_de_entidade_do_corpus(q, limite)]
+
+
+def resultados_da_pesquisa(q):
+    """O que a caixa e a pagina mostram, num dict pronto para JSON."""
+    termos = termos_da_pesquisa(q)
+    with liga() as c:
+        concursos = concursos_da_pesquisa(c, termos, NA_PESQUISA["concursos"])
+        propostas = propostas_da_pesquisa(c, termos, NA_PESQUISA["propostas"])
+    # a entidade procura-se pela pergunta inteira: «Município 3» tem uma
+    # palavra de um algarismo, que o indice dos concursos nao sabe ler
+    entidades = entidades_da_pesquisa(q, NA_PESQUISA["entidades"]) if termos else []
+    return {
+        "q": q, "curta": not termos and bool((q or "").strip()),
+        "concursos": [{"ref": a["ref"], "titulo": a["titulo"] or "",
+                       "entidade": a["entidade"] or "",
+                       "data": data_pt(a["data_pub"] or ""),
+                       "url": "/anuncio/" + quote(a["ref"], safe="/")}
+                      for a in concursos],
+        "propostas": [{"id": p["id"], "titulo": p["titulo"] or p["ref"] or "",
+                       "entidade": p["entidade"] or "",
+                       "estado": ROTULOS_DA_ESCADA.get(p["estado"], p["estado"] or ""),
+                       "url": "/proposta/%d" % p["id"]} for p in propostas],
+        "entidades": [dict(e, url="/entidade/" + quote(e["chave"], safe=""))
+                      for e in entidades],
+        "mais": {"concursos": LISTA + "?" + urlencode({"estado": "", "q": q or ""}),
+                 "entidades": "/entidade/procurar?" + urlencode({"q": q or ""})},
+    }
+
+
 def trabalhos_de_fundo_do_painel():
     """O que o painel arranca em fundo, alem do relogio: a vigia do
-    corpus e a recolha dos concorrentes (L5). Em threads daemon -- o
-    arranque nao espera por elas."""
+    corpus, a recolha dos concorrentes (L5) e o indice da pesquisa geral
+    (uma vez, se falta). Em threads daemon -- o arranque nao espera por
+    elas."""
     threading.Thread(target=vigiar_o_corpus, daemon=True,
                      name="vigia-do-corpus").start()
     threading.Thread(target=vigiar_os_concorrentes, daemon=True,
                      name="concorrentes").start()
+    threading.Thread(target=_indice_da_pesquisa_em_fundo, daemon=True,
+                     name="indice-da-pesquisa").start()
 
 
 # --------------------------------------- os concorrentes de cada contrato
@@ -13634,7 +13885,10 @@ def sou_dono():
 # ranhuras da empresa (as propostas) ficam fora -- ver dono_le().
 LEITURA_DO_DONO = ("/concursos", "/anuncio/", "/documento/", "/peca/",
                    "/peca-pagina/", "/contratos", "/entidades",
-                   "/entidade/", "/csv", "/cpv.json", "/procedimento/")
+                   "/entidade/", "/csv", "/cpv.json", "/procedimento/",
+                   # a pesquisa geral (1/10/2026): as propostas dele são
+                   # as da empresa vazia, e por isso nenhuma
+                   "/pesquisa")
 
 
 def dono_le(caminho, args=None):
@@ -16272,6 +16526,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
 <header class="mg mg-topbar">%(faixa)s
  <a class="mg-topbar__brand" href="/" %(inicio_on)s aria-label="Hoje &mdash; Mira Gov" title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
  <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
+ %(procurar)s
  %(conta)s
 </header>
 <main class="mg" id="conteudo" tabindex="-1">
@@ -16305,6 +16560,81 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
     barra que so aparecia em telemovel. O `resize` nao dispara com uma
     fonte a carregar. */
  if (document.fonts && document.fonts.ready) document.fonts.ready.then(p);})();
+/* A pesquisa geral (J1, 1/10/2026). Ctrl+K (ou Cmd+K) em qualquer
+   sitio, e «/» fora de um campo, levam a caixa da barra; o que se
+   escreve pergunta ao /pesquisa (JSON) 200 ms depois da ultima tecla, e
+   as setas andam pela lista. O texto entra por textContent, nunca por
+   innerHTML: e o que veio da base. Sem JS a caixa e um formulario GET. */
+(function () {
+ var f = document.querySelector('form.pesquisa-geral');
+ if (!f) return;
+ var i = f.querySelector('input'), l = f.querySelector('.pesquisa-lista'),
+     vivo = f.querySelector('[role=status]'), espera = null, vez = 0;
+ document.addEventListener('keydown', function (e) {
+  var t = e.target, campo = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+      t.tagName === 'SELECT' || t.isContentEditable;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+   e.preventDefault(); i.focus(); i.select();
+  } else if (e.key === '/' && !campo && !e.ctrlKey && !e.metaKey && !e.altKey) {
+   e.preventDefault(); i.focus();
+  }
+ });
+ function fecha() {
+  l.hidden = true; l.textContent = ''; i.setAttribute('aria-expanded', 'false');
+ }
+ function grupo(titulo, itens, rotulo, nota) {
+  if (!itens.length) return;
+  var h = document.createElement('p');
+  h.className = 'pesquisa-lista__grupo'; h.textContent = titulo; l.appendChild(h);
+  itens.forEach(function (x) {
+   var a = document.createElement('a'), s = document.createElement('small');
+   a.href = x.url; a.className = 'pesquisa-lista__item';
+   a.textContent = rotulo(x); s.textContent = nota(x);
+   a.appendChild(s); l.appendChild(a);
+  });
+ }
+ function desenha(d) {
+  l.textContent = '';
+  grupo('Propostas', d.propostas, function (x) { return x.titulo; },
+        function (x) { return [x.entidade, x.estado].filter(Boolean).join(' · '); });
+  grupo('Concursos', d.concursos, function (x) { return x.titulo || x.ref; },
+        function (x) { return [x.ref, x.entidade, x.data].filter(Boolean).join(' · '); });
+  grupo('Entidades', d.entidades, function (x) { return x.nome; },
+        function (x) { return x.chave.indexOf('n:') === 0 ? 'sem NIF' : x.chave; });
+  var n = l.querySelectorAll('a').length, todos = document.createElement('a');
+  todos.href = '/pesquisa?q=' + encodeURIComponent(d.q);
+  todos.className = 'pesquisa-lista__item pesquisa-lista__todos';
+  todos.textContent = n ? 'Ver tudo o que responde' : 'Nada responde: abrir a página';
+  l.appendChild(todos);
+  l.hidden = false; i.setAttribute('aria-expanded', 'true');
+  vivo.textContent = n ? n + ' resultados; seta para baixo para os percorrer'
+                       : 'Nenhum resultado';
+ }
+ i.addEventListener('input', function () {
+  clearTimeout(espera);
+  var q = i.value.trim();
+  if (q.length < 3) { fecha(); return; }
+  espera = setTimeout(function () {
+   var esta = ++vez;
+   fetch('/pesquisa?q=' + encodeURIComponent(q),
+         {headers: {Accept: 'application/json'}, credentials: 'same-origin'})
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && esta === vez) desenha(d); })
+    .catch(function () {});
+  }, 200);
+ });
+ f.addEventListener('keydown', function (e) {
+  var itens = Array.prototype.slice.call(l.querySelectorAll('a')),
+      onde = itens.indexOf(document.activeElement);
+  if (e.key === 'Escape') { fecha(); i.focus(); }
+  else if (e.key === 'ArrowDown' && itens.length) {
+   e.preventDefault(); itens[Math.min(onde + 1, itens.length - 1)].focus();
+  } else if (e.key === 'ArrowUp' && onde >= 0) {
+   e.preventDefault(); (onde ? itens[onde - 1] : i).focus();
+  }
+ });
+ document.addEventListener('click', function (e) { if (!f.contains(e.target)) fecha(); });
+})();
 /* Um formulario GET com a classe `sem-vazios` nao leva os campos vazios
    para o endereco (varredura de 25/09/2026: a pergunta do Mercado dava
    `?q=x&adj=&entid=&ganhou=&vencid=&cpv=&de=&ate=`, feio de partilhar).
@@ -17601,6 +17931,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
+        "procurar": caixa_da_pesquisa(),
         "conf_on": ("aria-current='page'"
                     if activo == "configuracoes" else ""),
         "logo": logotipo(tamanho=26, inverso=True),
@@ -18689,13 +19020,19 @@ def sugestoes_de_entidade_do_corpus(texto, limite=10):
     if len(alvo) < 2 or not ha_corpus():
         return []
     padrao = para_like(alvo)
+    # Os nomes que respondem primeiro, e so depois as entidades deles
+    # (a pesquisa geral, 1/10/2026): com o JOIN por fora, o SQLite
+    # percorria as 180 mil entidades e ia a cada uma buscar os nomes --
+    # 0,17 s a quente numa copia; assim, uma passagem pelos 257 mil nomes
+    # e 0,04 s, com as mesmas linhas.
     with liga_corpus() as c:
         linhas = c.execute(
-            "SELECT e.chave, e.nome, COALESCE(e.variantes,1) n,"
-            " MAX(n.nome_norm LIKE ? ESCAPE '%s') comeca"
-            " FROM entidade_nomes n JOIN entidades e ON e.chave = n.chave"
-            " WHERE n.nome_norm LIKE ? ESCAPE '%s'"
-            " GROUP BY e.chave ORDER BY comeca DESC, n DESC LIMIT ?"
+            "WITH achadas AS MATERIALIZED (SELECT chave,"
+            " MAX(nome_norm LIKE ? ESCAPE '%s') comeca FROM entidade_nomes"
+            " WHERE nome_norm LIKE ? ESCAPE '%s' GROUP BY chave)"
+            " SELECT e.chave, e.nome, COALESCE(e.variantes,1) n, a.comeca"
+            " FROM achadas a JOIN entidades e ON e.chave = a.chave"
+            " ORDER BY a.comeca DESC, n DESC LIMIT ?"
             % (ESCAPE_LIKE, ESCAPE_LIKE),
             (padrao + "%", "%" + padrao + "%", limite)).fetchall()
     return [{"nome": r["nome"], "nif": r["chave"], "n": r["n"]} for r in linhas]
@@ -24910,6 +25247,90 @@ def entidade_procurar():
         "entidade já assinou.",
         corpo, migalhas=migalhas_de("contratos", "procurar"),
         titulo_aba="Procurar entidade")
+
+
+def caixa_da_pesquisa():
+    """A caixa da pesquisa geral na barra (J1, 1/10/2026): um formulário
+    GET para o `/pesquisa`, que sem JavaScript abre a página; com ele, o
+    JS do `BASE` mostra a lista por baixo e põe os atalhos (Ctrl+K e
+    «/»). O `aria-keyshortcuts` diz os atalhos ao leitor de ecrã."""
+    return ("<form class='pesquisa-geral' role='search' action='/pesquisa' "
+            "method='get'><label class='so-leitor' for='pesquisa-geral'>Procurar "
+            "concurso, proposta, entidade ou NIF</label>"
+            "<input class='pesquisa-geral__campo' id='pesquisa-geral' type='search' "
+            "name='q' maxlength='%d' autocomplete='off' placeholder='Procurar  (Ctrl+K)' "
+            "aria-keyshortcuts='Control+K /' aria-controls='pesquisa-geral-lista' "
+            "aria-expanded='false'>"
+            "<div class='pesquisa-lista' id='pesquisa-geral-lista' hidden></div>"
+            "<div class='so-leitor' role='status' aria-live='polite'></div></form>"
+            % TECTO_DA_PESQUISA)
+
+
+def _grupo_da_pesquisa(titulo, itens, mais="", mais_rotulo=""):
+    """Um grupo da página dos resultados: o título, as linhas e o «ver
+    todos»."""
+    if not itens:
+        return ""
+    return ("<section class='mg-card pesquisa-grupo'><h2 class='mg-card__title'>%s</h2>"
+            "<ul class='pesquisa-itens'>%s</ul>%s</section>"
+            % (titulo, "".join(
+                "<li><a href='%s'>%s</a><small>%s</small></li>"
+                % (html.escape(i["url"], quote=True), html.escape(i["rotulo"]),
+                   html.escape(i["nota"])) for i in itens),
+               "<p class='nota'><a href='%s'>%s</a></p>"
+               % (html.escape(mais, quote=True), html.escape(mais_rotulo))
+               if mais else ""))
+
+
+@app.route("/pesquisa")
+def pesquisa_geral():
+    """A pesquisa geral (J1, 1/10/2026): concursos (pelo índice de texto),
+    as propostas DA EMPRESA de quem pede, e as entidades do Portal BASE,
+    pelo nome ou pelo NIF. JSON para a caixa da barra (`Accept`), a
+    página para quem não tem JavaScript ou carregou em Enter."""
+    q = " ".join((request.args.get("q") or "").split())[:TECTO_DA_PESQUISA]
+    r = resultados_da_pesquisa(q)
+    if pede_json():
+        return Response(json.dumps(r, ensure_ascii=False),
+                        mimetype="application/json",
+                        headers={"Cache-Control": "private, no-store"})
+    grupos = (
+        _grupo_da_pesquisa("Propostas", [
+            {"url": p["url"], "rotulo": p["titulo"],
+             "nota": " · ".join(x for x in (p["entidade"], p["estado"]) if x)}
+            for p in r["propostas"]])
+        + _grupo_da_pesquisa(
+            "Concursos", [
+                {"url": a["url"], "rotulo": a["titulo"] or a["ref"],
+                 "nota": " · ".join(x for x in (a["ref"], a["entidade"], a["data"]) if x)}
+                for a in r["concursos"]],
+            r["mais"]["concursos"], "Ver todos na lista dos Concursos")
+        + _grupo_da_pesquisa("Entidades", [
+            {"url": e["url"], "rotulo": e["nome"], "nota": e["chave"]
+             if not e["chave"].startswith("n:") else "sem NIF"}
+            for e in r["entidades"]],
+            r["mais"]["entidades"], "Procurar mais entidades"))
+    if not q:
+        corpo = ("<div class='mg-empty'>Escreva o que procura na caixa da "
+                 "barra: o título ou a referência de um concurso, uma "
+                 "proposta, o nome ou o NIF de uma entidade.</div>")
+    elif r["curta"]:
+        corpo = ("<div class='mg-empty'>Escreva pelo menos três letras ou "
+                 "algarismos seguidos.</div>")
+    elif not grupos:
+        corpo = ("<div class='mg-empty'>Nada responde a «%s». Os concursos "
+                 "procuram-se pelo título, pela entidade, pela referência e "
+                 "pelo NIF; todas as palavras têm de estar lá.</div>"
+                 % html.escape(q))
+    else:
+        corpo = "<div class='pesquisa-grupos'>%s</div>" % grupos
+    return envolver(
+        "pesquisa", "Procurar", "", corpo,
+        cabeca=cabecalho_de_pagina(
+            "Procurar", "«%s»" % html.escape(q) if q else
+            "Concursos, propostas, entidades e NIF, numa caixa só.",
+            [("Hoje", "/"), ("Procurar", "")]),
+        titulo_aba="Procurar")
 
 
 @app.route("/alertas/enviar", methods=["POST"])

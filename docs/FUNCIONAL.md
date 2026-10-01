@@ -148,6 +148,14 @@ as exactas e salta as outras.
 `posicao`, `top3`, `motivo_perda`. São as colunas de CRM que saíram para
 `propostas` a 15/09/2026 — **não as uses: estão mortas.**
 
+**O índice da pesquisa geral** (1/10/2026) não conta nas tabelas de
+cima: é derivado, como um índice. São a `pesquisa_fts` (FTS5 `trigram`,
+sem o texto — só os trigramas do título, da entidade, da referência e
+do NIF de cada anúncio, ~111 MB) e a `pesquisa_refs`, que dá a cada
+`ref` um número que um VACUUM não muda (~4 MB). Constroem-se em fundo
+no primeiro arranque do painel com este código (~30 a 60 s), e daí em
+diante os gatilhos dos `anuncios` mantêm-nas em todas as escritas.
+
 ### 2.1a `empresas/<id>/empresa.db` — o trabalho de uma empresa (16 tabelas)
 
 **Um ficheiro por empresa** (fase F1, 23/09/2026; hoje só há a empresa
@@ -824,7 +832,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**135 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**136 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -871,6 +879,23 @@ plataforma, é o que impede de triar na errada sem dar por isso. Uma
 conta continua a ser de **uma** empresa só. O menu é o mesmo `mg-menu` do «Mais» da barra de baixo
 («A conta», «Sair», «Sair de todos os aparelhos»), e fecha com o Esc, com
 o Tab para fora ou com um clique fora (3.ª ronda, G71).
+
+**A pesquisa geral** (J1 da auditoria das sete leis, 2R-D8; 1/10/2026):
+entre a navegação e o menu da conta há uma caixa só, «Procurar
+(Ctrl+K)», que acha **concursos** (pelo título, pela entidade, pela
+referência e pelo NIF, por pedaço de palavra, com todas as palavras
+lá — os mais recentes primeiro, sem as republicações), as **propostas
+da empresa** de quem procura (nunca as de outra: vivem no ficheiro
+dela) e as **entidades do Portal BASE** (por todas as grafias do nome,
+ou pelo NIF). **Ctrl+K** (ou Cmd+K) em qualquer sítio, e **«/»** fora de
+um campo, levam lá; a lista cai por baixo 200 ms depois da última
+tecla, a partir de três letras, e as setas andam por ela. Enter abre a
+página `/pesquisa?q=…`, que também serve quem não tem JavaScript, com
+as ligações «Ver todos na lista dos Concursos» e «Procurar mais
+entidades». O dono sem empresa também procura (está na
+`LEITURA_DO_DONO`), e as propostas dele são nenhumas. Os concursos vão
+por um índice de texto (§2.1); as respostas medidas numa cópia das
+bases ficaram entre 0,02 e 0,09 s a quente.
 
 ### 4.1 Hoje — `/`
 
@@ -1688,6 +1713,10 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
   `contratos-memoria.db`, ao lado do corpus: um reinício encontra-as
   feitas. A mesma thread constrói, uma vez, o índice de texto dos
   objectos (~5 minutos), por onde a pesquisa do Mercado passa a ir.
+- **O índice da pesquisa geral** (1/10/2026): outra thread, no
+  arranque do painel, constrói-o uma vez se falta (~30 a 60 s, aos
+  lotes, sem prender a base); até lá, a caixa da barra procura pelo
+  `LIKE`, mais devagar.
 - **Cópia de segurança** diária, por `VACUUM INTO` (a quente, com a
   base em WAL), sete guardadas de cada: `radar-<data>.db` (a
   plataforma) e `empresa-<id>-<data>.db` por empresa (`VACUUM emp
