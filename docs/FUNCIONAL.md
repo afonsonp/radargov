@@ -1086,6 +1086,17 @@ sem uma palavra).
 
 ### 4.4 Ficha do anúncio — `/anuncio/<ref>`
 
+**Quem costuma concorrer** (desde 1/10/2026, L5 do plano de Outubro):
+um cartão a seguir a «O mercado», com os concorrentes dos contratos desta
+entidade neste CPV nos últimos dois anos, lidos do Portal BASE contrato a
+contrato (`concorrentes_cx()`, `concorrentes_da_entidade()`): quantos
+lidos de quantos, a média de concorrentes por contrato (só com 3 ou mais
+com lista) e os fornecedores que mais aparecem, com quantas vezes
+concorreram, quantas ganharam e o **desconto mediano sobre o preço base
+quando ganham** neste CPV, em todas as entidades. Sem nada lido, o cartão
+diz que a recolha ainda lá não chegou; os concorrentes sem NIF não
+entram na tabela.
+
 As peças descarregam-se **todas num ZIP** (`/pecas-zip/<ref>`,
 25/09/2026), além de uma a uma; cada uma mostra o tamanho, e o botão do
 ZIP o total (30/09/2026). Com lotes, a comparação com o que a

@@ -26381,6 +26381,86 @@ class TestUXFichasDe1Outubro(_CicloDoTesteComUtilizadores):
         self.assertNotIn("class='tq'", h)
         self.assertNotIn("button.tq", radar.CSS)
 
+class TestQuemCostumaConcorrer(BaseTemporaria):
+    """L5 do plano de Outubro, o primeiro ecrã (1/10/2026): «Quem costuma
+    concorrer» na ficha do concurso, com o desconto que cada um costuma
+    fazer ao preço base (a nota dele nesse dia). Mapeia e não decide: os
+    números dizem sempre em quantos contratos lidos se baseiam, e sem
+    nada lido o bloco diz que a recolha ainda lá não chegou -- e não «0»."""
+
+    ENTIDADE = "500000000"
+
+    def setUp(self):
+        super().setUp()
+        radar.iniciar_corpus()
+        recente = (datetime.date.today() - datetime.timedelta(days=60)).isoformat()
+        with radar.liga_corpus() as c:
+            for id_, ganhou, base, contratual in ((1, "509999999", 100000, 80000),
+                                                  (2, "508888888", 100000, 90000),
+                                                  (3, "509999999", 50000, 45000)):
+                c.execute("INSERT INTO contratos (id, ano, adjudicante_chave, "
+                          "data_publicacao, n_anuncio, preco_base, preco_contratual, "
+                          "tipo_procedimento) VALUES (?,?,?,?,?,?,?,?)",
+                          (id_, int(recente[:4]), self.ENTIDADE, recente,
+                           "%d/2026" % id_, base, contratual, "Concurso público"))
+                c.execute("INSERT INTO contrato_cpv VALUES (?,?)", (id_, "45000000"))
+                c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                          "nome_norm, chave) VALUES (?,?,?,?,?)",
+                          (id_, ganhou, "X", "x", ganhou))
+        self.a = {"cpv": "45000000-7"}
+
+    def ler(self, detalhes):
+        with radar.liga_concorrentes() as k:
+            for contrato_id, lista in detalhes.items():
+                radar.gravar_detalhe(k, contrato_id, lista, "2026-10-01 10:00:00")
+
+    def test_sem_nada_lido_diz_que_a_recolha_nao_chegou(self):
+        h = radar.concorrentes_cx(self.a, self.ENTIDADE)
+        self.assertIn("nenhum foi lido ainda", h)
+        self.assertIn("3 contratos", h)
+        self.assertNotIn("Concorreu", h)
+
+    def test_conta_quem_concorre_e_quem_ganha(self):
+        alfa = {"nif": "509999999", "description": "Alfa, Lda"}
+        beta = {"nif": "508888888", "description": "Beta, SA"}
+        pessoa = {"nif": "-", "description": "João"}
+        self.ler({1: {"contestants": [alfa, beta, pessoa]},
+                  2: {"contestants": [alfa, beta]},
+                  3: {"contestants": [alfa]}})
+        d = radar.concorrentes_da_entidade(self.ENTIDADE, "45000000-7")
+        self.assertEqual((d["ambito"], d["lidos"], d["com_lista"]), (3, 3, 3))
+        self.assertEqual(d["media"], 2.0)
+        self.assertEqual([(f["chave"], f["vezes"], f["ganhou"]) for f in d["mais"]],
+                         [("509999999", 3, 2), ("508888888", 2, 1)])
+        h = radar.concorrentes_cx(self.a, self.ENTIDADE)
+        self.assertIn("3 lidos de 3 neste CPV", h)
+        self.assertIn(">2,0<", h)
+
+    def test_o_desconto_so_com_procedimentos_que_cheguem(self):
+        self.ler({1: {"contestants": [{"nif": "509999999", "description": "Alfa"}]}})
+        d = radar.concorrentes_da_entidade(self.ENTIDADE, "45000000-7")
+        alfa = d["mais"][0]
+        self.assertEqual(alfa["descontos"], 2)        # ganhou o 1 e o 3
+        self.assertIsNone(alfa["desconto"])           # menos de MINIMO_PARA_DESCONTO
+        with unittest.mock.patch.object(radar, "MINIMO_PARA_DESCONTO", 2):
+            alfa = radar.concorrentes_da_entidade(self.ENTIDADE, "45000000-7")["mais"][0]
+        self.assertIsNotNone(alfa["desconto"])
+        self.assertTrue(0.10 <= alfa["desconto"] <= 0.20)   # 20% e 10%
+
+    def test_sem_lista_nao_conta_para_a_media(self):
+        self.ler({1: {"contestants": [{"nif": "509999999", "description": "Alfa"}]},
+                  2: None})
+        d = radar.concorrentes_da_entidade(self.ENTIDADE, "45000000-7")
+        self.assertEqual((d["lidos"], d["com_lista"], d["media"]), (2, 1, 1.0))
+        self.assertIn("poucos contratos para dizer",
+                      radar.concorrentes_cx(self.a, self.ENTIDADE))
+
+    def test_sem_cpv_ou_sem_contratos_nao_ha_bloco(self):
+        self.assertEqual(radar.concorrentes_cx({"cpv": ""}, self.ENTIDADE), "")
+        self.assertEqual(radar.concorrentes_cx(self.a, "599999999"), "")
+
+
+
 
 if __name__ == "__main__":
 
