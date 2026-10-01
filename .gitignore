@@ -14,6 +14,10 @@ contratos.db-wal
 # a memória das contas do corpus (lote 10): gera-se sozinha
 contratos-memoria.db
 contratos-memoria.db-journal
+# os concorrentes do BASE (L5, 1/10/2026): semanas de recolha, nas cópias
+contratos-concorrentes.db
+contratos-concorrentes.db-shm
+contratos-concorrentes.db-wal
 # Cópias de segurança do radar.db, uma por dia. São bases, não código.
 copias/
 # O trabalho de cada empresa, um ficheiro por empresa (F1, 23/09/2026).

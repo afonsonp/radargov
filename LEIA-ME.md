@@ -1457,7 +1457,8 @@ anúncios, é o teste do parser que avisa primeiro.
 | `empresas/1/empresa.db` | o trabalho da empresa: propostas, tarefas, contactos, histórico (desde 23/09/2026) |
 | `contratos.db` | o corpus de contratos do BASE (refaz-se com `--contratos`) |
 | `contratos-memoria.db` | as contas do Mercado já feitas, para a primeira visita não esperar; apaga-se sem perda e refaz-se sozinho |
-| `copias/` | cópia diária do `radar.db` e do `empresa.db`, sete de cada guardadas |
+| `contratos-concorrentes.db` | os concorrentes de cada contrato, pedidos ao Portal BASE um a um pelo painel, em fundo (desde 1/10/2026). **Não o apagues**: leva semanas a encher. Vês o progresso na página da plataforma, no cartão Recolha; para o parar, `"concorrentes": false` no `config.json` |
+| `copias/` | cópia diária do `radar.db` e do `empresa.db`, sete de cada guardadas, e do `contratos-concorrentes.db`, as duas últimas |
 | `amostras/` | a última colheita e, se houver, a resposta que correu mal |
 | `pecas/` | as peças dos concursos que foste buscar |
 | `AVISOS.txt` | o último resumo dos alertas em texto, quando há (o e-mail leva o mesmo, formatado) |

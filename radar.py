@@ -9463,10 +9463,22 @@ def copia_de_seguranca(guardar=7):
     _vacuum_para(destino)
     copia_das_contas(os.path.join(COPIAS, os.path.basename(destino).replace(
         "radar-", "contas-", 1)))
-    for padrao in (r"radar-[\d-]+\.db", r"empresa-\d+-[\d-]+\.db",
-                   r"contas-[\d-]+\.db"):
+    # Os concorrentes do BASE (L5) tambem: ao contrario do corpus, nao se
+    # refazem num comando -- sao semanas de pedidos a um por cada 6 s,
+    # com a firewall do BASE pelo meio. So as duas ultimas: o ficheiro
+    # cresce para centenas de MB, e uma copia de ontem perde um dia.
+    if os.path.exists(ficheiro_dos_concorrentes()):
+        dos_concorrentes = os.path.join(COPIAS, os.path.basename(destino).replace(
+            "radar-", "concorrentes-", 1))
+        if not os.path.exists(dos_concorrentes):
+            with liga_concorrentes() as c:
+                c.execute("VACUUM INTO ?", (dos_concorrentes,))
+    for padrao, quantas in ((r"radar-[\d-]+\.db", guardar),
+                            (r"empresa-\d+-[\d-]+\.db", guardar),
+                            (r"contas-[\d-]+\.db", guardar),
+                            (r"concorrentes-[\d-]+\.db", min(guardar, 2))):
         velhas = sorted(f for f in os.listdir(COPIAS) if re.fullmatch(padrao, f))
-        for f in velhas[:-guardar] if guardar else []:
+        for f in velhas[:-quantas] if quantas else []:
             try:
                 os.remove(os.path.join(COPIAS, f))
             except OSError:
@@ -13075,9 +13087,244 @@ def vigiar_o_corpus(voltas=None, esperar=time.sleep):
 
 def trabalhos_de_fundo_do_painel():
     """O que o painel arranca em fundo, alem do relogio: a vigia do
-    corpus. Numa thread daemon -- o arranque nao espera por ela."""
+    corpus e a recolha dos concorrentes (L5). Em threads daemon -- o
+    arranque nao espera por elas."""
     threading.Thread(target=vigiar_o_corpus, daemon=True,
                      name="vigia-do-corpus").start()
+    threading.Thread(target=vigiar_os_concorrentes, daemon=True,
+                     name="concorrentes").start()
+
+
+# --------------------------------------- os concorrentes de cada contrato
+#
+# L5 do plano de Outubro. O detalhe de cada contrato no Portal BASE traz
+# os concorrentes, com NIF -- medido a 30/09 e 1/10/2026: 56-74% dos
+# concursos publicos, 81-92% das consultas previas, 17-27% dos ajustes
+# directos (e nesses so o adjudicatario). **Nao esta no dump**: e um
+# pedido por contrato, e a firewall do BASE (WebKnight, codigo 999) corta
+# o IP ao fim de ~200 pedidos, mesmo a um a cada 6 s, e o corte dura
+# horas. Daqui: uma fila de fundo no painel, devagar, que para ao
+# primeiro corte e espera cada vez mais, e que REGISTA os cortes -- o
+# ritmo que o BASE aguenta ainda nao se sabe, e e a fila que o mede.
+
+BASE_RESULTADOS = "https://www.base.gov.pt/Base4/pt/resultados/"
+BASE_VERSAO = "108.0"
+BASE_CABECALHOS = {"X-Requested-With": "XMLHttpRequest",
+                   "User-Agent": "MiraGov/1.0 (+https://miragov.pt)"}
+# o ambito (decisao dele, 1/10/2026): todos os contratos destes anos
+ANOS_DOS_CONCORRENTES = 2
+# a espera depois de um corte: comeca aqui e dobra, ate ao tecto
+ESPERA_DEPOIS_DO_CORTE = 1800
+ESPERA_MAXIMA_DO_CORTE = 8 * 3600
+# quantos se pedem por volta, antes de voltar a olhar para a fila
+LOTE_DOS_CONCORRENTES = 100
+
+
+class CorteDoBase(Exception):
+    """A firewall do BASE cortou este IP."""
+
+
+def ficheiro_dos_concorrentes():
+    """`contratos-concorrentes.db`, ao lado do corpus, como a memoria. Um
+    ficheiro seu e nao uma tabela do corpus: o `--contratos` refaz o
+    corpus, e isto leva semanas a recolher. E nao no `radar.db`, que vai
+    todos os dias para as copias com o que e da aplicacao."""
+    return os.path.splitext(CORPUS)[0] + "-concorrentes.db"
+
+
+def liga_concorrentes():
+    c = sqlite3.connect(ficheiro_dos_concorrentes(), timeout=30, factory=Ligacao)
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("PRAGMA busy_timeout=30000")
+    c.executescript("""
+        CREATE TABLE IF NOT EXISTS detalhe (
+            contrato_id INTEGER PRIMARY KEY, lido_em TEXT,
+            n_concorrentes INTEGER, fecho TEXT, causa_prazo TEXT,
+            causa_preco TEXT, preco_efectivo TEXT);
+        CREATE TABLE IF NOT EXISTS concorrente (
+            contrato_id INTEGER, nif TEXT, nome TEXT, chave TEXT);
+        CREATE INDEX IF NOT EXISTS ix_conc_contrato ON concorrente(contrato_id);
+        CREATE INDEX IF NOT EXISTS ix_conc_chave ON concorrente(chave);
+        CREATE TABLE IF NOT EXISTS corte (
+            inicio TEXT, pedidos_antes INTEGER, fim TEXT);
+        CREATE TABLE IF NOT EXISTS estado (chave TEXT PRIMARY KEY, valor TEXT);
+    """)
+    return c
+
+
+def chave_do_concorrente(nif):
+    """A chave de um concorrente: **o NIF, nunca o nome** (plano do L5).
+    Nove algarismos e o NIF portugues; «-» ou nada e uma pessoa sem NIF
+    publicado, e fica sem chave; o resto (estrangeiros, «B12345678») fica
+    como vem -- nao colide com nenhum NIF portugues."""
+    nif = (nif or "").strip()
+    return "" if nif in ("", "-") else nif
+
+
+def ler_detalhe_do_base(sessao, contrato_id):
+    """O detalhe de um contrato, ou None quando o BASE nao o tem.
+    Levanta `CorteDoBase` quando a firewall responde."""
+    r = sessao.post(BASE_RESULTADOS, timeout=30, data={
+        "type": "detail_contratos", "id": str(contrato_id), "version": BASE_VERSAO})
+    if r.status_code == 999 or "WebKnight" in r.text[:400]:
+        raise CorteDoBase()
+    r.raise_for_status()
+    dados = json.loads(r.text)
+    return dados if isinstance(dados, dict) else None
+
+
+def gravar_detalhe(c, contrato_id, detalhe, agora):
+    """Grava um detalhe lido. Sem detalhe (o BASE respondeu null) fica
+    lido na mesma, com `n_concorrentes` a NULL -- senao voltava a pedir-se
+    para sempre. E NULL e nao 0: «sem lista» nao e «ninguem concorreu»."""
+    d = detalhe or {}
+    lista = d.get("contestants") if detalhe else None
+    c.execute("INSERT OR REPLACE INTO detalhe (contrato_id, lido_em, "
+              "n_concorrentes, fecho, causa_prazo, causa_preco, preco_efectivo) "
+              "VALUES (?,?,?,?,?,?,?)",
+              (contrato_id, agora, len(lista) if lista else None,
+               d.get("closeDate") or "", str(d.get("causesDeadlineChange") or ""),
+               str(d.get("causesPriceChange") or ""),
+               str(d.get("totalEffectivePrice") or "")))
+    c.execute("DELETE FROM concorrente WHERE contrato_id=?", (contrato_id,))
+    c.executemany(
+        "INSERT INTO concorrente (contrato_id, nif, nome, chave) VALUES (?,?,?,?)",
+        [(contrato_id, str(x.get("nif") or "").strip(),
+          " ".join(str(x.get("description") or "").split()),
+          chave_do_concorrente(str(x.get("nif") or "")))
+         for x in (lista or []) if isinstance(x, dict)])
+
+
+def contratos_por_ler(limite):
+    """Os ids dos contratos ainda por ler, pela ordem em que valem: os
+    concursos publicos, depois as consultas previas, o resto, e os
+    ajustes directos no fim (nesses a lista, quando ha, e so o
+    adjudicatario). Dentro de cada tipo, os mais recentes primeiro."""
+    if not ha_corpus():
+        return []
+    desde = (datetime.now() - timedelta(days=365 * ANOS_DOS_CONCORRENTES)
+             ).strftime("%Y-%m-%d")
+    with liga_concorrentes() as c:
+        c.execute("ATTACH DATABASE ? AS corpus", (CORPUS,))
+        return [r[0] for r in c.execute(
+            "SELECT k.id FROM corpus.contratos k "
+            "LEFT JOIN detalhe d ON d.contrato_id = k.id "
+            "WHERE d.contrato_id IS NULL AND k.data_publicacao >= ? "
+            "ORDER BY CASE WHEN k.tipo_procedimento LIKE 'Concurso p%' THEN 0 "
+            "WHEN k.tipo_procedimento LIKE 'Consulta Pr%' THEN 1 "
+            "WHEN k.tipo_procedimento LIKE 'Ajuste Dire%' THEN 3 ELSE 2 END, "
+            "k.data_publicacao DESC LIMIT ?", (desde, limite))]
+
+
+def _estado_dos_concorrentes(chave, valor=None):
+    with liga_concorrentes() as c:
+        if valor is not None:
+            c.execute("INSERT OR REPLACE INTO estado VALUES (?,?)", (chave, str(valor)))
+            return str(valor)
+        linha = c.execute("SELECT valor FROM estado WHERE chave=?", (chave,)).fetchone()
+        return linha[0] if linha else ""
+
+
+def recolher_concorrentes(maximo, pedir=None, esperar=time.sleep, pausa=6):
+    """Pede ate `maximo` detalhes, um a cada `pausa` segundos. Devolve
+    (lidos, cortado). Ao primeiro corte para e regista-o, com quantos
+    pedidos passaram desde o anterior; tres falhas de rede seguidas
+    tambem param (o BASE em baixo nao e um corte). O primeiro pedido que
+    passa depois de um corte fecha-o, com a hora: e assim que se mede
+    quanto dura."""
+    pedir = pedir or ler_detalhe_do_base     # resolvido aqui, para os testes
+    sessao = requests.Session()
+    sessao.headers.update(BASE_CABECALHOS)
+    lidos = falhas = 0
+    for contrato_id in contratos_por_ler(maximo):
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            detalhe = pedir(sessao, contrato_id)
+        except CorteDoBase:
+            desde = int(_estado_dos_concorrentes("pedidos_desde_o_corte") or 0)
+            with liga_concorrentes() as c:
+                c.execute("INSERT INTO corte (inicio, pedidos_antes) VALUES (?,?)",
+                          (agora, desde + lidos))
+            _estado_dos_concorrentes("pedidos_desde_o_corte", 0)
+            return lidos, True
+        except (requests.RequestException, ValueError):
+            falhas += 1
+            if falhas >= 3:
+                break
+            esperar(pausa)
+            continue
+        falhas = 0
+        with liga_concorrentes() as c:
+            gravar_detalhe(c, contrato_id, detalhe, agora)
+            c.execute("UPDATE corte SET fim=? WHERE fim IS NULL", (agora,))
+        lidos += 1
+        esperar(pausa)
+    desde = int(_estado_dos_concorrentes("pedidos_desde_o_corte") or 0)
+    _estado_dos_concorrentes("pedidos_desde_o_corte", desde + lidos)
+    return lidos, False
+
+
+def vigiar_os_concorrentes(voltas=None, esperar=time.sleep, agora=datetime.now):
+    """A thread de fundo da recolha. Um lote, e depois: se cortou, espera
+    (`ESPERA_DEPOIS_DO_CORTE`, a dobrar a cada corte seguido, ate
+    `ESPERA_MAXIMA_DO_CORTE`); se nao ha nada por ler, uma hora; senao,
+    o lote seguinte. Desliga-se com `"concorrentes": false` no config.
+    `voltas`, `esperar` e `agora` sao para os testes."""
+    volta = 0
+    while voltas is None or volta < voltas:
+        volta += 1
+        try:
+            cfg = ler_config()
+            if not cfg.get("concorrentes", True) or not ha_corpus():
+                esperar(3600)
+                continue
+            parado = _estado_dos_concorrentes("parado_ate")
+            if parado and agora().strftime("%Y-%m-%d %H:%M:%S") < parado:
+                esperar(600)
+                continue
+            lidos, cortado = recolher_concorrentes(
+                LOTE_DOS_CONCORRENTES, esperar=esperar,
+                pausa=float(cfg.get("concorrentes_pausa", 6)))
+            if cortado:
+                espera = min(max(2 * int(_estado_dos_concorrentes("espera") or 0),
+                                 ESPERA_DEPOIS_DO_CORTE), ESPERA_MAXIMA_DO_CORTE)
+                _estado_dos_concorrentes("espera", espera)
+                _estado_dos_concorrentes("parado_ate", (agora() + timedelta(
+                    seconds=espera)).strftime("%Y-%m-%d %H:%M:%S"))
+            elif lidos:
+                _estado_dos_concorrentes("espera", 0)
+            else:
+                esperar(3600)
+        except Exception as erro:
+            # como na vigia do corpus: engolido, uma avaria persistente
+            # parecia «a recolha esta lenta», sem rasto nenhum
+            try:
+                marca_erro("ultimo_erro_concorrentes", "concorrentes", "%s: %s"
+                           % (datetime.now().strftime("%Y-%m-%d %H:%M"),
+                              str(erro)[:200]))
+            except Exception:
+                pass
+            esperar(600)
+
+
+def estado_da_recolha():
+    """O que se mostra ao dono: quantos lidos, quantos com lista, o total
+    do ambito, e os ultimos cortes. Sem corpus, None."""
+    if not ha_corpus():
+        return None
+    desde = (datetime.now() - timedelta(days=365 * ANOS_DOS_CONCORRENTES)
+             ).strftime("%Y-%m-%d")
+    with liga_corpus() as k:
+        total = k.execute("SELECT COUNT(*) FROM contratos WHERE data_publicacao >= ?",
+                          (desde,)).fetchone()[0]
+    with liga_concorrentes() as c:
+        lidos, com_lista = c.execute(
+            "SELECT COUNT(*), COUNT(n_concorrentes) FROM detalhe").fetchone()
+        cortes = [dict(r) for r in c.execute(
+            "SELECT inicio, pedidos_antes, fim FROM corte ORDER BY inicio DESC LIMIT 10")]
+    return {"total": total, "lidos": lidos, "com_lista": com_lista,
+            "cortes": cortes, "parado_ate": _estado_dos_concorrentes("parado_ate")}
 
 
 
@@ -21746,6 +21993,30 @@ def descricao_da_seccao(seccao):
     return dict((c, d) for c, _, d, _, _ in SECCOES_CONFIG)[seccao]
 
 
+def _paragrafo_dos_concorrentes():
+    """A recolha dos concorrentes do BASE (L5), para o dono: quanto se
+    leu do ambito, quantos trazem lista, e o ultimo corte da firewall --
+    e a fila que mede o ritmo que o BASE aguenta, e isto e onde se ve."""
+    try:
+        e = estado_da_recolha()
+    except sqlite3.Error:
+        return ""
+    if not e:
+        return ""
+    frase = ("Concorrentes do Portal BASE: %s de %s contratos dos últimos %d "
+             "anos lidos, %s com a lista." % (
+                 mil_pt(e["lidos"]), mil_pt(e["total"]), ANOS_DOS_CONCORRENTES,
+                 mil_pt(e["com_lista"])))
+    if e["cortes"]:
+        ultimo = e["cortes"][0]
+        frase += (" Último corte da firewall do BASE a %s, depois de %s; %s."
+                  % (data_hora_pt(ultimo["inicio"][:16]),
+                     plural(ultimo["pedidos_antes"] or 0, "pedido"),
+                     "voltou a %s" % data_hora_pt(ultimo["fim"][:16]) if ultimo["fim"]
+                     else "parada até %s" % data_hora_pt(e["parado_ate"][:16])))
+    return "<p class='nota'>%s</p>" % html.escape(frase)
+
+
 def seccoes_da_plataforma():
     """As seccoes do sistema, para o indice da administracao da
     plataforma."""
@@ -22284,8 +22555,9 @@ def administracao_da_plataforma():
     recolha = cartao(
         "Recolha",
         "<p class='nota'>Última verificação: %s. As horas estão em "
-        "<a href='/configuracoes/recolha'>Recolha</a>.</p>"
-        % html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
+        "<a href='/configuracoes/recolha'>Recolha</a>.</p>%s"
+        % (html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
+           _paragrafo_dos_concorrentes()),
         accoes=accao("/verificar", icone("verificar") + " Verificar agora", "bt-leve",
                      "Verificar agora? Vai ao Diário da República e às plataformas, "
                      "e leva alguns minutos."),
@@ -36062,6 +36334,27 @@ def main():
         print("dicionario de CPV importado: %d codigos" % n)
         return
 
+    if "--concorrentes" in sys.argv:
+        # L5: pede N detalhes ao BASE agora (sem N, so diz o estado). O
+        # painel faz isto sozinho em fundo; isto e para ensaiar e ver.
+        i = sys.argv.index("--concorrentes")
+        pedido = [a for a in sys.argv[i + 1:] if a.isdigit()]
+        if pedido:
+            lidos, cortado = recolher_concorrentes(int(pedido[0]))
+            print("%d detalhes lidos%s" % (lidos, " -- a firewall do BASE "
+                                                  "cortou" if cortado else ""))
+        e = estado_da_recolha()
+        if e is None:
+            print("Sem corpus: corre primeiro python radar.py --contratos")
+            return
+        print("%d de %d contratos dos últimos %d anos lidos; %d com lista de "
+              "concorrentes" % (e["lidos"], e["total"], ANOS_DOS_CONCORRENTES,
+                                e["com_lista"]))
+        for corte in e["cortes"]:
+            print("  corte a %s, depois de %s pedidos; voltou %s"
+                  % (corte["inicio"], corte["pedidos_antes"],
+                     "a " + corte["fim"] if corte["fim"] else "-- ainda não"))
+        return
     if "--contratos" in sys.argv:
         # Corpus de contratos ja celebrados, do dump semanal do IMPIC.
         # Nao e o funil: e o historico para saber quem ganha o que.
