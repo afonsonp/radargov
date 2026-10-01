@@ -984,7 +984,11 @@ Orçamento, cadeia de reserva, chaves.
   campo é onde o erro se corrige. A legenda do filtro
   (`resumo_filtro()`) também diz `dd/mm/aaaa`: dizia «desde 2026-01-01»
   por cima de um campo a dizer «01/01/2026», o mesmo filtro escrito de
-  duas maneiras no mesmo ecrã.
+  duas maneiras no mesmo ecrã. **O calendário entrou sem o `type=date`**
+  (1/10/2026, J6 da UX-7-LEIS): o JS do `BASE` põe ao lado de cada
+  `input.campo-data[type=text]` um botão que abre o `showPicker()` de um
+  `input[type=date]` escondido, e escreve a data escolhida no campo de
+  texto, à portuguesa. O campo de data visível nunca passa a `date`.
 
 Formatos portugueses, normalização e o que o SQLite não sabe fazer.
 
@@ -3543,7 +3547,7 @@ botões ou no calendário.
   sem ela** — 125 px, mais do que um cartão. O sinal certo é o do
   servidor (`filtro_em_uso != "estado=" + aba`), e uma memória por cima
   dele só desfaz o recolhimento que a UX-Auditoria pediu. Mesma razão
-  por que o «?» do título também não tem memória.
+  por que o «?» dos blocos também não tem memória.
 
 - **A definição de uma aba vive num sítio só.** Estava na linha do
   resumo da lista *e* no «?» do título, quase palavra por palavra. O que
@@ -3722,18 +3726,26 @@ botões ou no calendário.
   como o `test_o_indice_e_o_verificar_agora_seguem_o_papel` já fazia
   para o «Verificar agora».
 
-- **O texto que explica uma página vive dentro do `<summary>` do
-  título** (16/09/2026, fase 2 do `docs/design.md`). O `<h1>` vai
-  **dentro** do `<summary>` — o modelo de conteúdo do `summary` aceita
-  um elemento de cabeçalho —, e o «?» fica ao lado. **Fechado por
-  omissão e sem memória**: um «?» que se lembra de estar aberto volta a
-  pôr o parágrafo no ecrã todos os dias. Sem subtítulo não há
-  `<details>` nenhum, que um «?» que abre nada é um controlo morto.
-  Consequência para quem escreve testes: **há agora um `</summary>` na
-  página antes do dos filtros** — um `html.split("</summary>")[0]`
-  passou a medir o título, e foi assim que o
-  `test_filtros_recolhidos_sem_filtro_e_abertos_com_filtro` partiu.
-  Recorta pelo `id` do bloco, não pelo primeiro `</summary>`.
+- **O título de uma página nunca vai dentro de um `<summary>`**
+  (1/10/2026, J3 da UX-7-LEIS). De 16/09 a 1/10/2026 (fase 2 do
+  `docs/design.md`) o texto que explica a página vivia num «?», com o
+  `<h1>` dentro do `<summary>`: carregar no título abria um texto, e
+  havia dois moldes de cabeçalho no mesmo painel. Hoje o `TOPO` do
+  `envolver()` desenha o que o `cabecalho_de_pagina()` desenha — o
+  `<h1>` e o subtítulo à vista em `.mg-pagehead__sub` —, e o «?» ficou
+  só nos blocos da ficha (`rot_com_porque()`). Para quem escreve
+  testes continua a valer: **há `</summary>` na página antes do dos
+  filtros** (os blocos, a árvore dos CPV) — recorta pelo `id` do bloco,
+  não pelo primeiro `</summary>`.
+
+- **O número do `<title>` é o do balde «Atrasadas» do Hoje**
+  (1/10/2026, Z2 da UX-7-LEIS). O `envolver()` pede o
+  `quantas_atrasadas()`, que passa pelo `_grupos_das_tarefas()` do
+  Hoje — e não por um `COUNT(*)` das tarefas com data passada: as
+  automáticas das propostas cujo prazo passou sem decisão vão para o
+  outro balde, e um `COUNT` à parte dizia «(5)» no separador e «3
+  atrasadas» no Hoje. Custa duas consultas pequenas por página; o dono
+  sem empresa não as faz.
 
 - **Apagar uma proposta apaga as tarefas dela — pelo
   `apagar_propostas()`, e não por um `DELETE` à mão** (16/09/2026). As
@@ -3910,8 +3922,12 @@ botões ou no calendário.
 
 - **A árvore dos CPV da lista vive dentro de um `<details
   class='painel-filtros arvore-cpv'>`, recolhido por omissão**; os
-  campos estão fora dele, à vista, desde 24/09/2026 (o `EcraConcursos`;
-  de 8/09 a 24/09 estava tudo recolhido, os P2/P3 da UX-Auditoria). Abre
+  campos estão fora dele desde 24/09/2026 (o `EcraConcursos`; de 8/09 a
+  24/09 estava tudo recolhido, os P2/P3 da UX-Auditoria) — e desde
+  1/10/2026 (H1 da UX-7-LEIS) só a Pesquisa e a Entidade estão à vista:
+  o resto vive no `#filtros-mais`, atrás do «Mais filtros», que conta
+  os que estão postos e abre sozinho com eles (a classe `aberto` vem do
+  servidor, sem memória, pela razão do ponto anterior). Abre
   sozinho com um CPV escolhido e o JS lembra o estado em
   `localStorage`. O JS da árvore continua a procurar
   `details.arvore` no documento inteiro, por isso aninhá-la não a

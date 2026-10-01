@@ -201,8 +201,11 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 .topo>.migalhas>.b{grid-column:1/-1;grid-row:1}
 .topo>.migalhas>.b:has(>em:only-child){display:none}
 .topo>.migalhas>.accoes-topo{grid-column:2;grid-row:2;margin-left:0}
-.topo>details.porque,.topo>h1{grid-column:1;grid-row:2;min-width:0}
-.topo>.mg-tabs,.topo>.vazio-topo{grid-column:1/-1;grid-row:3}
+.topo>h1{grid-column:1;grid-row:2;min-width:0}
+/* o subtitulo a vista, por baixo do titulo, como no `PageHeader` (J3 da
+   UX-7-LEIS, 1/10/2026: vivia dentro de um «?» com o titulo no summary) */
+.topo>.mg-pagehead__sub{grid-column:1/-1;grid-row:3;margin:var(--space-1) 0 var(--space-3)}
+.topo>.mg-tabs,.topo>.vazio-topo{grid-column:1/-1;grid-row:4}
 
 /* Os botoes dos filtros com a altura dos campos, e nao da grelha. */
 #filtros-lista .f-accoes{align-self:end}
@@ -1210,12 +1213,35 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 ul.tarefas li form.accao{align-items:end}
 /* o texto so para o leitor precisa de um antepassado posicionado */
 .ent-papel,.cal-mais>summary,.mg-avatar,.av{position:relative}
-/* O «Mais filtros» dos Concursos (3.a ronda, G75): so no telemovel, e so
-   com JS; fechado, fica a pesquisa, o botao e o «Filtrar». */
+/* O «Mais filtros» dos Concursos (3.a ronda, G75, no telemovel; em todas
+   as larguras desde 1/10/2026, H1 da UX-7-LEIS): so com JS; fechado,
+   ficam a pesquisa, a entidade, o botao e o «Filtrar». Os outros campos
+   vivem num bloco que, aberto, ocupa a sua linha inteira -- o `order`
+   deixa o «Filtrar» na primeira. */
+#filtros-lista{grid-template-columns:minmax(0,2fr) minmax(0,1.5fr) auto auto}
 #filtros-lista .f-mais{display:none}
-@media (max-width:600px){
- .com-js #filtros-lista .f-mais{display:inline-flex;grid-column:1/-1;justify-self:start}
- .com-js #filtros-lista:not(.aberto)>.mg-field:not(.f-q){display:none}}
+.com-js #filtros-lista .f-mais{display:inline-flex;align-self:end;height:40px}
+.com-js #filtros-lista:not(.aberto) .f-mais-campos{display:none}
+#filtros-lista .f-mais-campos{grid-column:1/-1;order:1;display:grid;
+ grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:var(--space-3);align-items:end}
+@media (max-width:900px){
+ #filtros-lista{grid-template-columns:1fr 1fr}
+ .com-js #filtros-lista .f-mais{justify-self:start}}
+/* A fase seguinte, por baixo do selector da linha das Propostas (H4). */
+.celula-ranhura .fase-seguinte{display:block;margin-top:var(--space-1)}
+/* O calendario do browser ao lado das datas dos filtros (J6 da
+   UX-7-LEIS, 1/10/2026): o campo continua texto dd/mm/aaaa, e o botao
+   abre o calendario nativo, que escreve nele (o JS do `BASE`). */
+.campo-data-cx{display:flex;gap:var(--space-1);align-items:stretch;min-width:0}
+.campo-data-cx>input.campo-data{flex:1 1 auto;min-width:0;width:auto}
+/* a classe dobrada ganha ao `.filtros button:not(.mg-btn)` antigo, que o
+   pintava de azul cheio */
+.campo-data-cx>button.data-cal.data-cal{flex:0 0 auto;display:inline-flex;align-items:center;
+ justify-content:center;min-width:36px;padding:0;border:var(--border-control) solid var(--line-strong);
+ border-radius:var(--radius-md);background:var(--surface-raised);color:var(--ink-secondary);cursor:pointer}
+.campo-data-cx>button.data-cal.data-cal:hover{color:var(--ink);border-color:var(--brand);background:var(--brand-soft)}
+.data-cal:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+.data-escolha{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
 /* A dica de uma tabela que rola de lado (o JS do `BASE`; G75). */
 .rola-dica{margin:0 0 var(--space-1);font:400 var(--text-xs)/16px var(--font-sans);
  color:var(--ink-muted);text-align:right}

@@ -14430,16 +14430,13 @@ form.accao button{font-family:inherit}
 /* A escala tem degraus a serio. Estava tudo entre 10 e 13,5px e a
    hierarquia fazia-se so por peso e cor -- numa pagina densa lia-se
    tudo ao mesmo nivel. */
-/* Fase 2 do docs/design.md (16/09/2026): o texto que explica a pagina
-   sai do meio do que se usa. Eram 17 paginas a abrir com um paragrafo a
-   dizer o que a pagina e -- util a quem chega uma vez, uma linha de
-   ruido todos os dias a quem abre isto duas vezes por dia.
-   O <h1> vai DENTRO do <summary>, que o HTML permite (o modelo de
-   conteudo do summary aceita um elemento de cabecalho): assim o titulo e
-   o "?" ficam na mesma linha, a linha toda alterna, e o texto aparece
-   por baixo. Sem JS, nativo. Fechado por omissao e SEM memoria: um "?"
-   que se lembra de estar aberto volta a por o paragrafo no ecra todos os
-   dias, que e o que isto vem tirar. */
+/* O "?" de um BLOCO (a ficha): o rotulo e o "?" na mesma linha, a
+   linha toda alterna, e o texto aparece por baixo. Sem JS, nativo.
+   Fechado por omissao e SEM memoria: um "?" que se lembra de estar
+   aberto volta a por o paragrafo no ecra todos os dias. Nasceu na fase 2
+   do docs/design.md (16/09/2026) tambem para o titulo das paginas, com o
+   <h1> dentro do <summary>; esse saiu a 1/10/2026 (J3 da UX-7-LEIS):
+   carregar no titulo abria um texto, e o subtitulo vai a vista. */
 details.porque > summary{display:flex;align-items:baseline;gap:9px;
  cursor:pointer;list-style:none}
 details.porque > summary::-webkit-details-marker{display:none}
@@ -16201,6 +16198,52 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
   }, {once: true});
  });
 })();
+/* O calendario do browser ao lado de cada data dos filtros (J6 da
+   UX-7-LEIS, 1/10/2026). O campo continua texto dd/mm/aaaa: o
+   `type=date` desenha-se no idioma do BROWSER (mm/dd/yyyy num browser
+   em ingles), e foi por isso que saiu a 16/09/2026. O botao abre o
+   calendario de um `input[type=date]` escondido, que nao se le, e a
+   data escolhida escreve-se no campo a portuguesa. Sem `showPicker`
+   (browsers antigos) fica o campo, como estava. */
+(function () {
+ var escolha = document.createElement('input');
+ escolha.type = 'date';
+ if (escolha.type !== 'date' || !escolha.showPicker) return;
+ escolha.className = 'data-escolha';
+ escolha.tabIndex = -1;
+ escolha.setAttribute('aria-hidden', 'true');
+ var alvo = null;
+ escolha.addEventListener('change', function () {
+  var m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(escolha.value);
+  if (!alvo || !m) return;
+  alvo.value = m[3] + '/' + m[2] + '/' + m[1];
+  alvo.dispatchEvent(new Event('input', {bubbles: true}));
+  alvo.focus();
+ });
+ document.querySelectorAll('input.campo-data[type=text]').forEach(function (i) {
+  var cx = document.createElement('span');
+  cx.className = 'campo-data-cx';
+  i.parentNode.insertBefore(cx, i);
+  cx.appendChild(i);
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'data-cal';
+  b.title = 'Escolher no calendário';
+  b.setAttribute('aria-label', 'Escolher no calendário');
+  b.innerHTML = %(icone_cal)s;
+  cx.appendChild(b);
+  b.addEventListener('click', function () {
+   if (!escolha.parentNode) document.body.appendChild(escolha);
+   var m = /^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/.exec(i.value.trim());
+   escolha.value = m ? m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2) : '';
+   var r = b.getBoundingClientRect();
+   escolha.style.left = r.left + 'px';
+   escolha.style.top = r.bottom + 'px';
+   alvo = i;
+   try { escolha.showPicker(); } catch (erro) { i.focus(); }
+  });
+ });
+})();
 /* As abas deixaram de ter role=tab a 26/09/2026 (segunda ronda; WCAG
    4.1.2): sao ligacoes de navegacao, com `aria-current`, e o Tab e o
    Enter bastam. As setas que aqui estavam prometiam o padrao das abas
@@ -16623,6 +16666,18 @@ def tom(classe):
     return " ".join(TONS.get(p, p) for p in (classe or "").split()).strip()
 
 
+def pilula_do_prazo(texto, classe):
+    """A etiqueta do prazo nas listas dos Concursos e das Propostas.
+
+    **O folgado é neutro** (V1 da `docs/historico/UX-7-LEIS.md`, feito a
+    1/10/2026 por decisão dele): onze «14 dias» verdes numa página de
+    vinte disputavam o olho com as oito que pedem atenção. Só o urgente e
+    o expirado têm cor; a janela continua a ser a do `etiqueta_prazo()`."""
+    return ("<span class='%s'>%s</span>"
+            % (("mg-tag " + tom("" if classe == "ok" else classe)).strip(),
+               html.escape(texto)))
+
+
 def icone(nome, tamanho=18, rotulo=""):
     """Um dos 49 ícones do sistema, em `<svg>` inline.
 
@@ -17041,7 +17096,9 @@ def caixa_do_motivo():
             "    var pede = f.querySelector('.escolhas[data-para=\"' + estado + '\"]');\n"
             "    if (!falta.length && !pede && !SUGERE[estado]) return;\n"
             "    e.preventDefault();\n"
-            "    abrir(origem.action, origem.dataset.titulo, estado, falta, origem.dataset.base);\n"
+            "    // o `de` da fase seguinte da linha das Propostas (H4) vai com ela\n"
+            "    abrir(origem.action, origem.dataset.titulo, estado, falta, origem.dataset.base,\n"
+            "          (origem.querySelector('input[name=de]') || {}).value);\n"
             "  }, true);\n"
             "  // o preco proposto acima do preco base recusa-se ja aqui (D2,\n"
             "  // art. 70.o/2-d do CCP), no dialogo e no bloco da ficha; o\n"
@@ -17271,6 +17328,12 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
     if not migalhas:
         migalhas = migalhas_de(activo)
 
+    # As tarefas atrasadas no titulo da aba, «(2) Concursos — Mira Gov»
+    # (Z2 da UX-7-LEIS, feito a 1/10/2026 por decisão dele): fora do Hoje
+    # nada as lembrava, e a marca -- que é o Hoje -- não leva contador. É
+    # a convenção do correio, e não mexe na barra.
+    atrasadas = 0 if sem_empresa else quantas_atrasadas()
+
     # Aviso de uma accao acabada de fazer, passado no proprio
     # redireccionamento. Nao vai para a base: e da vez, nao do sistema --
     # e assim nao se confunde "peças trazidas" com "verificação correu bem".
@@ -17340,16 +17403,16 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
 
     partes_do_topo = {
         "migalhas": migalhas,
-        # O titulo, e o "?" so quando ha texto para ele guardar. Sem
-        # subtitulo o <details> era um "?" que abria nada -- um controlo
-        # morto, que a empresa nao poe no ecra.
+        # O titulo, e o subtitulo por baixo, a vista -- como o
+        # `cabecalho_de_pagina()` (J3 da UX-7-LEIS, 1/10/2026). O titulo
+        # vivia dentro do <summary> de um «?», e carregar nele abria um
+        # texto: nenhum outro produto se comporta assim, e havia dois
+        # moldes de cabecalho no mesmo painel.
         "titulo_e_porque": (
-            ("<details class='mg-disc porque'><summary>"
-             "<h1 class='mg-pagehead__title'>%s</h1><span class='mg-disc__q' aria-hidden='true' title='O que é esta página'>?</span>"
-             "</summary><p class='mg-pagehead__sub'>%s%s</p></details>"
-             % (html.escape(titulo), subtitulo, mais_na_ajuda(titulo)))
-            if subtitulo.strip()
-            else "<h1 class='mg-pagehead__title'>%s</h1>" % html.escape(titulo)),
+            "<h1 class='mg-pagehead__title'>%s</h1>%s"
+            % (html.escape(titulo),
+               "<p class='mg-pagehead__sub'>%s%s</p>"
+               % (subtitulo, mais_na_ajuda(titulo)) if subtitulo.strip() else "")),
         "abas": abas or "<div class='vazio-topo'></div>",
         # "Verificar agora" vai ao DR buscar anuncios novos, e os novos
         # aterram na Triagem: e o UNICO sitio com o botao (11.8-A). No
@@ -17367,7 +17430,10 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # «Ecrã — Mira Gov» em todas (segunda ronda, perfil 15): havia
         # «Hoje, Mira Gov», «Por ver, Concursos» sem a marca, e «Nova
         # proposta» sozinho. A secção vai com « · » antes da marca.
-        "titulo_aba": html.escape("%s — Mira Gov" % (titulo_aba or titulo)),
+        "icone_cal": json.dumps(icone("calendario", 18) or "&#128197;"),
+        "titulo_aba": html.escape("%s%s — Mira Gov"
+                                  % ("(%d) " % atrasadas if atrasadas else "",
+                                     titulo_aba or titulo)),
         "css": LIGACAO_CSS,
         "csrf": csrf_da_pagina(),
         "conta": bloco_da_conta(),
@@ -17492,8 +17558,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
     # direita: e o que manda em "concorro ou nao", e no meio das outras
     # tags lia-se ao mesmo nivel do codigo CPV.
     texto_prazo, classe_prazo = etiqueta_prazo(a["prazo"], urgente)
-    prazo_html = ("<span class='mg-tag %s'>%s</span>"
-                  % (tom(classe_prazo), texto_prazo)) if texto_prazo else ""
+    prazo_html = pilula_do_prazo(texto_prazo, classe_prazo) if texto_prazo else ""
     # Em que ranhura da escada esta, quando nao e a que se esta a ver.
     # Sai da PROPOSTA -- a decisao da empresa deixou de morar no anuncio a
     # 15/09/2026 -- e vem de um mapa montado uma vez por pagina, nao de
@@ -17800,8 +17865,9 @@ LISTA_JS = """<script>
 // UX-Auditoria pediu, que existia precisamente porque a lista abria com
 // 60% do ecra em filtros. E a mesma razao por que o "?" do titulo
 // tambem nao tem memoria (fase 2).
-// O «Mais filtros» do telemovel (3.a ronda, G75): abre e fecha os campos
-// recolhidos. Sem JS nada se recolhe (a regra do CSS pede o .com-js).
+// O «Mais filtros» (3.a ronda, G75, no telemovel; em todas as larguras
+// desde 1/10/2026, H1 da UX-7-LEIS): abre e fecha os campos recolhidos.
+// Sem JS nada se recolhe (a regra do CSS pede o .com-js).
 (function () {
   var b = document.querySelector('#filtros-lista .f-mais');
   if (!b) return;
@@ -18510,13 +18576,39 @@ def sugestoes_de_entidade(texto, limite=10):
     return [{"nome": g["nome"], "nif": g["nif"], "n": g["n"]} for g in saida]
 
 
+# As ordens da lista de anuncios, alem da de publicacao (a omissao): o
+# prazo mais perto primeiro (25/09/2026) e o preco base maior primeiro
+# (J4 da UX-7-LEIS, 1/10/2026). Os sem valor vao para o fim.
+ORDENS_DA_LISTA = {
+    "prazo": "COALESCE(prazo, '') = '', prazo, data_pub DESC, ref DESC",
+    "preco": ("COALESCE(preco_base, '') = '', " + SQL_PRECO_BASE
+              + " DESC, data_pub DESC, ref DESC"),
+}
+
+
 def ordem_da_lista(args):
-    """O ORDER BY da lista de anuncios: por publicacao (a omissao) ou,
-    com `?ordem=prazo`, o prazo mais perto primeiro e os sem prazo no
-    fim. Nunca vem texto da URL para o SQL: so uma de duas frases."""
-    if (args.get("ordem") or "") == "prazo":
-        return "COALESCE(prazo, '') = '', prazo, data_pub DESC, ref DESC"
-    return "data_pub DESC, ref DESC"
+    """O ORDER BY da lista de anuncios: por publicacao (a omissao) ou uma
+    das `ORDENS_DA_LISTA`. Nunca vem texto da URL para o SQL: so uma das
+    frases da tabela."""
+    return ORDENS_DA_LISTA.get(args.get("ordem") or "",
+                               "data_pub DESC, ref DESC")
+
+
+def cabecalho_que_ordena(rotulo, activa, href, sentido, convite, volta):
+    """Um `<th>` que ordena a tabela por ele, como numa folha de calculo
+    (30/09/2026 no «Prazo» dos Concursos; J4 da UX-7-LEIS, 1/10/2026, nos
+    precos e nas Propostas). Activo, leva a seta e o `aria-sort`, e o
+    `href` e o de voltar a ordem de sempre -- o segundo clique desfaz."""
+    return ("<th class='mg-num'%s><a class='ordenar' href='%s' title='%s'>%s"
+            "<span class='so-leitor'>, %s</span>"
+            "<span class='seta%s' aria-hidden='true'>%s</span></a></th>"
+            % (" aria-sort='%s'" % sentido if activa else "",
+               html.escape(href, quote=True), volta if activa else convite,
+               rotulo,
+               # o nome da ligacao era so «Prazo» (UX-ICONES-DICAS-PESOS, B.2)
+               volta[0].lower() + volta[1:] if activa else "ordenar",
+               "" if activa else " fraca",
+               ("▲" if sentido == "ascending" else "▼") if activa else "↕"))
 
 
 # Abaixo de quantos anúncios no filtro a página se escolhe pelos índices
@@ -19192,43 +19284,49 @@ def _lista_de_anuncios():
     # URL (um alerta antigo, a ligacao do cartao dos urgentes), e o que
     # vier por la passa em campos escondidos para nao se perder ao
     # voltar a filtrar.
-    # os campos que o «Mais filtros» do telemóvel esconde e estão em uso
-    em_uso_escondidos = sum(1 for c in ("ent", "plat", "de", "ate", "dist",
+    # os campos que o «Mais filtros» recolhe e estão em uso
+    em_uso_escondidos = sum(1 for c in ("plat", "de", "ate", "dist",
                                         "pbmin", "pbmax")
                             if (request.args.get(c) or "").strip())
     filtros = (
         # Os campos do `EcraConcursos`: rotulo por cima, 40px, borda de
         # 2px (o `Field` do sistema), numa grelha de uma linha.
-        "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
+        "<form class='mg-card filtros%s' id='filtros-lista' method='get' action='%s'>"
         "<label class='mg-field f-q'><span class='mg-field__label'>Pesquisar</span>"
         "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência' "
         "title='Palavras soltas: têm de estar todas. Separe com vírgula para qualquer uma; entre aspas, a frase exacta.'></label>"
-        # No telemóvel os outros campos recolhem-se atrás deste botão, que
-        # diz quantos estão em uso (3.ª ronda, G75): a 390 px os filtros
-        # ocupavam a primeira dobra inteira, sem um concurso à vista.
-        "<button type='button' class='mg-btn mg-btn--sm mg-btn--secondary f-mais' "
-        "aria-expanded='false' aria-controls='filtros-lista'>Mais filtros%s</button>"
-        "<label class='mg-field'><span class='mg-field__label'>Entidade</span>"
+        "<label class='mg-field f-ent'><span class='mg-field__label'>Entidade</span>"
         "<input class='mg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
         "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
+        # Os outros campos recolhem-se atrás deste botão, que diz quantos
+        # estão em uso: no telemóvel desde a 3.ª ronda (G75: a 390 px os
+        # filtros ocupavam a primeira dobra inteira), e em todas as
+        # larguras desde 1/10/2026 (H1 da UX-7-LEIS, decisão dele: a
+        # triagem tinha oito campos por cima da primeira linha). Abre
+        # sozinho quando um deles está posto.
+        "<button type='button' class='mg-btn mg-btn--sm mg-btn--secondary f-mais' "
+        "aria-expanded='%s' aria-controls='filtros-mais'>Mais filtros%s</button>"
         "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
+        "<div class='f-mais-campos' id='filtros-mais'>"
         "<label class='mg-field'><span class='mg-field__label'>Plataforma</span>"
         "<select class='mg-field__input' name='plat'>%s</select></label>"
         "<label class='mg-field'><span class='mg-field__label'>Publicado de</span>"
         "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
         "<label class='mg-field'><span class='mg-field__label'>Publicado até</span>"
         "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
-        "%s"
+        "%s</div>"
         "<input type='hidden' name='estado' value='%s'>"
         "%s"
         "</form><datalist id='entidades'></datalist>"
-        % (html.escape(rota, quote=True),
+        % (" aberto" if em_uso_escondidos else "",
+           html.escape(rota, quote=True),
            html.escape(request.args.get("q", ""), quote=True),
-           (" &middot; %d" % em_uso_escondidos) if em_uso_escondidos else "",
            html.escape(request.args.get("ent", ""), quote=True),
+           "true" if em_uso_escondidos else "false",
+           (" &middot; %d" % em_uso_escondidos) if em_uso_escondidos else "",
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
@@ -19252,20 +19350,23 @@ def _lista_de_anuncios():
     # A ordem troca-se no cabeçalho do «Prazo», como numa folha de cálculo
     # (30/09/2026, ele). Estava só na linha da contagem; fica lá também,
     # mas só nos cartões (abaixo de 900 px), onde o cabeçalho se esconde.
-    por_prazo = (request.args.get("ordem") or "") == "prazo"
+    # E no do «Preço base», o maior primeiro (J4, 1/10/2026).
+    ordem = request.args.get("ordem") or ""
+    ordem = ordem if ordem in ORDENS_DA_LISTA else ""
+
+    def th_que_ordena(rotulo, chave, sentido, convite):
+        activa = ordem == chave
+        return cabecalho_que_ordena(
+            rotulo, activa,
+            sem_pagina(request.args, rota, ordem="" if activa else chave),
+            sentido, convite, "Voltar à ordem de publicação")
     href_da_ordem = html.escape(
-        sem_pagina(request.args, rota, ordem="" if por_prazo else "prazo"),
+        sem_pagina(request.args, rota, ordem="" if ordem else "prazo"),
         quote=True)
-    th_do_prazo = (
-        "<th class='mg-num'%s><a class='ordenar' href='%s' title='%s'>Prazo"
-        "<span class='so-leitor'>, %s</span>"
-        "<span class='seta%s' aria-hidden='true'>%s</span></a></th>"
-        % (" aria-sort='ascending'" if por_prazo else "", href_da_ordem,
-           "Voltar à ordem de publicação" if por_prazo
-           else "Ordenar pelo prazo mais perto",
-           # o nome da ligacao era so «Prazo» (UX-ICONES-DICAS-PESOS, B.2)
-           "voltar à ordem de publicação" if por_prazo else "ordenar",
-           "" if por_prazo else " fraca", "▲" if por_prazo else "↕"))
+    th_do_prazo = th_que_ordena("Prazo", "prazo", "ascending",
+                                "Ordenar pelo prazo mais perto")
+    th_do_preco = th_que_ordena("Preço base", "preco", "descending",
+                                "Ordenar pelo preço base maior")
     if linhas:
         # A tabela do `EcraConcursos`, com o cabeçalho que ele desenhou.
         # O `.lista` fica por fora: é ele que o JS da triagem procura
@@ -19279,8 +19380,7 @@ def _lista_de_anuncios():
                else "") +
             "<thead><tr>"
             "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
-            "<th class='mg-num'>Preço base</th>"
-            + th_do_prazo +
+            + th_do_preco + th_do_prazo +
             "<th>Faltam</th><th><span class='so-leitor'>Acções</span></th>"
             "</tr></thead><tbody>"
             + "".join(linha(a, estado_actual, urgente, na_escada)
@@ -19343,10 +19443,11 @@ def _lista_de_anuncios():
     conta += (" &middot; de <b>%s</b> na base &middot; %s"
               "<span class='so-cartoes'> &middot; <a href='%s'>%s</a></span>"
               % (mil(total),
-                 "o prazo mais perto primeiro" if por_prazo
-                 else "mais recentes primeiro",
+                 {"prazo": "o prazo mais perto primeiro",
+                  "preco": "o preço base maior primeiro"}.get(
+                      ordem, "mais recentes primeiro"),
                  href_da_ordem,
-                 "ordenar por publicação" if por_prazo
+                 "ordenar por publicação" if ordem
                  else "ordenar por prazo"))
     if porler:
         conta += " &middot; %s ainda sem detalhe lido" % mil(porler)
@@ -19538,9 +19639,8 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
             # contagem nem «entregue» (G22, G28)
             col_prazo = data_pt(prazo)
         else:
-            col_prazo = ("%s <span class='mg-tag %s'>%s</span>"
-                         % (data_pt(prazo), tom(classe_prazo),
-                            html.escape(texto_prazo)))
+            col_prazo = "%s %s" % (data_pt(prazo),
+                                   pilula_do_prazo(texto_prazo, classe_prazo))
     else:
         col_prazo = "&mdash;"
     if p["ref"]:
@@ -19615,8 +19715,45 @@ def linha_da_pipeline(p, urgente, prazos, falta=None):
                selector_de_ranhura("/proposta/%d/escada" % p["id"],
                                    p["estado"],
                                    titulo=p["titulo"] or p["entidade"] or "",
-                                   p=p),
+                                   p=p) + botao_da_fase_seguinte(p),
                cel_falta))
+
+
+# A fase que vem a seguir, na escada da empresa (H4 da UX-7-LEIS, feito a
+# 1/10/2026 por decisão dele): é o gesto de quase sempre, e era abrir um
+# selector de nove opções. Do «Relatório preliminar» em diante não há uma
+# seguinte só (ganha ou perdida), e as decididas não têm seguinte.
+FASE_SEGUINTE = {"analisar": "proposta", "proposta": "submetido",
+                 "submetido": "relatorio"}
+
+
+def botao_da_fase_seguinte(p):
+    """O «→ A preparar» ao lado do selector, na linha das Propostas.
+
+    Vai pelo mesmo caminho do selector (`/proposta/<id>/escada`, com o
+    `de` da fase que a página mostra) e pela caixa da escada quando a
+    fase seguinte exige o que esta proposta ainda não tem -- o preço
+    proposto do «Submetida» (`desfecho-js`, como os botões do desfecho).
+    Sem JS o pedido segue, e o servidor diz o que falta."""
+    seguinte = FASE_SEGUINTE.get(p["estado"])
+    if not seguinte:
+        return ""
+    falta = [n for n in falta_para_a_ranhura(p, seguinte) if n != "motivo"]
+    base = preco_base_da_proposta(p)
+    titulo = p["titulo"] or p["entidade"] or ""
+    rotulo = estado_da_empresa(seguinte)
+    return ("<form class='accao desfecho-js fase-seguinte' method='post' "
+            "action='/proposta/%d/escada' data-estado='%s' data-falta='%s' "
+            "data-titulo='%s'%s><input type='hidden' name='estado' value='%s'>"
+            "<input type='hidden' name='de' value='%s'>"
+            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary' "
+            "aria-label='%s'>&rarr; %s</button></form>"
+            % (p["id"], seguinte, html.escape(json.dumps(falta), quote=True),
+               html.escape(titulo, quote=True),
+               " data-base='%s'" % base if base else "", seguinte, p["estado"],
+               html.escape("Passar «%s» a %s" % (corta(titulo, 80), rotulo),
+                           quote=True),
+               html.escape(rotulo)))
 
 
 def _lista_de_propostas():
@@ -19687,17 +19824,44 @@ def _lista_de_propostas():
                     "ORDER BY COALESCE(NULLIF(quando,''),'9999'), id"
                     % ",".join("?" * len(ids)), ids):
                 falta.setdefault(r["proposta_id"], r)
+    # Pelo prazo (o mais perto primeiro) ou pelo preço base (o maior), no
+    # cabeçalho, como nos Concursos (J4 da UX-7-LEIS, 1/10/2026). São
+    # dezenas de linhas: ordenam-se aqui, e os sem valor vão para o fim.
+    ordem = request.args.get("ordem") or ""
+    if ordem == "prazo":
+        linhas = sorted(linhas, key=lambda p: (not prazos.get(p["ref"] or ""),
+                                               prazos.get(p["ref"] or "") or ""))
+    elif ordem == "preco":
+        linhas = sorted(linhas, key=lambda p: (
+            euros_do_texto(p["preco_base"] or "") is None,
+            -(euros_do_texto(p["preco_base"] or "") or 0)))
+    else:
+        ordem = ""
     contas = contar_a_escada(cfg=cfg)
     # A aba conta propostas desde 16/09/2026, e por isso o numero dela e
     # o numero desta lista -- sem ressalva nenhuma a fazer. As sem
     # anuncio (D2) continuam a dizer-se, que e um facto sobre a lista e
     # nao um desconto no numero.
     sem_anuncio = sum(1 for p in linhas if not p["ref"])
+    que_ordenam = {"Prazo": ("prazo", "ascending", "Ordenar pelo prazo mais perto"),
+                   "Preço base": ("preco", "descending",
+                                  "Ordenar pelo preço base maior")}
+
+    def cabecalho(coluna):
+        if coluna not in que_ordenam:
+            return "<th>%s</th>" % html.escape(coluna)
+        chave, sentido, convite = que_ordenam[coluna]
+        activa = ordem == chave
+        return cabecalho_que_ordena(
+            html.escape(coluna), activa,
+            PROPOSTAS + "?" + urlencode(
+                [("estado", estado_actual)] + ([("q", procura)] if procura else [])
+                + ([] if activa else [("ordem", chave)])),
+            sentido, convite, "Voltar à ordem de sempre, a mais recente primeiro")
     if linhas:
         corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos tab-lista'>"
                  "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
-                 % ("".join("<th>%s</th>" % html.escape(t)
-                            for t in colunas_da_ranhura(estado_actual)),
+                 % ("".join(cabecalho(t) for t in colunas_da_ranhura(estado_actual)),
                     "".join(linha_da_pipeline(p, urgente, prazos,
                                               falta.get(p["id"]))
                             for p in linhas)))
@@ -35751,6 +35915,17 @@ def arranque_dispensar():
     """Tira o cartão do arranque do Hoje, para esta empresa."""
     marca_da_empresa(MARCA_DO_ARRANQUE, datetime.now().isoformat(" ", "seconds"))
     return redirect("/")
+
+
+def quantas_atrasadas(hoje=None):
+    """Quantas tarefas o balde «Atrasadas» do Hoje tem, de toda a gente --
+    o número que o `<title>` de todas as páginas leva (Z2). Pelos mesmos
+    baldes do Hoje, para os dois números serem um: as automáticas das
+    propostas cujo prazo passou sem decisão não contam, como lá."""
+    hoje = hoje or datetime.now().date()
+    _, grupos = _grupos_das_tarefas(_tarefas_por_fazer(), hoje,
+                                    propostas_sem_decisao(hoje))
+    return _quantas(grupos["atrasadas"])
 
 
 def _atrasadas_de(quem, hoje):
