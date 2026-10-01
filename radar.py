@@ -13782,6 +13782,13 @@ def estado_da_recolha():
 # corpus responde pela chave primaria. Quem ganhou e o que o CORPUS diz
 # (`contrato_adjudicatario`), nao a lista do detalhe.
 
+# Os ajustes directos ficam fora de todas as contas da concorrencia
+# (decisao dele, 1/10/2026: «Taxa de vitoria tira o ajuste directo»):
+# neles o BASE so lista o adjudicatario, e cada um contava como uma
+# vitoria em concorrencia. Todas as variantes comecam por «Ajuste Dire»,
+# e o LIKE do SQLite nao olha a maiusculas.
+SEM_AJUSTE_DIRECTO = "COALESCE(c.tipo_procedimento, '') NOT LIKE 'Ajuste Dire%'"
+
 # Concorreu e ganhou, por fornecedor. O `{onde}` e um recorte sobre o
 # contrato `c` do corpus (o perfil, ou um fornecedor so).
 SQL_DA_CONCORRENCIA = (
@@ -13790,8 +13797,8 @@ SQL_DA_CONCORRENCIA = (
     " WHERE a.contrato_id = k.contrato_id AND (a.chave = k.chave OR a.nif = k.chave)) "
     " THEN k.contrato_id END) ganhou "
     "FROM concorrente k JOIN corpus.contratos c ON c.id = k.contrato_id "
-    "WHERE k.chave != '' AND c.data_publicacao >= ?{onde} "
-    "GROUP BY k.chave ORDER BY concorreu DESC, ganhou DESC, nome, k.chave")
+    "WHERE k.chave != '' AND c.data_publicacao >= ? AND " + SEM_AJUSTE_DIRECTO +
+    "{onde} GROUP BY k.chave ORDER BY concorreu DESC, ganhou DESC, nome, k.chave")
 
 
 def _desde_dos_concorrentes():
@@ -13839,7 +13846,7 @@ def concorrencia_no_perfil(args=None, cfg=None):
     def contar_o_ambito():
         with liga_corpus() as k:
             return k.execute("SELECT COUNT(*) FROM contratos c WHERE "
-                             "c.data_publicacao >= ?" + onde,
+                             "c.data_publicacao >= ? AND " + SEM_AJUSTE_DIRECTO + onde,
                              [desde] + vals).fetchone()[0]
     ambito = lembrado_do_corpus(("concorrencia-ambito", desde, onde, vals),
                                 contar_o_ambito)
@@ -13850,7 +13857,8 @@ def concorrencia_no_perfil(args=None, cfg=None):
             lidos, com_lista = c.execute(
                 "SELECT COUNT(*), COUNT(d.n_concorrentes) FROM detalhe d "
                 "JOIN corpus.contratos c ON c.id = d.contrato_id "
-                "WHERE c.data_publicacao >= ?" + onde_p, [desde] + vals_p).fetchone()
+                "WHERE c.data_publicacao >= ? AND " + SEM_AJUSTE_DIRECTO + onde_p,
+                [desde] + vals_p).fetchone()
             return {"lidos": lidos, "com_lista": com_lista, "linhas": [
                 dict(r) for r in c.execute(SQL_DA_CONCORRENCIA.format(onde=onde_p),
                                            [desde] + vals_p)] if lidos else []}
@@ -13881,8 +13889,8 @@ def concorrencia_do_fornecedor(chave, topo=8):
             "FROM concorrente k JOIN corpus.contratos c ON c.id = k.contrato_id "
             "JOIN corpus.contrato_adjudicatario a ON a.contrato_id = k.contrato_id "
             "LEFT JOIN corpus.entidades g ON g.chave = a.chave "
-            "WHERE k.chave = ? AND c.data_publicacao >= ? "
-            "AND COALESCE(a.chave, '') NOT IN ('', ?) AND COALESCE(a.nif, '') != ? "
+            "WHERE k.chave = ? AND c.data_publicacao >= ? AND " + SEM_AJUSTE_DIRECTO +
+            " AND COALESCE(a.chave, '') NOT IN ('', ?) AND COALESCE(a.nif, '') != ? "
             "AND NOT EXISTS (SELECT 1 FROM corpus.contrato_adjudicatario b "
             " WHERE b.contrato_id = k.contrato_id AND (b.chave = ? OR b.nif = ?)) "
             "GROUP BY a.chave ORDER BY vezes DESC, nome LIMIT ?",
@@ -27112,7 +27120,8 @@ def concorrentes():
         return sem_corpus_html("Concorrentes")
     d = concorrencia_no_perfil(request.args)
     faixa = _faixa_do_interesse("/concorrentes", 0, so_cpv=True)
-    frase = ("<p class='nota'>%s lidos de %s %snos últimos %d anos; %s com a "
+    frase = ("<p class='nota'>%s lidos de %s %snos últimos %d anos, sem os "
+             "ajustes directos; %s com a "
              "lista de concorrentes. O Mira Gov lê o Portal BASE contrato a "
              "contrato, e a recolha leva meses.</p>"
              % (mil_pt(d["lidos"]), plural(d["ambito"], "contrato"),
@@ -27154,9 +27163,9 @@ def concorrentes():
             "<th class='p'>Ganhou</th><th class='p'>Taxa</th>"
             "<th class='p'>Desconto quando ganha</th></tr></thead><tbody>%s</tbody>"
             "</table><div class='tab-pe'><span class='nota'>Concorreu e ganhou "
-            "contam contratos lidos; a taxa é ganhou a dividir por concorreu. Nos "
-            "ajustes directos o Portal BASE só lista o adjudicatário, e por isso "
-            "contam como ganhos. O desconto é a mediana sobre o preço base nos "
+            "contam contratos lidos; a taxa é ganhou a dividir por concorreu. Os "
+            "ajustes directos ficam de fora: neles o Portal BASE só lista o "
+            "adjudicatário. O desconto é a mediana sobre o preço base nos "
             "procedimentos que ganhou%s, de sempre; só com %d ou mais.</span>"
             "</div></div>"
             % ("".join(corpo), " no perfil" if d["frag"] else "",
@@ -30477,7 +30486,8 @@ def concorrentes_cx(a, chave):
 PORQUE_DOS_CONCORRENTES = (
     "O Portal BASE publica, contrato a contrato, quem concorreu e não só "
     "quem ganhou. O Mira Gov lê-os um a um, devagar, e por isso os números "
-    "dizem em quantos contratos lidos se baseiam.")
+    "dizem em quantos contratos lidos se baseiam. Os ajustes directos não "
+    "contam: neles o Portal BASE só lista quem ganhou.")
 
 
 def _concorrencia_ou_nada(chave):
