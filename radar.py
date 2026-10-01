@@ -14104,6 +14104,7 @@ def porta_de_entrada():
     g.sessao = None
     g.utilizador = None
     g.livre = False
+    g.fechada = False
     token = request.cookies.get("sessao")
     # Uma base que ainda nao passou pelo iniciar_db() -- os testes que
     # usam o cliente sem base propria -- nao tem as tabelas das contas;
@@ -14118,6 +14119,9 @@ def porta_de_entrada():
         c = liga()
         if token:
             g.utilizador = contas.utilizador_da_sessao(c, token)
+            if not g.utilizador:
+                # a sessao unica do Solo (L2.1): fechada por outra entrada
+                g.fechada = contas.foi_fechada_por_outra(c, token)
             c.commit()
             if g.utilizador:
                 g.sessao = token
@@ -14158,7 +14162,8 @@ def porta_de_entrada():
             if isinstance(request.routing_exception, NotFound):
                 return pagina_de_erro(404)
             para = request.full_path.rstrip("?")
-            return redirect("/entrar?para=" + quote(para, safe=""))
+            return redirect("/entrar?%spara=%s" % ("fechada=1&" if g.get("fechada") else "",
+                                                  quote(para, safe="")))
         return _sessao_em_falta()
     # A empresa de quem entrou passa a ser a do pedido (F4): o liga()
     # junta o ficheiro dela, e so o dela. Repoe-se no teardown -- no
@@ -14685,6 +14690,10 @@ def pagina_entrar(aviso="", email="", para="/", codigo=200):
     }, codigo, mimetype="text/html")
 
 
+AVISO_DA_SESSAO_FECHADA = ("A sua sessão foi fechada porque entrou noutro aparelho: "
+                           "o plano Solo tem uma sessão aberta de cada vez.")
+
+
 @app.route("/entrar", methods=["GET", "POST"])
 def entrar():
     """Um ecra, uma tarefa: e-mail, palavra-passe, Entrar."""
@@ -14698,6 +14707,8 @@ def entrar():
             "python radar.py --criar-utilizador NOME e volta aqui.",
             para=request.values.get("para"))
     if request.method == "GET":
+        if request.args.get("fechada"):
+            return pagina_entrar(AVISO_DA_SESSAO_FECHADA, para=request.args.get("para"))
         return pagina_entrar(para=request.args.get("para"))
     if not origem_e_nossa():
         return pagina_entrar("O pedido veio de outro sítio.", codigo=403)
@@ -23044,6 +23055,7 @@ def plataforma_empresa(id_):
                                      % (papel_no_ecra(cv["papel"]).lower(),
                                         data_pt((cv["criado_em"] or "")[:10])))))))
         for cv in convites)
+    bloco_plano = _cartao_do_plano(id_)
     bloco_convites = cartao(
         "Convites por usar",
         ("<table class='mg-table tab-plataforma'><thead><tr><th>Para</th><th>Papel</th>"
@@ -23107,10 +23119,10 @@ def plataforma_empresa(id_):
             "o e-mail não sai: nenhum ligado" if not e["alertas"] else
             "o e-mail sai" if not e["email"] else "o e-mail não sai"))
     corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "%s%s%s%s%s%s%s</div>"
+             "%s%s%s%s%s%s%s%s</div>"
              % ("<div class='mg-alert mg-alert--danger'>Suspensa: as contas não entram "
                 "e não recebe alertas.</div>" if suspensa else "",
-                stats, bloco_contas, bloco_convites, bloco_alertas, bloco_perfil,
+                stats, bloco_plano, bloco_contas, bloco_convites, bloco_alertas, bloco_perfil,
                 _cartao_de_apagar(e, fecha_contas, len(convites),
                                   any(u["dono"] for u in contas_))))
     return envolver(
@@ -23122,6 +23134,74 @@ def plataforma_empresa(id_):
                 "chegou a %s" % html.escape(data_pt(e["desde"])) if e["desde"]
                 else "sem data de chegada"),
             [("Plataforma", "/plataforma"), (e["nome"], "")], accoes))
+
+
+def _cartao_do_plano(id_):
+    """O plano da empresa, para o dono o ver e mudar (L2.1 do plano de
+    Outubro, com os planos de 1/10/2026). Sem plano, avisa: a empresa nao
+    tem limites ate o dono o por."""
+    with liga() as c:
+        p = contas.plano_da_empresa(c, id_)
+        livres = contas.lugares_livres(c, id_)
+    if p:
+        nome = contas.PLANOS[p["plano"]][0]
+        frase = ("<p>%s, %s%s, desde %s. %s</p>" % (
+            nome, p["periodo"], " · fundador" if p["fundador"] else "",
+            data_pt(p["desde"] or ""),
+            "Sem limite de utilizadores." if livres is None else
+            "%s de %s." % (plural(livres, "lugar livre", "lugares livres"),
+                           plural(p["utilizadores"], "utilizador"))))
+    else:
+        frase = ("<div class='mg-alert mg-alert--warning'>Esta empresa não tem "
+                 "plano: não tem limite de utilizadores nem a sessão única do "
+                 "Solo. Escolha-o aqui.</div>")
+    opcoes = "".join("<option value='%s'%s>%s</option>" % (
+        k, " selected" if p and p["plano"] == k else "", html.escape(v[0]))
+        for k, v in contas.PLANOS.items())
+    periodos = "".join("<option value='%s'%s>%s</option>" % (
+        k, " selected" if p and p["periodo"] == k else "", k)
+        for k in contas.PERIODOS)
+    return cartao(
+        "Plano",
+        frase
+        + "<form class='form-email' method='post' action='/plataforma/empresa/%d/plano'>"
+          "<label>Plano<select class='mg-field__input' name='plano'>%s</select></label>"
+          "<label>Período<select class='mg-field__input' name='periodo'>%s</select></label>"
+          "<label>Utilizadores <span class='nota'>(só no Corporate)</span>"
+          "<input class='mg-field__input' type='number' name='utilizadores' min='1' "
+          "max='999' value='%s'></label>"
+          "<label><input type='checkbox' name='fundador' value='1'%s> Fundador</label>"
+          "<button type='submit' class='mg-btn mg-btn--secondary'>Gravar o plano</button>"
+          "</form>"
+        % (id_, opcoes, periodos,
+           p["utilizadores"] if p and p["plano"] == "corporate" and p["utilizadores"] else "",
+           " checked" if p and p["fundador"] else ""),
+        meta="O Solo tem 1 utilizador e uma sessão de cada vez; o Equipa até 5; "
+             "o Corporate o número acordado.", id_="plano")
+
+
+@app.route("/plataforma/empresa/<int:id_>/plano", methods=["POST"])
+def plataforma_gravar_plano(id_):
+    """Grava o plano da empresa (L2.1). So o dono: a rota vive debaixo de
+    `/plataforma`, em `ROTAS_SO_DONO`. Mudar o plano nao tira contas:
+    abaixo do limite, so deixa de se poder convidar."""
+    _empresa_ou_404(id_)
+    f = request.form
+    utilizadores = (f.get("utilizadores") or "").strip()
+    if utilizadores and not (utilizadores.isdigit() and 0 < int(utilizadores) < 1000):
+        return _volta_a("/plataforma/empresa/%d#plano" % id_,
+                        "O número de utilizadores tem de ser de 1 a 999.", erro=True)
+    try:
+        with liga() as c:
+            contas.gravar_plano(c, id_, (f.get("plano") or "").strip(),
+                                (f.get("periodo") or "mensal").strip(),
+                                bool(f.get("fundador")),
+                                int(utilizadores) if utilizadores else None)
+    except ValueError as erro:
+        return _volta_a("/plataforma/empresa/%d#plano" % id_, str(erro), erro=True)
+    registar_evento("", "plano", "mudou o plano da empresa %d para %s"
+                    % (id_, f.get("plano")), quem=quem_sou() or "")
+    return _volta_a("/plataforma/empresa/%d#plano" % id_, "Plano gravado.")
 
 
 @app.route("/plataforma/empresa/<int:id_>/convite", methods=["POST"])
@@ -23138,8 +23218,12 @@ def plataforma_criar_convite(id_):
     if email and not RX_EMAIL.fullmatch(email):
         return _volta_a("/plataforma/empresa/%d#convites" % id_,
                         "«%s» não é um e-mail." % corta(email, 60), erro=True)
-    with liga() as c:
-        codigo = contas.criar_convite(c, id_, email, papel)
+    try:
+        with liga() as c:
+            codigo = contas.criar_convite(c, id_, email, papel)
+    except ValueError as erro:
+        # o limite do plano (L2.1): o dono muda o plano no cartão de cima
+        return _volta_a("/plataforma/empresa/%d#plano" % id_, str(erro), erro=True)
     registar_evento("", "convite", "criou um convite (%s) para a empresa %d"
                     % (papel, id_), quem=quem_sou() or "")
     return _mostrar_convite(e, codigo, papel, email)
@@ -24518,12 +24602,29 @@ def _documento_do_pedido(form):
     return (tipo, descricao, validade), ""
 
 
+def cofre_fechado():
+    """O cofre dos documentos e do Equipa e do Corporate (os planos de
+    1/10/2026): no Solo fecha-se, e di-lo. Sem plano fica aberto."""
+    with liga() as c:
+        p = contas.plano_da_empresa(c, empresa_activa())
+    return bool(p and p["plano"] == "solo")
+
+
+FRASE_DO_COFRE_FECHADO = ("O cofre dos documentos da empresa é do plano Equipa: "
+                          "no Solo não há cofre. Para mudar de plano, fale connosco.")
+
+
 @app.route("/configuracoes/documentos", methods=["GET", "POST"])
 def config_documentos():
     """O cofre dos documentos da empresa (D5 da segunda ronda,
     26/09/2026): o tipo, o número ou a descrição, e a validade. Sem
     ficheiros. Cada validade dá uma tarefa 15 dias antes
     (`sincronizar_documentos()`). Só o admin da empresa (ROTAS_SO_ADMIN)."""
+    if cofre_fechado():
+        if request.method == "POST":
+            return volta_config_erro("documentos", FRASE_DO_COFRE_FECHADO)
+        return pagina_config("documentos", "<div class='mg-alert mg-alert--info'>%s</div>"
+                             % html.escape(FRASE_DO_COFRE_FECHADO))
     if request.method == "POST":
         doc, recado = _documento_do_pedido(request.form)
         if recado:
@@ -24602,6 +24703,8 @@ def config_documentos():
 
 @app.route("/configuracoes/documentos/<int:id_>", methods=["POST"])
 def config_documento_gravar(id_):
+    if cofre_fechado():
+        return volta_config_erro("documentos", FRASE_DO_COFRE_FECHADO)
     doc, recado = _documento_do_pedido(request.form)
     if recado:
         return volta_config("documentos", recado, erro=True)
@@ -24616,6 +24719,8 @@ def config_documento_gravar(id_):
 
 @app.route("/configuracoes/documentos/<int:id_>/apagar", methods=["POST"])
 def config_documento_apagar(id_):
+    if cofre_fechado():
+        return volta_config_erro("documentos", FRASE_DO_COFRE_FECHADO)
     with liga() as c:
         c.execute("DELETE FROM documentos_da_empresa WHERE id=?", (id_,))
     sincronizar_documentos()          # leva as tarefas dele
@@ -24965,8 +25070,12 @@ def conta_convidar():
     email = (request.form.get("email") or "").strip()
     if email and not RX_EMAIL.fullmatch(email):
         return volta_config_erro("conta", "«%s» não é um e-mail." % corta(email, 60))
-    with liga() as c:
-        codigo = contas.criar_convite(c, empresa_activa(), email, papel)
+    try:
+        with liga() as c:
+            codigo = contas.criar_convite(c, empresa_activa(), email, papel)
+    except ValueError as erro:
+        # o limite do plano (L2.1)
+        return volta_config_erro("conta", str(erro))
     registar("", "conta", "criou um convite (%s)" % papel)
     ligacao = "%s/convite/%s" % (endereco_do_painel().rstrip("/"), codigo)
     bem, porque = (enviar_convite(email, ligacao, _nome_da_empresa_n(empresa_activa()),
@@ -34353,6 +34462,9 @@ SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
 # pedidos de antes mostram o valor que gravaram.
 PLANOS_DO_PEDIDO = {"fundador": "Oferta de fundador", "solo": "Solo",
                     "equipa": "Equipa", "corporate": "Corporate"}
+# e o plano com que a empresa nasce ao aceitar o pedido: (plano, fundador)
+PLANO_DO_PEDIDO = {"fundador": ("equipa", True), "solo": ("solo", False),
+                   "equipa": ("equipa", False), "corporate": ("corporate", False)}
 
 
 def nif_do_pedido(texto):
@@ -35269,6 +35381,12 @@ def aceitar_pedido(id_):
         gravar_config(dict(perfil, email={"para": p["email"]},
                            **({"nif_da_empresa": p["nif"]} if p["nif"] else {})))
     with liga() as c:
+        # o plano que a empresa escolheu no formulario (L2.1); a oferta de
+        # fundador e o Equipa a preco de fundador. Os pedidos de antes dos
+        # planos novos ficam sem plano, e o dono poe-no na pagina dela.
+        plano = PLANO_DO_PEDIDO.get((p["plano"] if "plano" in p.keys() else "") or "")
+        if plano:
+            contas.gravar_plano(c, empresa_id, plano[0], fundador=plano[1])
         codigo = contas.criar_convite(c, empresa_id, p["email"], "admin", id_)
         # o dia da decisão também no aceite (G57): é por ele que a lista
         # dos pedidos sabe se a empresa com este número ainda é a deste

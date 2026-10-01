@@ -149,6 +149,92 @@ def iniciar_tabelas(c):
         tentativas INTEGER NOT NULL DEFAULT 0)""")
     c.execute("CREATE INDEX IF NOT EXISTS ix_segundo_factor_util "
               "ON segundo_factor(utilizador_id, tipo)")
+    # O plano de cada empresa (L2.1 do plano de Outubro, com os planos de
+    # 1/10/2026: Solo, Equipa e Corporate). E da plataforma, como as
+    # contas: vive aqui e nao no ficheiro da empresa. Sem linha, a empresa
+    # nao tem plano e nao tem limites -- a pagina do dono avisa.
+    c.execute("""CREATE TABLE IF NOT EXISTS planos (
+        empresa_id INTEGER PRIMARY KEY, plano TEXT NOT NULL,
+        periodo TEXT NOT NULL DEFAULT 'mensal', fundador INTEGER NOT NULL DEFAULT 0,
+        utilizadores INTEGER, desde TEXT)""")
+    # As sessoes que uma entrada noutro aparelho fechou (a sessao unica do
+    # Solo), para quem as tinha ver porque, e nao so o ecra de entrar.
+    c.execute("""CREATE TABLE IF NOT EXISTS sessoes_fechadas (
+        token TEXT PRIMARY KEY, quando TEXT)""")
+
+
+# ------------------------------------------------------------------- planos
+#
+# Os planos de 1/10/2026 (decisao dele): o nome, e quantos utilizadores
+# leva. O Corporate e pelo numero acordado, que se grava na linha da
+# empresa; sem numero, nao tem limite.
+PLANOS = {"solo": ("Solo", 1), "equipa": ("Equipa", 5), "corporate": ("Corporate", None)}
+PERIODOS = ("mensal", "anual")
+
+
+def plano_da_empresa(c, empresa_id):
+    """A linha do plano da empresa, ou None quando nao tem plano."""
+    if not empresa_id:
+        return None
+    linha = c.execute("SELECT * FROM planos WHERE empresa_id=?", (empresa_id,)).fetchone()
+    return dict(linha) if linha else None
+
+
+def gravar_plano(c, empresa_id, plano, periodo="mensal", fundador=False,
+                 utilizadores=None, agora=None):
+    """Poe (ou muda) o plano de uma empresa. O limite do Solo e do Equipa
+    e o do plano; o do Corporate e o que se der. ValueError com a frase
+    para o ecra se o plano ou o periodo nao existem."""
+    if plano not in PLANOS:
+        raise ValueError("o plano tem de ser Solo, Equipa ou Corporate")
+    if periodo not in PERIODOS:
+        raise ValueError("o período tem de ser mensal ou anual")
+    limite = PLANOS[plano][1] if plano != "corporate" else utilizadores
+    c.execute("INSERT OR REPLACE INTO planos (empresa_id, plano, periodo, fundador, "
+              "utilizadores, desde) VALUES (?,?,?,?,?,?)",
+              (empresa_id, plano, periodo, 1 if fundador else 0, limite,
+               (agora or datetime.now()).strftime("%Y-%m-%d")))
+
+
+def lugares_livres(c, empresa_id, agora=None, contar_convites=True):
+    """Quantas contas mais a empresa pode ter, ou None sem limite. Conta
+    as contas dela e, com `contar_convites`, os convites ainda validos --
+    um convite e um lugar guardado, senao davam-se dez convites num Solo
+    e o limite so se sentia ao usa-los."""
+    p = plano_da_empresa(c, empresa_id)
+    if not p or not p["utilizadores"]:
+        return None
+    contas_ = c.execute("SELECT COUNT(*) FROM utilizadores WHERE empresa_id=? "
+                        "AND COALESCE(dono,0)=0", (empresa_id,)).fetchone()[0]
+    convites_ = 0
+    if contar_convites:
+        convites_ = c.execute(
+            "SELECT COUNT(*) FROM convites WHERE empresa_id=? AND usado_em IS NULL "
+            "AND anulado_em IS NULL AND expira > ?",
+            (empresa_id, (agora or datetime.now()).strftime("%Y-%m-%d %H:%M:%S"))
+        ).fetchone()[0]
+    return max(0, p["utilizadores"] - contas_ - convites_)
+
+
+def frase_do_limite(c, empresa_id):
+    """A frase de quando nao ha lugar: o que o plano da e como se muda."""
+    p = plano_da_empresa(c, empresa_id) or {}
+    nome = PLANOS.get(p.get("plano"), ("", 0))[0]
+    return ("O plano %s da empresa tem %s, e já estão todos ocupados ou "
+            "convidados. Para mais, fale connosco." % (
+                nome, "1 utilizador" if p.get("utilizadores") == 1
+                else "%s utilizadores" % p.get("utilizadores")))
+
+
+def foi_fechada_por_outra(c, token):
+    """Se esta sessao foi fechada por uma entrada noutro aparelho (a
+    sessao unica do Solo). Responde uma vez: a linha sai ao ser lida."""
+    if not token:
+        return False
+    linha = c.execute("SELECT 1 FROM sessoes_fechadas WHERE token=?", (token,)).fetchone()
+    if linha:
+        c.execute("DELETE FROM sessoes_fechadas WHERE token=?", (token,))
+    return bool(linha)
 
 
 # ------------------------------------------------------------ palavra-passe
@@ -530,6 +616,9 @@ def criar_convite(c, empresa_id, email="", papel="admin", pedido_id=None,
     if papel not in PAPEIS:
         raise ValueError("o papel tem de ser gestor ou utilizador")
     agora = agora or datetime.now()
+    # o limite do plano (L2.1): um convite guarda um lugar
+    if lugares_livres(c, empresa_id, agora) == 0:
+        raise ValueError(frase_do_limite(c, empresa_id))
     codigo = secrets.token_urlsafe(32)
     c.execute("INSERT INTO convites (resumo, empresa_id, email, papel, pedido_id, "
               "criado_em, expira) VALUES (?,?,?,?,?,?,?)",
@@ -614,6 +703,9 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
     if c.execute("SELECT 1 FROM utilizadores WHERE email=?",
                  (email_limpo(utilizador),)).fetchone():
         return None, "já existe um utilizador com esse nome; escolhe outro"
+    # o plano pode ter descido depois do convite: so as contas contam aqui
+    if lugares_livres(c, convite["empresa_id"], agora, contar_convites=False) == 0:
+        return None, frase_do_limite(c, convite["empresa_id"])
     criar_utilizador(c, utilizador, senha, papel=convite["papel"],
                      empresa_id=convite["empresa_id"])
     c.execute("UPDATE convites SET usado_em=? WHERE resumo=?",
@@ -1098,6 +1190,20 @@ def _abrir_sessao(c, utilizador_id, ip, agente, agora):
                    "%Y-%m-%d %H:%M:%S"), ip or "", (agente or "")[:200]))
     c.execute("UPDATE utilizadores SET ultimo_acesso=? WHERE id=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), linha["id"]))
+    # A sessao unica do Solo (L2.1, decisao dele a 1/10/2026): a ultima
+    # entrada ganha, e as outras fecham-se, ficando registadas para quem
+    # as tinha saber porque. E aqui, e nao na rota do /entrar, porque o
+    # convite, o repor e o segundo factor tambem abrem sessoes por aqui.
+    p = plano_da_empresa(c, linha["empresa_id"]) if not linha["dono"] else None
+    if p and p["plano"] == "solo":
+        outras = [r[0] for r in c.execute(
+            "SELECT token FROM sessoes WHERE utilizador_id=? AND token != ?",
+            (linha["id"], token))]
+        c.executemany("INSERT OR REPLACE INTO sessoes_fechadas VALUES (?,?)",
+                      [(o, agora.strftime("%Y-%m-%d %H:%M:%S")) for o in outras])
+        c.executemany("DELETE FROM sessoes WHERE token=?", [(o,) for o in outras])
+        c.execute("DELETE FROM sessoes_fechadas WHERE quando < ?",
+                  ((agora - timedelta(days=DIAS_DE_SESSAO)).strftime("%Y-%m-%d %H:%M:%S"),))
     return token, dict(linha)
 
 

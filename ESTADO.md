@@ -51,15 +51,15 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 |---|---|
 | Anúncios | 210 811 (**200 291 procedimentos**; a diferença são republicações ligadas ao original) |
 | Com o texto integral | 185 886. O `detalhe_lido` está a **100%**: não há fila por ler |
-| Empresas | **1** — a LATD, empresa 2 desde 24/09 (a empresa 1 foi apagada a 23/09 com `--apagar-empresa`; desde 26/09 apaga-se também no painel, na página da empresa) |
-| Propostas, tarefas, contactos | 4 · 8 · 0 — da LATD |
+| Empresas | **0** — a LATD, a empresa 2, que era de teste, saiu a 1/10/2026 a pedido dele (`--apagar-empresa`; a cópia de antes e a pasta dela estão em `copias/`). As empresas entram pelo pedido de acesso do site, já com o plano |
+| Propostas, tarefas, contactos | 0 · 0 · 0 — são de cada empresa |
 | Peças em disco | 436 documentos, de 79 concursos (em `pecas/`, 556 MB) |
 | Leituras pelo modelo | 70, das quais **11 incompletas** (voltam a tentar-se sozinhas; desde a 3.ª ronda, também as das propostas abertas lidas com uma versão anterior da pergunta) |
 | Corpus do Portal BASE | 2 009 640 contratos, 180 507 entidades (28/09/2026) |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
-| Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e a admin da LATD |
-| Rotas Flask | 136 |
-| Tabelas em `radar.db` | 17, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, e o `segundo_factor`, 28/09). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje só a da LATD, a empresa 2 |
+| Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e mais nenhuma desde que a LATD saiu (1/10/2026) |
+| Rotas Flask | 137 |
+| Tabelas em `radar.db` | 19, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
 | Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB). E o índice da **pesquisa geral** (1/10/2026): `pesquisa_fts` + `pesquisa_refs` no `radar.db`, ~115 MB, 30 a 60 s **em fundo** no primeiro arranque com esse código, numa cópia |
 | Testes | **1 850**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
 | Código | `radar.py` 37 623 linhas · `teste_radar.py` 26 891 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
