@@ -9471,8 +9471,18 @@ def copia_de_seguranca(guardar=7):
         dos_concorrentes = os.path.join(COPIAS, os.path.basename(destino).replace(
             "radar-", "concorrentes-", 1))
         if not os.path.exists(dos_concorrentes):
-            with liga_concorrentes() as c:
-                c.execute("VACUUM INTO ?", (dos_concorrentes,))
+            # protegida: um ficheiro auxiliar nao pode derrubar a copia do
+            # radar.db nem a de fora do PC, que vem a seguir; e uma copia
+            # a meio apaga-se, senao a guarda de cima nunca a refazia
+            try:
+                with liga_concorrentes() as c:
+                    c.execute("VACUUM INTO ?", (dos_concorrentes,))
+            except sqlite3.Error as erro:
+                print("aviso: a copia dos concorrentes falhou (%s)" % erro)
+                try:
+                    os.remove(dos_concorrentes)
+                except OSError:
+                    pass
     for padrao, quantas in ((r"radar-[\d-]+\.db", guardar),
                             (r"empresa-\d+-[\d-]+\.db", guardar),
                             (r"contas-[\d-]+\.db", guardar),
@@ -13242,13 +13252,35 @@ def recolher_concorrentes(maximo, pedir=None, esperar=time.sleep, pausa=6):
         try:
             detalhe = pedir(sessao, contrato_id)
         except CorteDoBase:
-            desde = int(_estado_dos_concorrentes("pedidos_desde_o_corte") or 0)
-            with liga_concorrentes() as c:
-                c.execute("INSERT INTO corte (inicio, pedidos_antes) VALUES (?,?)",
-                          (agora, desde + lidos))
-            _estado_dos_concorrentes("pedidos_desde_o_corte", 0)
+            # o registo do corte nao pode impedir a paragem: se a base
+            # estiver presa, perde-se a linha, mas a fila para na mesma
+            try:
+                desde = int(_estado_dos_concorrentes("pedidos_desde_o_corte") or 0)
+                with liga_concorrentes() as c:
+                    c.execute("INSERT INTO corte (inicio, pedidos_antes) VALUES (?,?)",
+                              (agora, desde + lidos))
+                _estado_dos_concorrentes("pedidos_desde_o_corte", 0)
+            except sqlite3.Error:
+                pass
             return lidos, True
-        except (requests.RequestException, ValueError):
+        except (requests.HTTPError, ValueError) as erro:
+            # um 4xx ou uma resposta que nao e JSON e deste contrato, e
+            # nao passa: fica lido como «sem detalhe», senao ficava no
+            # topo da fila e repetia-se em todos os lotes. Um 5xx e o BASE
+            # em baixo, e conta como as falhas de rede.
+            resposta = getattr(erro, "response", None)
+            if resposta is not None and resposta.status_code >= 500:
+                falhas += 1
+                if falhas >= 3:
+                    break
+                esperar(pausa)
+                continue
+            with liga_concorrentes() as c:
+                gravar_detalhe(c, contrato_id, None, agora)
+            lidos += 1
+            esperar(pausa)
+            continue
+        except requests.RequestException:
             falhas += 1
             if falhas >= 3:
                 break
@@ -36339,6 +36371,12 @@ def main():
         # painel faz isto sozinho em fundo; isto e para ensaiar e ver.
         i = sys.argv.index("--concorrentes")
         pedido = [a for a in sys.argv[i + 1:] if a.isdigit()]
+        parado = _estado_dos_concorrentes("parado_ate")
+        if pedido and parado and datetime.now().strftime("%Y-%m-%d %H:%M:%S") < parado:
+            # a mao tambem respeita o corte: pedir agora so o prolonga
+            print("A recolha está parada por um corte do BASE até %s; não peço "
+                  "nada." % parado)
+            pedido = []
         if pedido:
             lidos, cortado = recolher_concorrentes(int(pedido[0]))
             print("%d detalhes lidos%s" % (lidos, " -- a firewall do BASE "

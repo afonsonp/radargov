@@ -25949,6 +25949,33 @@ class TestOsConcorrentesDoContrato(BaseTemporaria):
         with radar.liga_concorrentes() as c:
             self.assertEqual(c.execute("SELECT COUNT(*) FROM corte").fetchone()[0], 0)
 
+    def test_um_erro_deste_contrato_marca_o_e_um_5xx_nao(self):
+        """A revisão de 1/10/2026: um 4xx (ou uma resposta que não é JSON)
+        ficava no topo da fila e repetia-se em todos os lotes; três
+        seguidos prendiam a fila. Fica lido, sem detalhe. Um 5xx é o BASE
+        em baixo: não marca, conta como falha."""
+        def http(codigo):
+            r = radar.requests.Response()
+            r.status_code = codigo
+            return radar.requests.HTTPError(response=r)
+        lidos, _ = radar.recolher_concorrentes(
+            2, pedir=self.pedir([http(404), ValueError()]), esperar=lambda s: None)
+        self.assertEqual(lidos, 2)
+        self.assertEqual(radar.contratos_por_ler(10), [4, 1])
+        lidos, _ = radar.recolher_concorrentes(
+            4, pedir=self.pedir([http(503)] * 3), esperar=lambda s: None)
+        self.assertEqual(lidos, 0)
+        self.assertEqual(radar.contratos_por_ler(10), [4, 1])
+
+    def test_a_copia_dos_concorrentes_nao_derruba_a_diaria(self):
+        radar.recolher_concorrentes(1, pedir=self.pedir([None]), esperar=lambda s: None)
+        with unittest.mock.patch.object(radar, "liga_concorrentes",
+                                        side_effect=sqlite3.OperationalError("cheio")):
+            destino = radar.copia_de_seguranca()
+        self.assertTrue(os.path.exists(destino))
+        self.assertFalse([f for f in os.listdir(radar.COPIAS)
+                          if f.startswith("concorrentes-")])
+
     def test_depois_de_um_corte_espera_e_a_espera_dobra(self):
         relogio = [datetime.datetime(2026, 10, 1, 12, 0)]
 
