@@ -150,13 +150,17 @@ def iniciar_tabelas(c):
     c.execute("CREATE INDEX IF NOT EXISTS ix_segundo_factor_util "
               "ON segundo_factor(utilizador_id, tipo)")
     # O plano de cada empresa (L2.1 do plano de Outubro, com os planos de
-    # 1/10/2026: Solo, Equipa e Corporate). E da plataforma, como as
+    # 1/10/2026: Solo, Duo e Corporate). E da plataforma, como as
     # contas: vive aqui e nao no ficheiro da empresa. Sem linha, a empresa
     # nao tem plano e nao tem limites -- a pagina do dono avisa.
     c.execute("""CREATE TABLE IF NOT EXISTS planos (
         empresa_id INTEGER PRIMARY KEY, plano TEXT NOT NULL,
         periodo TEXT NOT NULL DEFAULT 'mensal', fundador INTEGER NOT NULL DEFAULT 0,
         utilizadores INTEGER, desde TEXT)""")
+    # O Equipa (ate 5) deu lugar ao Duo (2) no mesmo dia em que nasceu
+    # (1/10/2026, decisao dele). A tabela estava vazia; uma linha que o
+    # tenha gravado passa a Duo. Idempotente: sem 'equipa', nao faz nada.
+    c.execute("UPDATE planos SET plano='duo', utilizadores=2 WHERE plano='equipa'")
     # As sessoes que uma entrada noutro aparelho fechou (a sessao unica do
     # Solo), para quem as tinha ver porque, e nao so o ecra de entrar.
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes_fechadas (
@@ -166,9 +170,10 @@ def iniciar_tabelas(c):
 # ------------------------------------------------------------------- planos
 #
 # Os planos de 1/10/2026 (decisao dele): o nome, e quantos utilizadores
-# leva. O Corporate e pelo numero acordado, que se grava na linha da
-# empresa; sem numero, nao tem limite.
-PLANOS = {"solo": ("Solo", 1), "equipa": ("Equipa", 5), "corporate": ("Corporate", None)}
+# leva -- e so isso: «todos os planos tem exactamente a mesma coisa, so
+# muda o numero de pessoas». O Corporate e pelo numero acordado, que se
+# grava na linha da empresa; sem numero, nao tem limite.
+PLANOS = {"solo": ("Solo", 1), "duo": ("Duo", 2), "corporate": ("Corporate", None)}
 PERIODOS = ("mensal", "anual")
 
 
@@ -182,11 +187,11 @@ def plano_da_empresa(c, empresa_id):
 
 def gravar_plano(c, empresa_id, plano, periodo="mensal", fundador=False,
                  utilizadores=None, agora=None):
-    """Poe (ou muda) o plano de uma empresa. O limite do Solo e do Equipa
+    """Poe (ou muda) o plano de uma empresa. O limite do Solo e do Duo
     e o do plano; o do Corporate e o que se der. ValueError com a frase
     para o ecra se o plano ou o periodo nao existem."""
     if plano not in PLANOS:
-        raise ValueError("o plano tem de ser Solo, Equipa ou Corporate")
+        raise ValueError("o plano tem de ser Solo, Duo ou Corporate")
     if periodo not in PERIODOS:
         raise ValueError("o período tem de ser mensal ou anual")
     limite = PLANOS[plano][1] if plano != "corporate" else utilizadores

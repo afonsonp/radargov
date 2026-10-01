@@ -1533,7 +1533,7 @@ cumpre da WCAG, o que ainda não cumpre, e que as barreiras se reportam
 pelo mesmo formulário. **Quando se corrigir uma das falhas que lá estão,
 tira-se da lista e muda-se a data.** O formulário «Pedir acesso»
 (desde 30/09/2026 com o NIF da empresa e o plano que lhe interessa: a
-oferta de fundador, o Solo, o Equipa ou o Corporate; os planos mudaram
+oferta de fundador, o Solo, o Duo ou o Corporate; os planos mudaram
 a 1/10/2026)
 guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 (se o correio estiver configurado, em Configurações › Alertas). Os
@@ -1542,11 +1542,12 @@ site»** — e é aí que os vês se o e-mail não tiver chegado.
 
 **O plano de cada empresa** (desde 1/10/2026): ao aceitar um pedido, a
 empresa nasce com o plano que escolheu no formulário — a oferta de
-fundador fica Equipa, marcada como fundador. Para o mudar, abre a página
+fundador fica Duo, marcada como fundador. Para o mudar, abre a página
 da empresa na plataforma e usa o cartão **«Plano»**: Solo (1 utilizador,
-uma sessão de cada vez), Equipa (até 5) ou Corporate (o número que
-acordaste, no campo «Utilizadores»). Mudar para um plano mais pequeno
-não tira contas a ninguém; só deixa de se poder convidar.
+uma sessão de cada vez), Duo (2) ou Corporate (o número que acordaste,
+no campo «Utilizadores»). Os três têm tudo, cofre incluído: o plano só
+conta pessoas. Mudar para um plano mais pequeno não tira contas a
+ninguém; só deixa de se poder convidar.
 
 **Para dar acesso a quem pediu**, carrega em **«aceitar…»** na linha do
 pedido. Abre primeiro **o perfil da empresa nova** (desde 26/09/2026:

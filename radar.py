@@ -23425,8 +23425,9 @@ def _cartao_do_plano(id_):
         % (id_, opcoes, periodos,
            p["utilizadores"] if p and p["plano"] == "corporate" and p["utilizadores"] else "",
            " checked" if p and p["fundador"] else ""),
-        meta="O Solo tem 1 utilizador e uma sessão de cada vez; o Equipa até 5; "
-             "o Corporate o número acordado.", id_="plano")
+        meta="Todos têm o mesmo; muda o número de pessoas: o Solo tem 1 e uma "
+             "sessão de cada vez, o Duo 2, o Corporate o número acordado.",
+        id_="plano")
 
 
 @app.route("/plataforma/empresa/<int:id_>/plano", methods=["POST"])
@@ -24851,29 +24852,14 @@ def _documento_do_pedido(form):
     return (tipo, descricao, validade), ""
 
 
-def cofre_fechado():
-    """O cofre dos documentos e do Equipa e do Corporate (os planos de
-    1/10/2026): no Solo fecha-se, e di-lo. Sem plano fica aberto."""
-    with liga() as c:
-        p = contas.plano_da_empresa(c, empresa_activa())
-    return bool(p and p["plano"] == "solo")
-
-
-FRASE_DO_COFRE_FECHADO = ("O cofre dos documentos da empresa é do plano Equipa: "
-                          "no Solo não há cofre. Para mudar de plano, fale connosco.")
-
-
 @app.route("/configuracoes/documentos", methods=["GET", "POST"])
 def config_documentos():
     """O cofre dos documentos da empresa (D5 da segunda ronda,
     26/09/2026): o tipo, o número ou a descrição, e a validade. Sem
     ficheiros. Cada validade dá uma tarefa 15 dias antes
-    (`sincronizar_documentos()`). Só o admin da empresa (ROTAS_SO_ADMIN)."""
-    if cofre_fechado():
-        if request.method == "POST":
-            return volta_config_erro("documentos", FRASE_DO_COFRE_FECHADO)
-        return pagina_config("documentos", "<div class='mg-alert mg-alert--info'>%s</div>"
-                             % html.escape(FRASE_DO_COFRE_FECHADO))
+    (`sincronizar_documentos()`). Só o admin da empresa (ROTAS_SO_ADMIN).
+    Em todos os planos: o cofre fechava no Solo até os planos passarem a
+    ter todos o mesmo (1/10/2026)."""
     if request.method == "POST":
         doc, recado = _documento_do_pedido(request.form)
         if recado:
@@ -24952,8 +24938,6 @@ def config_documentos():
 
 @app.route("/configuracoes/documentos/<int:id_>", methods=["POST"])
 def config_documento_gravar(id_):
-    if cofre_fechado():
-        return volta_config_erro("documentos", FRASE_DO_COFRE_FECHADO)
     doc, recado = _documento_do_pedido(request.form)
     if recado:
         return volta_config("documentos", recado, erro=True)
@@ -24968,8 +24952,6 @@ def config_documento_gravar(id_):
 
 @app.route("/configuracoes/documentos/<int:id_>/apagar", methods=["POST"])
 def config_documento_apagar(id_):
-    if cofre_fechado():
-        return volta_config_erro("documentos", FRASE_DO_COFRE_FECHADO)
     with liga() as c:
         c.execute("DELETE FROM documentos_da_empresa WHERE id=?", (id_,))
     sincronizar_documentos()          # leva as tarefas dele
@@ -34886,14 +34868,17 @@ SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
                       "Prestação de serviços", "Tecnologias de informação",
                       "Outro")
 # O que o formulario do site deixa escolher (30/09/2026): o valor e como
-# se diz. A oferta de fundador e o Equipa a preco de fundador. Os planos
-# mudaram a 1/10/2026 (decisao dele): sairam o Vigia e o VigIA+, e os
-# pedidos de antes mostram o valor que gravaram.
+# se diz. A oferta de fundador e o Duo a preco de fundador. Os planos
+# mudaram a 1/10/2026 (decisao dele): sairam o Vigia e o VigIA+, e no
+# mesmo dia o Equipa deu lugar ao Duo; os pedidos de antes mostram o
+# valor que gravaram.
 PLANOS_DO_PEDIDO = {"fundador": "Oferta de fundador", "solo": "Solo",
-                    "equipa": "Equipa", "corporate": "Corporate"}
-# e o plano com que a empresa nasce ao aceitar o pedido: (plano, fundador)
-PLANO_DO_PEDIDO = {"fundador": ("equipa", True), "solo": ("solo", False),
-                   "equipa": ("equipa", False), "corporate": ("corporate", False)}
+                    "duo": "Duo", "corporate": "Corporate"}
+# e o plano com que a empresa nasce ao aceitar o pedido: (plano, fundador).
+# Um pedido gravado com o Equipa nasce Duo, que e o que o substituiu.
+PLANO_DO_PEDIDO = {"fundador": ("duo", True), "solo": ("solo", False),
+                   "duo": ("duo", False), "equipa": ("duo", False),
+                   "corporate": ("corporate", False)}
 
 
 def nif_do_pedido(texto):
@@ -35811,7 +35796,7 @@ def aceitar_pedido(id_):
                            **({"nif_da_empresa": p["nif"]} if p["nif"] else {})))
     with liga() as c:
         # o plano que a empresa escolheu no formulario (L2.1); a oferta de
-        # fundador e o Equipa a preco de fundador. Os pedidos de antes dos
+        # fundador e o Duo a preco de fundador. Os pedidos de antes dos
         # planos novos ficam sem plano, e o dono poe-no na pagina dela.
         plano = PLANO_DO_PEDIDO.get((p["plano"] if "plano" in p.keys() else "") or "")
         if plano:

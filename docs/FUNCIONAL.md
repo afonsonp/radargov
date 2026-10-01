@@ -1354,10 +1354,11 @@ e os de erro seguem o computador (não há a quem perguntar).
 
 **Os planos** (desde 1/10/2026, L2.1 do plano de Outubro, com os planos
 desse dia): cada empresa tem um — **Solo** (1 utilizador, uma sessão de
-cada vez), **Equipa** (até 5) ou **Corporate** (o número acordado) —, na
+cada vez), **Duo** (2; substituiu no mesmo dia o Equipa, de 5) ou
+**Corporate** (o número acordado) —, na
 tabela `planos` do `radar.db`, que é da plataforma como as contas. Quem o
 põe é o dono: ao aceitar um pedido nasce com o plano que o formulário
-escolheu (a oferta de fundador é o Equipa, marcado como fundador), e
+escolheu (a oferta de fundador é o Duo, marcado como fundador), e
 muda-se no cartão «Plano» da página da empresa
 (`plataforma_gravar_plano()`). **O limite conta as contas e os convites
 por usar** (`contas.lugares_livres()`): o `criar_convite()` recusa com a
@@ -1365,9 +1366,11 @@ frase do plano, e o `usar_convite()` volta a conferir, porque o plano
 pode ter descido entretanto. **No Solo, a última entrada ganha**: o
 `_abrir_sessao()` fecha as outras sessões da conta e guarda-as na
 `sessoes_fechadas`, e quem as tinha vê, no pedido seguinte, «a sua sessão
-foi fechada porque entrou noutro aparelho». **O cofre dos documentos
-fecha-se no Solo** (`cofre_fechado()`). A leitura das peças por IA é de
-todos. **Uma empresa sem plano não tem limites**, e o cartão avisa.
+foi fechada porque entrou noutro aparelho». **Os três planos têm as
+mesmas funcionalidades** — a leitura das peças por IA, as tarefas
+atribuídas, o Hoje por pessoa, as notas partilhadas e o cofre —: o plano
+só conta pessoas (o cofre fechava no Solo até o Duo chegar). **Uma
+empresa sem plano não tem limites**, e o cartão avisa.
 
 Tudo passa por um só sítio antes de qualquer rota: o
 `porta_de_entrada()`, logo a seguir ao `app`. As tabelas e a
@@ -1385,8 +1388,9 @@ criptografia estão no **`contas.py`**, que não importa o radar.
    um POST leva 403. **A excepção é a raiz**: um GET a `/` sem sessão
    recebe o **site público** (`site/index.html`, desde 23/09/2026), que
    é um ficheiro estático sem dados. Desde 30/09/2026 tem os três planos
-   (Solo, Equipa e Corporate desde 1/10/2026, com preços sem IVA e a
-   leitura das peças por IA em todos) e a oferta de fundador,
+   (Solo, Duo e Corporate desde 1/10/2026, com as mesmas
+   funcionalidades, o preço + IVA e só o número de pessoas a mudar) e a
+   oferta de fundador,
    e o formulário pede o NIF da empresa e o plano que interessa. Com `?dia=` ou outro parâmetro é a
    mesma raiz, e é o site; todos os outros caminhos **que são rotas** vão
    ao login. Um caminho que não é rota nenhuma dá o **404** do painel,
