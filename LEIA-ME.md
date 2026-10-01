@@ -105,6 +105,11 @@ painel avisa a vermelho a dizer que não aceitou a pesquisa nem depois
 de renovar as peças. Só aí é que se repete esta secção; leva dois
 minutos.
 
+**Mas antes de a repetir, pede que se confirme que é mesmo a captura.**
+A 30/09/2026 o aviso apareceu, durante 24 horas, e a captura estava
+boa: o DR tinha mudado a maneira de escrever a versão no script dele, e
+era o radar que a lia mal. Uma captura nova não teria resolvido nada.
+
 ## 4. O que entra
 
 Tudo. Todos os anúncios da parte L que o portal devolver na janela de
@@ -1572,8 +1577,8 @@ systemctl --user status radar-tunel.service
 ```
 
 E para não teres de ser tu a reparar que caiu: **`https://miragov.pt/saude`**
-responde «ok» sem login quando o painel e a base estão de pé (e 503
-quando a base não responde). Serve para pôr um vigilante gratuito a
+responde «ok» sem login quando o painel, a base e a recolha estão de pé (e 503
+quando a base não responde ou a recolha parou ou está a falhar). Serve para pôr um vigilante gratuito a
 bater lá de cinco em cinco minutos e a mandar-te e-mail quando falha:
 o UptimeRobot (uptimerobot.com, plano Free) ou equivalente, um monitor
 do tipo HTTP com esse endereço. Ligaste-o a 15/09/2026, na tua conta
@@ -1620,7 +1625,9 @@ Três coisas, que o radar já sabe usar e só precisam de ti (desde
    a vigiar `https://miragov.pt/saude`, de cinco em cinco minutos.
    Chega para as duas avarias: o `/saude` dá erro com o site em baixo
    **e** quando a recolha parou (a última hora marcada passou há mais de
-   40 minutos sem verificação). Se um dia quiseres também o aviso por
+   40 minutos sem verificação) **ou está a falhar** (três verificações
+   seguidas sem trazer nada do DR — desde 1/10/2026; antes, um dia
+   inteiro de falhas passava por «ok»). Se um dia quiseres também o aviso por
    «batida», há a chave `vigia_url` (healthchecks.io), opcional.
 3. **As cópias fora do PC**, se ainda não as ligaste: secção 13.
 

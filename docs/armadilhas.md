@@ -271,6 +271,25 @@ O DR, a Vortal, e como um anúncio entra na base.
   só por essa que um dia se refaz (secção 3 do `LEIA-ME.md`). Nunca
   edites estas capturas: um hook bloqueia-o.
 
+- **A apiVersion lê-se ancorada no caminho da acção, nunca por
+  posição** (1/10/2026). A 30/09/2026, às 08:00, o OutSystems do DR
+  passou a compilar `callDataAction("X", "<GUID>", "screenservices/…/X",
+  "<apiVersion>", …)` — uma chave nova entre o nome e o caminho. A
+  expressão antiga contava argumentos e leu o **caminho** como
+  apiVersion; a renovação «correu bem», o DR respondeu
+  `hasApiVersionChanged` a todas as pesquisas, e o erro dizia «refaz a
+  captura» quando a captura estava boa (a apiVersion dela,
+  `PRsQKjEXDVBC3ZSqkS8k6A`, é a mesma do portal novo). 24 verificações
+  perdidas e zero anúncios do DR com data de 30/09.
+  `api_version_do_script()` procura agora o argumento a seguir ao
+  caminho que acaba na acção, e só aceita letras, dígitos, `_` e `-`:
+  se a forma mudar outra vez, dá vazio, a renovação falha com a marca
+  `pecas-dr` (que diz o que foi) e o pedido segue com a apiVersion da
+  captura. **Quando o erro disser «apiVersion … nem depois de renovar»,
+  confere primeiro o que o `renovar_pecas_dr()` leu do script** antes
+  de mandar o Afonso ao DevTools. O teste guarda o pedaço do script de
+  1/10 tal como veio.
+
 
 ---
 
@@ -3092,6 +3111,13 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   sempre, e nunca veria o painel cair. E o `liga()` da porta ficou
   dentro do `try` por isto: com a base indisponível tudo dava 500 na
   porta, incluindo a rota que existe para dizer 503.
+  E dá 503 em **dois** casos da recolha, não um: «a recolha parou» (a
+  hora marcada passou sem verificação, `recolha_atrasada()`) e «a
+  recolha está a falhar» (`FALHAS_PARA_O_VIGIA` verificações seguidas
+  sem sucesso, `recolha_a_falhar()`, contadas pelo `marcar_resultado()`,
+  que é o único sítio que escreve o `ultima_ok`). O segundo entrou a
+  1/10/2026: com o DR a recusar a pesquisa, a verificação corria de
+  hora a hora e falhava, e o `/saude` disse «ok» durante 24 horas.
 
 - **O túnel liga-se ao painel a partir de 127.0.0.1.** O `cloudflared`
   corre neste computador e fala com o Flask por loopback: só pelo IP,
