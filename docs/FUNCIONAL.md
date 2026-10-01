@@ -115,12 +115,12 @@ as exactas e salta as outras.
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
-| `utilizadores` | **2** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
+| `utilizadores` | **1** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
-| `estado` | 21 | Marcas do sistema (última verificação, migrações feitas) |
+| `estado` | 22 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
-| `convites` | **1** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
+| `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
 | `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |

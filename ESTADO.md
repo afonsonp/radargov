@@ -61,8 +61,8 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Rotas Flask | 137 |
 | Tabelas em `radar.db` | 19, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
 | Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB). E o índice da **pesquisa geral** (1/10/2026): `pesquisa_fts` + `pesquisa_refs` no `radar.db`, ~115 MB, 30 a 60 s **em fundo** no primeiro arranque com esse código, numa cópia |
-| Testes | **1 850**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 37 623 linhas · `teste_radar.py` 26 891 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
+| Testes | **1 859**, em ~180 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 37 741 linhas · `teste_radar.py` 27 008 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -179,8 +179,10 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.38`**, de
-  1/10/2026 — **os planos novos: Solo, Equipa e Corporate**, com a leitura
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.39`**, de
+  1/10/2026 — **os planos no código (L2.1)**: o plano de cada empresa, o
+  limite de utilizadores, a sessão única do Solo e o cofre fechado no
+  Solo; e a LATD, de teste, saiu. A `v2.0.38`, do mesmo dia — **os planos novos: Solo, Equipa e Corporate**, com a leitura
   das peças por IA em todos, o Solo com uma sessão de cada vez e o plano
   anual pago de uma vez (Solo 408 €, Equipa 780 €, fundador 576 €). A
   `v2.0.37`, do mesmo dia — **a recolha dos concorrentes do Portal BASE** (L5): o painel
