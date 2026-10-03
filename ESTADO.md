@@ -1,6 +1,6 @@
 # Estado do projecto
 
-Última actualização: **1 de outubro de 2026**.
+Última actualização: **3 de outubro de 2026**.
 
 Este ficheiro diz **como está o radar hoje**, e só isso. O histórico
 está no diário: sempre que este ficheiro volta a crescer para diário —
@@ -65,8 +65,8 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Rotas Flask | 138 |
 | Tabelas em `radar.db` | 19, as da plataforma (com os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
 | Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB). E o índice da **pesquisa geral** (1/10/2026): `pesquisa_fts` + `pesquisa_refs` no `radar.db`, ~115 MB, 30 a 60 s **em fundo** no primeiro arranque com esse código, numa cópia |
-| Testes | **1 887**, em ~200 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 38 155 linhas · `teste_radar.py` 27 506 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
+| Testes | **1 903**, em ~200 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 38 321 linhas · `teste_radar.py` 27 754 · `empresa.py` 868 · `contas.py` 1 191 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -183,8 +183,14 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.42`**, de
-  1/10/2026 — **os planos Solo, Duo e Corporate**: o Equipa deu lugar ao
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.43`**, de
+  3/10/2026 — **o resumo do Mercado volta a abrir** (dava 500 desde 2/10)
+  e **o preço estimado do DL 177/2026** numa coluna própria, que nunca
+  se confunde com o preço base (e o «Valor Estimado do Lote» deixou de
+  ser lido como preço base do lote); leva também a leitura das condições
+  de pagamento (L4), a taxa de vitória sem os ajustes directos e os termos
+  corrigidos nos três pontos graves. **Traz migração: cópia antes.** A
+  `v2.0.42`, de 1/10/2026 — **os planos Solo, Duo e Corporate**: o Equipa deu lugar ao
   Duo, de duas pessoas, e os três planos têm exactamente o mesmo — só muda
   o número de pessoas (o cofre abre também no Solo). A `v2.0.41`, do mesmo
   dia — **o campo 11 da leitura vai primeiro ao nemotron, com o
