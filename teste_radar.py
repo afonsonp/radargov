@@ -20384,10 +20384,11 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         # isto). O bloco é o ÚLTIMO, que é o que o browser lê.
         depois = radar.CSS_TUDO[radar.CSS_TUDO.rindex(marca):]
         bloco = depois[:depois.index("\n}")]
-        for regra in (".flash{animation:", "dialog.mg-dialog[open]{animation:"):
-            self.assertIn(regra, bloco, regra)
-        # e nenhuma delas pode existir FORA do bloco
-        self.assertEqual(radar.CSS_TUDO.count(".flash{animation:"), 1)
+        # o `.flash` saiu a 4/10/2026: os avisos são `.mg-*` desde a fase 3
+        regra = "dialog.mg-dialog[open]{animation:"
+        self.assertIn(regra, bloco, regra)
+        # e não pode existir FORA do bloco
+        self.assertEqual(radar.CSS_TUDO.count(regra), 1)
 
     def test_sem_a_pasta_o_painel_serve_na_mesma(self):
         """Perde-se a suavidade, não a página: os `estilo/*.css` são um

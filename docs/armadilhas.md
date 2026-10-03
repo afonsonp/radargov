@@ -1906,7 +1906,7 @@ O funil da empresa, do «por ver» ao «ganho».
 - **Triar avisa e deixa desfazer.** `mudar_estado()` volta com
   `?aviso=«título» marcado como interessa.&desfazer=/estado/<ref>/<estado
   anterior>` e `envolver()` desenha o `desfazer` como botão POST dentro
-  do `.flash` — só caminhos `/estado/`, nunca um endereço vindo da query
+  do aviso (`.mg-alert`; o `.flash` saiu a 4/10/2026) — só caminhos `/estado/`, nunca um endereço vindo da query
   string. Se o estado anterior era um abandono com motivo, o motivo vai
   em `?motivo=` na acção do desfazer (por isso `mudar_estado()` lê
   `request.values` e não `request.form`); um abandono antigo sem motivo

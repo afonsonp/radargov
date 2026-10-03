@@ -15750,13 +15750,6 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .nota{font:400 var(--text-xs)/1.5 var(--font-sans);color:var(--ink-muted)}
 .vazio{background:var(--surface-raised);border:1px solid var(--line);border-radius:var(--radius-md);
  padding:40px;text-align:center;color:var(--ink-muted);font:400 var(--text-sm)/1.55 var(--font-sans)}
-.flash{background:var(--brand-soft);border:1px solid var(--brand-soft);border-radius:var(--radius-md);
- padding:11px 15px;margin-bottom:14px;font:500 var(--text-xs)/1.4 var(--font-sans);
- color:var(--brand)}
-.flash.mau{background:var(--danger-soft);border-color:color-mix(in srgb,var(--danger) 25%,transparent);color:var(--danger)}
-.flash form.desfazer{margin-left:10px;vertical-align:middle}
-.flash code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
- padding:2px 6px;border-radius:var(--radius-sm)}
 .ponto{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 /* "Verificar agora" enquanto corre: o botao sai e fica o sinal de vida,
    para nao haver dois clientes a comecar duas recolhas. */
@@ -16606,12 +16599,6 @@ a.ct-l{color:var(--brand)}
    em vez de se desligar depois: quem pediu menos movimento nunca chega
    a receber nenhum, nem no primeiro fotograma. */
 @media (prefers-reduced-motion: no-preference){
- /* O aviso é a única coisa que aparece sozinha depois de um gesto. Sem
-    entrada, ele pisca no sítio e lê-se como se já lá estivesse. */
- /* as duas juntas: o deslizar sozinho vem de -100% da própria altura e
-    passa por cima do que está acima; com o esbater, não se nota */
- .flash{animation:slide-in-down .18s var(--ease-out-3),
-  fade-in .18s var(--ease-3)}
  /* O que responde ao rato ou ao teclado acompanha, em vez de trocar de
     cor de um fotograma para o outro. .12s é o que as duas transitions
     que já existiam usavam -- segue-se o que a casa já tinha. */
