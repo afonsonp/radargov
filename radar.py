@@ -6974,8 +6974,17 @@ FORNECEDORES = (
     # a 3.a ronda julgou as outras: um modelo novo le de outra maneira.
     # A conta gratuita da Google pode usar o que recebe para melhorar os
     # produtos dela; so lhe vao pecas publicas.
+    # O Flash-Lite no lugar do 3.6-flash (4/10/2026, ultima ronda), medido
+    # a 3/10 no campo 11: le um pouco pior do que o nemotron (14 das 31
+    # frases-prova do grupo a, contra 15 a 19), mas responde 10 x mais
+    # depressa e tem 15 pedidos por minuto (provado pelo 429) e ~500 por
+    # dia -- o 3.6-flash tinha 20 por dia, menos de sete concursos. Sem
+    # parametro nenhum nao pensa, e o `reasoning_effort: "none"` da 400.
+    # Devolve o campo como lista em ~13 % das respostas e escreve a
+    # pagina a meio da linha: as duas coisas tratam-se no
+    # conferir_a_resposta(), para todos os fornecedores.
     ("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-     "gemini-3.6-flash", ("gemini_API_KEY.txt",), "GEMINI_API_KEY", {}),
+     "gemini-3.5-flash-lite", ("gemini_API_KEY.txt",), "GEMINI_API_KEY", {}),
     ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
      {"reasoning_effort": "low"}),
 )
@@ -8411,11 +8420,279 @@ def numeros_por_confirmar(valor, texto_lido):
     fonte = _numeros_normalizados(re.sub(r"\[pág\. \d+\]", " ", texto_lido or ""))
     linhas = []
     for linha in valor.split("\n"):
-        faltam = numeros_sem_apoio(linha, fonte)
-        if faltam and not RX_POR_CONFIRMAR.search(linha):
-            linha += marca_por_confirmar(faltam)
+        if not RX_POR_CONFIRMAR.search(linha):
+            faltam = numeros_sem_apoio(linha, fonte)
+            if faltam:
+                linha += marca_por_confirmar(faltam)
+            else:
+                quantidade = quantidade_sem_apoio(linha, fonte[0])
+                if quantidade:
+                    linha += (" [confirmar: «%s» não está junto de «%s» nas páginas lidas]"
+                              % quantidade)
         linhas.append(linha)
     return "\n".join(linhas)
+
+
+# --- a quantidade junto do artigo (4/10/2026, ultima ronda)
+#
+# A 23513 escreveu «1 licença Architecture Engineering & Construction
+# Collection», e a Lista diz «1 1 Architecture ... UN 16»: o 1 e o numero
+# da linha da tabela, e por estar no texto passava. Uma quantidade -- um
+# numero seguido de licencas, unidades, recursos, elementos, horas ou
+# postos -- confere-se com o artigo: ou a peca diz «16 licencas» (com o
+# extenso pelo meio, «9 (nove) recursos»), ou o numero esta depois do
+# nome do artigo, a menos de JANELA_DA_QUANTIDADE letras, como numa
+# tabela «Designacao | Unidade | Qtd». Sem o artigo no texto (um resumo,
+# outra lingua) nao se julga. Medido nas 77 leituras de 3/10: das 281
+# quantidades, so a da 23513 ficou marcada.
+RX_QUANTIDADE = re.compile(
+    r"(?<!\d)(\d+) (licencas?|unidades?|recursos?|elementos?|horas?|postos?)\b")
+JANELA_DA_QUANTIDADE = 80
+PALAVRAS_VAZIAS = frozenset("de do da dos das e o a os as em para por com no na nos nas "
+                            "tipo ou um uma".split())
+
+
+def quantidade_sem_apoio(linha, fonte):
+    """(«N unidade», «artigo») da primeira quantidade da linha que o
+    texto lido não sustenta junto do artigo, ou None. `fonte` é o texto
+    lido com espaços, como o _numeros_normalizados() o dá."""
+    original = RX_NUMERO_DA_LISTA.sub("", sem_a_pagina_citada(linha))
+    corpo = _numeros_normalizados(junta_os_milhares(original))[0]
+    # a marca diz as palavras como a linha as escreve, com os acentos
+    como_escrita = {simplifica(p): p for p in re.findall(r"[^\W_]+", original)}
+    for m in RX_QUANTIDADE.finditer(corpo):
+        n, unidade = m.groups()
+        grupos = " ".join([n[max(0, i - 3):i] for i in range(len(n), 0, -3)][::-1])
+        if re.search(r"(?<!\d)0*(%s|%s) ([a-z0-9]+ )?%s" % (n, grupos, unidade[:5]), fonte):
+            continue
+
+        def artigo(palavras):
+            return [p for p in palavras if p not in PALAVRAS_VAZIAS
+                    and not p.isdigit() and len(p) > 1]
+        # o artigo vem a seguir («1 licença AutoCAD»); sem nada a seguir,
+        # vem antes («Adobe Acrobat Pro — 130 licenças»)
+        nome = artigo(corpo[m.end():].split())[:3]
+        if len(nome) < 2:
+            nome = artigo(corpo[:m.start()].split())[-3:]
+        if len(nome) < 2:
+            continue
+        sitios = [o.end() for o in re.finditer(r"\b%s\b" % " ".join(nome), fonte)]
+        if sitios and not any(_esta_no_texto(n, (fonte[p:p + JANELA_DA_QUANTIDADE],))
+                              for p in sitios):
+            return tuple(" ".join(como_escrita.get(p, p) for p in palavras)
+                         for palavras in (m.group().split(), nome))
+    return None
+
+
+# --- as palavras com peso contra as pecas (4/10/2026, ultima ronda)
+#
+# O quinto julgamento (3/10/2026) achou invencoes que nao sao numeros:
+# «Ministerio da Justica» num concurso do Metropolitano de Lisboa (21830,
+# «ML» desdobrado), quatro «experiencias» tiradas dos nomes das
+# certificacoes Oracle com uma sigla, «OCI», que as pecas nunca escrevem
+# (21508), e «dessalinizadores» onde o CE diz «descalsidicador» (23728).
+# Como os numeros, sem modelo e depois da resposta: as palavras com peso
+# de cada linha tem de estar no texto que foi ao modelo, e a que nao
+# esta marca a linha. Com peso sao os nomes proprios (a maiuscula que
+# nao abre frase), as siglas, os codigos com letras, e as palavras
+# compridas que nao sejam adverbios nem gerundios -- o modelo reescreve
+# os verbos, mas nao tem de inventar substantivos tecnicos.
+#
+# Comparado como o ensaio-de-leitura compara: sem acentos, e as
+# palavras de 5 letras ou mais no texto comprimido, porque o PDF parte
+# palavras («capi tania», 22102; «anex odeucp_», 22458); as curtas (as
+# siglas) palavra a palavra, que «oci» comprimido esta em «social». O
+# plural, a grafia de antes do Acordo («Director», «actividade») e as
+# palavras da propria pergunta tambem valem.
+#
+# Medido nas 77 leituras de 3/10 (sem modelo, radar.db so de leitura):
+# 18 linhas marcadas. 11 verdadeiras -- as tres do relatorio (21830 nas
+# tres linhas, 21508 nas quatro, 23728) e mais tres que ninguem tinha
+# visto: «ISO/IEC 20000» onde a peca diz «ISO EN 20000» (21296), «CPD»
+# (21666) e «TPM 2.0» (22540), que nao estao em peca nenhuma. 7 falsas,
+# todas o modelo a abreviar ou a desdobrar o que leu: «IA», «ULS»,
+# «AEE», «IPL», «RC», «Escola Superior» por ESSL, e «Engenharia» onde
+# a peca tem a gralha «engenheira». O que nao se apanha: uma linha feita
+# de palavras certas em sitio errado -- as experiencias da 21508 so se
+# marcam pela sigla.
+SIGLAS_CORRENTES = frozenset(("iva", "ccp", "cpa"))
+COMPRIDA_DEMAIS = 14
+RX_PALAVRA = re.compile(r"[0-9A-Za-zÀ-ÖØ-öø-ÿ]+(?:[-_][0-9A-Za-zÀ-ÖØ-öø-ÿ]+)*")
+RX_ABRE_FRASE = re.compile(r"(^|[:;.–—(«\"“/,>≥≤+-])$")
+RX_MARCA_DE_PALAVRAS = re.compile(r" \[confirmar: «[^\]]*» não est[áã]o? nas páginas lidas\]")
+
+
+def _sem_acordo(palavra):
+    """«director» -> «diretor», «actividade» -> «atividade»."""
+    return re.sub(r"c(?=t)|p(?=t)", "", palavra)
+
+
+def _formas(palavra):
+    fora = {palavra, _sem_acordo(palavra)}
+    for p in list(fora):
+        for sufixo in ("es", "s"):
+            if p.endswith(sufixo) and len(p) > len(sufixo) + 1:
+                fora.add(p[:-len(sufixo)])
+    return fora
+
+
+def _tem_peso(palavra, antes):
+    if not re.search(r"[^\W\d_]", palavra):
+        return False
+    if sum(ch.isupper() for ch in palavra) >= 2:
+        return True                                     # sigla ou código
+    if palavra[0].isupper():
+        return not RX_ABRE_FRASE.search(antes.rstrip())
+    return (len(palavra) >= COMPRIDA_DEMAIS
+            and not re.search(r"(mente|ndo)(-\w+)?$", palavra))
+
+
+def indice_do_lido(texto_lido, pergunta=""):
+    """(palavras, texto comprimido) do texto lido, feito uma vez por campo."""
+    simples = simplifica(re.sub(r"\[pág\. \d+\]", " ", texto_lido or ""))
+    palavras = set(re.findall(r"[a-z0-9]+", simples))
+    palavras |= {_sem_acordo(p) for p in palavras}
+    palavras |= set(re.findall(r"[a-z0-9]+", simplifica(pergunta or ""))) | SIGLAS_CORRENTES
+    return palavras, _sem_acordo(re.sub(r"[^a-z0-9]", "", simples))
+
+
+def palavras_sem_apoio(linha, indice):
+    """As palavras com peso da linha que não estão no texto lido
+    (`indice` é o que o indice_do_lido() dá)."""
+    palavras, comprimido = indice
+
+    def esta(palavra):
+        c = re.sub(r"[^a-z0-9]", "", simplifica(palavra))
+        if any(f in palavras for f in _formas(c)):
+            return True
+        if palavra.islower() and len(c) >= COMPRIDA_DEMAIS:
+            # a raiz: «disponibilizando» vale por «disponibiliza»
+            return _sem_acordo(c)[:max(7, len(c) - 5)] in comprimido
+        return len(c) >= 5 and any(f in comprimido for f in _formas(c))
+
+    def apoiada(palavra):
+        partes = [p for p in re.split(r"[-_]", palavra)
+                  if re.search(r"[^\W\d_]", p) and len(p) > 1]
+        if not partes:
+            return True                                 # «I-M», «II-D»
+        # «SR-1», «II-D», «CE_CEspeciais»: cada parte por si
+        return esta(palavra) or (partes != [palavra] and all(esta(p) for p in partes))
+
+    corpo = RX_NUMERO_DA_LISTA.sub("", sem_a_pagina_citada(linha))
+    faltam = []
+    for m in RX_PALAVRA.finditer(corpo):
+        palavra = m.group()
+        if (_tem_peso(palavra, corpo[:m.start()]) and palavra not in faltam
+                and not apoiada(palavra)):
+            faltam.append(palavra)
+    return faltam
+
+
+def palavras_por_confirmar(valor, texto_lido, pergunta=""):
+    """O campo com cada linha de palavras sem apoio marcada para
+    confirmar, como o numeros_por_confirmar() faz com os números."""
+    if not isinstance(valor, str):
+        return valor
+    indice = indice_do_lido(texto_lido, pergunta)
+    linhas = []
+    for linha in valor.split("\n"):
+        if not RX_MARCA_DE_PALAVRAS.search(linha):
+            faltam = palavras_sem_apoio(linha, indice)
+            if faltam:
+                linha += " [confirmar: %s %s nas páginas lidas]" % (
+                    ", ".join("«%s»" % p for p in faltam),
+                    "não está" if len(faltam) == 1 else "não estão")
+        linhas.append(linha)
+    return "\n".join(linhas)
+
+
+# --- os restos do molde (4/10/2026, ultima ronda)
+#
+# A pergunta dos bens tem um molde, e o modelo copiou-o: «(firme)» em
+# todas as quantidades (22005, 22631, 22682, 22754, 23513, 23589) --
+# na 22005 o CE diz o contrario, «nao podera exceder as quantidades da
+# nota de encomenda» --, e os cabecalhos inteiros como linhas da
+# resposta («Designacao exacta — quantidade (diz se e firme ou
+# estimada)», 21659; o guiao todo na 22682). Tiram-se sem modelo, e a
+# pergunta fica como esta: mudar o molde mudava a VERSAO_DA_PERGUNTA e
+# mandava reler as leituras abertas por uma coisa que o codigo resolve.
+# O «(firme)» e o «(estimada)» ficam quando o texto lido os diz.
+RX_FIRME_OU_ESTIMADA = re.compile(r"\s*\((firmes?|estimad[ao]s?)\)", re.I)
+
+
+def _linhas_do_molde(pergunta):
+    return {simplifica(l).strip(" :") for l in (pergunta or "").split("\n")
+            if len(l.strip()) >= 12}
+
+
+def sem_o_molde(valor, pergunta, texto_lido):
+    """O campo sem as linhas que repetem a pergunta e sem o «(firme)» ou
+    o «(estimada)» que o texto lido não diz."""
+    if not isinstance(valor, str):
+        return valor
+    molde = _linhas_do_molde(pergunta)
+    lido = simplifica(texto_lido or "")
+    diz = {"firm": bool(re.search(r"\bfirmes?\b", lido)),
+           "esti": bool(re.search(r"\bestimad[ao]s?\b", lido))}
+    linhas = []
+    for linha in valor.split("\n"):
+        if molde and simplifica(sem_a_pagina_citada(linha)).strip(" :") in molde:
+            continue
+        linhas.append(RX_FIRME_OU_ESTIMADA.sub(
+            lambda m: m.group() if diz[simplifica(m.group(1))[:4]] else "", linha))
+    return "\n".join(linhas)
+
+
+# --- a resposta que nao vem em texto, e a pagina a meio (4/10/2026)
+#
+# O gemini-3.5-flash-lite devolve o campo como lista em ~13 % das
+# respostas (medido a 3/10 no campo 11: 22682, 23530, 21724), as vezes
+# com um dicionario por artigo; e um valor que nao e texto nao passava
+# por guarda nenhuma. Junta-se em texto antes delas, venha de quem vier.
+# E escreve a pagina ao contrario e a meio da linha, «(pág. 16, Caderno
+# de Encargos)»: o 16 parecia um numero por confirmar. A pagina e a do
+# codigo (paginas_pelo_codigo); a que esta a meio sai.
+def em_texto(valor):
+    """O valor de um campo da resposta como texto: uma lista linha a
+    linha (blocos separados por uma linha em branco quando são
+    dicionários), um dicionário em «chave: valor»."""
+    if isinstance(valor, dict):
+        linhas = []
+        for chave, v in valor.items():
+            if isinstance(v, list):
+                linhas += ["%s:" % chave] + ["- %s" % em_texto(x) for x in v]
+            else:
+                linhas.append("%s: %s" % (chave, em_texto(v)))
+        return "\n".join(linhas)
+    if isinstance(valor, list):
+        juntar = "\n\n" if any(isinstance(x, dict) for x in valor) else "\n"
+        return juntar.join(em_texto(x) for x in valor)
+    return valor if isinstance(valor, str) or valor is None else str(valor)
+
+
+RX_PAGINA_SOLTA = re.compile(r"\s*\((?=[^()]*\bp[áa]gs?\.\s*\d)[^()]{0,200}\)")
+
+
+def sem_paginas_no_meio(valor):
+    """Cada linha sem as páginas que não são a citação do fim."""
+    if not isinstance(valor, str):
+        return valor
+    linhas = []
+    for linha in valor.split("\n"):
+        m = RX_PAGINA_NA_LINHA.search(linha)
+        corpo, fim = (linha[:m.start()], linha[m.start():]) if m else (linha, "")
+        linhas.append(RX_PAGINA_SOLTA.sub("", corpo) + fim)
+    return "\n".join(linhas)
+
+
+def conferir_a_resposta(valor, texto_lido, pergunta):
+    """Todas as guardas de um campo, sem modelo e depois da resposta."""
+    valor = em_texto(valor)
+    if not isinstance(valor, str):
+        return valor
+    valor = sem_paginas_no_meio(sem_o_molde(limpa_campo(valor), pergunta, texto_lido))
+    valor = numeros_por_confirmar(paginas_pelo_codigo(valor, texto_lido), texto_lido)
+    return palavras_por_confirmar(valor, texto_lido, pergunta)
 
 
 # --- a pagina posta pelo codigo (30/09/2026, 4.a ronda)
@@ -8987,13 +9264,16 @@ def analisar_pecas(ref):
         # Sem modelo, depois da resposta (29/09/2026, 3.a ronda): as
         # clausulas-tipo saem do objecto, e a linha com um numero que nao
         # esta no texto lido fica marcada para confirmar
+        # A lista vira texto antes de tudo (4/10/2026): o Flash-Lite
+        # devolve-a, e uma lista passava por cima de todas as guardas
+        resposta = {k: em_texto(v) for k, v in resposta.items()}
         if "objecto" in resposta:
             resposta["objecto"] = sem_clausulas_tipo(limpa_campo(resposta["objecto"]))
         # E a pagina de cada linha e a do sitio onde ela esta no texto
-        # enviado, e nao a que o modelo escreveu (30/09/2026, 4.a ronda)
-        dados.update({k: numeros_por_confirmar(
-                          paginas_pelo_codigo(limpa_campo(v), texto), texto)
-                      if isinstance(v, str) else v for k, v in resposta.items()})
+        # enviado, e nao a que o modelo escreveu (30/09/2026, 4.a ronda);
+        # e o molde, as palavras e as quantidades (4/10/2026)
+        dados.update({k: conferir_a_resposta(v, texto, instrucao)
+                      for k, v in resposta.items()})
         usados += [f for f in fontes if f not in usados]
         if usado not in modelos:
             modelos.append(usado)

@@ -363,5 +363,9 @@ limite da Groq), e a ficha passou a marcar
 a leitura como rascunho. Relidas e julgadas outra vez a 29/09/2026, duas
 rondas no mesmo dia: a régua vai em 103 de 113 passagens, cada linha da
 leitura cita a página, e um número que não está nas páginas lidas fica
-marcado para confirmar (`docs/diario/2026-09.md`). **Falta reler com a
-pergunta de agora e voltar a julgar**; até lá, a leitura não se anuncia.
+marcado para confirmar (`docs/diario/2026-09.md`). Desde 4/10/2026
+conferem-se também as palavras com peso e as quantidades junto do
+artigo, e saem os restos do molde (`docs/diario/2026-10.md`: nas 77
+leituras de 3/10, 18 linhas marcadas pelas palavras, 11 verdadeiras).
+**Falta reler com o código de agora e voltar a julgar**; até lá, a
+leitura não se anuncia.

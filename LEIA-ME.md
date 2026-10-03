@@ -610,7 +610,12 @@ que se decide:
   uma linha com um número que não está nas páginas lidas traz
   **«[confirmar: o número … não está nas páginas lidas]»** — o Mira Gov
   não o dá por facto (desde 29/09/2026; as leituras antigas não têm
-  páginas até serem relidas). Quando as peças não dizem onde é, o
+  páginas até serem relidas). Desde 4/10/2026 o mesmo vale para os
+  nomes, as siglas e os termos técnicos — **«[confirmar: «Justiça» não
+  está nas páginas lidas]»** — e para as quantidades, que se conferem
+  junto do artigo: **«[confirmar: «1 licença» não está junto de «…»
+  nas páginas lidas]»**. Uma marca destas às vezes é o modelo a abreviar
+  o que leu («ULS»): é um aviso para ir à peça, não um erro provado. Quando as peças não dizem onde é, o
   **Local** dos factos é o do anúncio (localidade, freguesia, concelho),
   e diz-o.
 - **O mercado** — três números: o que a entidade costuma pagar neste CPV
