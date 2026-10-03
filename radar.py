@@ -16892,8 +16892,9 @@ CSS_NOVO = r"""
  align-items:center;font:400 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
 [data-pele=novo] .periodos .av{margin-right:5px;width:16px;height:16px;
  line-height:16px;font-size:var(--text-xs)}
-[data-pele=novo] .periodos a.on .av{background:color-mix(in srgb,var(--on-brand) 28%,transparent);
- color:var(--on-brand)}
+/* Na pilula escolhida o circulo inverte: era branco a 28 % sobre o azul,
+   ~4,3:1 para letra de 12 px (N10 da UX-AUDITORIA-1-10). */
+[data-pele=novo] .periodos a.on .av{background:var(--on-brand);color:var(--brand)}
 [data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
  margin-left:4px}
 
@@ -20868,7 +20869,11 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
     # O `title` leva o titulo INTEIRO: a celula corta-o a duas linhas
     # (`.tab-lista td.o a`), e um corte sem forma de ver o resto e uma
     # lista que esconde o que promete mostrar.
-    return ("<tr><td class='mg-code'><a href='%s'>%s</a></td>"
+    # Sem anúncio, a Ref.ª é «—» sem ligação: era um alvo de 8 × 18 px
+    # para o mesmo sítio que o título ao lado (N5 da UX-AUDITORIA-1-10).
+    cel_ref = ("<a href='%s'>%s</a>" % (alvo, html.escape(p["ref"]))
+               if p["ref"] else "&mdash;")
+    return ("<tr><td class='mg-code'>%s</td>"
             "<td class='o'><a href='%s' title='%s'>%s</a>%s"
             "<small title='%s'>%s</small></td>"
             "%s"
@@ -20876,7 +20881,7 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
             "<td class='mg-num p'>%s</td>%s"
             "<td class='mg-num d'>%s</td>"
             "<td class='celula-ranhura'>%s</td><td class='falta'>%s</td></tr>"
-            % (alvo, html.escape(p["ref"] or "—"),
+            % (cel_ref,
                alvo,
                html.escape(p["titulo"] or p["ref"] or "(sem título)",
                            quote=True),
@@ -21260,7 +21265,8 @@ _NOMES_ACCAO = {"análise": "leitura",
                 "porque_sem_ref": "porque não tem anúncio",
                 "data_adjudicacao": "data da adjudicação",
                 "audiencia_em": "notificação do relatório preliminar",
-                "valor_adjudicado": "valor adjudicado"}
+                "valor_adjudicado": "valor adjudicado",
+                "prazo_entrega": "prazo de entrega"}
 
 
 def resumo_filtro(consulta, vista=None):
@@ -27572,7 +27578,9 @@ def concorrentes():
             "<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
             "<thead><tr><th>Fornecedor</th><th class='p'>Concorreu</th>"
             "<th class='p'>Ganhou</th><th class='p'>Taxa</th>"
-            "<th class='p'>Desconto quando ganha</th></tr></thead><tbody>%s</tbody>"
+            # as três primeiras são do perfil e dos últimos anos; o
+            # desconto é de sempre, e só o pé o dizia (N7 da UX-AUDITORIA-1-10)
+            "<th class='p'>Desconto quando ganha (de sempre)</th></tr></thead><tbody>%s</tbody>"
             "</table><div class='tab-pe'><span class='nota'>Concorreu e ganhou "
             "contam contratos lidos; a taxa é ganhou a dividir por concorreu. Os "
             "ajustes directos ficam de fora: neles o Portal BASE só lista o "
@@ -32780,6 +32788,25 @@ def _campos_que_a_ranhura_pede(p):
     return "".join(pecas)
 
 
+def mexer_na_tarefa(t):
+    """Adiar e atribuir uma tarefa, dobrado num «adiar · quem»: o mesmo
+    na linha do Hoje (D5 da 3.ª ronda) e na ficha (N3 da
+    UX-AUDITORIA-1-10). A rota leva a versão, para dois a mexer na mesma
+    tarefa não se apagarem; o «Guardar» é secundário, porque está em
+    todas as linhas."""
+    return (("<details class='hj-mexer'><summary title='Adiar ou atribuir' "
+             "aria-label='Adiar ou atribuir: %s'>adiar &middot; quem</summary>"
+             "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
+             "<input type='hidden' name='versao' value='%s'>"
+             + rotulado("Adiar para", "<input type='text' name='quando' inputmode='numeric' "
+                        "maxlength='10' placeholder='dd/mm/aaaa'>")
+             + rotulado("Quem faz", "<select name='quem'>%s</select>") +
+             "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
+             "Guardar</button></form></details>")
+            % (html.escape(t["o_que"] or "", quote=True), t["id"],
+               versao_da_tarefa(t), opcoes_de_pessoas(t["quem"], "quem faz…")))
+
+
 def _tarefas_da_ficha(p):
     """O que falta fazer nesta proposta, e a caixa de acrescentar.
 
@@ -32807,19 +32834,10 @@ def _tarefas_da_ficha(p):
                ("<span class='mg-tag'>%s</span>"
                 % html.escape(nome_da_pessoa(t["quem"])))
                if t["quem"] else "",
-               # adiar e atribuir. **É aqui que vivem desde 17/09/2026**:
-               # a linha do Hoje ficou com o ✓ e o desfazer, e mais nada
-               # (o redesenho dá-lhe seis colunas e nenhuma para dois
-               # campos de texto). Está no BACKLOG, R2: se fizerem falta
-               # lá, a rota nunca saiu daqui.
-               ("<form class='accao' method='post' action='/tarefa/%d/gravar'>"
-               "<input type='hidden' name='versao' value='%s'>"
-               + rotulado("Adiar para", "<input type='text' name='quando' inputmode='numeric' "
-                          "maxlength='10' placeholder='dd/mm/aaaa'>")
-               + rotulado("Quem faz", "<select name='quem'>%s</select>") +
-               "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>Guardar</button></form>")
-               % (t["id"], versao_da_tarefa(t),
-                  opcoes_de_pessoas(t["quem"], "quem faz…"))))
+               # adiar e atribuir, dobrado como no Hoje (N3 da
+               # UX-AUDITORIA-1-10): aberto em cada tarefa, eram 12
+               # controlos e cinco «Guardar» cheios na coluna da direita
+               mexer_na_tarefa(t)))
     lista = ("<ul class='tarefas'>%s</ul>" % "".join(linhas)) if linhas else (
         "<p class='nota'>Nada por fazer.</p>")
     if por_fazer and p["estado"] in ESTADOS_FECHADOS:
@@ -36148,7 +36166,12 @@ RX_CPV_NA_MENSAGEM = re.compile(r"\b(\d{8})(?:-\d)?\b")
 # 3.ª ronda): só os códigos de 8 algarismos entravam, e o ecrã dizia
 # «vem do que a mensagem diz» com o campo vazio. Completa-se a 8 com
 # zeros, como o `_perfil_do_formulario()` faz.
-RX_CPV_CURTO_NA_MENSAGEM = re.compile(r"\bcpv\s*[:n.º°o]*\s*(\d{2,7})\b", re.I)
+# E a lista inteira que vem a seguir (ensaio do percurso, 1/10/2026):
+# «CPV 79 e 72» dava só o 79. O grupo apanha a fila de códigos ligados
+# por vírgula, «e», «ou» ou barra; o `perfil_do_pedido()` parte-a.
+RX_CPV_CURTO_NA_MENSAGEM = re.compile(
+    r"\bcpvs?\s*[:n.º°o]*\s*(\d{2,8}(?:-\d)?"
+    r"(?:\s*(?:,|;|/|\be\b|\bou\b)\s*\d{2,8}(?:-\d)?)*)", re.I)
 
 
 def perfil_do_pedido(p):
@@ -36159,8 +36182,11 @@ def perfil_do_pedido(p):
     mensagem = p["mensagem"] or ""
     cpv = [c for c in (CPV_DO_SECTOR.get(p["sector"] or "") or "").split("|") if c]
     cpv += [c for c in RX_CPV_NA_MENSAGEM.findall(mensagem) if c not in cpv]
-    cpv += [c.ljust(8, "0") for c in RX_CPV_CURTO_NA_MENSAGEM.findall(mensagem)
-            if c.ljust(8, "0") not in cpv]
+    for fila in RX_CPV_CURTO_NA_MENSAGEM.findall(mensagem):
+        # os de 8 já vieram pelo de cima; o «-5» do dígito de controlo
+        # não chega aos dois algarismos
+        cpv += [c.ljust(8, "0") for c in re.findall(r"\d+", fila)
+                if 2 <= len(c) < 8 and c.ljust(8, "0") not in cpv]
     simples = simplifica(mensagem)
     distritos = [d for d in DISTRITOS
                  if re.search(r"\b%s\b" % re.escape(simplifica(d)), simples)]
@@ -37700,18 +37726,7 @@ def inicio():
         # dele): eram 96 teclas e cinco páginas pela ficha. A mesma rota
         # e o mesmo formulário da ficha (`/tarefa/<id>/gravar`, com a
         # versão), dobrado num `<details>` para a linha não crescer.
-        mexer = "" if feita else ((
-            "<details class='hj-mexer'><summary title='Adiar ou atribuir' "
-            "aria-label='Adiar ou atribuir: %s'>adiar &middot; quem</summary>"
-            "<form class='accao' method='post' action='/tarefa/%d/gravar'>"
-            "<input type='hidden' name='versao' value='%s'>"
-            + rotulado("Adiar para", "<input type='text' name='quando' inputmode='numeric' "
-                       "maxlength='10' placeholder='dd/mm/aaaa'>")
-            + rotulado("Quem faz", "<select name='quem'>%s</select>") +
-            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>"
-            "Guardar</button></form></details>")
-            % (html.escape(t["o_que"] or "", quote=True), t["id"],
-               versao_da_tarefa(t), opcoes_de_pessoas(t["quem"], "quem faz…")))
+        mexer = "" if feita else mexer_na_tarefa(t)
         # A etiqueta «automática» saiu da linha (22/09/2026): estava em
         # metade das linhas e dizia sempre o mesmo. Fica na dica do texto.
         return ("<div class='hj-row%s' id='t%d'>%s"

@@ -400,13 +400,11 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
    numa linha, o formulario do adiar/quem na seguinte, a toda a largura. */
 /* E no telemovel, em qualquer pagina (3.a ronda, G63): a proposta sem
    anuncio nao tem .ficha-lado, e a linha ficava com 414-532px a 320. */
+/* (Desde 4/10/2026 o formulário dobra-se num «adiar · quem», como no
+   Hoje -- `mexer_na_tarefa()`; as regras que o abriam a toda a largura
+   saíram, e apanhavam também a caixa do ✓.) */
 .ficha-lado ul.tarefas li{flex-wrap:wrap}
-.ficha-lado ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
-.ficha-lado ul.tarefas li form.accao input,
-.ficha-lado ul.tarefas li form.accao select{flex:1 1 120px;min-width:0}
-@media (max-width:600px){ul.tarefas li{flex-wrap:wrap}
- ul.tarefas li form.accao{flex:1 1 100%;display:flex;gap:6px;flex-wrap:wrap}
- ul.tarefas li form.accao input,ul.tarefas li form.accao select{flex:1 1 120px;min-width:0}}
+@media (max-width:600px){ul.tarefas li{flex-wrap:wrap}}
 .ficha-lado .mg-card table{font-size:var(--text-sm)}
 
 /* As PROPOSTAS (24/09/2026, o `EcraPropostas`): o cliente por baixo do
@@ -439,7 +437,7 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
    por cima das cinco delas (UX-7-LEIS J2, 1/10/2026). No `.topo` das
    Entidades as duas barras iam para a mesma linha da grelha, uma por
    cima da outra; a segunda desce uma. */
-.topo>.abas-mercado+.mg-tabs{grid-row:4;margin-top:var(--space-2)}
+.topo>.abas-mercado+.mg-tabs{grid-row:5;margin-top:var(--space-2)}
 /* O filtro da ficha da entidade recolhido, no topo da coluna do Portal
    BASE (E11): os números e o nosso lado vêm antes dele. */
 .ent-filtrar{margin-bottom:var(--space-4)}
@@ -552,6 +550,9 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
 /* e na banda azul do cartão, que é o mesmo --surface-header: o «Esconder
    as feitas» do Hoje focava a magenta a 2,36:1 (B4.1, 30/09/2026) */
 .mg-card--band .mg-card__head :focus-visible{outline-color:var(--focus-on-header)}
+/* e no lado azul do entrar (N6 da UX-AUDITORIA-1-10): o logótipo focava
+   a magenta, como o topo do site */
+.entrar-lado :focus-visible{outline-color:var(--focus-on-header)}
 .mg-topbar .mg-menu :focus-visible,.barra-baixo .mg-menu :focus-visible{outline-color:var(--focus)}
 
 /* O FOCO DOS CAMPOS (24/09/2026, queixa dele: «o rebordo à volta da
@@ -762,12 +763,18 @@ a.nota.abrir{display:inline-flex;align-items:center;min-height:24px}
    16 px, senão o Safari do iPad amplia a página ao tocar num campo. */
 @media (pointer:coarse){
  .mg-btn{min-height:44px}
- .mg-btn--sm{min-height:32px}
+ /* e os pequenos também (F1, ponto 7 da UX-AUDITORIA-1-10): o «Dispensar», o
+    «Esconder as feitas» e o «adiar todas» do Hoje e o «Mudar» da proposta
+    sem anúncio ficavam a 32; as pílulas de pessoa a 27-30; o «adiar ·
+    quem» a 24. Um a um falhava sempre o próximo. */
+ .mg-btn--sm{min-height:44px}
+ .periodos a,.hj-mexer>summary{min-height:44px;display:inline-flex;align-items:center;
+  box-sizing:border-box}
  /* os alvos de todos os dias chegam aos 44 (UX-7-LEIS F1 e E10, 30/09/2026):
     a triagem da linha, o «Mudar» e o selector da fase, as abas, a
     paginação e o × do aviso. A caixa ✓ fica com o desenho de 24 e o
     alvo cresce por um ::before invisível. */
- .col-acc .mg-btn--sm,.celula-ranhura .mg-btn--sm,main.mg td select,
+ .col-acc .mg-btn--sm,.celula-ranhura .mg-btn--sm,main.mg select,
  .mg-tab,.com-js .aviso-fechar{min-height:44px}
  .mg-pager>a,.mg-pager>b,.mg-pager>span,.com-js .aviso-fechar{min-width:44px;min-height:44px}
  [data-pele=novo] .chk::before{content:'';position:absolute;inset:-11px}
@@ -1231,7 +1238,13 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
  gap:var(--space-2);align-items:center;padding:var(--space-2);
  background:var(--surface-raised);border:1px solid var(--line-strong);
  border-radius:var(--radius-sm)}
-.hj-mexer input[name=quando]{width:11ch}
+.hj-mexer input[name=quando]{width:13ch}
+/* A largura do que leva, e não a do «adiar · quem» onde se prende: sem
+   isto os campos encolhiam a «dd/mm/» e «Ru» (4/10/2026). Dobra antes
+   de sair do ecrã: o tecto desconta a margem da página e a distância do
+   «adiar · quem» à borda direita (~52 px a 320 e a 390). */
+.hj-mexer>form{width:max-content;max-width:calc(100vw - 4 * var(--space-4));flex-wrap:wrap}
+.hj-mexer .rot{flex:0 0 auto}
 .hj-c a{color:inherit}
 /* As entregas do dia escolhido na fita, e as já entregues nos prazos. */
 .hj-entregas{padding:4px 8px 8px 16px;font:400 var(--text-sm)/1.5 var(--font-sans)}
@@ -1254,8 +1267,7 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .rot.larga{flex:2 1 220px}
 .rot>input,.rot>select{width:100%;min-width:0;box-sizing:border-box}
 .rot-t{font:500 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
-.ct-novo,.tarefa-nova,.novo-filtro form.filtros,.hj-mexer>form,
-ul.tarefas li form.accao{align-items:end}
+.ct-novo,.tarefa-nova,.novo-filtro form.filtros,.hj-mexer>form{align-items:end}
 /* o texto so para o leitor precisa de um antepassado posicionado */
 .ent-papel,.cal-mais>summary,.mg-avatar,.av{position:relative}
 /* O «Mais filtros» dos Concursos (3.a ronda, G75, no telemovel; em todas
@@ -1371,7 +1383,7 @@ input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--
    folha de cálculo. A seta fraca diz que se pode clicar; a cheia, que a
    lista está ordenada por ali. Nos cartões o cabeçalho esconde-se, e a
    ligação da linha da contagem (`so-cartoes`) toma o lugar dele. */
-.mg-table th a.ordenar{color:inherit;text-decoration:none;display:inline-flex;gap:4px;align-items:center;position:relative}
+.mg-table th a.ordenar{color:inherit;text-decoration:none;display:inline-flex;gap:4px;align-items:center;position:relative;min-height:24px;box-sizing:border-box}
 .mg-table th a.ordenar:hover{text-decoration:underline}
 /* a seta fraca em cor e não em meia-luz: a .45 ficava a 1,83:1 (B.1 do
    UX-ECRAS-EM-FALTA-E-ESCURO) */
