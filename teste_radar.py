@@ -5259,6 +5259,142 @@ class TestAnexosTecnicos(unittest.TestCase):
         self.assertNotIn("ESPECIFICAÇÃO X", texto)
 
 
+class TestUltimaRondaDaLeitura(unittest.TestCase):
+    """4/10/2026: o quinto julgamento (as 77 leituras de 3/10) achou
+    palavras inventadas que a conferência dos números não via, um número
+    errado sem marca e restos do molde da pergunta. Cada teste é um caso
+    desse dia; nenhum chama o modelo."""
+
+    NL = chr(10)
+
+    def palavras(self, linha, lido, instrucao=""):
+        return radar.palavras_por_confirmar(linha, lido, instrucao)
+
+    # --- as palavras com peso ------------------------------------------
+
+    def test_a_entidade_que_nao_esta_no_texto_fica_por_confirmar(self):
+        # 21830: «ML» é o Metropolitano de Lisboa, e a leitura escreveu
+        # «Ministério da Justiça»
+        lido = "instalação nos equipamentos do ML, Metropolitano de Lisboa, E.P.E."
+        marcada = self.palavras("Local: Ministério da Justiça / ML (pág. 4)", lido)
+        self.assertIn("[confirmar: «Justiça» não está nas páginas lidas]", marcada)
+        self.assertEqual(self.palavras(marcada, lido), marcada)   # uma vez só
+
+    def test_a_sigla_que_nao_esta_no_texto_fica_por_confirmar(self):
+        # 21508: as «experiências» tiradas dos nomes das certificações
+        # Oracle, com uma sigla que as peças nunca escrevem
+        lido = "Oracle Cloud Infrastructure 2022 Certified Security Professional"
+        marcada = self.palavras(
+            "- Experiência na utilização de tecnologia Oracle Cloud Infrastructure (OCI)", lido)
+        self.assertIn("«OCI»", marcada)
+
+    def test_a_palavra_tecnica_trocada_fica_por_confirmar(self):
+        # 23728: o CE diz «descalsidicador» (sic), e a leitura «dessalinizadores»
+        lido = "AQS | termoacumuladores | depósitos | termossifões | 1 descalsidicador"
+        marcada = self.palavras("Âmbito: AQS (termoacumuladores, depósitos, termossifões, "
+                                "dessalinizadores)", lido)
+        self.assertIn("«dessalinizadores»", marcada)
+        self.assertNotIn("termossif", marcada.split("[")[-1])
+
+    def test_o_que_esta_nas_pecas_nao_se_marca(self):
+        # as falsas que a medida de 4/10 achou nas 77 leituras: o princípio
+        # da frase, a palavra partida pelo PDF («capi tania», 22102), a
+        # grafia de antes do Acordo («Director», 23496), o plural
+        # («Intermédios», 23675), as palavras da própria pergunta, o IVA,
+        # os nomes de ficheiro, os advérbios e os gerúndios compridos
+        lido = self.NL.join([
+            "horários decretados pela capi tania do porto",
+            "Diretor de obra; apoio aos Operadores de Sistemas Intermédio s",
+            "### CE_CEspeciais.pdf", "anex odeucp_[designacao].pdf",
+            "Microsoft 365 E3, NB-IoT"])
+        for linha in ("Tempos de resposta: definidos pela Capitania (pág. 2)",
+                      "Função: Director de obra",
+                      "Quantidade: 2 (apoio aos Operadores de Sistemas Intermédios)",
+                      "Presença: 100% (CE_CEspeciais, pág. 24)",
+                      "Envio como AnexoDEUCP_[designação].pdf",
+                      "Formação ou inscrição: Ordem dos Engenheiros",
+                      "Preço (sem IVA) - Microsoft 365 E3, tecnologias NB-IoT",
+                      "Serviço disponibilizando contactos, designadamente telefone",
+                      "- Licenças. Garantia"):
+            self.assertEqual(self.palavras(linha, lido, radar.INSTRUCOES_OBRAS), linha, linha)
+
+    # --- as quantidades ------------------------------------------------
+
+    def test_a_quantidade_confere_se_junto_do_artigo(self):
+        # 23513: a Lista diz «1 1 Architecture ... UN 16», e a leitura
+        # escreveu «1 licença»: o 1 é o número da linha da tabela
+        lido = self.NL.join([
+            "Linha Cod. Designação Unidade Qtd",
+            "1 1 Architecture Engineering & Construction Collection Government Single-user UN 16",
+            "2 2 AutoCAD - including specialized toolsets Government Single-user UN 1",
+            "Office 365 E3 (com Teams) | 360", "pelo menos, 9 (nove) recursos"])
+        f = lambda linha: radar.numeros_por_confirmar(linha, lido)
+        marcada = f("- Fornecimento de 1 licença Architecture Engineering & Construction "
+                    "Collection")
+        self.assertIn("[confirmar: «1 licença» não está junto de", marcada)
+        for linha in ("- 16 licenças Architecture Engineering & Construction Collection",
+                      "Office 365 E3 (com Teams) — 360 licenças",
+                      "Quantidade: 9 recursos", "- 1 licença AutoCAD LT"):
+            self.assertEqual(f(linha), linha, linha)
+
+    # --- os restos do molde --------------------------------------------
+
+    def test_o_firme_que_as_pecas_nao_dizem_sai(self):
+        # 22005, 22631, 22682, 22754, 23513, 23589: «(firme)» acrescentado
+        lido = "Office 365 E3 | 360"
+        self.assertEqual(radar.sem_o_molde("Office 365 E3 — 360 licenças (firme) (pág. 3)",
+                                           radar.INSTRUCOES_BENS, lido),
+                         "Office 365 E3 — 360 licenças (pág. 3)")
+        # quando as peças o dizem, fica
+        lido = "quantidade estimada: 125256 EMB."
+        linha = "Compressa — 125256 EMB. (estimada)"
+        self.assertEqual(radar.sem_o_molde(linha, radar.INSTRUCOES_BENS, lido), linha)
+
+    def test_os_cabecalhos_da_pergunta_saem_da_resposta(self):
+        # 21659 e 22682: o guião da pergunta copiado para a resposta
+        resposta = self.NL.join([
+            "Designação exacta — quantidade (diz se é firme ou estimada)",
+            "Security Blade NGTP — 2 (pág. 9)",
+            "Características exigidas, uma por linha",
+            "Licenciamento e manutenção (pág. 9)",
+            "Marca ou modelo, e se admite «ou equivalente», ou —",
+            "Garantia e assistência: meses e tempo de resposta, ou —",
+            "Garantia e assistência: não consta"])
+        self.assertEqual(radar.sem_o_molde(resposta, radar.INSTRUCOES_BENS, "NGTP"),
+                         self.NL.join(["Security Blade NGTP — 2 (pág. 9)",
+                                       "Licenciamento e manutenção (pág. 9)",
+                                       "Garantia e assistência: não consta"]))
+
+    # --- o Flash-Lite ----------------------------------------------------
+
+    def test_a_resposta_em_lista_passa_a_texto(self):
+        # o gemini-3.5-flash-lite devolve o campo como lista em ~13 % das
+        # respostas (3/10/2026, 22682, 23530, 21724)
+        self.assertEqual(radar.em_texto(["a (pág. 1)", "b"]), "a (pág. 1)" + self.NL + "b")
+        bloco = radar.em_texto([{"Designação exacta": "CX LEVEL 1 — 18",
+                                 "Características exigidas": ["Suporte 12 meses", "SMARTNet"]},
+                                {"Designação exacta": "C9200L — 40"}])
+        self.assertEqual(bloco, self.NL.join([
+            "Designação exacta: CX LEVEL 1 — 18", "Características exigidas:",
+            "- Suporte 12 meses", "- SMARTNet", "", "Designação exacta: C9200L — 40"]))
+        self.assertEqual(radar.em_texto("x"), "x")
+
+    def test_a_pagina_dentro_do_texto_nao_e_numero(self):
+        # o Flash-Lite escreve «(pág. 16, Caderno de Encargos)» a meio
+        # da linha: o 16 parecia um número por confirmar
+        self.assertEqual(radar.sem_paginas_no_meio(
+            "Quantidade: 1 recurso (pág. 15, Caderno de Encargos) (Caderno de Encargos, pág. 15)"),
+            "Quantidade: 1 recurso (Caderno de Encargos, pág. 15)")
+        self.assertEqual(radar.sem_paginas_no_meio("Certificação MIM (pág. 16, Caderno)"),
+                         "Certificação MIM")
+
+    def test_o_gemini_da_cadeia_e_o_flash_lite(self):
+        gemini = [f for f in radar.FORNECEDORES if f[0] == "gemini"][0]
+        self.assertEqual(gemini[2], "gemini-3.5-flash-lite")
+        nomes = [f[0] for f in radar.FORNECEDORES]
+        self.assertEqual(nomes.index("gemini"), len(nomes) - 2)   # o lugar de sempre
+
+
 class TestCampo11PorTipo(unittest.TestCase):
     """28/09/2026 (docs/historico/MAPA.md): a pergunta da equipa foi
     escrita para os serviços de TI, que são 10% dos anúncios. Nas 17
@@ -20248,10 +20384,11 @@ class TestAFolhaDeEstiloNaoViajaEmCadaClique(BaseTemporaria):
         # isto). O bloco é o ÚLTIMO, que é o que o browser lê.
         depois = radar.CSS_TUDO[radar.CSS_TUDO.rindex(marca):]
         bloco = depois[:depois.index("\n}")]
-        for regra in (".flash{animation:", "dialog.mg-dialog[open]{animation:"):
-            self.assertIn(regra, bloco, regra)
-        # e nenhuma delas pode existir FORA do bloco
-        self.assertEqual(radar.CSS_TUDO.count(".flash{animation:"), 1)
+        # o `.flash` saiu a 4/10/2026: os avisos são `.mg-*` desde a fase 3
+        regra = "dialog.mg-dialog[open]{animation:"
+        self.assertIn(regra, bloco, regra)
+        # e não pode existir FORA do bloco
+        self.assertEqual(radar.CSS_TUDO.count(regra), 1)
 
     def test_sem_a_pasta_o_painel_serve_na_mesma(self):
         """Perde-se a suavidade, não a página: os `estilo/*.css` são um
@@ -25512,6 +25649,17 @@ class TestALeituraAssociadaAsPecas(BaseTemporaria):
         self.assertEqual(objecto[0], "- UTAN com caudal de 1540 m3/h (pág. 2)")
         self.assertIn("confirmar: o número 1200", objecto[1])
         self.assertEqual(len(objecto), 2)
+
+    def test_a_resposta_em_lista_e_as_palavras_passam_pelas_guardas(self):
+        # 4/10/2026: o Flash-Lite devolve listas, e a lista não passava
+        # pelas guardas; a palavra inventada (21830) grava-se marcada
+        linha, _ = self._ler({"objecto": {
+            "objecto": ["- Caudal máximo de insuflação 1540 m3/h (pág. 16, Caderno de Encargos)",
+                        "- Entrega no Ministério da Justiça"],
+            "localizacao": "não consta"}})
+        objecto = linha["objecto"].split("\n")
+        self.assertEqual(objecto[0], "- Caudal máximo de insuflação 1540 m3/h (pág. 2)")
+        self.assertIn("«Justiça»", objecto[1])
 
     def test_a_pagina_gravada_e_a_do_codigo(self):
         # 4.ª ronda (30/09/2026): o modelo cita a página ao lado, e o que

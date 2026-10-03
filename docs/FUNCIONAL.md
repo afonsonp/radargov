@@ -665,6 +665,27 @@ marcado, porque a regra é copiar das peças. No mesmo passo saem do objecto
 as cláusulas que todos os contratos têm — cumprir a lei, o sigilo,
 comunicar alterações — quando sobra alguma coisa (`sem_clausulas_tipo()`).
 
+**Nem uma palavra com peso que não esteja nas peças** (4/10/2026). Os
+números não chegam: o modelo escreveu «Ministério da Justiça» num
+concurso do Metropolitano de Lisboa, «dessalinizadores» por
+descalcificadores, e «1 licença» onde a tabela diz 16 (o 1 é o número
+da linha). Do mesmo modo, sem modelo: as palavras com peso de cada
+linha — os nomes próprios, as siglas, os códigos, os substantivos
+técnicos compridos — têm de estar no texto que foi ao modelo, e a linha
+que falha leva «[confirmar: «Justiça» não está nas páginas lidas]»
+(`palavras_por_confirmar()`); e uma quantidade com a unidade («16
+licenças», «9 recursos», «120 horas») confere-se **junto do artigo**, e
+não sozinha: «[confirmar: «1 licença» não está junto de «Architecture
+Engineering Construction» nas páginas lidas]» (`quantidade_sem_apoio()`).
+O plural, a grafia de antes do Acordo e a palavra partida pelo PDF
+valem; as palavras da própria pergunta e o IVA não se conferem. O que
+falha é quase sempre o modelo a abreviar o que leu («ULS», «IA») — uma
+marca a mais, e nunca uma a menos. E saem os restos do molde da
+pergunta (`sem_o_molde()`): as linhas que repetem os cabeçalhos, e o
+«(firme)» ou o «(estimada)» que as peças não dizem. A pergunta não
+mudou, e as leituras não voltaram à fila por isto: as guardas valem
+para as leituras novas.
+
 **Na ficha, a leitura é um rascunho.** Cada linha lida diz de que peças
 e páginas veio e «é um rascunho: confirmar no documento antes de
 decidir». «A leitura não encontrou» quer dizer que não encontrou nas
@@ -701,11 +722,16 @@ com 1 milhão de tokens por dia; só entra com chave), a NVIDIA
 (`nemotron-3-ultra`, com o raciocínio desligado), o OpenRouter (um
 modelo gratuito, quase sempre cheio), o Gemini da Google (desde
 30/09/2026, com a chave de um projecto só para a leitura; atrás dos
-outros até as leituras dele serem julgadas) e, no fim, a reserva na própria
+outros até as leituras dele serem julgadas; desde 4/10/2026 o
+`gemini-3.5-flash-lite`, com 15 pedidos por minuto e ~500 por dia,
+contra os 20 por dia do `gemini-3.6-flash`) e, no fim, a reserva na própria
 Groq (`gpt-oss-20b`) — no fim desde 29/09/2026, por ter sido o único a
 errar números nas leituras julgadas nesse dia. Todos gratuitos; a conta de 28/09/2026 dava ~20 concursos por
 dia em cada modelo da Groq, ~55 no Cerebras, e a NVIDIA sem limite
-publicado.
+publicado. Venha de quem vier, a resposta passa pelas mesmas guardas
+(`conferir_a_resposta()`): o campo que chega como lista junta-se em texto
+(`em_texto()`) e a página escrita a meio da linha sai — a página é a
+do código.
 
 **O campo 11 desce outra cadeia, com outro recorte** (1/10/2026,
 decisão dele): a NVIDIA primeiro, depois o Cerebras, depois o resto pela

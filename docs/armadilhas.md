@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 18
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 31
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 33
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 12
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 129
 - [Convenções](#convencoes) &middot; 7
 
-São **448** ao todo, contados a 3/10/2026. Contam-se por secção com
+São **450** ao todo, contados a 4/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -843,6 +843,58 @@ Orçamento, cadeia de reserva, chaves.
   um minuto em cada pedido sem o marcar como esgotado. Agora reconhece o
   `PerDay`. E o 503 «high demand» passa ao seguinte à primeira (só o 429
   se repete): no gratuito cada 503 gasta um dos 20 pedidos do dia.
+  **Desde 4/10/2026 a entrada `gemini` é o `gemini-3.5-flash-lite`**:
+  15 pedidos por minuto e ~500 por dia, e sem parâmetro nenhum não
+  pensa — o `reasoning_effort: "none"` dá 400.
+
+- **Conferir os números não chega: as palavras e as quantidades também
+  se conferem** (4/10/2026, última ronda). O quinto julgamento achou
+  invenções sem número nenhum — «Ministério da Justiça» num concurso do
+  Metropolitano de Lisboa (21830, o «ML» desdobrado), «dessalinizadores»
+  onde o CE diz «descalsidicador» (23728) — e um número errado que
+  passava por existir: «1 licença» na 23513, onde a Lista diz «1 1
+  Architecture … UN 16» (o 1 é o número da linha da tabela). O
+  `palavras_por_confirmar()` exige que as palavras com peso de cada
+  linha — a maiúscula que não abre frase, as siglas, os códigos, as
+  palavras de 14 letras ou mais que não sejam advérbios nem gerúndios —
+  estejam no texto enviado; o `quantidade_sem_apoio()` exige que um
+  número seguido de licenças, unidades, recursos, elementos, horas ou
+  postos esteja **junto do artigo** (`JANELA_DA_QUANTIDADE` letras
+  depois do nome, como numa tabela) ou escrito com a unidade. Quatro
+  ciladas medidas nas 77 leituras: o PDF parte palavras («capi tania»,
+  «anex odeucp_»), por isso as compridas comparam-se comprimidas — mas
+  as siglas não, que «oci» comprimido está em «social»; a grafia de
+  antes do Acordo («Director») e o plural valem; as palavras da própria
+  pergunta e o IVA não se conferem; e uma quantidade literal («16
+  licenças») quase nunca está na peça — 177 das 281 vinham de tabelas —,
+  por isso o literal só dispensa a conferência junto do artigo. Medido:
+  18 linhas marcadas pelas palavras, 11 verdadeiras (as três do
+  relatório, mais «ISO/IEC» por «ISO EN», «CPD» e «TPM 2.0», que não
+  estão em peça nenhuma) e 7 falsas, todas o modelo a abreviar ou
+  desdobrar o que leu («ULS», «IA», «Escola Superior» por ESSL); uma
+  quantidade marcada das 281, a da 23513. **O que continua a passar**:
+  uma linha feita de palavras certas no sítio errado — as experiências
+  da 21508, tiradas dos nomes das certificações Oracle, só se marcam
+  pela sigla «OCI» que o modelo lhes juntou.
+
+- **O molde da pergunta volta na resposta, e a resposta pode não vir em
+  texto** (4/10/2026). O modelo copiou o molde dos bens: «(firme)» em
+  todas as quantidades de seis concursos (na 22005 o CE diz o
+  contrário), e os cabeçalhos inteiros como linhas («Designação exacta —
+  quantidade (diz se é firme ou estimada)», 21659; o guião todo na
+  22682). O `sem_o_molde()` tira as linhas iguais às da pergunta e o
+  «(firme)»/«(estimada)» que o texto lido não diz — 68 nas 77 leituras,
+  ficaram 6 onde a peça o diz. **A pergunta não mudou**: mudar o molde
+  mudava a `VERSAO_DA_PERGUNTA` e mandava reler as leituras abertas por
+  uma coisa que o código resolve. E o Flash-Lite devolve o campo como
+  **lista** em ~13 % das respostas — um valor que não é texto passava
+  por cima de todas as guardas, e o `limpa_campo()` gravava-o como
+  «['…']» — e escreve a página ao contrário e a meio da linha, «(pág.
+  16, Caderno de Encargos)», o que fazia o 16 parecer um número por
+  confirmar. O `conferir_a_resposta()` junta a lista em texto
+  (`em_texto()`) e tira a página que não é a citação do fim
+  (`sem_paginas_no_meio()`) **para todos os fornecedores**, antes das
+  outras guardas: a página passa a ser a do código.
 
 
 ---
@@ -1854,7 +1906,7 @@ O funil da empresa, do «por ver» ao «ganho».
 - **Triar avisa e deixa desfazer.** `mudar_estado()` volta com
   `?aviso=«título» marcado como interessa.&desfazer=/estado/<ref>/<estado
   anterior>` e `envolver()` desenha o `desfazer` como botão POST dentro
-  do `.flash` — só caminhos `/estado/`, nunca um endereço vindo da query
+  do aviso (`.mg-alert`; o `.flash` saiu a 4/10/2026) — só caminhos `/estado/`, nunca um endereço vindo da query
   string. Se o estado anterior era um abandono com motivo, o motivo vai
   em `?motivo=` na acção do desfazer (por isso `mudar_estado()` lê
   `request.values` e não `request.form`); um abandono antigo sem motivo
