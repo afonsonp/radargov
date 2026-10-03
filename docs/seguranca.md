@@ -52,7 +52,10 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    origem, o tecto por IP e pelo endereço escrito, a mesma resposta
    exista ou não a conta — com a procura e o envio em fundo, para o
    tempo não o dizer —, a ligação a uma hora, o endereço do config e
-   não o `Host` do pedido, e nunca a conta do dono) e, desde
+   não o `Host` do pedido, e nunca a conta do dono; desde o mesmo dia
+   procura também pelo `contacto` da conta, que é de uma conta só, se
+   muda com a palavra-passe actual, e com duas contas no mesmo endereço
+   não manda nada) e, desde
    28/09/2026, o `/entrar/codigo` do segundo factor (o pendente, só em
    resumo, cinco minutos e cinco tentativas, o trinco e a origem).
    **Uma porta que abra sessões passa pelo `contas.entrar()`**, que é

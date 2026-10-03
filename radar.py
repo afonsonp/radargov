@@ -1489,6 +1489,12 @@ def iniciar_db():
                   "ON anuncios(entidade)")
         largar_o_que_a_escada_substituiu(c)
         contas.iniciar_tabelas(c)   # utilizadores, sessoes, o trinco do login
+        # Os planos das empresas que ja nao existem (1/10/2026): o
+        # `apagar_empresa()` nao os tirava. Idempotente; a pasta das
+        # empresas ja foi vista acima, e e ela que diz quais existem.
+        existem = empresas_existentes()
+        c.execute("DELETE FROM planos WHERE empresa_id NOT IN (%s)"
+                  % ",".join("?" * len(existem)), existem)
         # B12, uma vez, por marca: os textos extraidos antes das marcas
         # de pagina (\f) nao sabem dizer de que pagina veio o recorte.
         # Reextrai-se o que ainda existir em disco; o que nao existir
@@ -9807,6 +9813,10 @@ def _apagar_da_plataforma(id_):
             (SEM_EMPRESA, id_)).rowcount
         saiu["convites"] = c.execute("DELETE FROM convites WHERE empresa_id=?",
                                      (id_,)).rowcount
+        # o plano (L2.1) ficava orfao (1/10/2026), e com o numero
+        # reaproveitado passava a ser o da empresa nova
+        saiu["plano"] = c.execute("DELETE FROM planos WHERE empresa_id=?",
+                                  (id_,)).rowcount
         saiu["leituras pedidas"] = c.execute(
             "DELETE FROM leituras_pedidas WHERE empresa_id=?", (id_,)).rowcount
         # o dono que estava a ver esta empresa (o modo de suporte) deixa
@@ -24577,33 +24587,55 @@ def config_conta():
                              "<code>python radar.py --criar-utilizador NOME</code>."
                              "</div></div>")
     if request.method == "POST":
-        # So a palavra-passe: o "nome a mostrar" saiu a 13/09/2026 (o
-        # utilizador chega), e o utilizador em si nao se muda.
+        # A palavra-passe e o e-mail de contacto (1/10/2026), os dois com
+        # a actual: o "nome a mostrar" saiu a 13/09/2026 (o utilizador
+        # chega), e o utilizador em si nao se muda. O contacto e para onde
+        # vai o «esqueci-me» -- muda-lo sem a actual era dar a quem
+        # apanhasse uma sessao aberta a palavra-passe da conta.
         actual = request.form.get("actual") or ""
         nova = request.form.get("nova") or ""
         outra = request.form.get("outra") or ""
+        contacto = request.form.get("contacto")
         # o registar() fica FORA do `with`: la dentro a transaccao esta
         # aberta e a segunda ligacao ficava a espera dela (database is
         # locked -- apanhado pelo teste)
         with liga() as c:
-            linha = c.execute("SELECT hash FROM utilizadores WHERE id=?",
+            linha = c.execute("SELECT hash, contacto FROM utilizadores WHERE id=?",
                               (utilizador["id"],)).fetchone()
             if not contas.verifica_senha(actual, linha["hash"]):
                 return volta_config_erro("conta", "A palavra-passe actual não está certa.")
             if nova != outra:
                 return volta_config_erro("conta", "As duas palavras-passe novas não são iguais.")
-            try:
-                contas.criar_utilizador(c, utilizador["email"], nova)
-            except ValueError as erro:
-                return volta_config_erro("conta", "Não gravei: %s." % erro)
-        registar("", "conta", "palavra-passe mudada")
-        return volta_config("conta", "Palavra-passe mudada.")
+            muda_contacto = (contacto is not None
+                             and contas.email_limpo(contacto) != linha["contacto"])
+            # o contacto confere-se ANTES de a palavra-passe mudar: um
+            # «não gravei» depois dela ficava com metade gravada
+            porque = muda_contacto and contas.problema_do_contacto(
+                c, utilizador["id"], contacto)
+            if porque:
+                return volta_config_erro("conta", "Não gravei: %s." % porque)
+            muda_senha = bool(nova) or not muda_contacto
+            if muda_senha:
+                try:
+                    contas.criar_utilizador(c, utilizador["email"], nova)
+                except ValueError as erro:
+                    return volta_config_erro("conta", "Não gravei: %s." % erro)
+            if muda_contacto:
+                contas.gravar_contacto(c, utilizador["id"], contacto)
+        recado = {(True, False): "Palavra-passe mudada.",
+                  (False, True): "E-mail de contacto mudado.",
+                  (True, True): "Palavra-passe e e-mail de contacto mudados."}[
+                      (muda_senha, muda_contacto)]
+        registar("", "conta", recado.rstrip(".").lower())
+        return volta_config("conta", recado)
     # O dono sem empresa (26/09/2026) tem conta como qualquer um -- a
     # palavra-passe, as sessoes, o aspecto --, mas nao tem empresa: os
     # blocos dela nao se desenham.
     da_empresa = sou_admin() and empresa_activa() != SEM_EMPRESA
     with liga() as c:
         sessoes = contas.sessoes_de(c, utilizador["id"])
+        contacto = c.execute("SELECT contacto FROM utilizadores WHERE id=?",
+                             (utilizador["id"],)).fetchone()["contacto"]
         todos = contas.utilizadores(c, empresa_activa()) if da_empresa else []
         convites = contas.convites_por_usar(c, empresa_activa()) if da_empresa else []
         suporte = [dict(r) for r in c.execute(
@@ -24640,10 +24672,14 @@ def config_conta():
     corpo = (
         "<form method='post' action='/configuracoes/conta' class='conf-form'>"
         + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled")
+        + _campo("E-mail de contacto", "contacto", contacto, tipo="email",
+                 nota="é para aqui que vai a ligação do «esqueci-me da "
+                      "palavra-passe»", extra="autocomplete='email'")
         + _campo("Palavra-passe actual", "actual", "", tipo="password",
+                 nota="pede-se para mudar a palavra-passe ou o e-mail",
                  extra="autocomplete='current-password'")
         + _campo("Nova palavra-passe", "nova", "", tipo="password",
-                 nota="8 caracteres ou mais",
+                 nota="8 caracteres ou mais; vazia, fica a que está",
                  extra="autocomplete='new-password'")
         + _campo("Repetir a nova palavra-passe", "outra", "", tipo="password",
                  extra="autocomplete='new-password'")
@@ -35816,12 +35852,14 @@ def _repor_por_email(email):
         return
     registar_evento("", "conta", "ligação de repor pedida por e-mail: %s"
                     % conta["email"], quem="radar")
-    conta, nome = conta["email"], conta["nome"]
+    # vai para o endereço escrito, que casou com o utilizador ou com o
+    # contacto (1/10/2026): o utilizador pode não ser um e-mail
+    conta, nome, para = conta["email"], conta["nome"], conta["para"]
     ligacao = "%s/repor/%s" % (endereco_do_painel().rstrip("/"), codigo)
     assunto, texto, em_html = texto_e_html_da_reposicao(ligacao, conta, nome)
     try:
         bem, porque = enviar_email(
-            assunto, texto, _junta(dict(ler_config()), {"email": {"para": conta}}),
+            assunto, texto, _junta(dict(ler_config()), {"email": {"para": para}}),
             em_html)
     except Exception as erro:              # nunca derruba a thread
         bem, porque = False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
