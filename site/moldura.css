@@ -45,6 +45,9 @@ a:hover{color:var(--brand-hover)}
 .topo nav{display:flex;gap:22px;align-items:center}
 .topo nav a{color:var(--on-header-muted);text-decoration:none;font-weight:600;font-size:.95rem}
 .topo nav a:hover{color:var(--on-header)}
+/* O foco no topo azul a âmbar (o da moldura), como a barra da aplicação: o --focus
+   (magenta) fica a 2,36:1 sobre ele (N6 da UX-AUDITORIA-1-10) */
+.topo :focus-visible{outline-color:var(--seal-on-dark)}
 .topo nav a.entrar{padding:6px 2px;border-bottom:1px solid transparent}
 .topo nav a.entrar:hover{border-bottom-color:var(--on-header-muted)}
 .topo nav .btn,.topo nav .btn:hover{color:var(--surface-header)}

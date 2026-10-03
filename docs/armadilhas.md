@@ -4900,6 +4900,19 @@ botões ou no calendário.
   ficarem «por via das dúvidas» é como chegaram a cem. O
   `.mg-tag:has(.mg-tag__dot)::before` da nossa folha fica: é para as
   etiquetas que ainda não existem.
+- **Um teste que afirma o valor que o CSS tem não guarda o que o CSS
+  devia fazer** (4/10/2026, N2 da UX-AUDITORIA-1-10). A correcção do J2
+  pôs a segunda barra das Entidades em `grid-row:4` — a mesma linha da
+  primeira, que a tapava — e o teste dela afirmava exactamente
+  `grid-row:4`. Passou dois dias verde com o defeito à vista. O teste
+  agora compara as duas regras (a segunda é a linha a seguir à da
+  primeira); afirmar a relação, e não o número, é o que apanha isto.
+  Na mesma ronda, o formulário do «adiar · quem» (`mexer_na_tarefa()`,
+  o mesmo no Hoje e na ficha) é `position:absolute` dentro de um
+  `<details>` estreito: sem `width:max-content` encolhia à largura do
+  «adiar · quem» e os campos ficavam com «dd/mm/» e «Ru»; com ela e sem
+  tecto saía 20 px pela esquerda a 390. **Um popover mede-se a 320 e a
+  390 com o browser**, não se lê na folha.
 
 ## Convenções
 

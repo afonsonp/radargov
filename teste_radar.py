@@ -11293,6 +11293,13 @@ class TestOsOutrosErrosDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
     def test_o_historico_da_nome_aos_campos(self):
         self.assertEqual(radar._NOMES_ACCAO["valor_proposta"], "preço proposto")
         self.assertEqual(radar._NOMES_ACCAO["proposta_tecnica"], "proposta técnica")
+        # E todas as colunas que se editam: o `prazo_entrega` entrou sem
+        # nome e a cronologia dizia «prazo_entrega — 10/10/2026» (N4 da
+        # UX-AUDITORIA-1-10).
+        fora = {"id", "ref", "lote", "entidade_chave", "estado",
+                "criada_em", "fechada_em"}
+        for col in set(radar.COLUNAS_DA_PROPOSTA) - fora:
+            self.assertIn(col, radar._NOMES_ACCAO, col)
 
     def test_o_interesse_diz_se_por_palavras(self):
         with radar.liga() as c:
@@ -23643,6 +23650,23 @@ class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
         self.assertIn("Nada foi mudado", texto)
         self.assertEqual(radar.proposta(id_)["estado"], "submetido")
 
+    def test_n3_a_tarefa_da_ficha_dobra_se_como_no_hoje(self):
+        """N3 da UX-AUDITORIA-1-10: cada tarefa da ficha trazia o adiar e o
+        quem abertos, com um «Guardar» cheio -- 12 controlos e cinco
+        primários na coluna da direita com quatro tarefas."""
+        id_ = self._proposta()
+        t = radar.criar_tarefa("ligar ao fiscal", None, proposta_id=id_)
+        lista = self._ficha().split("<ul class='tarefas'>", 1)[1].split("</ul>", 1)[0]
+        mexer = lista.split("<details class='hj-mexer'>", 1)[1].split("</details>", 1)[0]
+        self.assertIn("adiar &middot; quem</summary>", mexer)
+        self.assertIn("action='/tarefa/%d/gravar'" % t, mexer)
+        self.assertIn("mg-btn--secondary'>Guardar", mexer)
+        self.assertNotIn("mg-btn--primary", lista)
+        # e o Hoje desenha o mesmo
+        sem_envio = lambda h: re.sub(r"<input type='hidden' name='envio' value='\w+'>", "", h)
+        hoje = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn(sem_envio(mexer), sem_envio(hoje))
+
     def test_g7_a_tarefa_de_um_colega_nao_se_perde(self):
         id_ = self._proposta()
         t = radar.criar_tarefa("ligar ao fiscal", None, proposta_id=id_)
@@ -24841,6 +24865,15 @@ class TestTerceiraRondaAPortaEAPlataforma(_PlataformaComDuasEmpresas):
         cpv, _ = radar.perfil_do_pedido({"sector": "Outro",
                                          "mensagem": "Limpeza de edifícios, CPV 909"})
         self.assertEqual(cpv, "90900000")
+        # e a lista inteira, não só o primeiro (ensaio do percurso, 1/10/2026)
+        for mensagem in ("Trabalhamos em CPV 79 e 72, em Lisboa.",
+                         "CPVs: 79, 72 ou 45", "cpv 79/72", "CPV 79 e 72000000-5"):
+            cpv, _ = radar.perfil_do_pedido({"sector": "Outro", "mensagem": mensagem})
+            self.assertTrue({"79000000", "72000000"} <= set(cpv.split("|")), mensagem)
+        cpv, _ = radar.perfil_do_pedido({"sector": "Outro", "mensagem": "CPV 79 e 72000000-5"})
+        self.assertEqual(cpv, "72000000|79000000")     # e nada do meio do código
+        cpv, _ = radar.perfil_do_pedido({"sector": "Outro", "mensagem": "CPVs: 79, 72 ou 45"})
+        self.assertEqual(cpv, "79000000|72000000|45000000")
         dono = self.entrar("dono")
         h = self.ver(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido).get_data(as_text=True)
         # o pedido do fixture («Obras», sem mensagem) não sugere nada, e diz-o
@@ -26386,6 +26419,47 @@ class TestOResumoDoMercadoNaoRebentaComNumerosFormatados(unittest.TestCase):
         self.assertIn("1\u00a0000", radar.barras_v(linhas, "Teste"))
 
 
+class TestAuditoriaDe1OutubroOsPequenos(unittest.TestCase):
+    """Os achados da UX-AUDITORIA-1-10 que são uma regra ou uma palavra."""
+
+    @staticmethod
+    def _ler(*caminho):
+        with open(os.path.join(os.path.dirname(os.path.abspath(radar.__file__)),
+                               *caminho), encoding="utf-8") as f:
+            return f.read()
+
+    def test_n6_o_topo_azul_foca_a_ambar(self):
+        # o --focus magenta ficava a 2,36:1 sobre o azul do topo do site,
+        # das páginas legais e do lado azul do entrar
+        self.assertIn(".topo :focus-visible{outline-color:var(--seal-on-dark)}",
+                      self._ler("site", "moldura.css"))
+        self.assertIn(".entrar-lado :focus-visible{outline-color:var(--focus-on-header)}",
+                      self._ler("estilo", "miragov-radar.css"))
+
+    def test_n7_o_desconto_diz_que_e_de_sempre(self):
+        # as outras três colunas são do perfil e dos últimos anos
+        self.assertIn("Desconto quando ganha (de sempre)",
+                      inspect.getsource(radar.concorrentes))
+
+    def test_n10_as_iniciais_na_pilula_escolhida_nao_sao_transparentes(self):
+        # branco a 28 % sobre o azul: ~4,3:1 para letra de 12 px
+        regra = re.search(r"\.periodos a\.on \.av\{([^}]*)\}", radar.CSS_NOVO).group(1)
+        self.assertNotIn("color-mix", regra)
+        self.assertIn("background:var(--on-brand)", regra)
+        self.assertIn("color:var(--brand)", regra)
+
+    def test_n5_as_setas_de_ordenar_tem_24px(self):
+        regra = re.search(r"\.mg-table th a\.ordenar\{([^}]*)\}",
+                          self._ler("estilo", "miragov-radar.css")).group(1)
+        self.assertIn("min-height:24px", regra)
+
+    def test_n5_a_ref_de_uma_proposta_sem_anuncio_nao_e_ligacao(self):
+        p = dict.fromkeys(radar.COLUNAS_DA_PROPOSTA)
+        p.update(id=7, titulo="Consulta", estado="em_analise")
+        linha = radar.linha_da_pipeline(p, 7, {})
+        self.assertTrue(linha.startswith("<tr><td class='mg-code'>&mdash;</td>"), linha[:80])
+
+
 class TestUXMercadoDe1Outubro(_CicloDoTesteComUtilizadores):
     """As correcções de UX do Mercado, das Entidades, da Situação, da Conta,
     do Perfil e dos gráficos que os relatórios de 30/09/2026 deixavam para
@@ -26430,7 +26504,13 @@ class TestUXMercadoDe1Outubro(_CicloDoTesteComUtilizadores):
         # e as cinco das Entidades continuam, por baixo
         self.assertLess(entidades.index("aria-label='Vistas do Mercado'"),
                         entidades.index("aria-label='Vistas das entidades'"))
-        self.assertIn(".topo>.abas-mercado+.mg-tabs{grid-row:4", self._folha())
+        # A segunda barra numa linha da grelha que não é a da primeira:
+        # este teste afirmava `grid-row:4`, a mesma das duas, e a barra
+        # das entidades tapava a do Mercado (N2 da UX-AUDITORIA-1-10).
+        folha = self._folha()
+        primeira = re.search(r"\.topo>\.mg-tabs,[^{]*\{[^}]*grid-row:(\d+)", folha)
+        segunda = re.search(r"\.topo>\.abas-mercado\+\.mg-tabs\{grid-row:(\d+)", folha)
+        self.assertEqual(int(segunda.group(1)), int(primeira.group(1)) + 1)
 
     def test_m1_a_situacao_nao_desenha_as_fases_abertas_duas_vezes(self):
         """M1: «Abertas, por fase» eram as quatro primeiras barras do
@@ -26640,7 +26720,8 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         ficavam entre 24 e 32 px no dedo."""
         toque = self._folha().split("@media (pointer:coarse){", 1)[1].split("}}", 1)[0]
         for alvo in (".col-acc .mg-btn--sm", ".celula-ranhura .mg-btn--sm",
-                     "main.mg td select", ".mg-tab", ".mg-pager>a"):
+                     "main.mg select", ".mg-tab", ".mg-pager>a",
+                     ".mg-btn--sm{min-height:44px}", ".periodos a"):
             self.assertIn(alvo, toque)
         self.assertIn("min-height:44px", toque)
         self.assertIn(".chk::before{content:'';position:absolute;inset:-11px}", toque)
