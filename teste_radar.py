@@ -26087,6 +26087,24 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         self.assertIn("NIF da empresa", privacidade)
 
 
+class TestOResumoDoMercadoNaoRebentaComNumerosFormatados(unittest.TestCase):
+    """2/10/2026: o resumo do Mercado dava 500 com qualquer filtro. O #185
+    passou o `k` de cada barra pelo `mil_pt()`, e dois gráficos já o
+    davam formatado («4 823»): ValueError: invalid literal for int()."""
+
+    def test_uma_barra_com_o_k_ja_formatado(self):
+        h = radar.barras_v([{"t": "2025", "v": 1.0, "k": radar.mil_pt(4823)},
+                            {"t": "2026", "v": 2.0, "k": 12}],
+                           "Teste", fmt=radar.mil_pt_f, unidade="procedimentos")
+        self.assertIn("4\u00a0823", h)
+        self.assertIn("12", h)
+
+    def test_muitas_barras_com_a_tabela_dos_numeros(self):
+        linhas = [{"t": str(2000 + i), "v": float(i + 1), "k": radar.mil_pt(1000 + i)}
+                  for i in range(radar.MAX_ROTULOS_BARRAS + 3)]
+        self.assertIn("1\u00a0000", radar.barras_v(linhas, "Teste"))
+
+
 class TestUXMercadoDe1Outubro(_CicloDoTesteComUtilizadores):
     """As correcções de UX do Mercado, das Entidades, da Situação, da Conta,
     do Perfil e dos gráficos que os relatórios de 30/09/2026 deixavam para
