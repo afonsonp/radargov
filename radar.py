@@ -1335,7 +1335,11 @@ def iniciar_db():
                            ("lotes", "TEXT"),
                            # quando se viu pela ultima vez a lista das
                            # pecas na plataforma (vigiar_pecas, 14/09/2026)
-                           ("pecas_vigiadas_em", "TEXT")):
+                           ("pecas_vigiadas_em", "TEXT"),
+                           # o preço estimado do anúncio (DL 177/2026),
+                           # que NÃO é o preço base: campos_do_detalhe();
+                           # NULL = texto ainda não lido com esta regra
+                           ("preco_estimado", "TEXT")):
                            # (a tipologia, o CV, a proposta tecnica, as
                            # notas e o CoE viveram aqui um dia -- 14 a
                            # 15/09/2026 -- e sao da proposta, como as
@@ -1453,9 +1457,19 @@ def iniciar_db():
         # construir, 36 MB. **Uma coluna que falte tira-lhe o COVERING**
         # -- é o que o `test_as_contagens_do_perfil_saem_de_um_indice`
         # guarda.
+        # O `preco_estimado` entrou a 1/10/2026: o filtro do valor lê-o
+        # quando não há preço base. O índice antigo não o tem e o `IF NOT
+        # EXISTS` não o refaria -- refaz-se uma vez, aqui, depois do ALTER
+        # que cria a coluna.
+        if c.execute("SELECT 1 FROM pragma_index_info('ix_anuncios_cobre')"
+                     ).fetchone() and not c.execute(
+                "SELECT 1 FROM pragma_index_info('ix_anuncios_cobre') "
+                "WHERE name='preco_estimado'").fetchone():
+            c.execute("DROP INDEX ix_anuncios_cobre")
         c.execute("CREATE INDEX IF NOT EXISTS ix_anuncios_cobre "
                   "ON anuncios(estado, data_pub DESC, ref DESC, prazo, "
-                  "detalhe_lido, plataforma, cpv, preco_base, titulo_norm)")
+                  "detalhe_lido, plataforma, cpv, preco_base, titulo_norm, "
+                  "preco_estimado)")
         # O filtro por entidade (`condicoes()`, campo `nif`), que é
         # `nif = ? OR entidade IN (SELECT DISTINCT entidade WHERE nif=?)`
         # -- as duas metades, porque só com uma delas indexada o SQLite
@@ -1578,6 +1592,12 @@ def iniciar_db():
     if le_marca("distritos_lidos") != "1":
         preencher_distritos()
         marca("distritos_lidos", "1")
+    # O preço estimado (1/10/2026) e os lotes cujo «Valor Estimado do
+    # Lote» se lia como preço base: uma vez, por marca. Os que chegarem
+    # depois leem-se quando o detalhe se grava.
+    if le_marca("precos_estimados_lidos") != "1":
+        preencher_precos_estimados()
+        marca("precos_estimados_lidos", "1")
     # O vocabulario do config.json segue o do resto (16/09/2026): a
     # «casa» passou a «empresa». Idempotente, e barato -- so abre o
     # ficheiro para escrever quando a chave velha la esta.
@@ -1596,6 +1616,26 @@ def preencher_distritos():
             "SELECT ref, texto FROM anuncios WHERE COALESCE(texto, '') != ''")
             for d in (distritos_do_texto(r["texto"]),) if d]
         c.executemany("UPDATE anuncios SET distrito=? WHERE ref=?", arranjos)
+    return len(arranjos)
+
+
+def preencher_precos_estimados():
+    """Passa o `campos_do_detalhe()` pelos anúncios já lidos que falam
+    de um valor estimado, e grava o `preco_estimado` e os `lotes`. O
+    original de uma alteração lê-se do texto da alteração em vigor, que é
+    de onde vêm os campos dele. Só escreve as linhas que mudam."""
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT a.ref, a.lotes, a.preco_estimado, "
+            "COALESCE(v.texto, a.texto) AS texto FROM anuncios a "
+            "LEFT JOIN anuncios v ON v.ref = a.alterado_por "
+            "WHERE a.texto LIKE '%estimad%'").fetchall()
+        arranjos = [(f["preco_estimado"], f["lotes"], r["ref"]) for r in linhas
+                    for f in (campos_do_detalhe(r["texto"]),)
+                    if (f["preco_estimado"], f["lotes"])
+                    != (r["preco_estimado"] or "", r["lotes"] or "")]
+        c.executemany("UPDATE anuncios SET preco_estimado=?, lotes=? "
+                      "WHERE ref=?", arranjos)
     return len(arranjos)
 
 
@@ -2394,17 +2434,27 @@ def distritos_do_texto(texto):
     return "|%s|" % "|".join(achados) if achados else ""
 
 
-# O preco base em numero, dentro do SQL: a coluna guarda «175.000,00 EUR».
-SQL_PRECO_BASE = ("CAST(REPLACE(REPLACE(REPLACE(preco_base, ' EUR', ''), "
-                  "'.', ''), ',', '.') AS REAL)")
+# O valor de um anuncio em numero, dentro do SQL: as colunas guardam
+# «175.000,00 EUR». E o preco base e, SO quando ele falta, o preco
+# estimado (1/10/2026: o DL 177/2026 tornou o preco base facultativo, e o
+# filtro do valor -- que e o dos alertas e do perfil -- ficava cego para
+# os anuncios que so trazem o estimado). NULL quando nao ha nenhum: um
+# anuncio sem valor fica de fora de um filtro por valor, como sempre.
+# Nao e um recorte: e o mesmo filtro a ler um segundo campo. Precisa do
+# `preco_estimado` no `ix_anuncios_cobre`, senao as contagens com o
+# perfil voltam a tabela larga.
+SQL_PRECO_DO_ANUNCIO = (
+    "CAST(REPLACE(REPLACE(REPLACE(COALESCE(NULLIF(preco_base, ''), "
+    "NULLIF(preco_estimado, '')), ' EUR', ''), '.', ''), ',', '.') AS REAL)")
 
 
 def fragmento_local_e_valor(distritos, minimo, maximo=""):
     """(fragmento, valores) do distrito e do valor de um anuncio -- o
     mesmo para o motor de filtros e para o interesse. `distritos` e um ou
     varios separados por «|»; um concurso nacional (`*`) entra em
-    qualquer um. Um anuncio sem distrito lido, ou sem preco base, fica de
-    fora quando se pede um ou outro: nao se sabe se cabe."""
+    qualquer um. O valor e o preco base, ou o estimado quando nao ha base
+    (`SQL_PRECO_DO_ANUNCIO`). Um anuncio sem distrito lido, ou sem valor
+    nenhum, fica de fora quando se pede um ou outro: nao se sabe se cabe."""
     partes, valores = [], []
     pedidos = [d for d in (x.strip() for x in (distritos or "").split("|"))
                if d in DISTRITOS]
@@ -2435,8 +2485,7 @@ def fragmento_local_e_valor(distritos, minimo, maximo=""):
     for bruto, sinal in ((minimo, ">="), (maximo, "<=")):
         v = euros_do_texto(bruto)
         if v is not None:
-            partes.append("(COALESCE(preco_base, '') != '' AND %s %s ?)"
-                          % (SQL_PRECO_BASE, sinal))
+            partes.append("%s %s ?" % (SQL_PRECO_DO_ANUNCIO, sinal))
             valores.append(v)
     return " AND ".join(partes), valores
 
@@ -2501,6 +2550,19 @@ def preco_pt(texto, vazio="—"):
         return texto or vazio
     inteiro, centimos = ("%.2f" % v).split(".")
     return "%s,%s €" % (mil_pt(int(inteiro)), centimos)
+
+
+def preco_do_anuncio(a, vazio="—"):
+    """O preço base de um anúncio (ou de um lote); sem ele, o preço
+    estimado, **dito como tal** -- o estimado não exclui propostas e o
+    base sim, e na mesma coluna confundiam-se (1/10/2026, DL 177/2026)."""
+    if a["preco_base"]:
+        return preco_pt(a["preco_base"])
+    try:
+        estimado = a["preco_estimado"]
+    except (IndexError, KeyError):
+        estimado = ""
+    return "%s (estimado)" % preco_pt(estimado) if estimado else vazio
 
 
 # --- o formatador unico (lote 5 da segunda ronda, 26/09/2026)
@@ -2982,6 +3044,7 @@ def resumo_dos_lotes(lotes, linhas_empresa=()):
                 por_estado.setdefault(estado, []).append(n)
         saida.append({"n": n, "id": l.get("id") or "", "descricao": l.get("descricao") or "",
                       "preco_base": l.get("preco_base") or "",
+                      "preco_estimado": l.get("preco_estimado") or "",
                       "estado": estado, "rotulo": rotulo, "classe": classe,
                       "proposta": (linha or {}).get("valor_proposta"),
                       "lugar": (linha or {}).get("lugar")})
@@ -4521,14 +4584,16 @@ def anuncio_alterado(texto):
 # Os lotes de um procedimento. Medido a 02/09/2026: o DR escreve
 # "Procedimento com lotes? Sim", "Nº Máx. de Lotes Autorizado: N" e, no
 # objecto, um bloco "Lotes:" com "Nº: LOT-0001", "Descrição do Lote:" e o
-# preco base de cada um ("Preço base s/IVA:" ou "Valor Estimado do
-# Lote:"), ate a seccao numerada seguinte. E por aqui que uma linha do
+# preco base de cada um ("Preço base s/IVA:") ou o valor estimado
+# ("Valor Estimado do Lote:", que NAO e preco base -- 1/10/2026), ate a
+# seccao numerada seguinte. E por aqui que uma linha do
 # Excel da empresa -- que tem o preco base DO LOTE -- se liga ao lote certo.
 RX_LOTE_N = re.compile(r"^\s*N[ºo°]?\.?\s*:\s*(LOT-?\s*0*(\d+)|(\d+))\s*$", re.I)
 
 
 def lotes_do_texto(texto):
-    """[{n, id, descricao, preco_base}] dos lotes declarados no anuncio;
+    """[{n, id, descricao, preco_base[, preco_estimado]}] dos lotes
+    declarados no anuncio;
     vazio quando o procedimento nao tem lotes."""
     if not texto or not re.search(r"Procedimento com lotes\?\s*Sim", texto, re.I):
         return []
@@ -4552,16 +4617,30 @@ def lotes_do_texto(texto):
         k = re.sub(r"[^a-z0-9]+", " ", simplifica(chave)).strip()
         if k == "descricao do lote":
             actual["descricao"] = valor.strip()[:200]
-        elif (k in ("preco base s iva", "valor estimado do lote", "preco base")
+        elif (k in ("preco base s iva", "preco base")
               and not actual["preco_base"]):
             actual["preco_base"] = valor.strip()[:40]
+        elif k == "valor estimado do lote" and not actual.get("preco_estimado"):
+            # Não é o preço base (1/10/2026). Medido na base inteira: 583
+            # anúncios o trazem; em 336 vem DEPOIS do «Preço base s/IVA»
+            # do mesmo lote, e em 247 é o único valor, com «Preço base do
+            # procedimento: Não» -- e era lido como base, o tecto que a
+            # recusa do preço usa. Uma proposta acima dele não se exclui.
+            actual["preco_estimado"] = valor.strip()[:40]
     return fora
+
+
+CHAVES_DO_PRECO_ESTIMADO = (
+    "valor do preco estimado do procedimento", "valor estimado",
+    "para acordo-quadro — valor total maximo estimado para toda a duracao "
+    "do acordo-quadro")
 
 
 def campos_do_detalhe(texto):
     """Le do texto do anuncio os campos que servem para filtrar e listar."""
     lotes = lotes_do_texto(texto)
-    achados = {"cpv": "", "prazo": "", "preco_base": "", "plataforma": "",
+    achados = {"cpv": "", "prazo": "", "preco_base": "", "preco_estimado": "",
+               "plataforma": "",
                "link_pecas": "", "nif": "", "altera": anuncio_alterado(texto),
                "lotes": json.dumps(lotes, ensure_ascii=False) if lotes else ""}
     seccoes = seccoes_do_texto(texto)
@@ -4606,6 +4685,24 @@ def campos_do_detalhe(texto):
         m = EURO.search(preco)
         if m:
             achados["preco_base"] = " ".join(m.group(1).split()) + " EUR"
+
+    # O preço estimado NÃO é o preço base: o base é o tecto que exclui
+    # propostas (art. 70.º do CCP) e desde o DL 177/2026 é facultativo; o
+    # estimado é o «valor estimado do contrato» (art. 17.º) e não exclui
+    # nada. O DR passou a escrever «Valor do preço estimado do
+    # procedimento» a 1/10/2026, e **«0,00 EUR» quer dizer vazio** (55 dos
+    # 56 desse dia). Antes já havia o «Valor estimado» do objecto e o
+    # máximo de um acordo-quadro sem preço base -- o mesmo conceito (art.
+    # 17.º-A, n.º 2). O primeiro positivo, pela ordem do texto.
+    for _, _, pares in seccoes:
+        for chave, valor in pares:
+            m = EURO.search(valor or "")
+            if (simplifica(chave) in CHAVES_DO_PRECO_ESTIMADO and m
+                    and euros_do_texto(m.group(1))):
+                achados["preco_estimado"] = " ".join(m.group(1).split()) + " EUR"
+                break
+        if achados["preco_estimado"]:
+            break
 
     achados["link_pecas"] = valor_de(
         seccoes, "Link para acesso às peças do concurso (URL)",
@@ -4736,7 +4833,7 @@ def registar_alteracoes(ref, difs):
 # alteracao para o original. Desde 15/09/2026 o que passa e a PROPOSTA
 # inteira, e a lista deixou de ter quem a lesse.)
 CAMPOS_EM_VIGOR = ("prazo", "preco_base", "cpv", "plataforma", "link_pecas",
-                   "lotes")
+                   "lotes", "preco_estimado")
 
 
 def raiz_da_alteracao(c, ref, altera):
@@ -4980,13 +5077,14 @@ def _guardar_detalhe(ref, dados):
         else:
             c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
                          plataforma=?, texto=?, pdf_url=?, link_pecas=?, nif=?,
-                         altera=?, distrito=?, lotes=?, detalhe_lido=1
+                         altera=?, distrito=?, lotes=?, detalhe_lido=1,
+                         preco_estimado=?
                          WHERE ref=?""",
                       (campos["cpv"], campos["prazo"], campos["preco_base"],
                        campos["plataforma"], texto, conteudo.get("URL_PDF") or "",
                        campos["link_pecas"], campos["nif"], altera,
                        distritos_do_texto(texto),
-                       campos["lotes"], ref))
+                       campos["lotes"], campos["preco_estimado"], ref))
     # Daqui para baixo ja fora da transaccao: aplicar_alteracao() e
     # registar_alteracoes() abrem a sua ligacao e tem de ver o que ficou
     # escrito acima.
@@ -5401,11 +5499,12 @@ def reparsear(limite=None):
                           (campos["nif"], altera, a["ref"]))
             else:
                 c.execute("""UPDATE anuncios SET cpv=?, prazo=?, preco_base=?,
-                             plataforma=?, link_pecas=?, nif=?, altera=?, lotes=?
-                             WHERE ref=?""",
+                             plataforma=?, link_pecas=?, nif=?, altera=?, lotes=?,
+                             preco_estimado=? WHERE ref=?""",
                           (campos["cpv"], campos["prazo"], campos["preco_base"],
                            campos["plataforma"], campos["link_pecas"],
-                           campos["nif"], altera, campos["lotes"], a["ref"]))
+                           campos["nif"], altera, campos["lotes"],
+                           campos["preco_estimado"], a["ref"]))
             feitos += 1
     agrupar_alteracoes()
     return feitos
@@ -10351,7 +10450,7 @@ def alertas_por_enviar(so_imediatos=False):
                 continue
             linhas = c.execute(
                 "SELECT a.ref, a.titulo, a.entidade, a.data_pub, a.prazo, "
-                "a.preco_base, a.cpv FROM alertas_vistos v "
+                "a.preco_base, a.preco_estimado, a.cpv FROM alertas_vistos v "
                 "JOIN anuncios a ON a.ref = v.ref "
                 "WHERE v.filtro_id=? AND v.enviado_em IS NULL "
                 "AND a.estado != 'alteracao' "
@@ -10480,7 +10579,7 @@ def seguidas_por_avisar():
                            "ORDER BY nome COLLATE NOCASE"):
             linhas = c.execute(
                 "SELECT a.ref, a.titulo, a.entidade, a.data_pub, a.prazo, "
-                "a.preco_base FROM seguidas_vistos v "
+                "a.preco_base, a.preco_estimado FROM seguidas_vistos v "
                 "JOIN anuncios a ON a.ref = v.ref "
                 "WHERE v.chave=? AND v.enviado_em IS NULL "
                 "ORDER BY a.data_pub DESC", (s["chave"],)).fetchall()
@@ -10567,7 +10666,8 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
             linhas.append("  %s" % (a["titulo"] or "(sem título)")[:88])
             linhas.append("    %s" % (a["entidade"] or "")[:80])
             linhas.append("    %s | %s | %s"
-                          % (a["ref"], prazo, a["preco_base"] or "sem preço base"))
+                          % (a["ref"], prazo,
+                             preco_do_anuncio(a, "sem preço base")))
             linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                           % (quote(a["ref"], safe=""),))
             linhas.append("")
@@ -10609,7 +10709,7 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
                 linhas.append("    %s" % (a["titulo"] or "(sem título)")[:84])
                 linhas.append("    publicado %s | %s"
                               % (data_pt(a["data_pub"]),
-                                 a["preco_base"] or "sem preço base"))
+                                 preco_do_anuncio(a, "sem preço base")))
                 linhas.append("    " + endereco_do_painel() + "/anuncio/%s"
                               % (quote(a["ref"], safe=""),))
             linhas.append("")
@@ -10664,7 +10764,7 @@ def _em_cartao(a, urgente, mostrar_prazo=True):
     88 caracteres e "(SaaS" a meio era a primeira coisa que se via."""
     titulo = html.escape(a["titulo"] or "(sem título)")
     entidade = html.escape(a["entidade"] or "")
-    preco = html.escape(preco_pt(a["preco_base"], "sem preço base"))
+    preco = html.escape(preco_do_anuncio(a, "sem preço base"))
     metas = ["<span style=\"font:500 12px/1.5 %s;color:%s\">%s</span>"
              % (_EM_MONO, _EM_T3, html.escape(a["ref"]))]
     if mostrar_prazo:
@@ -18438,7 +18538,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
            # dizia «as peças descarregam-se daqui», e isso vale para 99,6%
            # dos anúncios -- todas iguais, a cor não distinguia nada.
            html.escape(a["plataforma"] or ""),
-           html.escape(preco_pt(a["preco_base"])),
+           html.escape(preco_do_anuncio(a)),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
            "".join(botoes)))
@@ -19372,7 +19472,7 @@ def sugestoes_de_entidade(texto, limite=10):
 # (J4 da UX-7-LEIS, 1/10/2026). Os sem valor vao para o fim.
 ORDENS_DA_LISTA = {
     "prazo": "COALESCE(prazo, '') = '', prazo, data_pub DESC, ref DESC",
-    "preco": ("COALESCE(preco_base, '') = '', " + SQL_PRECO_BASE
+    "preco": (SQL_PRECO_DO_ANUNCIO + " IS NULL, " + SQL_PRECO_DO_ANUNCIO
               + " DESC, data_pub DESC, ref DESC"),
 }
 
@@ -28798,7 +28898,7 @@ def lotes_cx(a):
         corpo.append("<tr><td class='n'>L%d</td><td class='o'>%s</td>"
                      "<td class='p'>%s</td>%s</tr>"
                      % (l["n"], html.escape(l["descricao"] or l["id"] or "—"),
-                        html.escape(preco_pt(l["preco_base"])),
+                        html.escape(preco_do_anuncio(l)),
                         ("<td class='s'>%s</td>" % situacao) if ha_registo else ""))
     if resumo["conjunto"]:
         conj = resumo["conjunto"]
@@ -29363,8 +29463,15 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
                   if "não encontrou" in local_nota
                   else "o regime (presencial, remoto) ainda não foi lido"
                   if local_nota else "")
+    preco = facto("Preço base", "Preço base", nota_preco, "o anúncio não indica")
+    estimado = _valor(a, "preco_estimado") or ""
+    if preco[3] and estimado:
+        # Sem preço base (facultativo desde o DL 177/2026), o estimado,
+        # com o nome dele: não é o tecto que exclui propostas.
+        preco = ("Preço estimado", preco_pt(estimado),
+                 "sem preço base: não exclui propostas", False)
     return [
-        facto("Preço base", "Preço base", nota_preco, "o anúncio não indica"),
+        preco,
         esclarec,
         propostas,
         ("Duração", duracao.replace(renovacoes, ""),
@@ -29423,7 +29530,8 @@ def _curto(celula):
 
 
 # As três colunas dos prazos e do preço escrevem-se em letra de números
-_FACTOS_EM_NUMERO = ("Preço base", "Esclarecimentos até", "Propostas até")
+_FACTOS_EM_NUMERO = ("Preço base", "Preço estimado", "Esclarecimentos até",
+                     "Propostas até")
 
 
 def para_decidir_cx(factos):

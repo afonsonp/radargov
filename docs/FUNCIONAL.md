@@ -137,7 +137,8 @@ as exactas e salta as outras.
 | `cpv` | 87,1% | |
 | `plataforma` | 87,0% | vortal 80 k · acingov 68 k · anogov 15 k · saphety 13 k · … |
 | `nif` | 76,1% | O NIF da entidade que publica — liga ao corpus |
-| `preco_base` | 53,5% | |
+| `preco_base` | 53,5% | O tecto que exclui propostas (art. 70.º do CCP) |
+| `preco_estimado` | ~0,2% | Desde 1/10/2026: o valor estimado do contrato (art. 17.º), que **não exclui** — a linha nova do DR, o «Valor estimado» do objecto e o máximo de um acordo-quadro. Medido nesse dia: 401 anúncios da base sem preço base o têm. Ver `docs/ccp.md` §3-A |
 | `prazo` | 38,2% | Data-limite de entrega |
 | `link_pecas` | 39,2% | |
 | `distrito` | ~70% | Desde 25/09/2026: os distritos do **local de execução** (secção 9 do texto), «\|Porto\|Lisboa\|»; `*` num concurso nacional. Medido na leitura: 148 579 dos 185 886 com texto |
@@ -444,7 +445,11 @@ têm na mesma forma, e a faixa do Mercado diz isso mesmo em vez de
 prometer o perfil inteiro (26/09/2026). Um concurso nacional entra em qualquer distrito; um
 anúncio sem distrito lido, ou sem preço base, fica de fora quando se
 pede um ou outro. Os mesmos dois campos existem no filtro dos Concursos
-e no do alerta (`dist`, `pbmin`, `pbmax`, no `condicoes()`).
+e no do alerta (`dist`, `pbmin`, `pbmax`, no `condicoes()`). **Desde
+1/10/2026 o valor é o preço base e, só quando não há, o preço estimado**
+(`SQL_PRECO_DO_ANUNCIO`): o DL 177/2026 tornou o base facultativo, e sem
+isto um anúncio só com o estimado ficava fora de todos os filtros e
+alertas por valor. Um anúncio sem nenhum dos dois continua de fora.
 
 **Não recorta os alertas, e é de propósito.** O interesse é recorte de
 **página** (entra por `com_recorte()`), não de motor — um interesse
@@ -1074,7 +1079,9 @@ numa folha de cálculo (seta ▲ e `aria-sort` quando está activo; um
 segundo clique volta atrás; 30/09/2026), com os sem prazo no fim
 (`?ordem=prazo`, `ordem_da_lista()`; 25/09/2026), e o do **«Preço
 base»** para **o maior primeiro** (`?ordem=preco`, seta ▼; 1/10/2026,
-J4). As **Propostas** ordenam-se da mesma maneira pelo «Prazo» e pelo
+J4) — pelo mesmo valor do filtro: o base, ou o estimado sem ele. Na
+coluna, um estimado escreve-se com «(estimado)» atrás
+(`preco_do_anuncio()`), e o mesmo nos alertas e nos lotes da ficha. As **Propostas** ordenam-se da mesma maneira pelo «Prazo» e pelo
 «Preço base» (`cabecalho_que_ordena()`); a omissão continua a ser a
 mais recente primeiro. Nos cartões do
 telemóvel, onde o cabeçalho se esconde, a troca é uma ligação ao lado da
@@ -1167,8 +1174,9 @@ desenho), numa só abaixo de 1100px. **Desde 28/09/2026 (a ficha nova,
 da maquete que ele aprovou)** a coluna da esquerda é, por esta ordem:
 **Os factos do anúncio** (`para_decidir_cx()`; chamava-se «Para
 decidir» até à 3.ª ronda, G49, e o bloco só tem factos: oito numa
-grelha, pela ordem de `factos_para_decidir()` — preço base,
-esclarecimentos até, propostas até, duração, critério, local,
+grelha, pela ordem de `factos_para_decidir()` — preço base (ou, sem
+ele, «Preço estimado», com a nota «sem preço base: não exclui
+propostas»; 1/10/2026), esclarecimentos até, propostas até, duração, critério, local,
 habilitação, caução; o que o anúncio não traz fica na célula, apagado,
 a dizer onde está; a caução e o alvará levam ao lado o que o Programa
 diz, quando foi lido), os lotes

@@ -9,11 +9,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 ## Índice
 
-- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 17
+- [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 18
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 31
-- [O motor de filtros](#o-motor-de-filtros) &middot; 15
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 11
+- [O motor de filtros](#o-motor-de-filtros) &middot; 16
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 12
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
 - [Contratos e entidades](#contratos-e-entidades) &middot; 39
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 129
 - [Convenções](#convencoes) &middot; 7
 
-São **444** ao todo, contados a 1/10/2026. Contam-se por secção com
+São **447** ao todo, contados a 3/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -289,6 +289,22 @@ O DR, a Vortal, e como um anúncio entra na base.
   confere primeiro o que o `renovar_pecas_dr()` leu do script** antes
   de mandar o Afonso ao DevTools. O teste guarda o pedaço do script de
   1/10 tal como veio.
+
+- **O preço estimado não é o preço base, e lê-se para outra coluna**
+  (1/10/2026, DL 177/2026). O preço base passou a facultativo (art. 47.º
+  do CCP) e o anúncio do DR ganhou, na secção 5, a linha «Valor do preço
+  estimado do procedimento». O `campos_do_detalhe()` lê-a para o
+  `preco_estimado`, com o «Valor estimado» do objecto e o «valor total
+  máximo estimado» de um acordo-quadro (`CHAVES_DO_PRECO_ESTIMADO`, o
+  primeiro positivo pela ordem do texto) — **nunca para o
+  `preco_base`**, que é o tecto que a recusa do preço e o desvio usam.
+  E o «Valor Estimado do Lote» também não é base: o `lotes_do_texto()`
+  punha-o no `preco_base` do lote, e em 247 anúncios era o único valor
+  (com «Preço base do procedimento: Não»); a proposta desse lote herdava
+  um tecto que a lei não põe. Agora vai para o `preco_estimado` do lote.
+  Os já lidos passaram uma vez, pela marca `precos_estimados_lidos`
+  (`preencher_precos_estimados()`, só os textos que dizem «estimad»).
+  `TestOPrecoEstimadoNaoEOPrecoBase`.
 
 
 ---
@@ -991,6 +1007,22 @@ Orçamento, cadeia de reserva, chaves.
   consulta, e por isso um VACUUM que as renumere não a estraga — uma
   tabela à parte presa às rowids estragava.
 
+- **O filtro do valor lê o preço base e, só sem ele, o estimado**
+  (1/10/2026). É o `SQL_PRECO_DO_ANUNCIO`, que o
+  `fragmento_local_e_valor()` e a ordem «preço» da lista partilham: sem
+  ele, um anúncio que só traga o preço estimado (facultativo o base,
+  desde o DL 177/2026) ficava fora de todos os filtros por valor — e
+  esses são os dos **alertas** e do **perfil**, porque passam pelo mesmo
+  `condicoes()`. Não é um recorte novo: é o mesmo filtro a ler um segundo
+  campo, e o efeito nos alertas é o que se quer (um alerta «desde 100 000
+  €» passa a avisar de um acordo-quadro de 13 M€ sem preço base). Havendo
+  base, conta o base, mesmo abaixo do estimado. O `NULLIF` não é
+  decorativo: sem ele `CAST('' AS REAL)` dá 0 e um anúncio sem valor
+  nenhum entrava em «até 100 000 €». E o `preco_estimado` **entrou no
+  `ix_anuncios_cobre`** (o arranque refaz o índice uma vez, quando lhe
+  falta a coluna), senão as contagens com o perfil voltavam à tabela
+  larga — a regra do ponto de cima.
+
 
 ---
 
@@ -1089,6 +1121,18 @@ Formatos portugueses, normalização e o que o SQLite não sabe fazer.
   preço dizia «acima do preço base (1 530 000,00 €)» de um concurso de
   153 000 €. O `preco_pt()` aceita `int` e `float` directamente, e o
   teste usa os preços como o DR os escreve.
+
+- **«0,00 EUR» no preço estimado do DR quer dizer vazio, e o estimado
+  diz-se «(estimado)»** (1/10/2026). O formulário novo do anúncio
+  escreve «Valor do preço estimado do procedimento: 0,00 EUR» quando a
+  entidade não o pôs — 55 dos 56 anúncios do primeiro dia —, e um zero
+  lido como valor punha o anúncio em todos os filtros «até X €». O
+  leitor só aceita o primeiro positivo. Na lista, nos alertas e nos
+  lotes da ficha, um anúncio sem preço base mostra o estimado pelo
+  `preco_do_anuncio()`, com «(estimado)» atrás; nos factos da ficha a
+  célula muda de nome para «Preço estimado», com a nota «sem preço base:
+  não exclui propostas». Na mesma coluna e sem o nome, um estimado
+  lia-se como o tecto.
 
 ## A árvore de CPV
 
