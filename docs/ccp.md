@@ -76,6 +76,7 @@ que o DL 177/2026 lhe mexe; não quer dizer que mexe na parte que usamos.
 | **147.º** | Audiência prévia: prazo fixado pelo júri, não inferior a cinco dias | Não | `DIAS_DE_PRONUNCIA`, `prazo_de_pronuncia()` |
 | **470.º** | Os prazos contam-se pelo art. 87.º do CPA (dias úteis) | Não | idem |
 | **47.º** | Preço base | **Sim: passa a facultativo** («pode fixar»); os n.os 3 a 6 são revogados | `recusa_do_preco()` não recusa sem base — certo nos dois regimes |
+| **17.º** | Valor estimado do contrato = «preço estimado a pagar»; indica-se no convite ou no programa (§3-A) | **Sim** | `preco_estimado` (`campos_do_detalhe()`), que nunca vai para o `preco_base` |
 | **74.º** | Critério de adjudicação (multifator / monofator) | Sim | `criterio_de_adjudicacao()` lê o anúncio, não a lei |
 | **88.º** | Caução: dispensável quando o preço contratual for inferior a **1 000 000 €** (regime novo, n.º 2, al. a)) | Sim | Ainda não se mostra (`docs/historico/SETORES.md` §6) |
 
@@ -98,6 +99,51 @@ novos.
 | Portaria 372/2017 (habilitação) | **continua em vigor** até sair a portaria nova do art. 81.º, n.º 2 | 7.º do DL, n.º 1 |
 | Concurso público **flexível** (abaixo dos limiares europeus) | A entidade pode tirar ou pôr formalidades: requisitos mínimos de capacidade técnica e financeira verificados na análise das propostas, avaliação faseada, leilão, negociação | 161.º-A |
 | Audiência prévia no concurso flexível | O prazo de pronúncia pode descer a **três dias** | 161.º-B, n.º 1, b) |
+
+### 3-A. O preço estimado
+
+*Conferido no texto oficial (PDF do DR, republicação) a 1/10/2026.*
+
+- **Art. 17.º, n.º 1:** «O valor estimado do contrato corresponde ao
+  preço estimado a pagar pela entidade adjudicante e por terceiros»,
+  mais as contraprestações e vantagens do adjudicatário. É o mesmo
+  conceito com outro nome: o preâmbulo diz que substitui o «valor do
+  contrato» (o «valor máximo do benefício económico»). **Não há um campo
+  «preço estimado» à parte do valor estimado.**
+- **Art. 17.º, n.º 2:** o valor estimado «deve ser indicado no convite
+  ou no programa do procedimento». É aqui que a lei o torna obrigatório
+  — nas peças, não no anúncio. Os n.os 3 a 6, 8 e 9 são revogados (art.
+  8.º, al. a), do DL).
+- **Art. 17.º-A, n.º 2** (novo): num acordo-quadro, o valor estimado é o
+  máximo de todos os contratos previstos durante a vigência.
+- **Arts. 115.º, n.º 1, al. d) (convite), 132.º, n.º 1, al. e)
+  (programa do concurso público) e 164.º, n.º 1, al. e) (programa do
+  concurso limitado):** devem indicar «o valor estimado do contrato ou,
+  se for o caso, o preço base». Lido à letra, o programa pode dar um ou
+  o outro — não diz que dá os dois.
+- **Art. 47.º, n.º 1:** a entidade «pode fixar» o preço base, «o
+  montante máximo que esta entidade se dispõe a pagar». **Art. 70.º, n.º
+  3, al. d):** exclui-se a proposta cujo preço contratual seria superior
+  ao preço base. Sobre o estimado não há causa de exclusão: **o estimado
+  não é tecto.**
+- **O anúncio:** o art. 130.º, n.º 1 (não alterado) remete o conteúdo
+  do anúncio do concurso público para um «modelo aprovado por portaria»
+  (e o mesmo para os outros procedimentos). **O DL 177/2026 não aprova
+  modelo novo nem fala da portaria dos anúncios** — a norma transitória
+  (art. 7.º) só mantém a Portaria 372/2017, a da habilitação. Qual é a
+  portaria dos modelos em vigor, e se saiu uma nova, **não se conferiu**
+  no DR.
+
+**O que os anúncios já trazem (medido a 1/10/2026, os 71 desse dia):**
+o formulário do DR mudou nesse dia. A secção 5 ganhou «Regime de
+flexibilização do concurso público» e **«Valor do preço estimado do
+procedimento»** (56 dos 71); em **55 vem «0,00 EUR»** e só em um
+(24414/2026) vem um valor, igual ao preço base. Três dos 71 dizem
+«Preço base do procedimento: Não»: um acordo-quadro com o máximo
+estimado de 13 M€ (24394/2026) e duas actualizações de sistemas de
+qualificação sem valor nenhum. Os de 30/09 ainda têm a forma antiga.
+A lei não obriga o estimado no anúncio, e o formulário deixa-o a zero:
+**o sítio certo para o procurar continua a ser o Programa.**
 
 **O que a §3 obriga a rever no código (por decidir com ele, não feito):**
 o `DIAS_DE_PRONUNCIA` = 5 diz-se «o mínimo da lei» (art. 147.º), e

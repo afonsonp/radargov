@@ -12874,7 +12874,10 @@ class TestEstadoEfectivoDaEmpresa(BaseTemporaria):
         self.assertEqual([l["n"] for l in lotes], [1, 2, 3])
         self.assertEqual(lotes[0]["descricao"], "Lote 1 - Levantamento de requisitos")
         self.assertEqual(lotes[1]["preco_base"], "268.336,00 EUR")
-        self.assertEqual(lotes[2]["preco_base"], "26.833,60 EUR")   # valor estimado
+        # o «Valor Estimado do Lote» nao e preco base (1/10/2026; ver o
+        # TestOPrecoEstimadoNaoEOPrecoBase)
+        self.assertEqual(lotes[2]["preco_base"], "")
+        self.assertEqual(lotes[2]["preco_estimado"], "26.833,60 EUR")
         self.assertEqual(radar.lotes_do_texto(
             self.LOTES.replace("lotes? Sim", "lotes? Não")), [])
         self.assertEqual(radar.lotes_do_texto(""), [])
@@ -26723,7 +26726,7 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
         """J4: só o «Prazo» dos Concursos se ordenava."""
         self._com_prazo("61/2026", 30, "1.000,00 EUR")
         self._com_prazo("62/2026", 5, "50.000,00 EUR")
-        self.assertIn(radar.SQL_PRECO_BASE + " DESC",
+        self.assertIn(radar.SQL_PRECO_DO_ANUNCIO + " DESC",
                       radar.ordem_da_lista({"ordem": "preco"}))
         h = self._ver(radar.LISTA + "?estado=&ordem=preco")
         corpo = h.split("<tbody>", 1)[1]
@@ -27602,6 +27605,148 @@ class TestOsPlanos(BaseTemporaria):
         for artigo in re.findall(r'<article class="plano.*?</article>', cartoes, re.S):
             self.assertNotIn("<li>", artigo)
 
+
+
+class TestOPrecoEstimadoNaoEOPrecoBase(BaseTemporaria):
+    """O DL 177/2026 (1/10/2026) tornou o preço base facultativo (art.
+    47.º, n.º 1, «pode fixar»), e o anúncio do DR passou a trazer o
+    «Valor do preço estimado do procedimento». O preço base é o tecto que
+    exclui propostas (art. 70.º); o estimado é o «valor estimado do
+    contrato» (art. 17.º) e não exclui nada. Três erros que isto pedia:
+    o estimado não se lia (o filtro do valor, que é o dos alertas e do
+    perfil, ficava cego para quem só o traz); o «Valor Estimado do Lote»
+    lia-se COMO preço base (247 anúncios na base, e a recusa do preço
+    usava-o como tecto); e o «0,00 EUR» que o DR escreve quando não há
+    estimado (55 dos 56 de 1/10/2026) não pode valer como valor."""
+
+    # A forma da secção 5 do anúncio de 1/10/2026 (24414/2026, encurtado)
+    NOVO = ("\n3 - AVISO\nModelo de Anúncio: Concurso público\n"
+            "Data de Envio do Anúncio: 01-10-2026 12:04:00\n\n"
+            "5 - PROCESSO\nTipo de Procedimento: Concurso público\n"
+            "Regime de flexibilização do concurso público: Não\n"
+            "Valor do preço estimado do procedimento: 126.000,00 EUR\n"
+            "Preço base do procedimento: Não\n"
+            "Procedimento com lotes? Não\n\n"
+            "6 - OBJETO DO CONTRATO\nDesignação do contrato: Controlo metrológico\n")
+    # E a de um acordo-quadro sem preço base (24394/2026, encurtado)
+    ACORDO = ("\n5 - PROCESSO\n"
+              "Valor do preço estimado do procedimento: 0,00 EUR\n"
+              "Preço base do procedimento: Não\n\n"
+              "8 - TÉCNICAS\nO concurso destina-se à celebração de um "
+              "acordo-quadro? Acordo-quadro, com reabertura de concurso\n"
+              "Valor estimado: Sim\n"
+              "Para Acordo-Quadro — valor total máximo estimado para toda a "
+              "duração do Acordo-Quadro: 13.000.000,00 EUR\n")
+
+    def _anuncio(self, ref, base="", estimado=""):
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, "
+                      "prazo, estado, detalhe_lido, texto, url, preco_base, "
+                      "preco_estimado) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                      (ref, "Objecto " + ref, "IPL", "2026-10-01", "2099-12-30",
+                       "novo", 1, "1 - Objecto", "https://exemplo/" + ref,
+                       base, estimado))
+
+    def test_le_o_estimado_e_nao_o_poe_no_preco_base(self):
+        campos = radar.campos_do_detalhe(self.NOVO)
+        self.assertEqual(campos["preco_estimado"], "126.000,00 EUR")
+        self.assertEqual(campos["preco_base"], "")
+
+    def test_zero_euros_e_vazio_e_o_acordo_quadro_e_estimado(self):
+        self.assertEqual(radar.campos_do_detalhe(self.ACORDO)["preco_estimado"],
+                         "13.000.000,00 EUR")
+        sem_nada = self.NOVO.replace("126.000,00 EUR", "0,00 EUR")
+        self.assertEqual(radar.campos_do_detalhe(sem_nada)["preco_estimado"], "")
+
+    def test_o_valor_estimado_do_lote_nao_e_preco_base(self):
+        texto = ("\n5 - PROCESSO\nPreço base do procedimento: Não\n"
+                 "Procedimento com lotes? Sim\n\n6 - OBJETO DO CONTRATO\n"
+                 "Lotes: \nNº: LOT-0001\nDescrição do Lote: Válvulas\n"
+                 "Valor Estimado do Lote: 80.000,00 EUR\n"
+                 "Nº: LOT-0002\nDescrição do Lote: Tampas\n"
+                 "Preço base s/IVA: 50.000,00 EUR\n"
+                 "Valor Estimado do Lote: 50.000,00 EUR\n\n7 - INDICAÇÕES\n")
+        lotes = radar.lotes_do_texto(texto)
+        self.assertEqual(lotes[0]["preco_base"], "")
+        self.assertEqual(lotes[0]["preco_estimado"], "80.000,00 EUR")
+        self.assertEqual(lotes[1]["preco_base"], "50.000,00 EUR")
+        # a proposta do lote 1 não herda o estimado como tecto
+        a = {"preco_base": "", "lotes": json.dumps(lotes)}
+        self.assertEqual(radar.preco_base_do_lote(a, 1), "")
+
+    def test_o_filtro_e_o_alerta_por_valor_veem_o_estimado(self):
+        self._anuncio("1/2026", base="50.000,00 EUR")
+        self._anuncio("2/2026", estimado="200.000,00 EUR")
+        self._anuncio("3/2026")
+        # um preço base, mesmo abaixo do estimado, é o que conta
+        self._anuncio("4/2026", base="90.000,00 EUR", estimado="300.000,00 EUR")
+
+        def refs(**pedido):
+            onde, valores = radar.condicoes(dict(pedido, estado=""))
+            with radar.liga() as c:
+                return sorted(r["ref"] for r in c.execute(
+                    "SELECT ref FROM anuncios" + onde, valores))
+        self.assertEqual(refs(pbmin="100000"), ["2/2026"])
+        self.assertEqual(refs(pbmax="100000"), ["1/2026", "4/2026"])
+        # e o alerta, que passa pelo mesmo condicoes()
+        with radar.liga() as c:
+            c.execute("INSERT INTO filtros_guardados (id, nome, consulta, "
+                      "alerta, quem, criado_em) VALUES (5, 'Grandes', "
+                      "'pbmin=100000', 1, 'Afonso', '2026-10-01 10:00')")
+        radar.registar_alertas()
+        with radar.liga() as c:
+            vistos = [r["ref"] for r in c.execute(
+                "SELECT ref FROM alertas_vistos WHERE filtro_id=5")]
+        self.assertEqual(vistos, ["2/2026"])
+        # e ordena-se pelo mesmo valor, os sem valor no fim
+        with radar.liga() as c:
+            ordem = [r["ref"] for r in c.execute(
+                "SELECT ref FROM anuncios ORDER BY "
+                + radar.ordem_da_lista({"ordem": "preco"}))]
+        self.assertEqual(ordem, ["2/2026", "4/2026", "1/2026", "3/2026"])
+
+    def test_as_contagens_com_valor_saem_de_um_indice(self):
+        """O filtro lê o `preco_estimado`: sem ele no `ix_anuncios_cobre`
+        as contagens com o perfil voltavam à tabela larga."""
+        onde, valores = radar.condicoes({"estado": "", "pbmin": "1000"})
+        with radar.liga() as c:
+            passos = [r[-1] for r in c.execute(
+                "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM anuncios" + onde,
+                valores)]
+        usa = [p for p in passos if " anuncios " in p + " "]
+        self.assertTrue(usa, passos)
+        self.assertTrue(all("COVERING INDEX" in p for p in usa), passos)
+
+    def test_a_lista_e_a_ficha_dizem_que_e_estimado(self):
+        self._anuncio("2/2026", estimado="200.000,00 EUR")
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref='2/2026'").fetchone()
+        euros = radar.preco_pt("200.000,00 EUR")
+        self.assertEqual(radar.preco_do_anuncio(a), euros + " (estimado)")
+        facto = radar.factos_para_decidir(a, [])[0]
+        self.assertEqual(facto[:2], ("Preço estimado", euros))
+        self.assertIn("não exclui propostas", facto[2])
+
+    def test_uma_base_antiga_refaz_o_indice_e_le_o_estimado(self):
+        """O `iniciar_db()` numa base de antes: o índice sem a coluna
+        refaz-se, e os anúncios já lidos ganham o estimado (por marca)."""
+        with radar.liga() as c:
+            c.execute("DROP INDEX ix_anuncios_cobre")
+            c.execute("CREATE INDEX ix_anuncios_cobre ON anuncios(estado, "
+                      "data_pub DESC, ref DESC, prazo, detalhe_lido, "
+                      "plataforma, cpv, preco_base, titulo_norm)")
+            c.execute("INSERT INTO anuncios (ref, titulo, data_pub, estado, "
+                      "detalhe_lido, texto) VALUES ('9/2026', 'AQ', "
+                      "'2026-09-20', 'novo', 1, ?)", (self.ACORDO,))
+            c.execute("DELETE FROM estado WHERE chave='precos_estimados_lidos'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            colunas = [r["name"] for r in c.execute(
+                "SELECT name FROM pragma_index_info('ix_anuncios_cobre')")]
+            estimado = c.execute("SELECT preco_estimado FROM anuncios "
+                                 "WHERE ref='9/2026'").fetchone()[0]
+        self.assertIn("preco_estimado", colunas)
+        self.assertEqual(estimado, "13.000.000,00 EUR")
 
 
 if __name__ == "__main__":
