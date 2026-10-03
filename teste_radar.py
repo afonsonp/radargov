@@ -17203,6 +17203,136 @@ class TestConfigPorEmpresa(BaseTemporaria):
                          [("leitura", "peças lidas", "radar")])
 
 
+class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
+    """O ensaio do percurso do cliente (1/10/2026): o convite foi para
+    `x+teste@gmail.com`, a pessoa escolheu o utilizador «teste.claude», e
+    a conta ficou sem o e-mail -- o «esqueci-me», que só procurava pela
+    coluna `email`, respondia o mesmo de sempre e não criava ligação
+    nenhuma. Qualquer cliente cujo utilizador não fosse o e-mail ficava
+    sem «esqueci-me». E do mesmo ensaio: apagar a empresa deixava o
+    plano dela órfão na tabela `planos`."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    EMAIL = "x+teste@gmail.com"
+
+    def setUp(self):
+        super().setUp()
+        self.mandados = []
+
+        def enviar(assunto, corpo, cfg=None, html_corpo=None):
+            self.mandados.append((cfg or {}).get("email", {}).get("para"))
+            return True, "enviado"
+        self.enterContext(unittest.mock.patch.object(radar, "enviar_email", enviar))
+        self.enterContext(unittest.mock.patch.object(
+            radar.threading, "Thread", TestPesquisaGeralERepor._JaCorre))
+
+    def _pelo_convite(self, utilizador, email=EMAIL, papel="admin"):
+        with radar.liga() as c:
+            codigo = radar.contas.criar_convite(c, 1, email, papel)
+            token, porque = radar.contas.usar_convite(c, codigo, utilizador,
+                                                      "senha-comprida-boa")
+        self.assertTrue(token, porque)
+
+    def _contacto(self, utilizador):
+        with radar.liga() as c:
+            return c.execute("SELECT contacto FROM utilizadores WHERE email=?",
+                             (utilizador,)).fetchone()[0]
+
+    def esqueci(self, email):
+        return radar.app.test_client().post("/esqueci-me", data={"email": email},
+                                            environ_base=self.FORA)
+
+    def _reposicoes(self):
+        with radar.liga() as c:
+            return c.execute("SELECT COUNT(*) FROM reposicoes").fetchone()[0]
+
+    def test_a_conta_do_convite_guarda_o_email_mesmo_com_outro_utilizador(self):
+        self._pelo_convite("teste.claude")
+        self.assertEqual(self._contacto("teste.claude"), self.EMAIL)
+
+    def test_o_esqueci_me_pelo_email_do_convite_cria_a_ligacao(self):
+        self._pelo_convite("teste.claude")
+        self.assertEqual(self.esqueci("X+Teste@gmail.com").status_code, 200)
+        self.assertEqual(self._reposicoes(), 1)
+        # vai para o e-mail, e não para «teste.claude», que não é endereço
+        self.assertEqual(self.mandados, [self.EMAIL])
+
+    def test_duas_contas_com_o_mesmo_endereco_nao_recebem_nada(self):
+        """O convite não pendura o endereço de outra conta -- e se, por
+        qualquer caminho, dois casarem com ele, não se escolhe um."""
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, self.EMAIL, "senha-comprida-boa",
+                                          papel="tester")
+        self._pelo_convite("outro.nome")
+        self.assertEqual(self._contacto("outro.nome"), "")
+        with radar.liga() as c:
+            c.execute("UPDATE utilizadores SET contacto=? WHERE email='outro.nome'",
+                      (self.EMAIL,))
+        self.assertEqual(self.esqueci(self.EMAIL).status_code, 200)
+        self.assertEqual((self._reposicoes(), self.mandados), (0, []))
+
+    def test_o_dono_continua_sem_ligacao_pelo_contacto(self):
+        with radar.liga() as c:
+            uid = radar.contas.criar_utilizador(c, "afonso", "senha-comprida-boa",
+                                                pela_consola=True)
+            radar.contas.gravar_contacto(c, uid, "dono@miragov.pt")
+        self.assertEqual(self.esqueci("dono@miragov.pt").status_code, 200)
+        self.assertEqual((self._reposicoes(), self.mandados), (0, []))
+
+    def test_a_migracao_enche_a_conta_antiga_a_partir_do_convite(self):
+        """Uma base de antes da coluna: a conta que nasceu do convite
+        fica com o e-mail dele; a que nasceu pela consola na mesma
+        empresa e papel, horas antes, fica sem -- não é inequívoca."""
+        c = sqlite3.connect(":memory:")
+        c.row_factory = sqlite3.Row
+        radar.contas.iniciar_tabelas(c)
+        c.execute("ALTER TABLE utilizadores DROP COLUMN contacto")
+        for email, criado in (("teste.claude", "2026-10-01 10:00:01"),
+                              ("antiga", "2026-10-01 07:00:00")):
+            c.execute("INSERT INTO utilizadores (email, hash, criado_em, papel, "
+                      "empresa_id) VALUES (?, 'x', ?, 'admin', 6)", (email, criado))
+        c.execute("INSERT INTO convites (resumo, empresa_id, email, papel, "
+                  "criado_em, expira, usado_em) VALUES ('r', 6, ?, 'admin', "
+                  "'2026-10-01 09:00:00', '2026-10-08 09:00:00', "
+                  "'2026-10-01 10:00:00')", (self.EMAIL,))
+        radar.contas.iniciar_tabelas(c)
+        self.assertEqual(dict(c.execute("SELECT email, contacto FROM utilizadores")),
+                         {"teste.claude": self.EMAIL, "antiga": ""})
+
+    def test_muda_o_contacto_na_conta_so_com_a_palavra_passe_actual(self):
+        self._pelo_convite("teste.claude")
+        cliente = radar.app.test_client()
+        cliente.post("/entrar", data={"email": "teste.claude",
+                                      "senha": "senha-comprida-boa"},
+                     environ_base=self.FORA)
+        self.assertIn(self.EMAIL, cliente.get(
+            "/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True))
+        token = re.search(r"<meta name=\"csrf\" content=\"([0-9a-f]+)\"",
+                          cliente.get("/configuracoes/conta", environ_base=self.FORA)
+                          .get_data(as_text=True)).group(1)
+        for actual, esperado in (("errada", self.EMAIL),
+                                 ("senha-comprida-boa", "novo@empresa.pt")):
+            cliente.post("/configuracoes/conta", data={
+                "csrf": token, "actual": actual, "contacto": "novo@empresa.pt"},
+                environ_base=self.FORA)
+            self.assertEqual(self._contacto("teste.claude"), esperado)
+        # e a palavra-passe ficou a mesma
+        with radar.liga() as c:
+            self.assertTrue(radar.contas.entrar(c, "teste.claude",
+                                                "senha-comprida-boa")[0])
+
+    def test_apagar_a_empresa_tira_o_plano_e_o_arranque_os_orfaos(self):
+        gama = radar.criar_empresa("Gama")
+        with radar.liga() as c:
+            radar.contas.gravar_plano(c, gama, "duo")
+            radar.contas.gravar_plano(c, 99, "solo")    # o órfão de antes
+        _, _, saiu = radar.apagar_empresa(gama)
+        self.assertEqual(saiu["plano"], 1)
+        radar.iniciar_db()
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM planos").fetchone()[0], 0)
+
+
 class TestPesquisaGeralERepor(BaseTemporaria):
     """Três trabalhos de 1/10/2026 («Faz todos», decisão dele):
 

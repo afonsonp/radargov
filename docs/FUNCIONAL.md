@@ -115,7 +115,7 @@ as exactas e salta as outras.
 | `cpv_dict` | **9 454** | O vocabulário CPV, com descrição. Importado uma vez |
 | `slots` | uma por verificação | Cada verificação que correu, e quantos trouxe (13/dia, das 08:00 às 20:00) |
 | `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
-| `utilizadores` | **1** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram |
+| `utilizadores` | **1** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram. O `contacto` (1/10/2026) é o e-mail para onde vai o «esqueci-me» quando o utilizador não é um e-mail; vem do convite (§4.9) |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
 | `estado` | 22 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas |
@@ -1342,7 +1342,7 @@ dono da plataforma as abre; os **documentos** só o admin da empresa.
 
 | Secção | O que faz |
 |---|---|
-| **conta** | três cartões desde 1/10/2026 (M2): **a minha conta** — palavra-passe, sessões, o **aspecto** (normal, escuro, como o sistema ou alto contraste, por pessoa — D14, 26/09/2026; D1, 29/09/2026); **a empresa e a equipa** — a nossa empresa (nome + NIF), utilizadores, convites; e o **registo do suporte**, quando o há. Os dois últimos só o gestor |
+| **conta** | três cartões desde 1/10/2026 (M2): **a minha conta** — palavra-passe, e-mail de contacto (o do «esqueci-me»), sessões, o **aspecto** (normal, escuro, como o sistema ou alto contraste, por pessoa — D14, 26/09/2026; D1, 29/09/2026); **a empresa e a equipa** — a nossa empresa (nome + NIF), utilizadores, convites; e o **registo do suporte**, quando o há. Os dois últimos só o gestor |
 | **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos (agrupados por região, cada uma com o seu «todos» — M3, 1/10/2026; grava-se o mesmo de sempre) e o preço base mínimo |
 | **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
 | **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
@@ -1622,8 +1622,17 @@ ou não a conta e fora do trinco do `/entrar`
 (`contas.contar_pedido_de_reposicao()`); a **conta do dono nunca** se
 repõe por aqui (`contas.reposicao_por_email()`; fica nos eventos que
 alguém pediu); e só sai com o correio da plataforma configurado — uma
-falha do envio fica nos eventos. Quem entra com um nome de utilizador
-e não com um e-mail continua a pedir ao gestor.
+falha do envio fica nos eventos. **Procura pelo utilizador ou pelo e-mail
+de contacto** (`utilizadores.contacto`, desde 1/10/2026), e a ligação vai
+para o endereço escrito: o convite vai para um e-mail, a pessoa escolhe
+outro utilizador, e o e-mail do convite fica na conta
+(`contas.usar_convite()`) — vale para o convite do pedido aceite e para o
+do colega que o gestor convida. Cada pessoa vê o contacto em
+Configurações › Conta e muda-o com a palavra-passe actual. Um endereço é
+**de uma conta só**: o que já é utilizador ou contacto de outra recusa-se
+(`contas.problema_do_contacto()`), e se ainda assim casar com duas, não
+vai nada. Quem não tem contacto nem entra com um e-mail continua a pedir
+ao gestor.
 O outro caminho é o de antes: o **admin** gera, em Configurações › Conta, uma ligação para uma conta
 da empresa dele — nunca a do dono —, e o **dono** gera-a para qualquer
 conta, na `/plataforma` (`contas.pode_repor()`). A ligação mostra-se

@@ -139,6 +139,15 @@ def iniciar_tabelas(c):
                          ("totp_passo", "INTEGER NOT NULL DEFAULT 0")):
         if coluna not in cols:
             c.execute("ALTER TABLE utilizadores ADD COLUMN %s %s" % (coluna, tipo))
+    # O e-mail de contacto (1/10/2026): o convite ia para um e-mail, a
+    # pessoa escolhia outro utilizador («teste.claude»), e o e-mail
+    # perdia-se -- o «esqueci-me», que procurava so pela `email`, ficava
+    # sem conta. Vazio = nenhum. Quando a coluna nasce, enche-se a partir
+    # dos convites usados, so onde for inequivoco.
+    if "contacto" not in cols:
+        c.execute("ALTER TABLE utilizadores ADD COLUMN contacto TEXT "
+                  "NOT NULL DEFAULT ''")
+        _contacto_dos_convites(c)
     # E o que o segundo factor da, numa tabela so, pelo `tipo`: o pedido
     # PENDENTE (a palavra-passe esta certa, falta o codigo), o APARELHO de
     # confianca, e os codigos de RECUPERACAO. Os tres sao o molde dos
@@ -357,6 +366,68 @@ def _agora():
 
 def email_limpo(email):
     return (email or "").strip().lower()
+
+
+# --------------------------------------------------------------- o contacto
+#
+# O e-mail de contacto de cada conta (1/10/2026): para onde vai a ligacao
+# do «esqueci-me» quando o utilizador nao e um e-mail. Uma regra so, e e
+# a que guarda a conta dos outros: um endereco e de UMA conta -- o
+# `reposicao_por_email()` nunca escolhe entre duas, e por isso nao se
+# deixa ninguem pendurar na sua o endereco de outra.
+
+def _contacto_em_uso(c, email, menos_id):
+    """Se `email` ja e o utilizador ou o contacto de outra conta."""
+    return bool(c.execute(
+        "SELECT 1 FROM utilizadores WHERE id<>? AND (email=? OR contacto=?)",
+        (menos_id, email, email)).fetchone())
+
+
+def problema_do_contacto(c, utilizador_id, contacto):
+    """Porque e que este contacto nao serve, ou '' se serve. Vazio serve:
+    e tirar o contacto."""
+    contacto = email_limpo(contacto)
+    if not contacto:
+        return ""
+    local, arroba, dominio = contacto.partition("@")
+    if (not arroba or not local or "." not in dominio.strip(".")
+            or "@" in dominio or len(contacto) > 200
+            or any(ch.isspace() for ch in contacto)):
+        return "o e-mail de contacto não é um e-mail, como nome@empresa.pt"
+    if _contacto_em_uso(c, contacto, utilizador_id):
+        return "esse e-mail já é de outra conta"
+    return ""
+
+
+def gravar_contacto(c, utilizador_id, contacto):
+    """Grava o contacto, ou levanta ValueError com o porque."""
+    porque = problema_do_contacto(c, utilizador_id, contacto)
+    if porque:
+        raise ValueError(porque)
+    c.execute("UPDATE utilizadores SET contacto=? WHERE id=?",
+              (email_limpo(contacto), utilizador_id))
+
+
+def _contacto_dos_convites(c):
+    """A migracao: as contas que ja nasceram de um convite ficam com o
+    e-mail dele. So o inequivoco -- a conta nasceu na mesma empresa e
+    papel, ate dois minutos depois do uso do convite, e nem a conta casa
+    com outro convite nem o convite com outra conta. Um contacto errado
+    mandava a ligacao de repor a quem nao e dono da conta; um que falte
+    so pede que a pessoa o escreva na Conta."""
+    pares = [tuple(r) for r in c.execute(
+        "SELECT u.id, cv.email FROM convites cv JOIN utilizadores u "
+        "ON u.empresa_id = cv.empresa_id AND u.papel = cv.papel "
+        "AND u.dono = 0 AND u.criado_em BETWEEN "
+        "datetime(cv.usado_em, '-5 seconds') AND datetime(cv.usado_em, '+2 minutes') "
+        "WHERE cv.usado_em IS NOT NULL AND COALESCE(cv.email, '') LIKE '%_@_%'")]
+    contas_ = [u for u, _ in pares]
+    emails = [e for _, e in pares]
+    for u, e in pares:
+        if contas_.count(u) == 1 and emails.count(e) == 1 \
+                and not problema_do_contacto(c, u, e):
+            c.execute("UPDATE utilizadores SET contacto=? WHERE id=?",
+                      (email_limpo(e), u))
 
 
 # --------------------------------------------------------------- utilizadores
@@ -711,8 +782,13 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
     # o plano pode ter descido depois do convite: so as contas contam aqui
     if lugares_livres(c, convite["empresa_id"], agora, contar_convites=False) == 0:
         return None, frase_do_limite(c, convite["empresa_id"])
-    criar_utilizador(c, utilizador, senha, papel=convite["papel"],
-                     empresa_id=convite["empresa_id"])
+    uid = criar_utilizador(c, utilizador, senha, papel=convite["papel"],
+                           empresa_id=convite["empresa_id"])
+    # o e-mail do convite fica na conta (1/10/2026), seja qual for o
+    # utilizador escolhido -- sem ele o «esqueci-me» nao a encontra. Se
+    # ja for de outra conta, nao se pendura: fica sem, e escreve-o na Conta.
+    if convite["email"] and not problema_do_contacto(c, uid, convite["email"]):
+        gravar_contacto(c, uid, convite["email"])
     c.execute("UPDATE convites SET usado_em=? WHERE resumo=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), convite["resumo"]))
     token, _ = entrar(c, utilizador, senha, ip, agente, agora)
@@ -793,13 +869,22 @@ def reposicao_por_email(c, email, agora=None):
     None) quando nao vai. Nunca para o dono: tem o segundo factor, e
     repoe-se pela consola (`--palavra-passe`) -- uma ligacao por e-mail
     para a conta mais poderosa era a porta do lado. Quem chama decide o
-    que dizer, e diz o mesmo nos tres casos."""
-    linha = c.execute("SELECT id, email, nome, dono FROM utilizadores "
-                      "WHERE email=?", (email_limpo(email),)).fetchone()
-    if not linha or e_dono(dict(linha)):
-        return None, (dict(linha) if linha else None)
-    return (criar_reposicao(c, linha["id"], None, agora,
-                            horas=HORAS_DE_REPOSICAO_POR_EMAIL), dict(linha))
+    que dizer, e diz o mesmo nos tres casos.
+
+    Procura pelo utilizador OU pelo contacto (1/10/2026), e o `para` da
+    conta devolvida e o endereco escrito, que e um dos dois. Se casar
+    com duas contas nao vai nada: escolher uma era mandar a ligacao de
+    alguem a quem escreveu o endereco dela no contacto da sua."""
+    email = email_limpo(email)
+    linhas = c.execute("SELECT id, email, nome, dono FROM utilizadores "
+                       "WHERE email=? OR contacto=?", (email, email)).fetchall()
+    if len(linhas) != 1:
+        return None, None
+    conta = dict(linhas[0], para=email)
+    if e_dono(conta):
+        return None, conta
+    return (criar_reposicao(c, conta["id"], None, agora,
+                            horas=HORAS_DE_REPOSICAO_POR_EMAIL), conta)
 
 
 def reposicao_valida(c, codigo, agora=None):

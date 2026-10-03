@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 45
+- [Contas e a porta](#contas-e-a-porta) &middot; 46
 - [A interface](#a-interface) &middot; 129
 - [Convenções](#convencoes) &middot; 7
 
-São **447** ao todo, contados a 3/10/2026. Contam-se por secção com
+São **448** ao todo, contados a 3/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3404,6 +3404,25 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   anula a que o gestor tivesse gerado (só a última vale), e quem souber
   o e-mail de alguém consegue fechar-lhe este caminho durante quinze
   minutos de cada vez — o do gestor fica.
+- **O utilizador não é o e-mail, e o «esqueci-me» não pode contar que
+  seja** (1/10/2026, do ensaio do percurso do cliente). O convite foi
+  para `x+teste@gmail.com`, a pessoa escolheu «teste.claude», e a conta
+  ficou com o utilizador nas duas colunas: o `reposicao_por_email()`
+  procurava só pela `email` e não criava ligação nenhuma — com a mesma
+  resposta de sempre, que é o que devia dizer e o que escondeu o defeito.
+  O e-mail do convite fica agora no `utilizadores.contacto`
+  (`usar_convite()`), a procura é pela `email` **ou** pelo `contacto`, e
+  a ligação vai para o **endereço escrito**, não para o utilizador. A
+  regra que guarda os outros: **um endereço é de uma conta só**. O
+  `problema_do_contacto()` recusa o que já é utilizador ou contacto de
+  outra (o convite fica então sem contacto, em vez de o roubar), e se
+  duas casarem na mesma, não vai nada — escolher uma era mandar a
+  ligação de alguém a quem escreveu o endereço dela no seu contacto.
+  Mudar o contacto pede a palavra-passe actual: quem apanhasse uma
+  sessão aberta punha lá o seu e ficava com a conta. A migração
+  (`_contacto_dos_convites()`) só enche o **inequívoco** — mesma empresa
+  e papel, conta criada até dois minutos depois do uso do convite, um
+  para um —, porque um contacto errado é uma conta entregue.
 - **Um 500 não escreve o código de uma ligação** (1/10/2026). O
   `rebentou()` guardava o caminho do pedido na lista dos erros, e o de
   uma ligação de repor ou de um convite leva o código, que vale uma
@@ -3481,7 +3500,9 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   se a apagada o estava, aberta a quem a estivesse a ver no modo de
   suporte, e era para ela que o «aceite: empresa 4» de um pedido antigo
   levava (3.ª ronda, G57). O `apagar_empresa()` limpa as duas primeiras
-  (a lista `empresas_suspensas` e o `sessoes.ver_como`), e desde
+  (a lista `empresas_suspensas` e o `sessoes.ver_como`) e, desde
+  1/10/2026, o **plano** dela (`planos`), que ficava órfão — o arranque
+  tira os das empresas que já não existem —, e desde
   29/09/2026 **os números não se reutilizam** (D10): o maior que já se
   deu fica na marca `maior_empresa` do radar.db, que não sai com a
   empresa — as pastas de `copias/` também contam, mas alguém as pode
