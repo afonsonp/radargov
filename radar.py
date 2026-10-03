@@ -26349,6 +26349,14 @@ def trimestre_de(quando):
 MAX_ROTULOS_BARRAS = 6
 
 
+def _contagem(k):
+    """O `k` de uma barra para o ecrã. Uns gráficos dão-no em número e
+    outros já formatado («4 823», o `escaloes_html()` e o desconto): o
+    `mil_pt()` por cima de um texto formatado rebentava com ValueError, e
+    o resumo do Mercado inteiro dava 500 (2/10/2026, desde o #185)."""
+    return k if isinstance(k, str) else mil_pt(k)
+
+
 def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
              unidade="contratos"):
     """Barras verticais para o tempo, como as dos indicadores.
@@ -26393,7 +26401,7 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
             % (classes, fmt(l["v"]) if i in marcados else "",
                max(2.0, 100.0 * l["v"] / maior), html.escape(l["t"]),
                # pelo mil_pt: saia «39562 contratos» (UX-ICONES B.2)
-               fmt(l["v"]), mil_pt(l["k"]), unidade,
+               fmt(l["v"]), _contagem(l["k"]), unidade,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
@@ -26404,7 +26412,7 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
     numeros = numeros_do_grafico(
         ("", "Valor", unidade.capitalize()),
         [(l["t"] + (" (a decorrer)" if parcial and l["t"] == parcial else ""),
-          fmt(l["v"]), mil_pt(l["k"])) for l in linhas]) if muitas else ""
+          fmt(l["v"]), _contagem(l["k"])) for l in linhas]) if muitas else ""
     return ("<div class='mg-card graf'><h2 class='mg-card__title'>%s</h2>%s"
             "<div class='barras%s'>%s</div>%s</div>"
             % (titulo,
