@@ -4684,6 +4684,9 @@ CHAVES_DO_PRECO_ESTIMADO = (
     "valor do preco estimado do procedimento", "valor estimado",
     "para acordo-quadro — valor total maximo estimado para toda a duracao "
     "do acordo-quadro")
+# A linha do formulário do DR de 1/10/2026, tal como vem no texto: diz se
+# o anúncio é do formulário novo (que tem o campo, mesmo a zero).
+CAMPO_DO_PRECO_ESTIMADO = "Valor do preço estimado do procedimento"
 
 
 def campos_do_detalhe(texto):
@@ -30091,6 +30094,19 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         # com o nome dele: não é o tecto que exclui propostas.
         preco = ("Preço estimado", preco_pt(estimado),
                  "sem preço base: não exclui propostas", False)
+    # E com o preço base, o estimado por baixo dele, na mesma célula
+    # (pedido dele, 4/10/2026): o formulário do DR de 1/10/2026 tem o
+    # campo, e por ora deixa-o a «0,00 EUR», que o leitor guarda como
+    # vazio. Numa célula sua eram nove numa grelha de quatro, com três
+    # buracos na última linha. Um anúncio do formulário antigo não diz
+    # nada -- não tem o campo.
+    if preco[0] == "Preço base" and not preco[3]:
+        sobre = ("estimado %s, não exclui propostas" % preco_pt(estimado)
+                 if estimado else "estimado: o anúncio não indica"
+                 if CAMPO_DO_PRECO_ESTIMADO in (_valor(a, "texto") or "") else "")
+        if sobre:
+            preco = (preco[0], preco[1],
+                     " · ".join(x for x in (preco[2], sobre) if x), False)
     return [
         preco,
         esclarec,

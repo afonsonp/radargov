@@ -1202,7 +1202,10 @@ da maquete que ele aprovou)** a coluna da esquerda é, por esta ordem:
 decidir» até à 3.ª ronda, G49, e o bloco só tem factos: oito numa
 grelha, pela ordem de `factos_para_decidir()` — preço base (ou, sem
 ele, «Preço estimado», com a nota «sem preço base: não exclui
-propostas»; 1/10/2026), esclarecimentos até, propostas até, duração, critério, local,
+propostas»; 1/10/2026; e com ele, o estimado na nota da mesma célula —
+«estimado N €, não exclui propostas», ou «estimado: o anúncio não
+indica» quando o formulário novo do DR o traz a «0,00 EUR»; um anúncio
+do formulário antigo não diz nada; 4/10/2026), esclarecimentos até, propostas até, duração, critério, local,
 habilitação, caução; o que o anúncio não traz fica na célula, apagado,
 a dizer onde está; a caução e o alvará levam ao lado o que o Programa
 diz, quando foi lido), os lotes

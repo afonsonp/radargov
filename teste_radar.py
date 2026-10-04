@@ -28355,6 +28355,36 @@ class TestOPrecoEstimadoNaoEOPrecoBase(BaseTemporaria):
         self.assertEqual(facto[:2], ("Preço estimado", euros))
         self.assertIn("não exclui propostas", facto[2])
 
+    def _factos(self, ref, texto):
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET texto=? WHERE ref=?", (texto, ref))
+            a = c.execute("SELECT * FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        return {f[0]: f for f in radar.factos_para_decidir(a, [])}
+
+    def test_a_ficha_mostra_o_estimado_ao_lado_do_preco_base(self):
+        """Pedido dele a 4/10/2026: o estimado na ficha mesmo com o preço
+        base, para quando o DR o começar a preencher. Com o base, saía só o
+        base, e o estimado perdia-se."""
+        self._anuncio("2/2026", base="150.000,00 EUR", estimado="140.000,00 EUR")
+        factos = self._factos("2/2026", "Valor do preço estimado do procedimento: 140.000,00 EUR")
+        base = factos["Preço base"]
+        self.assertEqual(base[1], radar.preco_pt("150.000,00 EUR"))
+        self.assertIn("estimado %s, não exclui propostas"
+                      % radar.preco_pt("140.000,00 EUR"), base[2])
+        # na mesma célula: nove numa grelha de quatro deixavam buracos
+        self.assertEqual(len(factos), 8)
+
+    def test_o_zero_do_formulario_novo_diz_se_e_nao_se_escreve(self):
+        """O formulário de 1/10/2026 traz o campo a «0,00 EUR» em quase
+        todos: um «0,00 €» na ficha lia-se como um contrato de graça."""
+        self._anuncio("2/2026", base="150.000,00 EUR")
+        base = self._factos("2/2026", "Valor do preço estimado do procedimento: 0,00 EUR")["Preço base"]
+        self.assertIn("estimado: o anúncio não indica", base[2])
+        self.assertNotIn("0,00", base[2])
+        # um anúncio do formulário antigo não diz nada do estimado
+        self._anuncio("3/2026", base="150.000,00 EUR")
+        self.assertNotIn("estimado", self._factos("3/2026", "1 - Objecto")["Preço base"][2])
+
     def test_uma_base_antiga_refaz_o_indice_e_le_o_estimado(self):
         """O `iniciar_db()` numa base de antes: o índice sem a coluna
         refaz-se, e os anúncios já lidos ganham o estimado (por marca)."""
