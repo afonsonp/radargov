@@ -183,7 +183,10 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.49`**, de
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.50`**, de
+  4/10/2026 — **os acabamentos da 5.ª ronda e a frase da fatura nos
+  termos** (sete dias antes no mensal, trinta no anual). Antes dela, a
+  `v2.0.49`, de
   4/10/2026 — **o concurso público flexível**: quando o anúncio o diz, a
   tarefa da audiência prévia conta 3 dias úteis em vez de 5, e a ficha
   avisa ao pé do prazo. Sem migração. A `v2.0.48`, do mesmo dia — **o preço estimado na ficha ao lado do preço base** («estimado:
