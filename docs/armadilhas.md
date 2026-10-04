@@ -3137,13 +3137,16 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
 `TestMudancasDeSetembro`, e as empresas de 23/09/2026 em
 `TestNenhumaEmpresaVeAOutra`.
 
-- **O NIF do pedido é obrigatório, e a página em cache não o manda.** Desde 30/09/2026
-  o `/pedir-acesso` recusa sem NIF válido (`nif_do_pedido()`: aceita
-  «PT» e espaços, confere o dígito de controlo). Quem tiver o site antigo
-  em cache manda o pedido sem NIF e sem plano, e leva a frase «Preencha …
-  o NIF»: o plano cai para «fundador», o NIF não se inventa. O NIF do
-  pedido passa para `nif_da_empresa` ao aceitar — é o que diz «fomos nós»
-  no Portal BASE, por isso um NIF mal escrito aqui estraga a ficha toda.
+- **O pedido já não leva NIF nem plano, e a página em cache ainda os
+  manda.** De 30/09 a 4/10/2026 o `/pedir-acesso` exigia os dois; desde
+  4/10 (decisão dele: assustavam quem só queria experimentar) pede o
+  nome, a empresa, o e-mail, o **telemóvel** (`telefone_valido()`: 9 a 15
+  algarismos) e a área. Quem tiver o site antigo em cache manda o NIF e
+  o plano **e não o telemóvel**, e leva a frase «Preencha … o
+  telemóvel». Um NIF que chegue, válido, guarda-se e passa para
+  `nif_da_empresa` ao aceitar; o plano escolhe-o o dono no ecrã do
+  aceitar (`_escolha_do_plano()`), e o do pedido, se houver, só vem
+  pré-escolhido.
 
 - **O que pede sessão nunca sai sem `private` no `Cache-Control`**
   (26/09/2026, segunda ronda do teste com utilizadores). As páginas das

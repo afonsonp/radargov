@@ -97,6 +97,9 @@ dialog.mg-dialog .mg-field{margin-bottom:var(--space-4)}
 .mg-topbar .sou[open]>summary{color:var(--on-header)}
 .mg-topbar .sou-menu{position:absolute;right:0;top:100%;margin-top:6px;
  z-index:30}
+/* no telemóvel a conta está à esquerda, e o menu preso à direita saía
+   36 px pelo ecrã fora (4.ª ronda) */
+@media (max-width:600px){.mg-topbar .sou-menu{right:auto;left:0}}
 /* O painel e o do `mg-menu`, como o «Mais» (3.a ronda, G71): as regras
    antigas do `.sou` (o painel escuro, a letra de 12px, os alvos de 24px)
    perdem aqui. */
@@ -645,7 +648,12 @@ main#conteudo:focus{outline:none}
  .lista.tab-cx td.col-obj,.tab-lista td.o{order:-1;flex:1 1 100%}
  .lista.tab-cx td.col-acc,.tab-lista td.celula-ranhura{flex:1 1 100%}
  .lista.tab-cx td.col-acc .mg-row,.lista.tab-cx td.col-acc{display:flex;
-  flex-wrap:wrap;gap:8px}}
+  flex-wrap:wrap;gap:8px}
+ /* as larguras da tabela (o width:1% do preço e do prazo, os 96 px da
+    curta) não valem no cartão: as duas células ficavam com 3 px e o
+    preço escrevia-se por cima do prazo (4.ª ronda, Propostas a 390 px) */
+ .tab-lista tbody td.p,.tab-lista tbody td.d,.tab-lista tbody td.curta{
+  width:auto;flex:0 0 auto}}
 
 /* A ficha no telemóvel (teste com utilizadores, 25/09/2026): o título a
    30px ocupava meio ecrã, e os quatro passos da escada cortavam-se a meio
@@ -1394,7 +1402,8 @@ input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--
 /* A citação da leitura (L1 do plano de Outubro): «(pág. 14)» é uma
    ligação que abre a peça na página, e o excerto dela fica por cima das
    páginas, com a régua da marca à esquerda. */
-a.citacao{color:var(--link);white-space:nowrap}
+/* sublinhada: só a cor a distinguia do texto (4.a ronda, WCAG 1.4.1) */
+a.citacao{color:var(--link);white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
 .citacao-excerto{margin:0 0 var(--space-4);padding:var(--space-3) var(--space-4);border-left:3px solid var(--brand);background:var(--surface-raised);font:400 var(--text-sm)/1.6 var(--font-sans);color:var(--ink)}
 .citacao-excerto p{margin:0}
 .citacao-excerto footer{margin-top:var(--space-2);font-size:var(--text-xs);color:var(--ink-muted)}
@@ -1445,8 +1454,16 @@ a.citacao{color:var(--link);white-space:nowrap}
    leia: ela desce para uma linha sua, por baixo das duas. */
 @media (max-width:600px){.pesquisa-geral{order:10;flex:1 1 100%}}
 .pesquisa-grupos{display:grid;gap:var(--space-4)}
+/* o cartão com a margem dos outros (4.ª ronda: o texto encostava à borda) */
+.pesquisa-grupo.mg-card{padding:var(--space-4) var(--space-5)}
 .pesquisa-itens{list-style:none;margin:0;padding:0}
 .pesquisa-itens li{display:flex;flex-direction:column;gap:2px;
  padding:var(--space-2) 0;border-top:var(--border-hairline) solid var(--line)}
 .pesquisa-itens li:first-child{border-top:0}
 .pesquisa-itens small{color:var(--ink-muted);font:400 var(--text-xs)/16px var(--font-sans)}
+
+/* O que um fieldset desligado desliga parece desligado (4.a ronda): no
+   Perfil da empresa visto pelo utilizador, os botões ficavam azuis e com
+   a mão, e o clique não fazia nada. */
+fieldset:disabled .mg-btn,fieldset:disabled button,fieldset:disabled input,
+fieldset:disabled select,fieldset:disabled textarea,.mg-btn:disabled{opacity:.55;cursor:not-allowed}

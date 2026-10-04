@@ -317,11 +317,11 @@ def problema_da_senha(senha, utilizador=""):
     miolo = minusculas.strip("0123456789!?.,;:-_@#$%&*+=/ ")
     if minusculas in SENHAS_COMUNS or miolo in SENHAS_COMUNS:
         return ("essa palavra-passe está entre as mais usadas, e é das "
-                "primeiras que se tentam; escolhe outra")
+                "primeiras que se tentam; escolha outra")
     padrao = _padrao_fraco(minusculas) or (
         _padrao_fraco(miolo) if len(miolo) >= 4 else "")
     if padrao or not miolo:
-        return ("a palavra-passe %s, e adivinha-se depressa; escolhe outra"
+        return ("a palavra-passe %s, e adivinha-se depressa; escolha outra"
                 % (padrao or "é só números e sinais"))
     utilizador = email_limpo(utilizador)
     partes = {utilizador, utilizador.split("@")[0]}
