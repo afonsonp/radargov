@@ -10525,6 +10525,77 @@ class _CicloDoTesteComUtilizadores(BaseTemporaria):
         return id_
 
 
+class TestOsCamposFechadosSoAceitamOQueSePede(_CicloDoTesteComUtilizadores):
+    """4/10/2026, ele: «Todos os campos da aplicação que sejam fechados
+    devem apenas permitir o que se pede. Caso submetam algo que não faz
+    sentido deve ser explicado porque não dá e o que deve se meter.» O
+    inventário desse dia achou o padrão em sete sítios: limpar ou ler à
+    força em silêncio, em vez de recusar com um recado."""
+
+    VOLTA = {"Referer": "http://localhost/anuncio/60%2F2026"}
+
+    def _aviso(self, r):
+        return unquote(r.headers.get("Location", "")).replace("+", " ")
+
+    def test_o_preco_le_se_a_serio_nos_filtros_e_nos_recados(self):
+        # o euros_do_texto lia «20 mil» como 20 e «1.5» como 15
+        for mau in ("20 mil", "-500", "1.5", "abc5", "20000.50"):
+            self.assertIsNone(radar.valor_de_filtro(mau), mau)
+            self.assertIn("Escreva-o assim: 118 500,00", radar.recado_do_preco(mau))
+        self.assertEqual(radar.valor_de_filtro("20 000"), 20000.0)
+        self.assertEqual(radar.recado_do_preco(""), "")
+        # a lista diz que o ignorou, e não filtra por 20
+        self.assertIn("não é um preço e foi ignorado",
+                      " ".join(radar.avisos_de_datas({"pbmin": "20 mil"})))
+        self.assertEqual(radar.fragmento_local_e_valor("", "20 mil"), ("", []))
+        # o perfil recusa e não grava
+        r = self.cliente.post("/alertas/interesse", data={"pbmin": "20 mil"})
+        self.assertIn("não é um preço", self._aviso(r))
+        self.assertFalse(radar.ler_config().get("interesse_pbmin"))
+
+    def test_uma_data_iso_impossivel_nao_passa(self):
+        self.assertEqual(radar.data_de_filtro("2026-02-31"), "")
+        self.assertEqual(radar.data_de_filtro("2026-10-01"), "2026-10-01")
+        # e as duas leem o mesmo (o adiar recusava «1.10.2026»)
+        self.assertEqual(radar.data_de_filtro("1.10.2026"), "2026-10-01")
+
+    def test_um_numero_so_de_algarismos(self):
+        for mau in ("²", "1_000", "abc"):
+            with self.assertRaises(ValueError) as e:
+                radar._inteiro({"n": mau}, "n", 1, 999, "o número")
+            self.assertIn("não é um número", str(e.exception), mau)
+
+    def test_o_lugar_mal_escrito_diz_se(self):
+        for mau in ("abc", "150", "0"):
+            with radar.app.test_request_context("/?lugar=" + mau):
+                self.assertIn("Escreva um número de 1 a 99",
+                              radar._recado_do_preco_do_pedido(), mau)
+        with radar.app.test_request_context("/?lugar=3"):
+            self.assertEqual(radar._recado_do_preco_do_pedido(), "")
+
+    def test_um_e_mail_e_um_so(self):
+        self.assertIsNone(radar.RX_EMAIL.fullmatch("a,b@c.pt"))
+        self.assertIsNone(radar.RX_EMAIL.fullmatch("a@b.pt\n"))
+        self.assertTrue(radar.RX_EMAIL.fullmatch("ana.lopes@empresa.pt"))
+
+    def test_o_contacto_confere_o_telefone_e_nao_mente(self):
+        r = self.cliente.post("/contacto/nova", headers=self.VOLTA, data={
+            "chave": "n:ipl", "nome": "Ana", "telefone": "abc"})
+        self.assertIn("não é um telefone", self._aviso(r))
+        # sem a entidade não se grava, e dizia «guardado»
+        r = self.cliente.post("/contacto/nova", headers=self.VOLTA,
+                              data={"nome": "Ana"})
+        self.assertIn("não foi guardado", self._aviso(r))
+        self.assertNotIn("guardado.", self._aviso(r).replace("não foi guardado", ""))
+
+    def test_a_etiqueta_tem_o_tecto_do_campo(self):
+        r = self.cliente.post("/etiqueta/60%2F2026/nova", headers=self.VOLTA,
+                              data={"nome": "x" * 30})
+        self.assertIn("até 24 letras", self._aviso(r))
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM etiquetas").fetchone()[0], 0)
+
+
 class TestAPropostaDeCadaEmpresa(_CicloDoTesteComUtilizadores):
     """28/09/2026, decisões dele: os campos da proposta eram os da LATD —
     tipologia consulting/turnkey, CV e proposta técnica sim/não, um CoE —
@@ -14791,6 +14862,26 @@ class TestConfiguracoes(BaseTemporaria):
                           data={"nome_da_empresa": "Ensaio",
                                 "nif_da_empresa": ""})
         self.assertEqual(radar.ler_config()["nif_da_empresa"], "")
+
+    def test_o_nif_com_letras_recusa_se_e_diz_porque(self):
+        """4/10/2026, ele: «o NIF da empresa aceita letras e diz guardado».
+        O `re.sub(r"\\D", "")` tirava as letras em silêncio antes de
+        conferir: «abc516241362» ficava um NIF válido, e «abc» ficava vazio
+        e apagava o que lá estava -- os dois com «guardada»."""
+        radar.gravar_config({"nif_da_empresa": "516241362"})
+        for mau in ("abc516241362", "abc", "51624136x", "PT-ABC"):
+            r = self.cliente.post("/configuracoes/conta/empresa",
+                                  data={"nome_da_empresa": "Ensaio",
+                                        "nif_da_empresa": mau})
+            aviso = unquote(r.headers["Location"]).replace("+", " ")
+            self.assertIn("NIF" if mau.startswith("51") else "só leva algarismos",
+                          aviso, mau)
+            self.assertIn("tom=erro", r.headers["Location"], mau)
+            self.assertEqual(radar.ler_config()["nif_da_empresa"], "516241362", mau)
+        # a forma de escrever passa: espaços, pontos, traços e o PT à frente
+        for bom in ("PT 516 241 362", "516-241-362", "pt516241362"):
+            self.assertEqual(radar.problema_do_nif(bom), ("516241362", ""), bom)
+        self.assertEqual(radar.problema_do_nif(""), ("", ""))
 
     def test_apagar_um_alerta_pergunta_antes(self):
         """Varredura de 25/09/2026: o `onsubmit` do × era escrito à mão,
