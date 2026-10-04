@@ -2105,6 +2105,28 @@ def prazo_de_esclarecimentos(data_pub, prazo):
 # partir do dia seguinte. Os cinco são o MÍNIMO da lei, e é por isso
 # que a tarefa diz para confirmar na notificação.
 DIAS_DE_PRONUNCIA = 5
+# No concurso público flexível (arts. 161.º-A a 161.º-E, desde o DL
+# 177/2026, a 1/10/2026) o prazo da pronúncia pode descer a três dias
+# (art. 161.º-B, n.º 1, al. b); `docs/ccp.md` §3). O anúncio diz se o
+# é: o formulário do DR de 1/10/2026 tem a linha do regime, «Sim» ou
+# «Não». Pedido dele a 4/10/2026: a tarefa contava cinco e a empresa
+# respondia tarde.
+DIAS_DE_PRONUNCIA_NO_FLEXIVEL = 3
+RX_FLEXIVEL = re.compile(r"flexibilização do concurso público:\s*Sim\b")
+
+
+def e_flexivel(texto):
+    """Se o texto do anúncio diz que o concurso é flexível."""
+    return bool(RX_FLEXIVEL.search(texto or ""))
+
+
+def anuncio_e_flexivel(ref):
+    """O mesmo, pela referência: só a linha do regime sai da base."""
+    with liga() as c:
+        linha = c.execute(
+            "SELECT substr(texto, instr(texto, 'flexibilização do concurso "
+            "público:'), 45) FROM anuncios WHERE ref=?", (ref,)).fetchone()
+    return bool(linha) and e_flexivel(linha[0])
 
 
 def prazo_de_pronuncia(notificacao, dias=DIAS_DE_PRONUNCIA):
@@ -3665,6 +3687,10 @@ ORIGEM_DA_AUDIENCIA = "audiencia"
 TEXTO_DA_AUDIENCIA = ("pronunciar-se em audiência prévia (%d dias úteis, o "
                       "mínimo do art. 147.º do CCP: confirme o prazo na "
                       "notificação)" % DIAS_DE_PRONUNCIA)
+TEXTO_DA_AUDIENCIA_NO_FLEXIVEL = (
+    "pronunciar-se em audiência prévia (%d dias úteis, o mínimo num "
+    "concurso público flexível: confirme o prazo na notificação)"
+    % DIAS_DE_PRONUNCIA_NO_FLEXIVEL)
 # A tarefa da validade de um documento do cofre (D5): `documento_id`.
 ORIGEM_DO_DOCUMENTO = "documento"
 # De onde vem cada tarefa que nao se escreveu a mao, para quem a le.
@@ -3718,7 +3744,11 @@ def sincronizar_tarefas(ref=None):
         linhas = c.execute(
             # o prazo de uma sem anúncio é o que se escreveu nela (E6)
             "SELECT p.id, p.ref, p.estado, p.responsavel, p.audiencia_em, "
-            "a.data_pub, COALESCE(a.prazo, p.prazo_entrega) AS prazo "
+            "a.data_pub, COALESCE(a.prazo, p.prazo_entrega) AS prazo, "
+            # só a linha do regime, para o `e_flexivel()`: o texto
+            # inteiro de cada anúncio da escada era carga para nada
+            "substr(a.texto, instr(a.texto, 'flexibilização do concurso "
+            "público:'), 45) AS regime "
             "FROM propostas p "
             "LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
             vals).fetchall()
@@ -3781,13 +3811,17 @@ def sincronizar_tarefas(ref=None):
             # tiver a data da notificacao. Nasce so se ainda vai a tempo
             # (a mesma regra das do DR), e a data nao se reescreve.
             tem = actuais.get((l["id"], ORIGEM_DA_AUDIENCIA))
-            limite = (prazo_de_pronuncia(l["audiencia_em"])
+            flexivel = e_flexivel(l["regime"])
+            limite = (prazo_de_pronuncia(
+                l["audiencia_em"], DIAS_DE_PRONUNCIA_NO_FLEXIVEL if flexivel
+                else DIAS_DE_PRONUNCIA)
                       if l["estado"] not in ESTADOS_FECHADOS else None)
             if limite and not tem and limite.isoformat() >= hoje:
                 c.execute(
                     "INSERT INTO tarefas (proposta_id, ref, o_que, quando,"
                     " quem, origem, criada_em) VALUES (?,?,?,?,?,?,?)",
-                    (l["id"], l["ref"], TEXTO_DA_AUDIENCIA,
+                    (l["id"], l["ref"], TEXTO_DA_AUDIENCIA_NO_FLEXIVEL
+                     if flexivel else TEXTO_DA_AUDIENCIA,
                      limite.isoformat(),
                      (l["responsavel"] or "").strip() or None,
                      ORIGEM_DA_AUDIENCIA, agora))
@@ -30076,6 +30110,12 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         propostas = ("Propostas até", data_pt(a["prazo"]), nota, False)
     else:
         propostas = ("Propostas até", "o anúncio não indica", "", True)
+    # o que o flexível muda e se tem de saber já: a audiência pode ser de
+    # três dias (pedido dele, 4/10/2026)
+    if e_flexivel(_valor(a, "texto")):
+        propostas = propostas[:2] + (" · ".join(x for x in (
+            propostas[2], "concurso flexível: audiência em %d dias úteis"
+            % DIAS_DE_PRONUNCIA_NO_FLEXIVEL) if x),) + propostas[3:]
     duracao = ess.get("Duração do contrato", ("", "", ""))[0]
     renovacoes = " (com renovações previstas)"
     local_nota = ess.get("Local de prestação de serviços", ("", "", ""))[2]
@@ -33100,8 +33140,11 @@ def _campos_que_a_ranhura_pede(p):
     if estado in ("relatorio", "ganho", "perdido") or _valor(p, "audiencia_em"):
         pecas.append(data(
             "audiencia_em", "Notificação do relatório preliminar",
-            "Abre a tarefa da audiência prévia: %d dias úteis, o mínimo do "
-            "art. 147.º do CCP" % DIAS_DE_PRONUNCIA))
+            ("Abre a tarefa da audiência prévia: %d dias úteis, o mínimo "
+             "num concurso público flexível" % DIAS_DE_PRONUNCIA_NO_FLEXIVEL)
+            if p["ref"] and anuncio_e_flexivel(p["ref"]) else
+            ("Abre a tarefa da audiência prévia: %d dias úteis, o mínimo do "
+             "art. 147.º do CCP" % DIAS_DE_PRONUNCIA)))
     if estado in ("ganho", "perdido") or _valor(p, "data_adjudicacao"):
         pecas.append(data(
             "data_adjudicacao", "Data da adjudicação",

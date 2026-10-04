@@ -2513,7 +2513,9 @@ pelo Afonso e nenhuma se reabre de passagem.
 
 - **A tarefa da audiência prévia não se reescreve, ao contrário das do
   DR** (D3). O prazo que conta é o que o júri fixa na notificação, e os
-  5 dias úteis são só o mínimo do art. 147.º: quem o lê adia a tarefa, e
+  5 dias úteis são só o mínimo do art. 147.º (3 no concurso flexível,
+  desde 4/10/2026 — o `e_flexivel()` lê a linha do regime no anúncio, e
+  um anúncio de antes de 1/10/2026 não a tem): quem o lê adia a tarefa, e
   a sincronização tem de o respeitar. Por isso só uma data de
   notificação NOVA a refaz (`_depois_do_desfecho()`), e a contagem salta
   os fins-de-semana e não os feriados — erra para mais cedo, nunca para

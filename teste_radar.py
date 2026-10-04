@@ -10797,6 +10797,65 @@ class TestAsDecisoesDaPropostaD2D3D5D10(_CicloDoTesteComUtilizadores):
                           headers=self.VOLTA)
         self.assertEqual(self._audiencia(id_), [])
 
+    def _flexivel(self, sim=True):
+        """O anúncio 60/2026 com a linha do formulário de 1/10/2026."""
+        with radar.liga() as c:
+            c.execute("UPDATE anuncios SET texto=? WHERE ref='60/2026'",
+                      ("PROCESSO\r\nTipo de Procedimento: Concurso público\r\n"
+                       "Regime de flexibilização do concurso público: %s\r\n"
+                       % ("Sim" if sim else "Não"),))
+
+    def test_o_concurso_flexivel_da_tres_dias_de_audiencia(self):
+        """Pedido dele a 4/10/2026: no concurso público flexível (DL
+        177/2026) o prazo da pronúncia pode descer a três dias úteis, e a
+        tarefa contava cinco -- a empresa respondia tarde."""
+        self.assertTrue(radar.e_flexivel(
+            "Regime de flexibilização do concurso público: Sim\r\n"))
+        self.assertFalse(radar.e_flexivel(
+            "Regime de flexibilização do concurso público: Não\r\n"))
+        self.assertFalse(radar.e_flexivel(""))
+        # segunda 5/10/2026: ter, qua, qui
+        self.assertEqual(radar.prazo_de_pronuncia("2026-10-05", 3),
+                         datetime.date(2026, 10, 8))
+        id_ = self._proposta("relatorio")
+        self._flexivel()
+        hoje = datetime.date.today()
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"audiencia_em": hoje.strftime("%d/%m/%Y")},
+                          headers=self.VOLTA)
+        t = self._audiencia(id_)
+        self.assertEqual(t[0]["quando"], radar.prazo_de_pronuncia(
+            hoje.isoformat(), 3).isoformat())
+        self.assertIn("3 dias úteis", t[0]["o_que"])
+        self.assertIn("flexível", t[0]["o_que"])
+        self.assertIn("confirme o prazo", t[0]["o_que"])
+        # e a ficha di-lo ao pé do prazo das propostas
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref='60/2026'").fetchone()
+        propostas = {f[0]: f for f in radar.factos_para_decidir(a, [])}["Propostas até"]
+        self.assertIn("concurso flexível", propostas[2])
+        # e o campo da notificação, na proposta, diz os três
+        self.assertTrue(radar.anuncio_e_flexivel("60/2026"))
+        self.assertFalse(radar.anuncio_e_flexivel("nao/existe"))
+        campo = radar._campos_que_a_ranhura_pede(radar.proposta(id_))
+        self.assertIn("3 dias úteis, o mínimo num concurso público flexível", campo)
+
+    def test_um_concurso_que_nao_e_flexivel_fica_nos_cinco(self):
+        id_ = self._proposta("relatorio")
+        self._flexivel(sim=False)
+        hoje = datetime.date.today()
+        self.cliente.post("/proposta/%d/ficha" % id_,
+                          data={"audiencia_em": hoje.strftime("%d/%m/%Y")},
+                          headers=self.VOLTA)
+        t = self._audiencia(id_)
+        self.assertEqual(t[0]["quando"], radar.prazo_de_pronuncia(
+            hoje.isoformat()).isoformat())
+        self.assertIn("147.º", t[0]["o_que"])
+        with radar.liga() as c:
+            a = c.execute("SELECT * FROM anuncios WHERE ref='60/2026'").fetchone()
+        propostas = {f[0]: f for f in radar.factos_para_decidir(a, [])}["Propostas até"]
+        self.assertNotIn("flexível", propostas[2])
+
     def test_d3_uma_notificacao_antiga_nao_nasce_atrasada(self):
         id_ = self._proposta("relatorio")
         radar.gravar_campos_da_proposta(id_, ["audiencia_em"], ["2020-01-06"])

@@ -1139,7 +1139,8 @@ Ao marcar **Ganha** ou **Perdida** a caixa pede também, sem obrigar, a
 Ganho, o **valor adjudicado** (vazio, conta o proposto). E a partir do
 «Relatório preliminar» o bloco tem a **data da notificação** do
 relatório: escrevê-la cria a tarefa de te pronunciares em audiência
-prévia, **5 dias úteis** depois — o mínimo da lei. Confirma na
+prévia, **5 dias úteis** depois — o mínimo da lei (**3** num concurso
+público flexível, que a ficha assinala ao pé do prazo). Confirma na
 notificação o prazo que o júri deu; se for maior, adia a tarefa.
 
 **Tudo o resto vive no bloco «A nossa proposta»**, na ficha do anúncio —

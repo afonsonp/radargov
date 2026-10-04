@@ -478,7 +478,11 @@ Duas origens:
 - **A audiência prévia** (26/09/2026) — nasce da data da notificação do
   relatório preliminar que alguém escreve na proposta: **5 dias úteis**
   depois, o mínimo do art. 147.º do CCP (contado pelo art. 87.º do CPA,
-  art. 470.º do CCP). O júri fixa o prazo na notificação e pode dar
+  art. 470.º do CCP) — **3 dias úteis** quando o anúncio diz que o
+  concurso público é flexível (art. 161.º-B, n.º 1, al. b), desde o DL
+  177/2026; `e_flexivel()`, pela linha do regime do formulário do DR de
+  1/10/2026; 4/10/2026), e então a ficha di-lo na célula «Propostas
+  até». O júri fixa o prazo na notificação e pode dar
   mais: a tarefa diz para o confirmar, **adia-se e a sincronização
   respeita** (ao contrário das do DR). Conta sábados e domingos e não os
   feriados, por isso sai igual ou mais cedo do que o verdadeiro. Outra

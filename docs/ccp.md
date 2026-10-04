@@ -145,11 +145,13 @@ qualificação sem valor nenhum. Os de 30/09 ainda têm a forma antiga.
 A lei não obriga o estimado no anúncio, e o formulário deixa-o a zero:
 **o sítio certo para o procurar continua a ser o Programa.**
 
-**O que a §3 obriga a rever no código (por decidir com ele, não feito):**
-o `DIAS_DE_PRONUNCIA` = 5 diz-se «o mínimo da lei» (art. 147.º), e
-num concurso flexível o mínimo passa a três. A tarefa da audiência já
-manda confirmar o prazo na notificação, mas o número por omissão pode
-chegar tarde.
+**O que a §3 obrigou a rever no código (feito a 4/10/2026, decisão
+dele):** o `DIAS_DE_PRONUNCIA` = 5 é o mínimo do art. 147.º, e num
+concurso flexível o mínimo passa a três. Quando o anúncio diz
+«Regime de flexibilização do concurso público: Sim» (`e_flexivel()`), a
+tarefa da audiência conta `DIAS_DE_PRONUNCIA_NO_FLEXIVEL` = 3 e diz
+porquê, e a ficha avisa na célula «Propostas até». Continua a mandar
+confirmar o prazo na notificação.
 
 **O que isto pode fazer ao volume da parte L:** com os limiares da
 consulta prévia muito mais altos, o que passar a consulta prévia não
