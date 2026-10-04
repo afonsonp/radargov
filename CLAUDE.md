@@ -201,6 +201,10 @@ python ferramentas/mede_antecipacao.py       # a hora do prazo DR × Vortal e a
                                    # --amostra N para ensaiar, --pasta
                                    # ~/Desktop/radar num worktree. Resultados
                                    # em docs/diario/2026-10.md
+python ferramentas/mede_dl177.py [--ate AAAA-MM-DD]  # o efeito do DL 177/2026
+                                   # na parte L: desde 1/10/2026 contra as mesmas
+                                   # datas de 2025 e setembro. Só leitura, fora
+                                   # da bateria; --pasta num worktree
 python radar.py --palavra-passe NOME     # troca-a pela consola (no painel, o "esqueci-me" é a
                                    # ligação de repor: por e-mail, no /esqueci-me, ou
                                    # gerada pelo admin ou pelo dono; a do dono, só aqui)
