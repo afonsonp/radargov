@@ -37313,7 +37313,7 @@ def aceitar_pedido(id_):
              "ligação." % html.escape(porque or "sem razão"))
     return envolver(
         "configuracoes", "Pedido aceite",
-        "A empresa %d, %s, foi criada." % (empresa_id, p["empresa"]),
+        "A empresa %d, %s, foi criada." % (empresa_id, html.escape(p["empresa"])),
         # o número e a ligação no corpo (G56 da 3.ª ronda): o subtítulo
         # passava despercebido, e confirmar a empresa era voltar à lista
         "<div class='larg'><div class='mg-card conf-cx'><p><b>Empresa n.º %d "
