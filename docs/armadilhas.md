@@ -3662,6 +3662,18 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   tentativas. **Ligar não fecha as sessões que já estavam abertas**: se
   o motivo de ligar é uma suspeita, o gesto a seguir é «Sair de todos
   os aparelhos».
+- **A captura de uma sugestão é o primeiro ficheiro que um cliente
+  envia para o servidor** (4/10/2026). Três guardas, e nenhuma se tira
+  sozinha: o tipo confere-se pelos **primeiros bytes**
+  (`tipo_da_captura()`), nunca pelo nome nem pelo `Content-Type` que o
+  browser manda — um SVG chamado «a.png» é texto com JavaScript dentro;
+  o ficheiro grava-se como `sugestoes/<id>.<ext>`, com o número e a
+  extensão que o servidor decidiu, e **nada do nome que veio** entra no
+  caminho (o teste manda um nome com `../`); e só se serve debaixo de
+  `/plataforma/` (`ROTAS_SO_DONO`), por um `<int:id_>`. A pasta fica ao
+  lado do `DB` e no `.gitignore`. A `pagina` de onde a sugestão partiu
+  também vem do pedido: `pagina_de_origem()` só aceita um caminho nosso
+  (um «/» e não dois), e escreve-se escapada.
 
 ## A interface
 

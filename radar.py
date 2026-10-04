@@ -1226,6 +1226,15 @@ def iniciar_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT, criado_em TEXT,
             nome TEXT, empresa TEXT, email TEXT, sector TEXT,
             mensagem TEXT, ip TEXT, avisado TEXT)""")
+        # As sugestões de quem usa o Mira Gov (4/10/2026, pedido dele).
+        # Da PLATAFORMA, como os pedidos: é o dono que as lê, e uma
+        # empresa apagada não as leva. `captura` é a extensão da imagem
+        # (o ficheiro é `sugestoes/<id>.<captura>`), vazia sem imagem.
+        c.execute("""CREATE TABLE IF NOT EXISTS sugestoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, criada_em TEXT,
+            empresa_id INTEGER, conta TEXT, nome TEXT, tipo TEXT,
+            texto TEXT, pagina TEXT, captura TEXT DEFAULT '',
+            estado TEXT DEFAULT 'nova', mudada_em TEXT)""")
         # O que se fez com o pedido (F5): aceite, e a empresa que nasceu
         # dele. NULL = por decidir.
         cols_pa = [r["name"] for r in c.execute("PRAGMA table_info(pedidos_acesso)")]
@@ -11796,6 +11805,12 @@ def verificar(cfg=None, passo=None):
     marca("ultima_mensagem", mensagem)
     marcar_resultado(bem)
     avisar_o_vigia(bem, cfg)
+    # o resumo das sugestões ao dono, uma vez por dia; nunca derruba a
+    # verificação
+    try:
+        resumo_das_sugestoes()
+    except Exception as erro:
+        print("aviso: o resumo das sugestões falhou (%s)" % erro)
     if novos and cfg.get("abrir_browser_ao_encontrar"):
         try:
             webbrowser.open(LOCAL + "/")
@@ -15757,12 +15772,15 @@ def bloco_da_conta():
                 "<span class='sou-quem'>%s%s</span>"
                 "</summary><div class='mg-menu sou-menu'>"
                 "<a class='mg-menu__item' href='/configuracoes/conta'>%sA conta</a>"
+                "<a class='mg-menu__item' href='/sugestoes?de=%s'>%sEnviar uma "
+                "sugestão</a>"
                 "%s"
                 "<form method='post' action='/sair'>"
                 "<button type='submit' class='mg-menu__item'>%sSair</button></form>"
                 "%s</div></details>"
                 % (_iniciais(nome), html.escape(nome), empresa_,
                    icone("utilizador"),
+                   html.escape(quote(request.path), quote=True), icone("email"),
                    "<a class='mg-menu__item' href='/plataforma'>%sAdministração "
                    "da plataforma</a>" % icone("configuracoes") if sou_dono() else "",
                    icone("sair"),
@@ -23605,6 +23623,10 @@ def semaforos_da_plataforma():
                                         "ok" if copia_fora.startswith("ok")
                                         else corta(copia_fora or "ainda não", 40)),
                      "/configuracoes/copias"))
+    novas = sugestoes_novas()
+    fora.append(("Sugestões", "bom" if not novas else "aviso",
+                 "nenhuma nova" if not novas else "%d nova%s" % (novas, "" if novas == 1 else "s"),
+                 "/plataforma/sugestoes"))
     erros = erros_por_ver()
     fora.append(("Erros em 24 h", "bom" if not erros else "aviso",
                  "nenhum por ver" if not erros else "%d por ver" % erros,
@@ -23671,6 +23693,11 @@ def a_tratar_hoje(empresas):
     if erros:
         fora.append(("%d erro%s por ver nas últimas 24 horas"
                      % (erros, "" if erros == 1 else "s"), "/plataforma/erros"))
+    novas = sugestoes_novas()
+    if novas:
+        fora.append(("%d sugest%s nova%s de quem usa o Mira Gov"
+                     % (novas, "ão" if novas == 1 else "ões", "" if novas == 1 else "s"),
+                     "/plataforma/sugestoes"))
     return fora
 
 
@@ -23809,6 +23836,311 @@ def plataforma_erros_vistos():
                     quem=quem_sou() or "")
     return _volta_a("/plataforma/erros", "%s por vist%s." % (
         "1 erro dado" if n == 1 else "%d erros dados" % n, "o" if n == 1 else "os"))
+
+
+# --------------------------------------------------------- sugestoes
+#
+# O que quem usa o Mira Gov tem a dizer (4/10/2026, pedido dele: «um
+# espaço para feedback, sugestões e etc.»). As três decisões dele nesse
+# dia: todos podem enviar (o gestor e o utilizador), com uma captura de
+# ecrã se quiserem, e ao dono chega **um resumo por dia**, não um e-mail
+# por cada. A tabela é da plataforma (`iniciar_db()`), e o dono lê-as em
+# /plataforma/sugestoes.
+
+TIPOS_DE_SUGESTAO = {"sugestao": "Sugestão", "problema": "Algo não funciona",
+                     "duvida": "Dúvida", "elogio": "Elogio"}
+ESTADOS_DE_SUGESTAO = {"nova": "Nova", "vista": "Vista", "feita": "Feita",
+                       "nao": "Não vamos fazer"}
+TOM_DO_ESTADO_DA_SUGESTAO = {"nova": "aviso", "feita": "bom"}
+TECTO_DA_SUGESTAO = 2000
+SUGESTOES_POR_CONTA_POR_DIA = 20
+# A captura: só imagem, conferida pelos primeiros bytes e não pelo nome
+# nem pelo tipo que o browser diz; guarda-se com o número da sugestão,
+# nunca com o nome que veio (docs/seguranca.md, §1), e só o dono a vê.
+TECTO_DA_CAPTURA = 5 * 1024 * 1024
+TIPOS_DE_CAPTURA = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}
+# O resumo sai na primeira verificação a partir desta hora, com o que
+# chegou desde o anterior. Sem nada novo, não sai nada.
+HORA_DO_RESUMO_DAS_SUGESTOES = "18:00"
+
+
+def pasta_das_sugestoes():
+    """Ao lado do `DB`, como a pasta das empresas: um teste que aponte o
+    `DB` para uma pasta temporária leva as capturas com ele."""
+    return os.path.join(os.path.dirname(DB), "sugestoes")
+
+
+def tipo_da_captura(dados):
+    """A extensão de uma imagem PNG, JPEG ou WebP pelos primeiros bytes,
+    ou None."""
+    if dados.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if dados.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if dados[:4] == b"RIFF" and dados[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
+def pagina_de_origem(valor):
+    """O caminho da página de onde a sugestão partiu, ou "": só um
+    caminho nosso (um «/» à frente e não dois), sem a query, até 200."""
+    valor = (valor or "").strip()
+    if not valor.startswith("/") or valor.startswith("//") or "\\" in valor:
+        return ""
+    return valor.split("?")[0].split("#")[0][:200]
+
+
+def _pagina_das_sugestoes(recado="", texto="", tipo="", pagina=""):
+    """O formulário e as que esta conta já enviou, com o estado de cada
+    uma -- para quem escreve saber que foi lido."""
+    conta = minha_conta()
+    with liga() as c:
+        minhas = c.execute("SELECT * FROM sugestoes WHERE conta=? ORDER BY id "
+                           "DESC LIMIT 50", (conta,)).fetchall() if conta else []
+    opcoes = "".join("<option value='%s'%s>%s</option>"
+                     % (k, " selected" if k == tipo else "", v)
+                     for k, v in TIPOS_DE_SUGESTAO.items())
+    formulario = cartao("O que nos quer dizer", (
+        ("<div class='mg-alert mg-alert--danger' role='alert'>%s</div>"
+         % html.escape(recado) if recado else "")
+        + "<form method='post' action='/sugestoes' enctype='multipart/form-data' "
+          "class='conf-form sugestao-form'>"
+          "<input type='hidden' name='pagina' value='%s'>"
+          "<label class='conf-campo'><span>Tipo</span>"
+          "<select name='tipo' required>%s</select></label>"
+          "<label class='conf-campo largo'><span>O que se passa</span>"
+          "<textarea name='texto' rows='6' maxlength='%d' required "
+          "placeholder='O que falta, o que não funciona, o que podia ser "
+          "melhor.'>%s</textarea><small>Até %d caracteres.</small></label>"
+          "<label class='conf-campo largo'><span>Captura de ecrã "
+          "<span class='nota'>(opcional)</span></span>"
+          "<input type='file' name='captura' accept='image/png,image/jpeg,image/webp'>"
+          "<small>PNG, JPG ou WebP, até 5 MB. Só a equipa do Mira Gov a vê."
+          "</small></label>"
+          "<button type='submit' class='mg-btn mg-btn--primary'>Enviar</button>"
+          "</form>"
+        % (html.escape(pagina, quote=True), opcoes, TECTO_DA_SUGESTAO,
+           html.escape(texto), TECTO_DA_SUGESTAO)),
+        meta="Lemos todas. Se for preciso, respondemos para o e-mail da sua conta.")
+    if minhas:
+        linhas = "".join(
+            "<tr>%s%s%s%s</tr>" % (
+                _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criada_em"]))),
+                _celula_da_tabela("Tipo", html.escape(TIPOS_DE_SUGESTAO.get(l["tipo"], ""))),
+                _celula_da_tabela("O que escreveu", html.escape(corta(l["texto"] or "", 140))),
+                _celula_da_tabela("Estado", "<span class='mg-tag %s'>%s</span>" % (
+                    tom(TOM_DO_ESTADO_DA_SUGESTAO.get(l["estado"], "")),
+                    html.escape(ESTADOS_DE_SUGESTAO.get(l["estado"], "")))))
+            for l in minhas)
+        enviadas = cartao("As que enviou", (
+            "<table class='mg-table tab-plataforma'><thead><tr><th>Quando</th>"
+            "<th>Tipo</th><th>O que escreveu</th><th>Estado</th></tr></thead>"
+            "<tbody>%s</tbody></table>" % linhas))
+    else:
+        enviadas = ""
+    return envolver("ajuda", "Enviar uma sugestão", "",
+                    "<div class='larg'>%s%s</div>" % (formulario, enviadas),
+                    titulo_aba="Enviar uma sugestão",
+                    cabeca=cabecalho_de_pagina(
+                        "Enviar uma sugestão",
+                        "Uma ideia, algo que não funciona, uma dúvida: é por aqui.",
+                        []))
+
+
+@app.route("/sugestoes", methods=["GET", "POST"])
+def sugestoes():
+    """O espaço das sugestões, para qualquer conta (decisão dele). O POST
+    passa pela porta (sessão e CSRF), como todos os de dentro."""
+    if request.method == "GET":
+        return _pagina_das_sugestoes(pagina=pagina_de_origem(request.args.get("de")))
+    f = request.form
+    tipo = f.get("tipo") or ""
+    texto = (f.get("texto") or "").strip()
+    pagina = pagina_de_origem(f.get("pagina"))
+
+    def recusa(recado):
+        return _pagina_das_sugestoes(recado + " Nada foi enviado.", texto, tipo,
+                                     pagina), 400
+    if tipo not in TIPOS_DE_SUGESTAO:
+        return recusa("Escolha o tipo da lista.")
+    if not texto:
+        return recusa("Escreva o que nos quer dizer.")
+    if len(texto) > TECTO_DA_SUGESTAO:
+        return recusa("O texto tem até %d caracteres (tem %d)."
+                      % (TECTO_DA_SUGESTAO, len(texto)))
+    ficheiro = request.files.get("captura")
+    dados, extensao = b"", ""
+    if ficheiro and ficheiro.filename:
+        dados = ficheiro.read(TECTO_DA_CAPTURA + 1)
+        if len(dados) > TECTO_DA_CAPTURA:
+            return recusa("A imagem tem mais de 5 MB.")
+        extensao = tipo_da_captura(dados)
+        if not extensao:
+            return recusa("A captura tem de ser uma imagem PNG, JPG ou WebP.")
+    conta = minha_conta()
+    agora = datetime.now()
+    with liga() as c:
+        hoje = c.execute("SELECT COUNT(*) FROM sugestoes WHERE conta=? AND "
+                         "criada_em >= ?", (conta, agora.strftime("%Y-%m-%d"))
+                         ).fetchone()[0]
+        if hoje >= SUGESTOES_POR_CONTA_POR_DIA:
+            return recusa("Já enviou %d hoje. Volte amanhã, ou escreva para "
+                          "contacto@miragov.pt." % hoje)
+        id_ = c.execute(
+            "INSERT INTO sugestoes (criada_em, empresa_id, conta, nome, tipo, "
+            "texto, pagina) VALUES (?,?,?,?,?,?,?)",
+            (agora.strftime("%Y-%m-%d %H:%M"), empresa_activa() or None, conta,
+             quem_sou(), tipo, texto, pagina)).lastrowid
+    if extensao:
+        try:
+            os.makedirs(pasta_das_sugestoes(), exist_ok=True)
+            with open(os.path.join(pasta_das_sugestoes(), "%d.%s" % (id_, extensao)),
+                      "wb") as saida:
+                saida.write(dados)
+            with liga() as c:
+                c.execute("UPDATE sugestoes SET captura=? WHERE id=?", (extensao, id_))
+        except OSError as erro:
+            # a sugestão fica; só a imagem não, e diz-se
+            marca_erro("sugestoes", "sugestao", "a captura da sugestão %d não "
+                       "se gravou: %s" % (id_, str(erro)[:120]))
+            return _volta_a("/sugestoes", "Obrigado: a sugestão chegou, mas a "
+                            "imagem não se gravou. Se fizer falta, envie-a para "
+                            "contacto@miragov.pt.", erro=True)
+    return _volta_a("/sugestoes", "Obrigado: a sugestão chegou. Pode ver aqui "
+                    "em baixo quando for lida.")
+
+
+@app.route("/plataforma/sugestoes")
+def plataforma_sugestoes():
+    """Todas as sugestões, as mais recentes primeiro, com o estado de cada
+    uma. Só o dono: vive debaixo de /plataforma/ (ROTAS_SO_DONO)."""
+    with liga() as c:
+        linhas = c.execute("SELECT * FROM sugestoes ORDER BY id DESC LIMIT 300"
+                           ).fetchall()
+    nomes = {}
+    for l in linhas:
+        if l["empresa_id"] and l["empresa_id"] not in nomes:
+            nomes[l["empresa_id"]] = (_nome_da_empresa_n(l["empresa_id"])
+                                      if l["empresa_id"] in empresas_existentes()
+                                      else "empresa %d (apagada)" % l["empresa_id"])
+
+    def estado(l):
+        opcoes = "".join("<option value='%s'%s>%s</option>"
+                         % (k, " selected" if k == l["estado"] else "", v)
+                         for k, v in ESTADOS_DE_SUGESTAO.items())
+        return ("<form method='post' action='/plataforma/sugestoes/%d/estado' "
+                "class='accao'><select name='estado' aria-label='Estado da "
+                "sugestão %d'>%s</select><button type='submit' class='mg-btn "
+                "mg-btn--sm mg-btn--secondary'>Guardar</button></form>"
+                % (l["id"], l["id"], opcoes))
+    corpo = "".join(
+        "<tr%s>%s%s%s%s%s</tr>" % (
+            " class='por-ver'" if l["estado"] == "nova" else "",
+            _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criada_em"]))),
+            _celula_da_tabela("Quem", "%s<br><span class='nota'>%s</span>" % (
+                html.escape(l["nome"] or l["conta"] or "—"),
+                html.escape(nomes.get(l["empresa_id"], "sem empresa")))),
+            _celula_da_tabela("Tipo", html.escape(TIPOS_DE_SUGESTAO.get(l["tipo"], ""))),
+            _celula_da_tabela("O que escreveu", "<span class='erro-texto'>%s</span>%s%s" % (
+                html.escape(l["texto"] or ""),
+                "<br><span class='nota'>em %s</span>" % html.escape(l["pagina"])
+                if l["pagina"] else "",
+                "<br><a href='/plataforma/sugestoes/%d/captura' target='_blank' "
+                "rel='noopener'>ver a captura</a>" % l["id"] if l["captura"] else "")),
+            _celula_da_tabela("Estado", estado(l)))
+        for l in linhas)
+    novas = sum(1 for l in linhas if l["estado"] == "nova")
+    tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma "
+              "tab-erros'><thead><tr><th>Quando</th><th>Quem</th><th>Tipo</th>"
+              "<th>O que escreveu</th><th>Estado</th></tr></thead><tbody>%s"
+              "</tbody></table></div>" % corpo if linhas else
+              "<div class='mg-empty'>Ainda não chegou nenhuma sugestão.</div>")
+    return envolver(
+        "configuracoes", "Sugestões", "", "<div class='larg'>%s</div>" % tabela,
+        titulo_aba="Sugestões · Plataforma",
+        cabeca=cabecalho_de_pagina(
+            "Sugestões",
+            "%s nova%s, de %s. Chega-lhe um resumo por e-mail uma vez por dia, "
+            "a partir das %s." % (mil_pt(novas), "" if novas == 1 else "s",
+                                   mil_pt(len(linhas)), HORA_DO_RESUMO_DAS_SUGESTOES),
+            [("Plataforma", "/plataforma"), ("Sugestões", "")]))
+
+
+@app.route("/plataforma/sugestoes/<int:id_>/estado", methods=["POST"])
+def plataforma_estado_da_sugestao(id_):
+    estado = request.form.get("estado") or ""
+    if estado not in ESTADOS_DE_SUGESTAO:
+        return _volta_a("/plataforma/sugestoes", "Escolha o estado da lista.",
+                        erro=True)
+    with liga() as c:
+        n = c.execute("UPDATE sugestoes SET estado=?, mudada_em=? WHERE id=?",
+                      (estado, datetime.now().strftime("%Y-%m-%d %H:%M"), id_)).rowcount
+    if not n:
+        abort(404)
+    return _volta_a("/plataforma/sugestoes", "A sugestão %d passou a «%s»."
+                    % (id_, ESTADOS_DE_SUGESTAO[estado]))
+
+
+@app.route("/plataforma/sugestoes/<int:id_>/captura")
+def plataforma_captura_da_sugestao(id_):
+    """A imagem de uma sugestão. O nome do ficheiro sai do número e da
+    extensão que o servidor gravou -- nada do pedido entra no caminho."""
+    with liga() as c:
+        l = c.execute("SELECT captura FROM sugestoes WHERE id=?", (id_,)).fetchone()
+    if not l or l["captura"] not in TIPOS_DE_CAPTURA:
+        return pagina_de_erro(404)
+    caminho = os.path.join(pasta_das_sugestoes(), "%d.%s" % (id_, l["captura"]))
+    if not os.path.isfile(caminho):
+        return pagina_de_erro(404)
+    resposta = send_file(caminho, mimetype=TIPOS_DE_CAPTURA[l["captura"]])
+    resposta.headers["Cache-Control"] = "private, no-store"
+    return resposta
+
+
+def sugestoes_novas():
+    with liga() as c:
+        return c.execute("SELECT COUNT(*) FROM sugestoes WHERE estado='nova'"
+                         ).fetchone()[0]
+
+
+def resumo_das_sugestoes(agora=None):
+    """Uma vez por dia, a partir da `HORA_DO_RESUMO_DAS_SUGESTOES`: as que
+    chegaram desde o último resumo, num e-mail para o endereço dos avisos
+    da plataforma (decisão dele: um resumo, e não um e-mail por cada).
+    Devolve (enviado, resposta) ou None quando não havia o que mandar.
+    Se o envio falhar, as mesmas vão no de amanhã."""
+    agora = agora or datetime.now()
+    hoje = agora.strftime("%Y-%m-%d")
+    if (agora.strftime("%H:%M") < HORA_DO_RESUMO_DAS_SUGESTOES
+            or le_marca("resumo_das_sugestoes", "").startswith(hoje)):
+        return None
+    ultima = int(le_marca("ultima_sugestao_resumida", "0") or 0)
+    with liga() as c:
+        novas = c.execute("SELECT * FROM sugestoes WHERE id > ? ORDER BY id",
+                          (ultima,)).fetchall()
+    if not novas:
+        return None
+    blocos = []
+    for l in novas:
+        empresa_ = (_nome_da_empresa_n(l["empresa_id"])
+                    if l["empresa_id"] in empresas_existentes() else "sem empresa")
+        blocos.append("%s — %s (%s), %s%s%s\n%s" % (
+            TIPOS_DE_SUGESTAO.get(l["tipo"], l["tipo"]), l["nome"] or l["conta"],
+            empresa_, data_hora_pt(l["criada_em"]),
+            ", em %s" % l["pagina"] if l["pagina"] else "",
+            " · com captura" if l["captura"] else "", l["texto"]))
+    corpo = ("%d sugest%s nova%s no Mira Gov:\n\n%s\n\nTodas em %s/plataforma/sugestoes\n"
+             % (len(novas), "ão" if len(novas) == 1 else "ões",
+                "" if len(novas) == 1 else "s", "\n\n".join(blocos),
+                endereco_do_painel()))
+    bem, resposta = enviar_email("Mira Gov: %d sugest%s de hoje"
+                                 % (len(novas), "ão" if len(novas) == 1 else "ões"),
+                                 corpo, config_do_correio())
+    marca("resumo_das_sugestoes", "%s %s" % (hoje, corta(str(resposta), 80)))
+    if bem:
+        marca("ultima_sugestao_resumida", str(novas[-1]["id"]))
+    return bem, resposta
 
 
 def _celula_da_tabela(rotulo, valor, classe=""):
@@ -26160,11 +26492,15 @@ def ajuda():
         "acessibilidade</a>. O aspecto de alto contraste escolhe-se em "
         "<a href='/configuracoes/conta#aspecto'>Configurações &rsaquo; "
         "Conta</a>.</p>"))
+    sugestao = cartao("Uma sugestão, ou algo que não funciona", (
+        "<p>Diga-nos em <a href='/sugestoes?de=/ajuda'>Enviar uma sugestão</a> "
+        "(também no menu da conta, em cima à direita). Pode juntar uma "
+        "captura de ecrã. Lemos todas.</p>"))
     # Sem subtitulo, e por isso sem o «?»: na propria Ajuda o «O que é
     # esta página» era a pagina a explicar-se a si propria (E15).
     return envolver("ajuda", "Como funciona", "",
-                    "<div class='larg ajuda'>%s%s%s%s</div>"
-                    % (indice, abertura, blocos, acesso))
+                    "<div class='larg ajuda'>%s%s%s%s%s</div>"
+                    % (indice, abertura, blocos, sugestao, acesso))
 
 
 @app.route("/configuracoes/conta/utilizadores/convite", methods=["POST"])

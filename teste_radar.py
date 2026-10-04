@@ -15896,6 +15896,149 @@ class TestExportacaoNaoChocaComOutroProcesso(BaseTemporaria):
                 "a marca de erro sobreviveu a uma exportação boa")
 
 
+class TestAsSugestoesDeQuemUsa(BaseTemporaria):
+    """4/10/2026, pedido dele: «um espaço para feedback, sugestões e etc.»;
+    e as três decisões: todos podem enviar, com captura de ecrã, e ao dono
+    chega um resumo por dia. O «admin» destes testes é o dono (nasce pela
+    consola); o «teste» é um utilizador."""
+
+    PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+    def setUp(self):
+        # a mesma preparação da TestMudancasDeSetembro: um dono e um
+        # utilizador, e a configuração temporária
+        super().setUp()
+        import contas
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CONFIG", os.path.join(self.pasta, "config.json")))
+        self.cfg = dict(radar.CONFIG_INICIAL, acesso_livre_local=True)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "ler_config", lambda: dict(self.cfg)))
+        with radar.liga() as c:
+            contas.criar_utilizador(c, "admin", "senha-comprida", pela_consola=True)
+            contas.criar_utilizador(c, "teste", "senha-comprida", papel="tester")
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+
+    def entrar(self, quem):
+        return TestMudancasDeSetembro.entrar(self, quem)
+
+    def token(self, cliente):
+        return TestMudancasDeSetembro.token(self, cliente)
+
+    def enviar(self, cliente, **campos):
+        dados = {"csrf": self.token(cliente), "tipo": "sugestao", "texto": "Falta X"}
+        dados.update(campos)
+        return cliente.post("/sugestoes", data=dados, environ_base=self.FORA,
+                            content_type="multipart/form-data")
+
+    def todas(self):
+        with radar.liga() as c:
+            return c.execute("SELECT * FROM sugestoes ORDER BY id").fetchall()
+
+    def test_um_utilizador_envia_e_ve_o_estado(self):
+        cliente = self.entrar("teste")
+        r = self.enviar(cliente, pagina="/concursos?estado=novo")
+        self.assertEqual(r.status_code, 302)
+        l = self.todas()[0]
+        self.assertEqual((l["conta"], l["tipo"], l["texto"], l["pagina"], l["estado"]),
+                         ("teste", "sugestao", "Falta X", "/concursos", "nova"))
+        h = cliente.get("/sugestoes", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("As que enviou", h)
+        self.assertIn("Falta X", h)
+        # o menu da conta leva lá, com a página de onde se parte
+        h = cliente.get("/concursos", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("href='/sugestoes?de=/concursos'", h)
+
+    def test_o_que_nao_serve_recusa_se_e_o_texto_fica(self):
+        cliente = self.entrar("teste")
+        for campos, recado in (({"tipo": "xpto"}, "Escolha o tipo da lista."),
+                               ({"texto": "   "}, "Escreva o que nos quer dizer."),
+                               ({"texto": "x" * 2001}, "até 2000 caracteres"),
+                               ({"captura": (io.BytesIO(b"<svg onload=alert(1)>"), "a.png")},
+                                "PNG, JPG ou WebP")):
+            r = self.enviar(cliente, **campos)
+            self.assertEqual(r.status_code, 400, recado)
+            h = r.get_data(as_text=True)
+            self.assertIn(recado, h)
+            self.assertIn("Nada foi enviado.", h)
+        self.assertIn(">Falta X</textarea>", h)       # o que escreveu não se perde
+        self.assertEqual(self.todas(), [])
+
+    def test_a_captura_guarda_se_pelo_numero_e_so_o_dono_a_ve(self):
+        cliente = self.entrar("teste")
+        self.enviar(cliente, captura=(io.BytesIO(self.PNG), "../../radar.db"))
+        l = self.todas()[0]
+        self.assertEqual(l["captura"], "png")
+        caminho = os.path.join(radar.pasta_das_sugestoes(), "%d.png" % l["id"])
+        with open(caminho, "rb") as f:
+            self.assertEqual(f.read(), self.PNG)
+        endereco = "/plataforma/sugestoes/%d/captura" % l["id"]
+        self.assertEqual(cliente.get(endereco, environ_base=self.FORA).status_code, 403)
+        dono = self.entrar("admin")
+        r = dono.get(endereco, environ_base=self.FORA)
+        self.assertEqual((r.status_code, r.mimetype), (200, "image/png"))
+        # e a lista do dono mostra-a, com quem e o estado a mudar
+        h = dono.get("/plataforma/sugestoes", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("ver a captura", h)
+        dono.post("/plataforma/sugestoes/%d/estado" % l["id"], environ_base=self.FORA,
+                  data={"csrf": self.token(dono), "estado": "feita"})
+        self.assertEqual(self.todas()[0]["estado"], "feita")
+        r = dono.post("/plataforma/sugestoes/%d/estado" % l["id"], environ_base=self.FORA,
+                      data={"csrf": self.token(dono), "estado": "xpto"})
+        self.assertIn("Escolha o estado da lista",
+                      unquote(r.headers["Location"]).replace("+", " "))
+
+    def test_a_pagina_de_origem_so_e_um_caminho_nosso(self):
+        self.assertEqual(radar.pagina_de_origem("/anuncio/1%2F2026?x=1#y"), "/anuncio/1%2F2026")
+        for mau in ("//mau.pt/x", "https://mau.pt", "javascript:alert(1)", "/a\\b", ""):
+            self.assertEqual(radar.pagina_de_origem(mau), "", mau)
+
+    def test_um_tecto_por_dia(self):
+        cliente = self.entrar("teste")
+        for _ in range(radar.SUGESTOES_POR_CONTA_POR_DIA):
+            self.enviar(cliente)
+        r = self.enviar(cliente)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("Volte amanhã", r.get_data(as_text=True))
+
+    def test_o_resumo_sai_uma_vez_por_dia_e_so_com_novas(self):
+        cliente = self.entrar("teste")
+        self.enviar(cliente, texto="Primeira")
+        self.enviar(cliente, tipo="problema", texto="Segunda")
+        envios = []
+        self.enterContext(unittest.mock.patch.object(
+            radar, "enviar_email",
+            lambda assunto, corpo, cfg=None, **_: envios.append((assunto, corpo)) or (True, "ok")))
+        cedo = datetime.datetime(2026, 10, 5, 9, 0)
+        tarde = datetime.datetime(2026, 10, 5, 18, 30)
+        self.assertIsNone(radar.resumo_das_sugestoes(cedo))
+        self.assertEqual(radar.resumo_das_sugestoes(tarde), (True, "ok"))
+        self.assertEqual(len(envios), 1)
+        self.assertIn("2 sugestões", envios[0][0])
+        self.assertIn("Primeira", envios[0][1])
+        self.assertIn("Algo não funciona", envios[0][1])
+        # no mesmo dia não sai outro; no dia seguinte, só com novas
+        self.assertIsNone(radar.resumo_das_sugestoes(tarde))
+        self.assertIsNone(radar.resumo_das_sugestoes(tarde + datetime.timedelta(days=1)))
+        self.enviar(cliente, texto="Terceira")
+        radar.resumo_das_sugestoes(tarde + datetime.timedelta(days=2))
+        self.assertEqual(len(envios), 2)
+        self.assertIn("Terceira", envios[1][1])
+        self.assertNotIn("Primeira", envios[1][1])
+
+    def test_o_resumo_que_falha_vai_no_de_amanha(self):
+        self.enviar(self.entrar("teste"), texto="Perdida")
+        self.enterContext(unittest.mock.patch.object(
+            radar, "enviar_email", lambda *a, **k: (False, "sem correio")))
+        tarde = datetime.datetime(2026, 10, 5, 18, 30)
+        self.assertEqual(radar.resumo_das_sugestoes(tarde), (False, "sem correio"))
+        enviados = []
+        self.enterContext(unittest.mock.patch.object(
+            radar, "enviar_email", lambda a, corpo, *x, **k: enviados.append(corpo) or (True, "")))
+        radar.resumo_das_sugestoes(tarde + datetime.timedelta(days=1))
+        self.assertIn("Perdida", enviados[0])
+
 
 class TestMudancasDeSetembro(BaseTemporaria):
     """«Mudanças na plataforma RADAR» (13/09/2026), o documento do Afonso:
