@@ -331,9 +331,6 @@ def iniciar_tabelas(c):
             c.execute("ALTER TABLE empresa ADD COLUMN %s %s" % (coluna, tipo))
 
 
-RX_LOTE_NO_NOME = re.compile(r"\bL(?:ote)?\s*\.?\s*(\d{1,2})\b", re.I)
-
-
 ESTADOS_DE_LOTE = ("ganho", "perdido", "submetido", "nao fomos")
 
 
@@ -370,11 +367,6 @@ def lotes_do_anuncio(c, ref):
         return json.loads(r["lotes"]) if r and r["lotes"] else []
     except ValueError:
         return []
-
-
-CAMPOS_EXCEL = ("nome", "entidade", "modelo", "prazo_meses", "preco_base",
-                "criterio", "plataforma", "ano", "status", "razao",
-                "valor_proposta", "lugar", "ebitda", "notas", "folha")
 
 
 # ------------------------------------------------------ para o painel

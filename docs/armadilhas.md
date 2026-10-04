@@ -187,8 +187,8 @@ O DR, a Vortal, e como um anúncio entra na base.
   da hora lê-a do texto. Do lado das plataformas: a Vortal dá-a no
   detalhe do procedimento (`AJ7_SchedulingCN_DueDateForReceivingReplies`,
   em UTC); **a acinGov não a mostra em público** — a listagem não tem
-  data e «consultar procedimento» pede sessão. Ver
-  `ferramentas/mede_prazo_plataforma.py`.
+  data e «consultar procedimento» pede sessão. A medição está no
+  `docs/diario/2026-10.md` (a ferramenta saiu a 4/10/2026; fica no git).
 
 - **A API da Vortal responde de DUAS formas ao mesmo pedido.**
   `GetPublicTenderInformation` (o primeiro salto, a partir do link
@@ -258,8 +258,7 @@ O DR, a Vortal, e como um anúncio entra na base.
 
 - **O DR não tem API pública.** O radar faz-se passar pelo browser com os
   cabeçalhos e a forma do corpo das capturas `curl_*.txt`. **O token NÃO
-  expira, e não é de sessão** (medido a 02/09/2026 com `medir_captura.py`,
-  três voltas contra o portal): é o `AnonymousCSRFToken` publicado no
+  expira, e não é de sessão** (medido a 02/09/2026, três voltas contra o portal): é o `AnonymousCSRFToken` publicado no
   `OutSystems.js`, sem cookie o DR nem o verifica, a `moduleVersion` não
   tranca, e a única tranca é a `apiVersion` do ecrã, que vive no script
   listado no `moduleinfo`. `renovar_pecas_dr()` vai buscar as três por

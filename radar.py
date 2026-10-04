@@ -5005,21 +5005,6 @@ def membros_da_cadeia(c, raiz):
     return fora
 
 
-def _decidido(a, c=None):
-    """Se a empresa ja decidiu alguma coisa sobre este anuncio.
-
-    Era `estado != 'novo' or fase_id`, quando a decisao morava na linha
-    do anuncio. Desde 15/09/2026 mora numa proposta, e a pergunta passa
-    a ser se existe alguma. A `c` opcional serve quem ja tem ligacao
-    aberta -- isto corre dentro do laco das alteracoes."""
-    if a["estado"] != "novo":
-        return True
-    if c is not None:
-        return bool(c.execute("SELECT 1 FROM propostas WHERE ref=?",
-                              (a["ref"],)).fetchone())
-    return bool(propostas_de(a["ref"]))
-
-
 def _herdar_propostas(c, ref, raiz_ref):
     """A proposta que a empresa fez na alteracao passa para o original
     (ver aplicar_alteracao()). Corre numa ligacao da empresa; devolve
@@ -25497,12 +25482,8 @@ def _fotografia_da_importacao(c, refs):
     return foto
 
 
-def _pasta_dos_desfazer():
-    return pasta_das_importacoes()
-
-
 def _guardar_desfazer(nome, antes, depois, hist):
-    pasta = _pasta_dos_desfazer()
+    pasta = pasta_das_importacoes()
     os.makedirs(pasta, exist_ok=True)
     with open(os.path.join(pasta, nome + ".json"), "w", encoding="utf-8") as f:
         json.dump({"ficheiro": nome, "quem": quem_sou(),
@@ -25513,7 +25494,7 @@ def _guardar_desfazer(nome, antes, depois, hist):
 
 
 def _importacoes_guardadas(limite=5):
-    pasta = _pasta_dos_desfazer()
+    pasta = pasta_das_importacoes()
     if not os.path.isdir(pasta):
         return []
     fora = []
@@ -25555,7 +25536,7 @@ def desfazer_importacao(nome):
     """Repõe o antes de uma importação. Devolve (repostas, deixadas), ou
     None se não há registo dela. Um anúncio cujas propostas já não estão
     como a importação as deixou fica como está: alguém trabalhou nele."""
-    caminho = os.path.join(_pasta_dos_desfazer(), nome + ".json")
+    caminho = os.path.join(pasta_das_importacoes(), nome + ".json")
     if not os.path.exists(caminho):
         return None
     with open(caminho, encoding="utf-8") as f:
@@ -26527,17 +26508,6 @@ def ancora_do_termo(termo):
 # que explica uma palavra liga à definição dela, em vez de a repetir.
 TERMOS_DA_AJUDA = {ancora_do_termo(termo) for _, termos in GLOSSARIO
                    for termo, _ in termos}
-
-
-def ligacao_ao_termo(termo, texto=None):
-    """Uma ligação para a definição do termo no `/ajuda`, ou o texto sem
-    ligação quando o glossário não o tem (uma ligação para uma âncora que
-    não existe leva ao topo da página, que é pior do que nada)."""
-    ancora = ancora_do_termo(termo)
-    rotulo = html.escape(texto or termo)
-    if ancora not in TERMOS_DA_AJUDA:
-        return rotulo
-    return "<a href='/ajuda#%s'>%s</a>" % (ancora, rotulo)
 
 
 @app.route("/ajuda")
@@ -29763,14 +29733,6 @@ def desenha_valor(valor, cita=None):
                         for nome, det in itens))
 
     return "\n".join(esc(linha) for linha in texto.split("\n"))
-
-
-def _facto(rotulo, valor, classe="", largo=False):
-    if not valor:
-        return ""
-    return ("<div class='facto%s'><div class='k'>%s</div>"
-            "<div class='v %s'>%s</div></div>"
-            % (" larg" if largo else "", rotulo, classe, valor))
 
 
 def cartao(titulo, corpo, meta="", accoes="", pe="", id_="", banda=False,
