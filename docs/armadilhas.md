@@ -1583,8 +1583,13 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   índice** (`_anuncios_para()`, 4/10/2026). O `titulo_norm` vive depois
   do `texto` na tabela, e um alerta por palavras lia-a inteira: criar ou
   ligar um levou 94 a 133 s a frio, na 5.ª ronda; do índice são 0,07 s.
-  Só no `registar_alertas()` por agora: a lista pede `SELECT *`, que o
-  índice não cobre.
+  No `registar_alertas()` e, desde 5/10/2026, na página da lista
+  (`consulta_da_pagina()`): a página escolhe-se no índice, ordenada e
+  cortada às vinte, e só essas vão buscar a linha inteira. E o filtro por
+  NIF é um `rowid IN (… UNION …)`: com o `OR` e o recorte de uma aba, o
+  SQLite deixava a optimização MULTI-INDEX OR (o «Expirou sem ver» de uma
+  entidade, 2 s a quente e 20 s a frio; agora 0,2 s). Conferido numa
+  cópia: as mesmas linhas, pela mesma ordem.
 - **A pesquisa por objecto vai pelo índice de texto** (FTS5 `trigram`,
   `contratos_fts`, lote 10). O `LIKE '%termo%'` sobre os dois milhões de
   objectos levava 8 a 34 s à primeira. O índice é de conteúdo externo
