@@ -1096,7 +1096,11 @@ comparação com o período anterior **do mesmo tamanho**.
 O período conta pela **data da adjudicação** (26/09/2026, D3) e, sem
 ela, pela **`fechada_em`** — o dia em que a proposta se marcou como
 decidida no Mira Gov; a tabela marca essas com «(marcada)», e o ecrã
-di-lo. Uma taxa só se diz a partir de
+di-lo. **A data da adjudicação reconfirma-se a cada passagem a Ganha
+ou a Perdida** (4/10/2026, decisão dele): o diálogo da mudança traz a de
+hoje, a que vier é a que fica, vazia apaga a antiga, e sem o campo (o
+selector sem JavaScript) é a de hoje — a de uma Ganha passava calada
+para a Perdida seguinte. Uma taxa só se diz a partir de
 **5 decididos**; abaixo disso diz-se por extenso quantos faltam.
 
 ### 4.3 Concursos — `/concursos` (a lista única)

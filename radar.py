@@ -18409,8 +18409,8 @@ def caixa_do_motivo():
               # os que a ranhura SUGERE (D3, D10): à vista, sem obrigar
               "<label class='mg-field' data-campo='data_adjudicacao' hidden>"
               "<span class='mg-field__label'>Data da adjudicação "
-              "<span class='nota'>(opcional; é a do período da "
-              "Situação)</span></span>"
+              "<span class='nota'>(confirme: vem com a de hoje; vazia, "
+              "fica sem data)</span></span>"
               "<input class='mg-field__input' type='text' "
               "name='data_adjudicacao' inputmode='numeric' maxlength='10' "
               "placeholder='dd/mm/aaaa' pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
@@ -18510,6 +18510,13 @@ def caixa_do_motivo():
             "      var meu = exige || sugere.indexOf(c.dataset.campo) >= 0;\n"
             "      var i = c.querySelector('input');\n"
             "      c.hidden = !meu; i.required = exige; i.disabled = !meu; i.value = '';\n"
+            # a data da adjudicação reconfirma-se, com hoje por omissão
+            # (decisão dele, 4/10/2026): a de uma Ganha passava calada
+            # para a Perdida que se lhe seguia
+            "      if (meu && c.dataset.campo === 'data_adjudicacao') {\n"
+            "        var d = new Date();\n"
+            "        i.value = ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear();\n"
+            "      }\n"
             "      var o = c.querySelector('.obrig'); if (o) o.hidden = !exige;\n"
             "    });\n"
             "    f.querySelectorAll('.escolhas').forEach(function (g) {\n"
@@ -22327,6 +22334,15 @@ def _campos_exigidos_do_pedido(estado, motivo=""):
     sugere = CAMPOS_QUE_A_RANHURA_SUGERE.get(estado, ())
     desfecho, _ = _desfecho_do_pedido(request.values, vazio_apaga=False)
     campos.update((k, v) for k, v in desfecho.items() if k in sugere)
+    # A data da adjudicação reconfirma-se ao passar a Ganha ou a Perdida
+    # (decisão dele, 4/10/2026): a que o formulário traz é a que fica --
+    # vazia apaga a antiga, e sem o campo (o selector sem JavaScript) é a
+    # de hoje. A de uma Ganha passava calada para a Perdida seguinte.
+    if "data_adjudicacao" in sugere:
+        if "data_adjudicacao" not in request.values:
+            campos["data_adjudicacao"] = datetime.now().date().isoformat()
+        elif not (request.values.get("data_adjudicacao") or "").strip():
+            campos["data_adjudicacao"] = None
     return campos
 
 

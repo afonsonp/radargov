@@ -12045,6 +12045,26 @@ class TestSelectorDaRanhura(BaseTemporaria):
                                 "valor_proposta": "90.000,00"})
         self.assertEqual(radar.proposta(id_)["estado"], "submetido")
 
+    def test_a_data_da_adjudicacao_reconfirma_se_ao_decidir(self):
+        """Decisão dele (4/10/2026): a data de uma Ganha passava calada
+        para a Perdida que se lhe seguia. A que o formulário traz é a que
+        fica; vazia apaga; sem o campo, é a de hoje."""
+        id_ = radar.criar_proposta(entidade="IPL", titulo="Consulta prévia")
+        self.cliente.post("/proposta/%d/escada" % id_,
+                          data={"estado": "ganho", "valor_proposta": "9.000,00",
+                                "data_adjudicacao": "03/10/2026"})
+        self.assertEqual(radar.proposta(id_)["data_adjudicacao"], "2026-10-03")
+        self.cliente.post("/proposta/%d/escada" % id_,
+                          data={"estado": "perdido", "valor_proposta": "9.000,00",
+                                "motivo": "Preço", "data_adjudicacao": ""})
+        p = radar.proposta(id_)
+        self.assertEqual(p["estado"], "perdido")
+        self.assertFalse(p["data_adjudicacao"])
+        self.cliente.post("/proposta/%d/escada" % id_,
+                          data={"estado": "ganho", "valor_proposta": "9.000,00"})
+        self.assertEqual(radar.proposta(id_)["data_adjudicacao"],
+                         radar.datetime.now().date().isoformat())
+
     def test_muda_de_ranhura_pelo_corpo_e_nao_pelo_caminho(self):
         """Um `<select>` não sabe escrever um URL. Se o estado fosse no
         caminho, o selector precisava de JS para funcionar de todo."""
