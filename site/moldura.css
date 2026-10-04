@@ -54,6 +54,18 @@ a:hover{color:var(--brand-hover)}
 @media (max-width:860px){.topo nav a.ligacao{display:none}.topo nav{gap:16px}
  /* no telemóvel ficam os dois alvos do topo, e o dedo pede 44 px (UX-7-LEIS F4) */
  .topo nav a.entrar,.topo nav .btn-pequeno{display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}}
+/* O menu do telemóvel: só abaixo dos 860 px, onde as secções se escondem */
+.menu-movel{display:none;position:relative}
+.menu-movel>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;color:var(--on-header);border-radius:var(--radius-md)}
+.menu-movel>summary::-webkit-details-marker{display:none}
+.menu-movel__lista{position:absolute;right:0;top:calc(100% + 8px);display:grid;min-width:200px;padding:8px;background:var(--surface-raised);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-md)}
+.topo nav .menu-movel__lista a{color:var(--ink);padding:12px 14px;border-radius:8px;min-height:44px;box-sizing:border-box}
+.topo nav .menu-movel__lista a:hover{background:var(--surface-sunken);color:var(--ink)}
+@media (max-width:860px){.menu-movel{display:block}}
+.menu-movel__entrar{display:none!important;border-top:1px solid var(--line)}
+/* abaixo dos 480 px o «Entrar» vai para dentro do menu: o topo não leva
+   a marca, dois botões e o menu a 320 px */
+@media (max-width:480px){.topo nav:has(.menu-movel)>a.entrar{display:none}.menu-movel__entrar{display:block!important}}
 
 /* Marca */
 .logo{display:inline-flex;align-items:center;font-family:var(--font-serif);font-weight:600;font-size:26px;line-height:1;white-space:nowrap;color:var(--on-header);text-decoration:none}
@@ -93,3 +105,7 @@ footer .direitos{font-size:.85rem}
 .legal .data{font-size:.9rem}
 .legal .estado{border-left:4px solid var(--brand);padding:4px 0 4px 14px;color:var(--ink)}
 @media (max-width:520px){.legal article{padding:20px}}
+
+/* o salto para o conteúdo, como na aplicação (5.ª ronda) */
+.saltar{position:absolute;left:8px;top:-60px;z-index:1000;padding:8px 14px;background:var(--surface-raised);color:var(--ink);border-radius:8px;font-weight:600}
+.saltar:focus{top:8px}

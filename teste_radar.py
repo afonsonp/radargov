@@ -10193,7 +10193,7 @@ class TestTriarAvisaEDeixaDesfazer(BaseTemporaria):
         self.assertIn("Não fomos (%s)" % radar.MOTIVOS_ABANDONO[0], p["aviso"])
         self.assertEqual(p["desfazer"], "/estado/2/2026/porver?de=nao_fomos")
         r = self.cliente.post(p["desfazer"])
-        self.assertIn("reposto em por ver", self._params(r)["aviso"])
+        self.assertIn("reposto em «Por ver»", self._params(r)["aviso"])
         # sair da escada tira a proposta, e o anuncio fica como o DR o
         # deixou -- a decisao da empresa nao mora no anuncio desde 15/09/2026
         self.assertEqual(radar.propostas_de("2/2026"), [])
@@ -13824,7 +13824,10 @@ class TestSitePublico(BaseTemporaria):
         self.assertEqual(len(self.avisos), 1)
 
     def test_sem_javascript_responde_uma_pagina(self):
+        # Post/Redirect/Get desde a 5.ª ronda: o F5 reenviava o pedido
         r = self.pedir(Accept="text/html")
+        self.assertEqual((r.status_code, r.headers["Location"]), (303, "/pedido-recebido"))
+        r = self.cliente.get("/pedido-recebido", environ_base=self.FORA)
         self.assertEqual(r.status_code, 200)
         self.assertIn("Pedido recebido", r.get_data(as_text=True))
 
@@ -18233,6 +18236,17 @@ class TestDonoSemEmpresa(BaseTemporaria):
                 "SELECT email, empresa_id FROM utilizadores")}
             self.assertEqual(contas_, {"admin": radar.SEM_EMPRESA})
             self.assertFalse(c.execute("SELECT 1 FROM leituras_pedidas").fetchone())
+
+    def test_a_copia_de_antes_e_so_o_que_sai_da_plataforma(self):
+        """4/10/2026: copiava a base inteira e todas as empresas (1,4 GB,
+        ~1 minuto com as escritas das outras paradas). Agora são as
+        linhas da empresa, ao lado da pasta."""
+        self.assertEqual(self.copia, os.path.join(self.guardada, "plataforma.json"))
+        with open(self.copia, encoding="utf-8") as f:
+            linhas = json.load(f)["linhas"]
+        self.assertEqual([u["email"] for u in linhas["utilizadores"]], ["teste"])
+        self.assertEqual(len(linhas["leituras_pedidas"]), 1)
+        self.assertEqual(os.stat(self.copia).st_mode & 0o077, 0)
 
     def test_o_arranque_nao_faz_renascer_a_empresa(self):
         radar.iniciar_db()
@@ -22777,6 +22791,47 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         self.assertNotIn("email_senha.txt", h)
         self.assertIn("o envio da plataforma ainda não está configurado", h)
 
+    def test_quinta_ronda_so_o_gestor_muda_os_alertas_e_apaga_propostas(self):
+        """Decisão dele (4/10/2026): «só o gestor». A página dos alertas
+        abre-se ao utilizador, desligada; os POST dão 403."""
+        rita = self.entrar("rita")
+        h = self.ver(rita, "/configuracoes/alertas").get_data(as_text=True)
+        self.assertIn("só o gestor", h)
+        self.assertIn("<fieldset disabled", h)
+        for rota in ("/alertas/criar", "/alertas/urgente", "/alertas/email",
+                     "/alertas/do-perfil", "/filtros/1/apagar", "/alertas/1/trocar",
+                     "/alertas/1/imediato", "/proposta/%d/apagar" % self.proposta):
+            r = self.post(rita, rota, {"nome": "x", "q": "x"}, "/configuracoes/alertas")
+            self.assertEqual(r.status_code, 403, rota)
+        chefe = self.entrar("chefe")
+        r = self.post(chefe, "/alertas/criar", {"nome": "do chefe", "q": "escola"},
+                      "/configuracoes/alertas")
+        self.assertEqual(r.status_code, 302)
+
+    def test_quinta_ronda_o_solo_nao_cria_contas_sem_convite_acima_do_limite(self):
+        """5.ª ronda: num Solo o convite era recusado, e o «criar sem
+        convite» fazia a segunda e a terceira conta."""
+        with radar.liga() as c:
+            radar.contas.gravar_plano(c, 1, "solo")
+        chefe = self.entrar("chefe")
+        r = self.post(chefe, "/configuracoes/conta/utilizadores",
+                      {"email": "terceira", "senha": "outra-senha-longa-9", "papel": "tester"},
+                      "/configuracoes/conta")
+        self.assertIn("tom=erro", r.headers["Location"])
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM utilizadores WHERE email='terceira'")
+                             .fetchone())
+
+    def test_quinta_ronda_os_pedidos_do_mesmo_email_assinalam_se(self):
+        """Decisão dele: «permite, mas sinaliza na plataforma»."""
+        with radar.liga() as c:
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                      "sector, mensagem) VALUES ('2026-09-27 09:00', 'Zé', 'Gama', "
+                      "'ZE@gama.pt ', 'Obras', '')")
+        h = self.ver(self.entrar("dono"), "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("1.º de 2 pedidos deste e-mail", h)
+        self.assertIn("2.º de 2 pedidos deste e-mail", h)
+
     def test_quarta_ronda_o_solo_abaixo_das_contas_avisa(self):
         """4.ª ronda: um Duo com duas contas passava a Solo calado."""
         dono = self.entrar("dono")
@@ -23777,7 +23832,7 @@ class TestTerceiraRondaGravarUmaVez(_CicloDoTesteComUtilizadores):
             headers=self.VOLTA)
         texto, erro = self.aviso(r)
         self.assertFalse(erro, texto)
-        self.assertEqual(texto, "Proposta gravada.")
+        self.assertEqual(texto, "Proposta gravada, com a nota nova.")
         self.assertEqual(len(radar.notas_de(id_)), 1)
         # mas quem muda um campo sobre a página antiga continua a ser travado
         r = self.cliente.post("/proposta/%d/ficha" % id_, data={
@@ -24193,7 +24248,7 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertIn("por ver, ainda com prazo", corpo)
         self.assertEqual(radar.frase_da_taxa(2, 4, False),
-                         "2 ganhas em 4 decididas — a taxa aparece às %d"
+                         "2 ganhas em 4 decididas — a taxa aparece com %d decididas"
                          % radar.MINIMO_PARA_TAXA)
         self.assertTrue(radar.frase_da_taxa(1, 1, False).startswith(
             "1 ganha em 1 decidida —"))
@@ -26373,6 +26428,61 @@ class TestOsDoisPequenosDoPlanoDeOutubro(_CicloDoTesteComUtilizadores):
 
 
 
+class TestAQuintaRondaDeTestes(BaseTemporaria):
+    """4/10/2026, a 5.ª ronda (os perfeccionistas) e as decisões dele do
+    mesmo dia. Cada teste é um achado que existiu."""
+
+    def test_o_destino_depois_de_entrar_nao_sai_do_site(self):
+        """O destruidor: «/\t/evil.example» passava como caminho e o
+        browser, que apaga o tab, ia para //evil.example; e a quebra de
+        linha no Location dava 500."""
+        for mau in ("/\t/evil.example", "/\n/x", "/\r\nSet-Cookie: x", "//x", "/\\x"):
+            self.assertEqual(radar.destino_seguro(mau), "/", repr(mau))
+        self.assertEqual(radar.destino_seguro("/concursos?q=a b"), "/concursos?q=a b")
+
+    def test_um_preco_absurdo_nao_se_le(self):
+        self.assertIsNone(radar.preco_escrito("100000000000000000000"))
+        self.assertEqual(radar.preco_escrito("118 500,00"), "118.500,00 EUR")
+
+    def test_o_telefone_grava_se_num_so_formato(self):
+        self.assertEqual(radar.telefone_arrumado("912345678"), "912 345 678")
+        self.assertEqual(radar.telefone_arrumado("+351912345678"), "+351 912 345 678")
+        self.assertEqual(radar.telefone_arrumado("(+351) 912-345-678"), "+351 912 345 678")
+        self.assertEqual(radar.telefone_arrumado("+44 20  7946 0958"), "+44 20 7946 0958")
+
+    def test_um_alerta_por_palavras_le_se_do_indice(self):
+        """Criar ou ligar um alerta por palavras levava 94 a 133 s a frio:
+        o `titulo_norm` vive depois do `texto` na tabela."""
+        onde, _ = radar.condicoes({"q": "limpeza vidros", "estado": ""})
+        self.assertIn("INDEXED BY ix_anuncios_cobre", radar._anuncios_para(onde))
+        onde, _ = radar.condicoes({"q": "x", "ent": "Lisboa", "estado": ""})
+        self.assertEqual(radar._anuncios_para(onde), "anuncios")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, titulo_norm, data_pub, estado) "
+                      "VALUES ('1/2026', 'Limpeza de vidros', 'limpeza de vidros', "
+                      "'2026-09-01', 'novo')")
+        onde, vals = radar.condicoes({"q": "vidros", "estado": ""})
+        with radar.liga() as c:
+            self.assertEqual([r[0] for r in c.execute(
+                "SELECT ref FROM " + radar._anuncios_para(onde) + onde, vals)], ["1/2026"])
+
+    def test_a_fita_soma_o_que_a_lista_tem(self):
+        """A fita ia de ontem a ontem+6 e o «mais para a frente» contava
+        de hoje+7: as tarefas desses dois dias não caíam em lado nenhum."""
+        hoje = radar.date(2026, 10, 4)
+        tarefas = [{"feita_em": None, "quando": (hoje + radar.timedelta(days=d)).isoformat()}
+                   for d in (0, 5, 6, 30)]
+        with unittest.mock.patch.object(
+                radar, "_dia_da_tarefa",
+                lambda t: radar.datetime.strptime(t["quando"], "%Y-%m-%d").date()), \
+                radar.app.test_request_context("/"):
+            h = radar._fita_da_semana(hoje, hoje, tarefas, {}, "/")
+        nas_celulas = sum(int(n) for n in re.findall(r"(\d+) tarefas?", h))
+        depois = int(re.search(r"depois de \w+ \d+: (\d+)", h).group(1))
+        self.assertEqual(nas_celulas + depois, len(tarefas))
+
+
 class TestAQuartaRondaDeTestes(BaseTemporaria):
     """4/10/2026, a 4.ª ronda (oito perfis num painel de ensaio). Cada
     teste é um achado que existiu."""
@@ -26398,7 +26508,8 @@ class TestAQuartaRondaDeTestes(BaseTemporaria):
         cliente = radar.app.test_client()
         with unittest.mock.patch.object(radar, "_avisar_do_pedido", lambda *a: None):
             ok = cliente.post("/pedir-acesso", data=TestSitePublico.BOM,
-                              environ_base=TestSitePublico.FORA).get_data(as_text=True)
+                              environ_base=TestSitePublico.FORA,
+                              follow_redirects=True).get_data(as_text=True)
             mau = cliente.post("/pedir-acesso", data=dict(TestSitePublico.BOM, nome=""),
                                environ_base=TestSitePublico.FORA).get_data(as_text=True)
         self.assertNotIn("Voltar ao Hoje", ok + mau)

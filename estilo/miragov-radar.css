@@ -1253,7 +1253,8 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
    «adiar · quem» à borda direita (~52 px a 320 e a 390). */
 .hj-mexer>form{width:max-content;max-width:calc(100vw - 4 * var(--space-4));flex-wrap:wrap}
 .hj-mexer .rot{flex:0 0 auto}
-.hj-c a{color:inherit}
+/* 24 px de alvo (WCAG 2.5.8, 4.ª e 5.ª rondas: tinha 20) */
+.hj-c a{color:inherit;padding:2px 0}
 /* As entregas do dia escolhido na fita, e as já entregues nos prazos. */
 .hj-entregas{padding:4px 8px 8px 16px;font:400 var(--text-sm)/1.5 var(--font-sans)}
 .hj-entregas a{display:block}
@@ -1465,5 +1466,9 @@ a.citacao{color:var(--link);white-space:nowrap;text-decoration:underline;text-un
 /* O que um fieldset desligado desliga parece desligado (4.a ronda): no
    Perfil da empresa visto pelo utilizador, os botões ficavam azuis e com
    a mão, e o clique não fazia nada. */
-fieldset:disabled .mg-btn,fieldset:disabled button,fieldset:disabled input,
-fieldset:disabled select,fieldset:disabled textarea,.mg-btn:disabled{opacity:.55;cursor:not-allowed}
+fieldset:disabled .mg-btn,fieldset:disabled button,.mg-btn:disabled{opacity:.55;cursor:not-allowed}
+/* os campos sem opacidade: um visto a 55 % falhava os 3:1 (5.ª ronda) */
+fieldset:disabled input,fieldset:disabled select,fieldset:disabled textarea{cursor:not-allowed;background:var(--surface-sunken)}
+
+/* um nome comprido sem espaços parte, e não rola a página (5.ª ronda) */
+.mg-pagehead__title,.mg-crumbs{overflow-wrap:anywhere}
