@@ -20163,7 +20163,7 @@ class TestPropostaSemAnuncioTemPaginaInteira(CicloDaEntidade):
         self.assertIn("/proposta/%d/escada" % p, corpo)   # selector da ranhura
         self.assertIn("preparar a consulta", corpo)       # tarefas
         self.assertIn("Maria", corpo)                     # contactos
-        self.assertIn("Cronologia", corpo)                # histórico
+        self.assertIn(">Histórico</h2>", corpo)          # histórico (era «Cronologia»)
         self.assertIn("/proposta/%d/apagar" % p, corpo)   # o apagar existe
 
     def test_o_apagar_volta_a_ranhura_de_onde_veio(self):
@@ -20199,7 +20199,7 @@ class TestHistoricoDaPropostaSemRef(CicloDaEntidade):
         self.assertIn("estado", [l["accao"] for l in linhas])
         self.assertIn("proposta criada", [l["accao"] for l in linhas])
         corpo = self.cliente.get("/proposta/%d" % p).get_data(as_text=True)
-        self.assertIn("Cronologia", corpo)
+        self.assertIn(">Histórico</h2>", corpo)
         self.assertIn("Submetido", corpo)
 
     def test_a_migracao_da_coluna_e_idempotente(self):
@@ -26550,6 +26550,23 @@ class TestAQuintaRondaDeTestes(BaseTemporaria):
         self.assertEqual(radar.data_pt("2026-02-31"), "2026-02-31")
         self.assertEqual(radar.data_pt(""), "—")
 
+    def test_os_caracteres_do_windows_do_base_limpam_se(self):
+        """«Captações de Água \\x96 Queiriga» via-se com um espaço duplo e
+        ia assim para o CSV: o dump do IMPIC traz os C1 do cp1252."""
+        self.assertEqual(radar._des_html("Água \x96 Queiriga"), "Água – Queiriga")
+        self.assertEqual(radar.corta("a\x93b\x94", 80), "a“b”")
+        self.assertEqual(radar.celula_csv("x\x85"), "x…")
+
+    def test_os_termos_dizem_quando_sai_a_fatura_no_mensal_e_no_anual(self):
+        """A frase dizia «no início do período, ou trinta dias antes», sem
+        dizer quando era cada um; e trinta dias antes não serve no mensal."""
+        with open(os.path.join(os.path.dirname(radar.SITE), "termos.html"),
+                  encoding="utf-8") as f:
+            termos = f.read()
+        self.assertIn("sete dias antes no plano mensal", termos)
+        self.assertIn("trinta dias antes no plano anual", termos)
+        self.assertNotIn("ou trinta dias antes da renovação", termos)
+
     def test_o_telefone_grava_se_num_so_formato(self):
         self.assertEqual(radar.telefone_arrumado("912345678"), "912 345 678")
         self.assertEqual(radar.telefone_arrumado("+351912345678"), "+351 912 345 678")
@@ -27126,8 +27143,8 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         h = self._marcacao(self.cliente.get("/entidades").get_data(as_text=True))
         tabela = h.split("action='/entidades'", 1)[1]
         self.assertIn("href='/entidade/n%3Aipl'", tabela)
-        self.assertLess(tabela.index("comparar as marcadas"), tabela.index("<table"))
-        self.assertEqual(tabela.count("comparar as marcadas"), 2)
+        self.assertLess(tabela.index("Comparar as marcadas"), tabela.index("<table"))
+        self.assertEqual(tabela.count("Comparar as marcadas"), 2)
         self.assertNotIn("class='nota abrir'", tabela)
         self.assertNotIn("<th>☐</th>", tabela)
         self.assertIn("<th><span class='so-leitor'>Comparar</span></th>", tabela)
@@ -27321,15 +27338,16 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         sem = self._sem_anuncio()
         radar.registar("", "proposta", "criou a proposta", proposta_id=sem)
         h = self.cliente.get("/proposta/%d" % sem).get_data(as_text=True)
-        cronologia = h.split(">Cronologia</div>", 1)[1]
-        self.assertTrue(cronologia.startswith("<ul class='ficha-lista'><li><span class='t'>"))
+        # «Histórico» desde a 5.ª ronda, no cartão do sistema
+        cronologia = h.split(">Histórico</h2>", 1)[1]
+        self.assertIn("<ul class='ficha-lista'><li><span class='t'>", cronologia)
         self.assertNotIn("<div class='hist'><b>", h)
 
     def test_e14_os_documentos_da_empresa(self):
         h = self._marcacao(self.cliente.get("/configuracoes/documentos")
                            .get_data(as_text=True))
         self.assertNotIn("cofre", h)
-        self.assertIn(">Acrescentar</button>", h)
+        self.assertIn(">Adicionar</button>", h)
         self.assertNotIn("O alvará, as certidões, as ISO", h)
 
     def test_e15_a_ajuda_tem_indice_e_nao_se_explica_a_si_propria(self):
@@ -28252,7 +28270,7 @@ class TestOsPlanos(BaseTemporaria):
             self.plano(plano)
             h = self.cliente.get("/configuracoes/documentos").get_data(as_text=True)
             self.assertNotIn("no Solo não há cofre", h, plano)
-            self.assertIn("Acrescentar", h, plano)
+            self.assertIn("Adicionar", h, plano)
             r = self.cliente.post("/configuracoes/documentos",
                                   data={"tipo": radar.TIPOS_DE_DOCUMENTO[0],
                                         "descricao": plano, "validade": ""})

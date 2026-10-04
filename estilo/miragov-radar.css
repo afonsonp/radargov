@@ -1472,3 +1472,23 @@ fieldset:disabled input,fieldset:disabled select,fieldset:disabled textarea{curs
 
 /* um nome comprido sem espaços parte, e não rola a página (5.ª ronda) */
 .mg-pagehead__title,.mg-crumbs{overflow-wrap:anywhere}
+
+/* --- acabamentos da 5.ª ronda (4/10/2026) */
+/* os nomes compridos dos distritos partem alinhados com a caixa */
+.dist-interesse .dist-cx{align-items:flex-start}
+.dist-interesse .dist-cx input{flex:none;margin-top:3px}
+/* a árvore dos CPV: a caixa com o mesmo tamanho em todas as linhas, e no
+   telemóvel o nome parte em vez de se cortar a 15 letras */
+#arvore-corpo .no input{flex:none}
+@media (max-width:600px){#arvore-corpo .lbl{white-space:normal;overflow:visible}}
+/* o «×» nativo da pesquisa ficava azul sobre o azul da barra no telemóvel */
+@media (max-width:600px){.pesquisa-geral__campo::-webkit-search-cancel-button{display:none}}
+/* o campo de ficheiro com o botão do sistema, e não o cinzento do browser */
+.conf-campo input[type=file]::file-selector-button{font:600 var(--text-sm)/1 var(--font-sans);
+ color:var(--brand);background:var(--surface);border:var(--border-hairline) solid var(--brand);
+ border-radius:var(--radius-md);padding:8px 12px;margin-right:10px;cursor:pointer}
+/* as contas da empresa na letra do texto: o papel e os botões saíam na
+   monoespaçada dos números da `.saude` */
+.contas-da-empresa .v,.contas-da-empresa .v button{font-family:var(--font-sans)}
+/* o «Mudar» com a altura do selector ao lado (5.ª ronda: 4 px mais baixo) */
+.ranhura .mg-btn--sm{align-self:stretch}
