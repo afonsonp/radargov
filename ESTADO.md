@@ -183,7 +183,9 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.51`**, de
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.52`**, de
+  4/10/2026 — **o anual com um mês grátis** (429 / 825 / 605 €) **e a
+  segunda leva da 5.ª ronda**. Antes dela, a `v2.0.51`, de
   4/10/2026 — **o espaço das sugestões** (`/sugestoes`, com captura de ecrã,
   e o resumo por dia ao dono) e **os campos fechados só aceitam o que se
   pede** (o NIF com letras, os preços «20 mil», as datas impossíveis).
