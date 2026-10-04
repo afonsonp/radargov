@@ -13758,7 +13758,7 @@ class TestSitePublico(BaseTemporaria):
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
     BOM = {"nome": "Ana Silva", "empresa": "Obras Lda",
            "email": "ana@obras.pt", "sector": "Obras públicas e construção",
-           "mensagem": "CPV 45", "nif": "123456789", "plano": "duo"}
+           "telefone": "912 345 678", "mensagem": "CPV 45"}
 
     def setUp(self):
         super().setUp()
@@ -14073,7 +14073,7 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
                               headers={"Accept": "application/json"},
                               data={"nome": "Ana", "empresa": "Obras",
                                     "email": "ana@", "sector": "Outro",
-                                    "nif": "123456789"})
+                                    "telefone": "912345678"})
         self.assertIn("O e-mail não parece válido", r.get_json()["erro"])
         self.assertIn("O e-mail não parece válido", self.ficheiro("index.html"))
 
@@ -22423,10 +22423,9 @@ class TestPedidosDeAcessoRecusarEOCorreio(_PlataformaComDuasEmpresas):
                 radar, "enviar_email",
                 side_effect=lambda a, corpo, cfg=None, **k: mandados.append(
                     cfg["email"]["para"]) or (True, "ok")):
-            # o NIF é obrigatório no formulário desde o site dos planos (#176)
             radar._avisar_do_pedido(self.pedido, {"nome": "Zé", "empresa": "Gama",
                                                   "email": "ze@gama.pt", "sector": "Obras",
-                                                  "nif": "509999999", "mensagem": ""})
+                                                  "telefone": "912345678", "mensagem": ""})
         self.assertEqual(mandados, ["dono@miragov.pt"])
         r = self.post(dono, "/plataforma/correio", {"avisos": "não-é-mail", "porta": "587"})
         self.assertIn("tom=erro", r.headers["Location"])
@@ -22736,6 +22735,42 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         self.assertEqual(radar.erros_por_ver(), 1)      # o novo não se viu
         p = self.ver(dono, "/plataforma").get_data(as_text=True)
         self.assertIn("1 erro por ver nas últimas 24 horas", p)
+
+    def test_o_dono_cria_uma_empresa_sem_pedido(self):
+        """4/10/2026, pedido dele: a empresa que chega por telefone nasce
+        na /plataforma, e vai-se à página dela escolher o plano e criar o
+        convite. Só o dono; o nome vazio recusa-se."""
+        dono = self.entrar("dono")
+        self.assertIn("action='/plataforma/empresas/criar'",
+                      self.ver(dono, "/plataforma").get_data(as_text=True))
+        antes = radar.empresas_existentes()
+        r = self.post(dono, "/plataforma/empresas/criar", {"nome": "   "}, "/plataforma")
+        self.assertIn("tom=erro", r.headers["Location"])
+        r = self.post(dono, "/plataforma/empresas/criar",
+                      {"nome": "  Gama   Telefone, Lda. "}, "/plataforma")
+        (nova,) = set(radar.empresas_existentes()) - set(antes)
+        self.assertIn("/plataforma/empresa/%d" % nova, r.headers["Location"])
+        with radar.com_empresa(nova):
+            self.assertEqual(radar.ler_config()["nome_da_empresa"], "Gama Telefone, Lda.")
+        # um gestor de empresa não chega lá
+        chefe = self.entrar("chefe")
+        r = self.post(chefe, "/plataforma/empresas/criar", {"nome": "Intrusa"}, "/")
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(len(radar.empresas_existentes()), len(antes) + 1)
+
+    def test_o_plano_escolhe_se_ao_aceitar_o_pedido(self):
+        """O formulário do site deixou de pedir o plano (4/10/2026): quem o
+        escolhe é o dono, no ecrã do aceitar, com a oferta por omissão."""
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido).get_data(as_text=True)
+        self.assertIn("<option value='fundador' selected>", h)
+        self.post(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido,
+                  {"cpv": "", "pbmin": "", "plano": "solo"},
+                  "/pedidos-de-acesso/%d/aceitar" % self.pedido)
+        with radar.liga() as c:
+            empresa = c.execute("SELECT empresa_id FROM pedidos_acesso WHERE id=?",
+                                (self.pedido,)).fetchone()[0]
+            self.assertEqual(radar.contas.plano_da_empresa(c, empresa)["plano"], "solo")
 
     def test_v4_p4_o_convite_mostra_se_uma_vez_e_nao_duplica(self):
         dono = self.entrar("dono")
@@ -26312,12 +26347,12 @@ class TestOsDoisPequenosDoPlanoDeOutubro(_CicloDoTesteComUtilizadores):
 
 
 class TestOPedidoLevaONifEOPlano(BaseTemporaria):
-    """30/09/2026, os planos pagos e a oferta de fundador: o formulário do
-    site pede o NIF da empresa (é o da fatura, e passa para a empresa ao
-    aceitar) e o plano que interessa. O NIF confere-se pelo dígito de
-    controlo, como na Conta; escrito à mão, com «PT» e espaços, aceita-se.
-    E o site deixou de dizer que é gratuito e que as contas são para toda
-    a equipa -- são uma no Vigia e duas no VigIA+."""
+    """30/09/2026, os planos pagos: o formulário pedia o NIF e o plano.
+    4/10/2026 (decisão dele): pede só o nome, a empresa, o e-mail, o
+    telemóvel e a área -- o NIF e o plano obrigatórios faziam desistir
+    quem só queria experimentar, com medo de ficar a pagar. O plano
+    escolhe-o o dono ao aceitar. Uma página antiga, em cache, que ainda
+    mande o NIF e o plano, vê-os guardados."""
 
     FORA = TestSitePublico.FORA
     BOM = TestSitePublico.BOM
@@ -26335,58 +26370,65 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
 
     def ultimo(self):
         with radar.liga() as c:
-            return c.execute("SELECT nif, plano FROM pedidos_acesso "
+            return c.execute("SELECT nif, plano, telefone FROM pedidos_acesso "
                              "ORDER BY id DESC").fetchone()
 
-    def test_o_nif_escrito_a_mao_grava_se_limpo(self):
-        self.assertTrue(self.pedir(nif=" PT 123 456 789 ").get_json()["ok"])
-        self.assertEqual(tuple(self.ultimo()), ("123456789", "duo"))
+    def test_sem_nif_nem_plano_grava_se(self):
+        self.assertTrue(self.pedir().get_json()["ok"])
+        self.assertEqual(tuple(self.ultimo()), ("", "", "912 345 678"))
 
-    def test_um_nif_errado_diz_se_como_tal(self):
-        r = self.pedir(nif="123456788")
-        self.assertEqual(r.status_code, 400)
-        self.assertIn("O NIF não parece válido", r.get_json()["erro"])
-        self.assertIsNone(self.ultimo())
+    def test_uma_pagina_antiga_com_nif_e_plano_grava_os(self):
+        self.assertTrue(self.pedir(nif=" PT 123 456 789 ", plano="duo").get_json()["ok"])
+        self.assertEqual(tuple(self.ultimo())[:2], ("123456789", "duo"))
 
     def test_um_nif_com_algarismos_de_outra_escrita_nao_passa(self):
         self.assertEqual(radar.nif_do_pedido("١٢٣٤٥٦٧٨٩"), "")
         self.assertEqual(radar.nif_do_pedido("123456789"), "123456789")
 
-    def test_sem_nif_nao_se_grava(self):
-        r = self.pedir(nif="")
+    def test_o_telemovel_e_obrigatorio_e_confere_se(self):
+        r = self.pedir(telefone="")
         self.assertEqual(r.status_code, 400)
-        self.assertIn("o NIF", r.get_json()["erro"])
+        self.assertIn("o telemóvel", r.get_json()["erro"])
+        r = self.pedir(telefone="91 abc")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("O telemóvel não parece válido", r.get_json()["erro"])
+        self.assertIsNone(self.ultimo())
+        for bom in ("+351 912 345 678", "912345678", "(+351) 21-000.00.00"):
+            self.assertTrue(radar.telefone_valido(bom), bom)
+        for mau in ("12345678", "1" * 16, "912 345 67x", "+-+-+-+-+-"):
+            self.assertFalse(radar.telefone_valido(mau), mau)
 
-    def test_um_plano_desconhecido_fica_pela_oferta(self):
+    def test_um_plano_desconhecido_fica_sem_plano(self):
         self.pedir(plano="tudo-gratis")
-        self.assertEqual(self.ultimo()["plano"], "fundador")
+        self.assertEqual(self.ultimo()["plano"], "")
 
-    def test_o_aviso_ao_dono_diz_o_nif_e_o_plano(self):
+    def test_o_aviso_ao_dono_diz_o_telemovel_e_a_area(self):
         enviados = []
         with unittest.mock.patch.object(
                 radar, "enviar_email",
                 lambda assunto, corpo, cfg=None: enviados.append(corpo) or (True, "ok")):
             TestSitePublico._avisar_original(0, dict(self.BOM))
-        self.assertIn("NIF: 123456789", enviados[0])
-        self.assertIn("Interessa-lhe: Duo", enviados[0])
+        self.assertIn("Telemóvel: 912 345 678", enviados[0])
+        self.assertIn("Área: Obras públicas e construção", enviados[0])
+        self.assertNotIn("NIF", enviados[0])
 
-    def test_o_site_diz_os_planos_e_nao_a_beta_gratuita(self):
+    def test_o_site_pede_so_os_cinco_campos(self):
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
         # o anual paga-se de uma vez desde 1/10/2026 (decisão dele: «pagam logo
         # a totalidade, se saírem saíram»), e não em 12 prestações
         for frase in ("39 €", "75 €", "408 €/ano", "780 €/ano", "576 €/ano",
                       "55 €/mês + IVA", "31 de dezembro de 2026", "por IA está em todos",
-                      'name="nif"', 'name="plano"', 'id="planos"'):
+                      'id="planos"'):
             self.assertIn(frase, site)
         for frase in ("Contas para toda a equipa", "Todas as que precisar",
                       '"name": "Vigia"', "VigIA+",
                       "Ainda não está decidido", '"price": "0"', "prestações"):
             self.assertNotIn(frase, site)
-        # os valores do formulário são os que o servidor aceita
-        seleccao = site.split('id="plano"', 1)[1].split("</select>", 1)[0]
-        self.assertEqual(set(re.findall(r'<option value="([^"]+)">', seleccao)),
-                         set(radar.PLANOS_DO_PEDIDO))
+        formulario = site.split('id="form-acesso"', 1)[1].split("</form>", 1)[0]
+        self.assertEqual(
+            [n for n in re.findall(r'name="(\w+)"', formulario) if n != "website"],
+            ["nome", "empresa", "email", "telefone", "sector"])
 
     def test_os_termos_publicados_sao_os_dos_planos(self):
         pasta = os.path.dirname(radar.SITE)
@@ -26398,7 +26440,9 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
                       "{{NOME}}", "{{MORADA}}"):
             self.assertIn(frase, termos)
         self.assertNotIn("<h2>Fase beta</h2>", termos)
-        self.assertIn("NIF da empresa", privacidade)
+        # a privacidade diz o que o formulário pede, e já não o NIF
+        self.assertIn("telemóvel", privacidade)
+        self.assertNotIn("NIF da empresa, e-mail", privacidade)
 
 
 class TestOResumoDoMercadoNaoRebentaComNumerosFormatados(unittest.TestCase):

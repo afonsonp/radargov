@@ -1233,9 +1233,13 @@ def iniciar_db():
         # lixo nao ficar por decidir para sempre nem desaparecer.
         # O NIF e o plano que interessa (30/09/2026, os planos pagos): o
         # NIF vai para a empresa quando o pedido se aceita, e é o da fatura.
+        # O telemóvel (4/10/2026): o formulário passou a pedir só o nome,
+        # a empresa, o e-mail, o telemóvel e a área -- o NIF e o plano
+        # assustavam quem só queria experimentar (decisão dele).
         for nome, tipo in (("estado", "TEXT"), ("empresa_id", "INTEGER"),
                            ("motivo", "TEXT"), ("decidido_em", "TEXT"),
-                           ("nif", "TEXT"), ("plano", "TEXT")):
+                           ("nif", "TEXT"), ("plano", "TEXT"),
+                           ("telefone", "TEXT")):
             if nome not in cols_pa:
                 c.execute("ALTER TABLE pedidos_acesso ADD COLUMN %s %s" % (nome, tipo))
         c.execute("""CREATE TABLE IF NOT EXISTS documentos (
@@ -23562,7 +23566,16 @@ def administracao_da_plataforma():
               "<th>Última entrada</th><th>Propostas em curso</th><th>Leituras</th>"
               "</tr></thead><tbody>%s</tbody></table></div>" % linhas
               if empresas else "<div class='mg-empty'>Ainda não há empresas: "
-              "nascem ao aceitar um pedido de acesso.</div>")
+              "nascem ao aceitar um pedido de acesso, ou aqui em baixo.</div>")
+    # Criar uma empresa sem pedido (4/10/2026, pedido dele): a empresa que
+    # chega por telefone ou numa reunião. Só o nome; o plano e o convite
+    # do gestor fazem-se na página dela, para onde se vai a seguir.
+    tabela += ("<form class='form-email' method='post' action='/plataforma/empresas/criar' "
+               "style='margin-top:12px'><label>Nova empresa"
+               "<input class='mg-field__input' type='text' name='nome' required "
+               "maxlength='120' autocomplete='off' placeholder='nome da empresa'></label>"
+               "<button type='submit' class='mg-btn mg-btn--secondary'>Criar a empresa"
+               "</button></form>")
     seccoes = "".join(
         "<a class='mg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
         "<b>%s</b><div class='nota'>%s</div></a>" % (c_, html.escape(t_), html.escape(d_))
@@ -23602,6 +23615,22 @@ def administracao_da_plataforma():
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que está mal, o que há para "
                     "fazer hoje, e as empresas.", corpo)
+
+
+@app.route("/plataforma/empresas/criar", methods=["POST"])
+def plataforma_criar_empresa():
+    """Uma empresa nova pelo dono, sem pedido do site (4/10/2026). Só o
+    dono: vive debaixo de /plataforma (ROTAS_SO_DONO, por prefixo). Leva
+    à página dela, onde se escolhe o plano e se cria o convite."""
+    nome = " ".join((request.form.get("nome") or "").split())[:120]
+    if not nome:
+        return _volta_a("/plataforma", "Escreva o nome da empresa.", erro=True)
+    id_ = criar_empresa(nome)
+    registar_evento("", "empresa", "criou a empresa %d (%s)" % (id_, nome),
+                    quem=quem_sou() or "")
+    return _volta_a("/plataforma/empresa/%d" % id_,
+                    "Empresa n.º %d criada. Escolha o plano e crie o convite "
+                    "do gestor." % id_)
 
 
 @app.route("/plataforma/correio", methods=["POST"])
@@ -35368,6 +35397,13 @@ PLANO_DO_PEDIDO = {"fundador": ("duo", True), "solo": ("solo", False),
                    "corporate": ("corporate", False)}
 
 
+def telefone_valido(texto):
+    """Um telefone escrito à mão: nove a quinze algarismos, com espaços,
+    pontos, hífenes, parênteses e o «+» do indicativo à vontade."""
+    return bool(re.fullmatch(r"[\d\s.()+-]{9,30}", texto or "")
+                and 9 <= len(re.sub(r"\D", "", texto)) <= 15)
+
+
 def nif_do_pedido(texto):
     """Os nove algarismos de um NIF escrito à mão («PT 509 123 456»), ou
     "" quando não é um NIF português válido."""
@@ -35749,12 +35785,9 @@ def _avisar_do_pedido(id_, p):
     responder fica na linha do pedido -- sem palavra-passe configurada
     o pedido fica guardado na mesma, e a pagina dos pedidos di-lo."""
     corpo = ("Pedido de acesso ao Mira Gov\n\n"
-             "Nome: %(nome)s\nEmpresa: %(empresa)s\nNIF: %(nif)s\n"
-             "E-mail: %(email)s\nSector: %(sector)s\nInteressa-lhe: %(rotulo)s"
-             "\n\n%(mensagem)s\n"
-             # um pedido de antes do NIF (ou sem plano) avisa na mesma
-             % dict({"nif": "—"}, **dict(p, rotulo=PLANOS_DO_PEDIDO.get(
-                 p.get("plano"), "—"))))
+             "Nome: %(nome)s\nEmpresa: %(empresa)s\n"
+             "E-mail: %(email)s\nTelemóvel: %(telefone)s\nÁrea: %(sector)s\n"
+             % dict({"telefone": "—"}, **p))
     # Para o endereco dos avisos da PLATAFORMA (26/09/2026). Ia para o
     # `para` da empresa activa -- a 1, numa thread sem pedido --, que
     # numa plataforma sem empresas nao existe, e com clientes e o e-mail
@@ -35815,26 +35848,31 @@ def pedir_acesso():
     f = request.form
     if (f.get("website") or "").strip():
         return resposta(True)
+    # Só o nome, a empresa, o e-mail, o telemóvel e a área (4/10/2026,
+    # decisão dele): o NIF e o plano obrigatórios faziam desistir quem só
+    # queria experimentar. O plano escolhe-o o dono ao aceitar. Uma
+    # página antiga, em cache, que ainda mande o NIF, o plano ou a
+    # mensagem, vê-os guardados.
     p = {chave: " ".join((f.get(chave) or "").split())[:tecto]
          for chave, tecto in (("nome", 120), ("empresa", 160),
-                              ("email", 200), ("sector", 60))}
+                              ("email", 200), ("sector", 60), ("telefone", 30))}
     p["mensagem"] = (f.get("mensagem") or "").strip()[:2000]
     p["nif"] = nif_do_pedido(f.get("nif"))
-    # quem não mandou plano (a página antiga, em cache) fica pela oferta
-    p["plano"] = f.get("plano") if f.get("plano") in PLANOS_DO_PEDIDO else "fundador"
-    if (f.get("nif") or "").strip() and not p["nif"] and p["nome"] \
-            and p["empresa"] and RX_EMAIL.match(p["email"]):
-        return resposta(False, "O NIF não parece válido: são nove algarismos, "
-                               "e o último é de controlo. Confira-o.", 400)
+    p["plano"] = f.get("plano") if f.get("plano") in PLANOS_DO_PEDIDO else ""
+    telefone_bom = telefone_valido(p["telefone"])
     if not (p["nome"] and p["empresa"] and RX_EMAIL.match(p["email"])
-            and p["nif"] and p["sector"] in SECTORES_DO_PEDIDO):
-        # só o e-mail mal escrito diz-se como tal (3.ª ronda, G103)
-        if p["nome"] and p["empresa"] and p["email"] and p["nif"] \
-                and p["sector"] in SECTORES_DO_PEDIDO:
+            and telefone_bom and p["sector"] in SECTORES_DO_PEDIDO):
+        completo = (p["nome"] and p["empresa"] and p["email"] and p["telefone"]
+                    and p["sector"] in SECTORES_DO_PEDIDO)
+        # só o campo mal escrito diz-se como tal (3.ª ronda, G103)
+        if completo and not RX_EMAIL.match(p["email"]):
             return resposta(False, "O e-mail não parece válido. Confira-o: "
                                    "é para lá que respondemos.", 400)
+        if completo:
+            return resposta(False, "O telemóvel não parece válido: são nove "
+                                   "algarismos, ou o indicativo e o número.", 400)
         return resposta(False, "Preencha o nome, a empresa, um e-mail válido, "
-                               "o NIF e o sector, para podermos responder.", 400)
+                               "o telemóvel e a área, para podermos responder.", 400)
     agora = datetime.now()
     ip = ip_de_quem_pede()
     with liga() as c:
@@ -35850,10 +35888,11 @@ def pedir_acesso():
                                    "de novo mais tarde.", 429)
         id_ = c.execute(
             "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
-            "sector, mensagem, ip, nif, plano) VALUES (?,?,?,?,?,?,?,?,?)",
+            "sector, mensagem, ip, nif, plano, telefone) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (agora.isoformat(" ", "seconds"), p["nome"], p["empresa"],
              p["email"], p["sector"], p["mensagem"], ip, p["nif"],
-             p["plano"])).lastrowid
+             p["plano"], p["telefone"])).lastrowid
     threading.Thread(target=_avisar_do_pedido, args=(id_, p),
                      daemon=True).start()
     return resposta(True)
@@ -35929,21 +35968,20 @@ def pedidos_de_acesso():
     def tabela(linhas):
         return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
                  "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
-                 "<th>NIF</th><th>Plano</th>"
-                 "<th>E-mail</th><th>Sector</th><th>Mensagem</th>"
+                 "<th>E-mail</th><th>Telemóvel</th><th>Área</th><th>Mensagem</th>"
                  "<th>Aviso por e-mail</th><th>Decisão</th></tr></thead><tbody>%s</tbody>"
                  "</table></div>"
                  % "".join(
-                     "<tr>%s%s%s%s%s%s%s%s%s%s</tr>" % (
+                     "<tr>%s%s%s%s%s%s%s%s%s</tr>" % (
                          _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criado_em"])), "mg-num"),
                          _celula_da_tabela("Nome", html.escape(l["nome"])),
                          _celula_da_tabela("Empresa", html.escape(l["empresa"])),
-                         _celula_da_tabela("NIF", html.escape(l["nif"] or "—"), "mg-num"),
-                         _celula_da_tabela("Plano", html.escape(
-                             PLANOS_DO_PEDIDO.get(l["plano"] or "", l["plano"] or "—"))),
                          _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>"
                                  % (html.escape(l["email"], quote=True), html.escape(l["email"]))),
-                         _celula_da_tabela("Sector", html.escape(l["sector"])),
+                         _celula_da_tabela("Telemóvel", ("<a href='tel:%s'>%s</a>" % (
+                             html.escape(re.sub(r"[^\d+]", "", l["telefone"]), quote=True),
+                             html.escape(l["telefone"]))) if l["telefone"] else "—", "mg-num"),
+                         _celula_da_tabela("Área", html.escape(l["sector"])),
                          _celula_da_tabela("Mensagem", html.escape(l["mensagem"] or "")),
                          _celula_da_tabela("Aviso por e-mail", html.escape(l["avisado"] or "a enviar")),
                          _celula_da_tabela("Decisão", decisao(l)))
@@ -36225,8 +36263,8 @@ def _formulario_do_aceitar(p, aviso=""):
         "configuracoes", "Aceitar o pedido",
         "Cria a empresa, prepara o perfil dela e manda o convite a quem pediu.",
         "<div class='larg'>%s<div class='mg-card conf-cx'>"
-        "<p><b>%s</b>, de %s &middot; <a href='mailto:%s'>%s</a><br>"
-        "Sector: %s</p>%s</div>"
+        "<p><b>%s</b>, de %s &middot; <a href='mailto:%s'>%s</a>%s<br>"
+        "Área: %s</p>%s</div>"
         "<form method='post' class='mg-card conf-cx conf-form'>"
         "<div class='mg-field__label' style='flex:1 1 100%%'>O perfil da "
         "empresa nova</div>"
@@ -36237,7 +36275,7 @@ def _formulario_do_aceitar(p, aviso=""):
         "<fieldset class='dist-interesse' style='flex:1 1 100%%'><legend>"
         "Distritos do local de execução <span class='nota'>(nenhum marcado = "
         "todos)</span></legend>%s</fieldset>"
-        "%s"
+        "%s%s"
         "<div style='flex:1 1 100%%;display:flex;gap:8px'>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Aceitar e "
         "mandar o convite</button>"
@@ -36247,6 +36285,7 @@ def _formulario_do_aceitar(p, aviso=""):
             % html.escape(aviso)) if aviso else "",
            html.escape(p["nome"]), html.escape(p["empresa"]),
            html.escape(p["email"], quote=True), html.escape(p["email"]),
+           (" &middot; %s" % html.escape(p["telefone"])) if p["telefone"] else "",
            html.escape(p["sector"] or "—"),
            ("<p class='nota'>«%s»</p>" % html.escape(p["mensagem"]))
            if p["mensagem"] else "",
@@ -36258,8 +36297,20 @@ def _formulario_do_aceitar(p, aviso=""):
            caixas,
            _campo("Preço base a partir de", "pbmin",
                   request.form.get("pbmin", "") if request.method == "POST" else "",
-                  nota="€; vazio = qualquer valor")),
+                  nota="€; vazio = qualquer valor"),
+           _escolha_do_plano(request.form.get("plano") if request.method == "POST"
+                             else p["plano"] or "fundador")),
         titulo_aba="Aceitar o pedido")
+
+
+def _escolha_do_plano(escolhido):
+    """O plano com que a empresa nasce, que o dono escolhe ao aceitar: o
+    formulário do site deixou de o pedir (4/10/2026)."""
+    return ("<label class='mg-field' style='flex:1 1 100%%'><span class='mg-field__label'>"
+            "Plano</span><select class='mg-field__input' name='plano'>%s</select></label>"
+            % "".join("<option value='%s'%s>%s</option>" % (
+                k, " selected" if k == escolhido else "", html.escape(v))
+                for k, v in PLANOS_DO_PEDIDO.items()))
 
 
 @app.route("/pedidos-de-acesso/<int:id_>/aceitar", methods=["GET", "POST"])
@@ -36292,10 +36343,10 @@ def aceitar_pedido(id_):
         gravar_config(dict(perfil, email={"para": p["email"]},
                            **({"nif_da_empresa": p["nif"]} if p["nif"] else {})))
     with liga() as c:
-        # o plano que a empresa escolheu no formulario (L2.1); a oferta de
-        # fundador e o Duo a preco de fundador. Os pedidos de antes dos
-        # planos novos ficam sem plano, e o dono poe-no na pagina dela.
-        plano = PLANO_DO_PEDIDO.get((p["plano"] if "plano" in p.keys() else "") or "")
+        # o plano que o dono escolheu ao aceitar (desde 4/10/2026; ate ai
+        # vinha do formulario do site); a oferta de fundador e o Duo a
+        # preco de fundador.
+        plano = PLANO_DO_PEDIDO.get(request.form.get("plano") or p["plano"] or "")
         if plano:
             contas.gravar_plano(c, empresa_id, plano[0], fundador=plano[1])
         codigo = contas.criar_convite(c, empresa_id, p["email"], "admin", id_)

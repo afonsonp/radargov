@@ -1549,9 +1549,15 @@ guarda cada pedido e manda-te um e-mail para o endereço dos alertas
 pedidos vêem-se sempre no menu da tua conta, em **«pedidos de acesso do
 site»** — e é aí que os vês se o e-mail não tiver chegado.
 
-**O plano de cada empresa** (desde 1/10/2026): ao aceitar um pedido, a
-empresa nasce com o plano que escolheu no formulário — a oferta de
-fundador fica Duo, marcada como fundador. Para o mudar, abre a página
+**O plano de cada empresa** (desde 1/10/2026): ao aceitar um pedido,
+escolhes o plano no próprio ecrã do aceitar (desde 4/10/2026 o
+formulário do site já não o pede) — a oferta de fundador, que vem
+escolhida, fica Duo, marcada como fundador.
+
+**Uma empresa sem pedido** (desde 4/10/2026) — a que chega por telefone
+ou numa reunião: na **Plataforma**, por baixo da lista das empresas,
+escreve o nome em «Nova empresa» e carrega em «Criar a empresa». Vais
+parar à página dela, onde escolhes o plano e crias o convite do gestor. Para o mudar, abre a página
 da empresa na plataforma e usa o cartão **«Plano»**: Solo (1 utilizador,
 uma sessão de cada vez), Duo (2) ou Corporate (o número que acordaste,
 no campo «Utilizadores»). Os três têm tudo, cofre incluído: o plano só

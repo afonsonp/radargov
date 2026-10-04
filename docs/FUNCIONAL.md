@@ -123,7 +123,7 @@ as exactas e salta as outras.
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
-| `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) desde 30/09/2026 |
+| `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) de 30/09 a 4/10/2026, quando o formulário passou a pedir o `telefone` em vez deles |
 | `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
 | `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
 
@@ -889,7 +889,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**138 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**139 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1405,8 +1405,10 @@ desse dia): cada empresa tem um — **Solo** (1 utilizador, uma sessão de
 cada vez), **Duo** (2; substituiu no mesmo dia o Equipa, de 5) ou
 **Corporate** (o número acordado) —, na
 tabela `planos` do `radar.db`, que é da plataforma como as contas. Quem o
-põe é o dono: ao aceitar um pedido nasce com o plano que o formulário
-escolheu (a oferta de fundador é o Duo, marcado como fundador), e
+põe é o dono: ao aceitar um pedido escolhe-o no ecrã do aceitar (desde
+4/10/2026; a oferta de fundador, que vem escolhida, é o Duo, marcado
+como fundador), numa empresa criada sem pedido na `/plataforma`
+(`plataforma_criar_empresa()`, 4/10/2026) escolhe-o na página dela, e
 muda-se no cartão «Plano» da página da empresa
 (`plataforma_gravar_plano()`). **O limite conta as contas e os convites
 por usar** (`contas.lugares_livres()`): o `criar_convite()` recusa com a
@@ -1439,7 +1441,8 @@ criptografia estão no **`contas.py`**, que não importa o radar.
    (Solo, Duo e Corporate desde 1/10/2026, com as mesmas
    funcionalidades, o preço + IVA e só o número de pessoas a mudar) e a
    oferta de fundador,
-   e o formulário pede o NIF da empresa e o plano que interessa. Com `?dia=` ou outro parâmetro é a
+   e o formulário pede só o nome, a empresa, o e-mail, o telemóvel e a
+   área (4/10/2026; de 30/09 a 4/10 pedia também o NIF e o plano). Com `?dia=` ou outro parâmetro é a
    mesma raiz, e é o site; todos os outros caminhos **que são rotas** vão
    ao login. Um caminho que não é rota nenhuma dá o **404** do painel,
    com «Voltar ao início» (3.ª ronda, G100: era o `/entrar` com 200, um
@@ -1448,8 +1451,7 @@ criptografia estão no **`contas.py`**, que não importa o radar.
 **O que fica aberto sem sessão** não é só o `/entrar`: também o
 `/saude`, o `/favicon.svg`, o **`/pedir-acesso`** (o formulário do site,
 com a guarda dentro da própria rota: origem, campo-armadilha, campos
-validados e cortados — o NIF pelo dígito de controlo, `nif_do_pedido()`, e obrigatório desde
-30/09/2026 —, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
+validados e cortados — o telemóvel por `telefone_valido()` —, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
 `PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
@@ -1511,8 +1513,8 @@ antes de aceitar — é o
 «configuramos o perfil consigo» que o site promete. Só se aceitam
 códigos CPV (`_perfil_do_formulario()`); vazio, a empresa define-o
 depois. Ao aceitar nasce a empresa
-(`criar_empresa()`), com o NIF do pedido como o NIF da empresa
-(desde 30/09/2026: é o da fatura), e o ecrã diz «Empresa n.º N criada» com a ligação
+(`criar_empresa()`), com o NIF do pedido como o NIF da empresa quando o
+pedido o trouxe (de 30/09 a 4/10/2026; é o da fatura), e o ecrã diz «Empresa n.º N criada» com a ligação
 para a página dela; o resumo vai para quem pediu, e um convite de
 gestor dela (`contas.criar_convite()`), que vai por e-mail para
 o endereço do pedido e aparece também no ecrã — o e-mail pode não sair.

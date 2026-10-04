@@ -384,10 +384,10 @@ form .btn{justify-self:start}
         <h1 id="t-abertura">Nenhum concurso da sua área fica <em>por ver</em>.</h1>
         <p class="lead">O Mira Gov lê o Diário da República <strong>ao longo do dia</strong>, descarrega as peças e mostra-lhe a que preço o mercado adjudica. A sua equipa deixa de vigiar e passa a decidir.</p>
         <div class="accoes">
-          <a class="btn btn-claro" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a>
+          <a class="btn btn-claro" href="#acesso">Pedir um lugar de fundador</a>
           <a class="btn btn-contorno" href="#planos">Ver os planos</a>
         </div>
-        <p class="fontes">Fontes públicas: Diário da República, 2.ª série, parte&nbsp;L · consultas preliminares da Vortal · Portal BASE.</p>
+        <p class="fontes">Fontes públicas: os anúncios de concursos do Diário da República · as consultas preliminares da Vortal · os contratos do Portal BASE.</p>
       </div>
 
       <div class="composicao" role="img" aria-label="Exemplo do Mira Gov: a lista de concursos por analisar e, por cima, a ficha de um concurso com prazo, preço base, peças descarregadas e o histórico da entidade">
@@ -450,7 +450,7 @@ form .btn{justify-self:start}
       <ul>
         <li><span class="grande num">{{CONCURSOS}}</span><p>concursos do Diário da República lidos e guardados</p></li>
         <li><span class="grande num">2 milhões</span><p>de contratos do Portal BASE, para ver quem ganha e por quanto</p></li>
-        <li><span class="grande num">9 500</span><p>entidades públicas, cada uma com a sua ficha</p></li>
+        <li><span class="grande num">9 500</span><p>entidades públicas, cada uma com o seu histórico de contratos</p></li>
         <li><span class="grande num">99%</span><p>dos concursos numa plataforma de onde as peças chegam sozinhas: acinGov, Vortal, anoGov e ComprasPT</p></li>
       </ul>
     </div>
@@ -462,15 +462,15 @@ form .btn{justify-self:start}
         <div class="texto">
           <p class="sobre">Não perder o concurso certo</p>
           <h2>O concurso que interessa está na lista, mesmo escrito de outra maneira.</h2>
-          <p>Lemos tudo o que a parte L publica, sem filtros à entrada. Depois recortamos pelos códigos CPV da sua empresa, que é onde uma pesquisa por palavra falha e um código não.</p>
+          <p>Lemos todos os anúncios de concursos que o Diário da República publica. Depois mostramos-lhe os da sua área, escolhidos pelos códigos CPV (a classificação que cada concurso traz), que apanham o que uma pesquisa por palavra deixa escapar.</p>
           <ul>
             <li>Uma lista só, com o Diário da República e as consultas preliminares da Vortal</li>
             <li>Alerta por e-mail quando entra um concurso que encaixa</li>
-            <li>Triagem num clique: interessa, ou não vamos, com o motivo</li>
+            <li>Num clique, marca o que interessa e o que fica de fora, com o motivo</li>
           </ul>
         </div>
         <div class="cartao" role="img" aria-label="Exemplo do alerta por e-mail: três concursos novos que encaixam nos códigos CPV da empresa">
-          <div class="cartao-cabeca"><strong>3 concursos novos no seu perfil</strong><span>Alerta de hoje</span></div>
+          <div class="cartao-cabeca"><strong>3 concursos novos na sua área</strong><span>Alerta de hoje</span></div>
           <div class="cartao-corpo">
             <ul class="leitura">
               <li><span class="rot num">CPV 50730000 · Município de Leiria</span><span>Manutenção de equipamentos de climatização</span><span class="onde num">184 652 €</span></li>
@@ -489,8 +489,8 @@ form .btn{justify-self:start}
           <p>Sem um serviço que as junte, a procura faz-se uma a uma: Vortal, acinGov, anoGov, cada uma com a sua conta e a sua pesquisa. O Mira Gov junta numa lista só tudo o que o Diário da República publica, verificado ao longo do dia. Quando a equipa chega, o trabalho de procurar já está feito: o que entrou, o que mudou e o que tem prazo esta semana, com cada tarefa atribuída a alguém.</p>
           <ul>
             <li>{{RITMO}}, {{RITMO_DETALHE}}</li>
-            <li>O ecrã Hoje mostra os prazos da semana e o que cada pessoa tem para fazer</li>
-            <li>Cada proposta sabe em que passo está, do primeiro olhar ao resultado</li>
+            <li>Ao entrar, vê os prazos da semana e o que cada pessoa tem para fazer</li>
+            <li>Cada proposta mostra em que fase está: em análise, em preparação, submetida, ganha ou perdida</li>
             <li>Nada para instalar: abre-se no browser, no computador ou no telemóvel</li>
           </ul>
         </div>
@@ -568,9 +568,9 @@ form .btn{justify-self:start}
     <div class="wrap">
       <div>
         <h2>Experimente com os concursos da sua área, sem pagar até 31 de dezembro.</h2>
-        <p>Configuramos o perfil da empresa consigo, e a equipa pode começar a trabalhar no próprio dia.</p>
+        <p>Escolhemos consigo as áreas que interessam à empresa, e a equipa pode começar a trabalhar no próprio dia.</p>
       </div>
-      <a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a>
+      <a class="btn btn-primario" href="#acesso">Pedir um lugar de fundador</a>
     </div>
   </div>
 
@@ -581,9 +581,9 @@ form .btn{justify-self:start}
         <h2 id="t-como">Três passos, e o primeiro é o único que dá trabalho.</h2>
       </div>
       <ol class="passos">
-        <li><h3>Diga o que a empresa faz</h3><p>Escolhemos consigo os códigos CPV do seu setor. É esse o perfil da empresa, e é por ele que a lista se recorta.</p></li>
-        <li><h3>O Mira Gov verifica, ao longo do dia</h3><p>Lê o Diário da República e a Vortal, descarrega as peças e cruza cada entidade com o Portal BASE.</p></li>
-        <li><h3>A equipa decide</h3><p>Abre o painel, vê o que entrou e o que tem prazo, e marca o que vai fazer. O resto já está feito.</p></li>
+        <li><h3>Diga o que a empresa faz</h3><p>Escolhemos consigo os códigos CPV da sua área, a classificação que cada concurso traz. É por eles que o Mira Gov escolhe os concursos que lhe mostra.</p></li>
+        <li><h3>O Mira Gov verifica, ao longo do dia</h3><p>Lê o Diário da República e a Vortal, descarrega as peças e junta a cada concurso os contratos que a entidade já celebrou, do Portal BASE.</p></li>
+        <li><h3>A equipa decide</h3><p>Abre o Mira Gov no browser, vê o que entrou e o que tem prazo, e marca o que vai fazer. O resto já está feito.</p></li>
       </ol>
     </div>
   </section>
@@ -599,7 +599,7 @@ form .btn{justify-self:start}
           <h3>Fontes públicas e verificáveis</h3>
           <p>Tudo o que o Mira Gov mostra vem de fontes públicas, e cada anúncio leva a ligação para o original:</p>
           <ul>
-            <li><a href="https://diariodarepublica.pt/" rel="noopener">Diário da República</a>, 2.ª série, parte L</li>
+            <li><a href="https://diariodarepublica.pt/" rel="noopener">Diário da República</a>, 2.ª série, parte L (a dos contratos públicos)</li>
             <li>Consultas preliminares publicadas na <a href="https://community.vortal.biz/" rel="noopener">Vortal</a></li>
             <li>Contratos do <a href="https://www.base.gov.pt/" rel="noopener">Portal BASE</a>, em dados abertos</li>
           </ul>
@@ -630,32 +630,32 @@ form .btn{justify-self:start}
           <h3 id="p-solo">Solo</h3>
           <p class="preco num">39 € <small>/mês + IVA</small></p>
           <p class="quem">1 pessoa, uma sessão de cada vez<br>408 €/ano no plano anual</p>
-          <a class="btn btn-contorno" href="#acesso" data-plano="solo">Pedir o Solo</a>
+          <a class="btn btn-contorno" href="#acesso">Pedir o Solo</a>
         </article>
         <article class="plano destaque" aria-labelledby="p-duo">
           <h3 id="p-duo">Duo</h3>
           <p class="preco num">75 € <small>/mês + IVA</small></p>
           <p class="quem">2 pessoas, cada uma com a sua conta<br>780 €/ano no plano anual</p>
-          <a class="btn btn-primario" href="#acesso" data-plano="duo">Pedir o Duo</a>
+          <a class="btn btn-primario" href="#acesso">Pedir o Duo</a>
         </article>
         <article class="plano" aria-labelledby="p-corporate">
           <h3 id="p-corporate">Corporate</h3>
           <p class="preco">Sob consulta</p>
           <p class="quem">Mais de 2 pessoas, com o preço pelo número de pessoas e as condições acordadas por escrito</p>
-          <a class="btn btn-contorno" href="#acesso" data-plano="corporate">Falar connosco</a>
+          <a class="btn btn-contorno" href="#acesso">Falar connosco</a>
         </article>
       </div>
       <div class="em-todos">
         <h3>Em todos os planos</h3>
         <ul>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os concursos do Diário da República e as consultas preliminares, recortados pelos CPV da empresa</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os concursos do Diário da República e as consultas preliminares da Vortal, escolhidos pela área da empresa</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os alertas por e-mail</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As peças descarregadas sozinhas e lidas por IA, com a página de onde vem cada linha</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O mercado: quem ganha e a que preço, do Portal BASE</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As propostas na escada e o calendário dos prazos</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As tarefas atribuídas a alguém, com prazo, e o Hoje de cada pessoa</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Cada proposta acompanhada fase a fase, e o calendário dos prazos</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As tarefas atribuídas a cada pessoa, com prazo, e a lista do que cada uma tem para fazer</span></li>
             <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As notas e o histórico partilhados em cada proposta</span></li>
-            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O cofre dos documentos da empresa, com as validades</span></li>
+            <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Os documentos da empresa, como certidões e declarações, guardados com a data de validade</span></li>
         </ul>
       </div>
     </div>
@@ -669,13 +669,13 @@ form .btn{justify-self:start}
           <h2 id="t-fundador">Oferta de fundador.</h2>
           <p>O Duo a <strong>55 €/mês + IVA</strong>, em vez de 75 €, ou 576 €/ano no plano anual. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
           <p>Em troca, pedimos a sua opinião franca sobre o que falta, e autorização para citar o nome da empresa e uma apreciação sua.</p>
-          <div class="accoes"><a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a></div>
+          <div class="accoes"><a class="btn btn-primario" href="#acesso">Pedir um lugar de fundador</a></div>
           <p class="condicoes">Para as primeiras dez empresas convidadas. As condições estão nos <a href="/termos">termos de utilização</a>.</p>
         </div>
         <ul>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O plano Duo, para 2 pessoas, com tudo o que o Mira Gov faz</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Nada a pagar até 31 de dezembro de 2026</span></li>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Configuração do perfil da empresa feita connosco</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As áreas da empresa configuradas connosco</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>55 €/mês + IVA a partir de janeiro, ou 576 €/ano no plano anual, enquanto não interromper</span></li>
         </ul>
       </div>
@@ -692,11 +692,11 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>De onde vêm os dados?</summary>
-          <p>De fontes públicas: os anúncios da 2.ª série, parte L, do Diário da República; as consultas preliminares publicadas na Vortal; e os contratos celebrados que o IMPIC publica em dados abertos, a partir do Portal BASE. As peças vêm das próprias plataformas onde o procedimento corre.</p>
+          <p>De fontes públicas: os anúncios de contratos públicos do Diário da República (2.ª série, parte L); as consultas preliminares publicadas na Vortal; e os contratos celebrados que o IMPIC publica em dados abertos, a partir do Portal BASE. As peças vêm das próprias plataformas onde o procedimento corre.</p>
         </details>
         <details>
           <summary>Serve para a minha área?</summary>
-          <p>Serve para qualquer empresa que concorra a concursos públicos: obras, fornecimento de bens, serviços ou tecnologias de informação. Não filtramos nada à entrada, e o perfil de cada empresa é que recorta a lista.</p>
+          <p>Serve para qualquer empresa que concorra a concursos públicos: obras, fornecimento de bens, serviços ou tecnologias de informação. Lemos todos os anúncios, e cada empresa vê os da sua área.</p>
         </details>
         <details>
           <summary>A leitura das peças substitui a leitura humana?</summary>
@@ -712,7 +712,7 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Os dados da minha empresa ficam protegidos?</summary>
-          <p>Sim. O trabalho de cada empresa (a triagem, as propostas, os preços e as notas) fica guardado à parte, e nenhuma outra empresa o vê, nem as que concorrem aos mesmos concursos. As ligações são cifradas, e as cópias de segurança também.</p>
+          <p>Sim. O trabalho de cada empresa (o que marcou, as propostas, os preços e as notas) fica guardado à parte, e nenhuma outra empresa o vê, nem as que concorrem aos mesmos concursos. As ligações são cifradas, e as cópias de segurança também.</p>
         </details>
         <details>
           <summary>E se o Mira Gov acabar?</summary>
@@ -739,7 +739,7 @@ form .btn{justify-self:start}
       <div class="cabeca">
         <p class="sobre" style="color:var(--seal-on-dark)">Pedir acesso</p>
         <h2 id="t-acesso">Peça o seu lugar.</h2>
-        <p>Deixe-nos o contacto, o NIF da empresa e o plano que lhe interessa. Respondemos por e-mail com os próximos passos, normalmente no próprio dia útil.</p>
+        <p>Deixe-nos o seu contacto. Respondemos com os próximos passos, normalmente no próprio dia útil. Pedir não o compromete a nada.</p>
         <p class="contacto">Prefere escrever? <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a></p>
       </div>
       <form id="form-acesso" method="post" action="/pedir-acesso" novalidate>
@@ -748,22 +748,13 @@ form .btn{justify-self:start}
           <div class="campo"><label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" required maxlength="160"></div>
         </div>
         <div class="duas">
-          <div class="campo"><label for="email">E-mail profissional</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
-          <div class="campo"><label for="nif">NIF da empresa</label><input id="nif" name="nif" inputmode="numeric" autocomplete="off" required maxlength="14" pattern="\s*(PT)?\s*[0-9](\s*[0-9]){8}\s*" aria-describedby="nif-ajuda"><small id="nif-ajuda">Nove algarismos: é o da fatura</small></div>
+          <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+          <div class="campo"><label for="telefone">Telemóvel</label><input id="telefone" name="telefone" type="tel" autocomplete="tel" required maxlength="30" pattern="[0-9 .\(\)\+\-]{9,30}"></div>
         </div>
         <div class="campo">
-          <label for="plano">O que lhe interessa</label>
-          <select id="plano" name="plano" required>
-            <option value="fundador">Oferta de fundador (55 €/mês)</option>
-            <option value="solo">Solo (39 €/mês)</option>
-            <option value="duo">Duo (75 €/mês)</option>
-            <option value="corporate">Corporate (sob consulta)</option>
-          </select>
-        </div>
-        <div class="campo">
-          <label for="sector">Setor</label>
+          <label for="sector">Área</label>
           <select id="sector" name="sector" required>
-            <option value="">Escolher o setor</option>
+            <option value="">Escolher a área</option>
             <option>Obras públicas e construção</option>
             <option>Fornecimento de bens</option>
             <option>Prestação de serviços</option>
@@ -771,7 +762,6 @@ form .btn{justify-self:start}
             <option>Outro</option>
           </select>
         </div>
-        <div class="campo"><label for="mensagem">Mensagem <small>(opcional)</small></label><textarea id="mensagem" name="mensagem" maxlength="2000" placeholder="Os CPV em que trabalha, ou o que gostava de ver no Mira Gov"></textarea></div>
         <div class="armadilha" aria-hidden="true"><label for="website">Não preencher</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
         <p class="erro" id="erro" role="alert" hidden></p>
         <button type="submit" class="btn btn-primario" id="enviar">Pedir acesso</button>
@@ -814,13 +804,6 @@ form .btn{justify-self:start}
     if (focar) obrigado.focus();
   }
 
-  // Os botões dos planos levam ao formulário com o plano já escolhido
-  Array.prototype.forEach.call(document.querySelectorAll("a[data-plano]"), function (a) {
-    a.addEventListener("click", function () {
-      document.getElementById("plano").value = a.getAttribute("data-plano");
-    });
-  });
-
   try {
     var guardado = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
     if (guardado && guardado.email) confirma(guardado, false);
@@ -830,7 +813,7 @@ form .btn{justify-self:start}
     e.preventDefault();
     erro.hidden = true;
     var invalidos = [];
-    ["nome", "empresa", "email", "nif", "sector"].forEach(function (id) {
+    ["nome", "empresa", "email", "telefone", "sector"].forEach(function (id) {
       var el = document.getElementById(id);
       var mau = !el.value.trim() || !el.checkValidity();
       el.setAttribute("aria-invalid", mau ? "true" : "false");
@@ -840,12 +823,12 @@ form .btn{justify-self:start}
       // só o e-mail mal escrito diz-se como tal (06A #19): a frase do
       // formulário vazio mandava preencher o que já estava preenchido
       var email = document.getElementById("email");
-      var nif = document.getElementById("nif");
+      var telefone = document.getElementById("telefone");
       mostraErro(invalidos.length === 1 && invalidos[0] === email && email.value.trim()
         ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
-        : invalidos.length === 1 && invalidos[0] === nif && nif.value.trim()
-        ? "O NIF não parece válido: são nove algarismos."
-        : "Preencha o nome, a empresa, um e-mail válido, o NIF e o sector, para podermos responder.");
+        : invalidos.length === 1 && invalidos[0] === telefone && telefone.value.trim()
+        ? "O telemóvel não parece válido: são nove algarismos, ou o indicativo e o número."
+        : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e a área, para podermos responder.");
       invalidos[0].focus();
       return;
     }
