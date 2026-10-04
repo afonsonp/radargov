@@ -889,7 +889,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**139 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**140 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1370,7 +1370,7 @@ dono da plataforma as abre; os **documentos** só o admin da empresa.
 |---|---|
 | **conta** | três cartões desde 1/10/2026 (M2): **a minha conta** — palavra-passe, e-mail de contacto (o do «esqueci-me»), sessões, o **aspecto** (normal, escuro, como o sistema ou alto contraste, por pessoa — D14, 26/09/2026; D1, 29/09/2026); **a empresa e a equipa** — a nossa empresa (nome + NIF), utilizadores, convites; e o **registo do suporte**, quando o há. Os dois últimos só o gestor |
 | **perfil da empresa** (`interesse`) | os CPV que a empresa trabalha, e as exclusões; os distritos (agrupados por região, cada uma com o seu «todos» — M3, 1/10/2026; grava-se o mesmo de sempre) e o preço base mínimo |
-| **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail |
+| **alertas** | filtros de alerta, entidades seguidas, o resumo por e-mail; o utilizador vê-os e só o gestor os muda (4/10/2026) |
 | **importar** | o registo da empresa, pelo modelo Excel: um ensaio antes de gravar (o que entra, o que é novo, o que altera uma proposta que existe e o quê, o que o Portal BASE contradiz, as colunas que não são do modelo), a «Data da decisão» (sem ela, o prazo do anúncio), e **cada importação desfaz-se** enquanto ninguém mexer nas propostas que tocou (26/09/2026) |
 | **documentos** | o cofre dos documentos da empresa (26/09/2026, D5): o alvará, as certidões da AT e da Segurança Social, as ISO 9001, 14001 e 45001, os seguros de responsabilidade civil e de acidentes de trabalho, outro — com o número e a validade, **sem os ficheiros**. Cada validade dá uma tarefa 15 dias antes (§3.5) |
 | indicadores | as capturas, a recolha, o corpus — a saúde da máquina |
@@ -1561,12 +1561,16 @@ cria e tira as contas **dela** — nunca a do dono, que só o dono tira, e o
 `/configuracoes/conta/utilizadores`, `/configuracoes/conta/empresa` e
 `/arranque/dispensar`, o cartão do Hoje, e desde 29/09/2026 o **gravar
 do Perfil da empresa**, `/alertas/interesse` e `/configuracoes/propostas`
-— D7 da 3.ª ronda: o perfil recorta os concursos de toda a equipa);
+— D7 da 3.ª ronda: o perfil recorta os concursos de toda a equipa; e
+desde 4/10/2026, decisão dele, **os alertas** — criar, ligar, apagar,
+o destino do resumo, o «avisar logo» e a janela do urgente — e **apagar
+uma proposta**: `RX_SO_ADMIN` apanha os caminhos com um número no
+meio);
 `sou_admin()` é a pergunta. Quem abre uma destas sem ser admin vê uma
 página **dentro do molde** que diz o nome do admin da empresa, a quem
 pedir (`recado_so_do_admin()`, 3.ª ronda, G17). O **tester** trabalha, e
-vê o Perfil da empresa só para ler (os campos desligados e a linha «só
-o gestor o muda»). **No ecrã os papéis chamam-se «gestor» (o admin) e
+vê o Perfil da empresa e os Alertas só para ler (os campos desligados e
+a linha «só o gestor o muda»). **No ecrã os papéis chamam-se «gestor» (o admin) e
 «utilizador» (o tester)** desde 29/09/2026 (D7, decisão dele: «as
 expressões admin e tester devem sair»): nos ecrãs, nos e-mails, nos
 convites, nas recusas e nos termos (`PAPEL_NO_ECRA`). Na base e no

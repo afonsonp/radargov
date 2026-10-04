@@ -1571,7 +1571,20 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   (`interesse=nao`: o «ver tudo», e o que o dono vê, que não tem
   empresa) — a v2.0.24 só fazia o perfil de cada empresa, e o resumo do
   corpus inteiro levou 33 s na primeira visita, em produção, a
-  29/09/2026.
+  29/09/2026. Desde 4/10/2026 o «ver tudo» aquece-se **mesmo sem empresa
+  nenhuma** (só aquecia dentro do ciclo das empresas, e a plataforma
+  estava sem clientes), os Concorrentes também (36 s por visita), e a
+  vigia aquece outra vez às `HORA_DE_AQUECER` (7h): a máquina tem 7 GB e
+  as duas bases não cabem na cache do sistema. **Os Concorrentes
+  guardam-se por degraus de `LIDOS_POR_DEGRAU`**, e não pelo número
+  exacto de lidos: a recolha lê um contrato a cada poucos segundos, e a
+  chave mudava a cada visita.
+- **Um filtro que só usa colunas do `ix_anuncios_cobre` lê-se do
+  índice** (`_anuncios_para()`, 4/10/2026). O `titulo_norm` vive depois
+  do `texto` na tabela, e um alerta por palavras lia-a inteira: criar ou
+  ligar um levou 94 a 133 s a frio, na 5.ª ronda; do índice são 0,07 s.
+  Só no `registar_alertas()` por agora: a lista pede `SELECT *`, que o
+  índice não cobre.
 - **A pesquisa por objecto vai pelo índice de texto** (FTS5 `trigram`,
   `contratos_fts`, lote 10). O `LIKE '%termo%'` sobre os dois milhões de
   objectos levava 8 a 34 s à primeira. O índice é de conteúdo externo

@@ -778,7 +778,7 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
         return None, porque
     if c.execute("SELECT 1 FROM utilizadores WHERE email=?",
                  (email_limpo(utilizador),)).fetchone():
-        return None, "já existe um utilizador com esse nome; escolhe outro"
+        return None, "já existe um utilizador com esse nome; escolha outro"
     # o plano pode ter descido depois do convite: so as contas contam aqui
     if lugares_livres(c, convite["empresa_id"], agora, contar_convites=False) == 0:
         return None, frase_do_limite(c, convite["empresa_id"])

@@ -180,7 +180,7 @@ th.dir,td.preco{text-align:right}
 /* o ritmo é texto («De hora a hora»), e parte-se; os números não */
 .numeros .grande.ritmo{white-space:normal}
 .numeros p{margin-top:10px;color:var(--ink-secondary);font-size:.95rem;line-height:1.4}
-@media (max-width:980px){.numeros ul{grid-template-columns:repeat(2,minmax(0,1fr))}.numeros li{border-left:0;padding:24px 0;border-top:1px solid var(--line)}.numeros li:nth-child(-n+2){border-top:0}.numeros li:nth-child(2n){padding-left:20px;border-left:1px solid var(--line)}.numeros li:last-child{grid-column:1/-1;padding-left:0;border-left:0}}
+@media (max-width:980px){.numeros ul{grid-template-columns:repeat(2,minmax(0,1fr))}.numeros li{border-left:0;padding:24px 0;border-top:1px solid var(--line)}.numeros li:nth-child(-n+2){border-top:0}.numeros li:nth-child(2n){padding-left:20px;border-left:1px solid var(--line)}.numeros li:last-child:nth-child(odd){grid-column:1/-1;padding-left:0;border-left:0}}
 
 /* Secções */
 section{padding-block:88px}
@@ -361,6 +361,8 @@ form .btn{justify-self:start}
 </style>
 </head>
 <body>
+<!-- como na aplicação (5.ª ronda): o primeiro Tab ia ao logótipo -->
+<a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
 
 <header class="topo">
   <div class="wrap">
@@ -390,6 +392,7 @@ form .btn{justify-self:start}
 </header>
 
 <main id="inicio">
+<span id="conteudo" tabindex="-1"></span>
   <section class="abertura" aria-labelledby="t-abertura">
     <div class="wrap grelha">
       <div>
@@ -435,7 +438,7 @@ form .btn{justify-self:start}
               </tbody>
             </table>
           </div>
-          <div class="ecra-rodape"><span>Última verificação há <span class="num">20</span> min · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">4</span> de <span class="num">5</span></span></div>
+          <div class="ecra-rodape"><span>Última verificação há <span class="num">20</span> min · <span class="num">12</span> novos</span><span>Peças descarregadas: <span class="num">3</span> de <span class="num">3</span></span></div>
         </div>
 
         <div class="ficha">
@@ -503,7 +506,7 @@ form .btn{justify-self:start}
           <ul>
             <li>{{RITMO}}, {{RITMO_DETALHE}}</li>
             <li>Ao entrar, vê os prazos da semana e o que cada pessoa tem para fazer</li>
-            <li>Cada proposta mostra em que fase está: em análise, em preparação, submetida, ganha ou perdida</li>
+            <li>Cada proposta mostra em que fase está: por analisar, a preparar, submetida, ganha ou perdida</li>
             <li>Nada para instalar: abre-se no browser, no computador ou no telemóvel</li>
           </ul>
         </div>
@@ -605,7 +608,7 @@ form .btn{justify-self:start}
     <div class="wrap">
       <div class="cabeca">
         <p class="sobre">Fontes</p>
-        <h2 id="t-confianca">Tudo o que mostramos pode confirmar na origem.</h2>
+        <h2 id="t-confianca">Pode confirmar na origem tudo o que mostramos.</h2>
       </div>
       <div class="confianca">
         <div>
@@ -636,7 +639,7 @@ form .btn{justify-self:start}
       <div class="cabeca">
         <p class="sobre">Planos</p>
         <h2 id="t-planos">Três planos.</h2>
-        <p>Têm todos o mesmo: muda só o número de pessoas. A leitura das peças por IA está em todos. Aos preços acresce o IVA. O serviço é pré-pago, ao mês ou ao ano. O plano anual oferece um mês e meio e paga-se de uma vez, no início; basta não renovar para sair.</p>
+        <p>Têm todos o mesmo: muda só o número de pessoas (e o Solo tem uma sessão aberta de cada vez). A leitura das peças por IA está em todos. Aos preços acresce o IVA. O serviço é pré-pago, ao mês ou ao ano. O plano anual oferece um mês e meio e paga-se de uma vez, no início; basta não renovar para sair.</p>
       </div>
       <div class="planos">
         <article class="plano" aria-labelledby="p-solo">
@@ -680,10 +683,10 @@ form .btn{justify-self:start}
         <div>
           <span class="selo">10 lugares</span>
           <h2 id="t-fundador">Oferta de fundador.</h2>
-          <p>O Duo a <strong>55 €/mês + IVA</strong>, em vez de 75 €, ou 576&nbsp;€/ano no plano anual. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
+          <p>O Duo a <strong>55 €/mês + IVA</strong>, em vez de 75 €. O preço mantém-se enquanto a subscrição não for interrompida.</p>
           <p>Em troca, pedimos a sua opinião franca sobre o que falta, e autorização para citar o nome da empresa e uma apreciação sua.</p>
           <div class="accoes"><a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a></div>
-          <p class="condicoes">Para as primeiras dez empresas convidadas. As condições estão nos <a href="/termos">termos de utilização</a>.</p>
+          <p class="condicoes">Para as primeiras dez empresas que aceitarmos. As condições estão nos <a href="/termos">termos de utilização</a>.</p>
         </div>
         <ul>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O plano Duo, para 2 pessoas, com tudo o que o Mira Gov faz</span></li>
@@ -721,7 +724,7 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Quantas pessoas da equipa podem usar?</summary>
-          <p>Depende do plano, e é só isso que muda entre eles: uma no Solo, com uma sessão aberta de cada vez; duas no Duo; e mais de duas no Corporate, com o preço pelo número de pessoas. Cada pessoa tem a sua conta, e quem gere a empresa no Mira Gov convida as restantes e escolhe o que cada uma pode fazer.</p>
+          <p>Depende do plano, e é o que muda entre eles: uma no Solo, com uma sessão aberta de cada vez; duas no Duo; e mais de duas no Corporate, com o preço pelo número de pessoas. Cada pessoa tem a sua conta, e quem gere a empresa no Mira Gov convida as restantes e escolhe o que cada uma pode fazer.</p>
         </details>
         <details>
           <summary>Os dados da minha empresa ficam protegidos?</summary>
@@ -756,6 +759,9 @@ form .btn{justify-self:start}
         <p class="contacto">Prefere escrever? <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a></p>
       </div>
       <form id="form-acesso" method="post" action="/pedir-acesso" novalidate>
+        <!-- o erro antes dos campos (5.ª ronda): por baixo da Área ficava
+             fora do ecrã no telemóvel, e só se viam caixas a vermelho -->
+        <p class="erro" id="erro" role="alert" hidden></p>
         <div class="duas">
           <div class="campo"><label for="nome">Nome</label><input id="nome" name="nome" autocomplete="name" required maxlength="120"></div>
           <div class="campo"><label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" required maxlength="160"></div>
@@ -777,7 +783,6 @@ form .btn{justify-self:start}
         </div>
         <input type="hidden" name="plano" id="plano" value="">
         <div class="armadilha" aria-hidden="true"><label for="website">Não preencher</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-        <p class="erro" id="erro" role="alert" hidden></p>
         <button type="submit" class="btn btn-primario" id="enviar">Pedir acesso</button>
         <p class="nota">Usamos estes dados só para responder ao seu pedido<!--LEGAL-NOTA-->.</p>
         <div class="obrigado" id="obrigado" role="status" tabindex="-1" hidden>
@@ -858,8 +863,9 @@ form .btn{justify-self:start}
         ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
         : invalidos.length === 1 && invalidos[0] === telefone && telefone.value.trim()
         ? "O telemóvel não parece válido: são nove algarismos, ou o indicativo e o número."
-        : invalidos.length === 1
-        ? "Falta " + NOMES[invalidos[0].id] + "."
+        : invalidos.length < 5
+        ? "Falta " + invalidos.map(function (el) { return NOMES[el.id]; })
+            .join(", ").replace(/, ([^,]*)$/, " e $1") + "."
         : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e a área, para podermos responder.");
       invalidos[0].focus();
       return;
