@@ -22762,6 +22762,29 @@ class TestPedidosDeAcessoRecusarEOCorreio(_PlataformaComDuasEmpresas):
         self.assertIn("tom=erro", r.headers["Location"])
 
 
+class TestOPedidoAceiteNaoExecutaOQueOVisitanteEscreveu(_PlataformaComDuasEmpresas):
+    """O nome da empresa vem do formulário público e entrava cru no
+    subtítulo do «Pedido aceite»: quem pedia acesso corria JavaScript na
+    sessão do dono da plataforma quando ele o aceitava (4/10/2026)."""
+
+    def test_o_subtitulo_do_aceite_escapa_o_nome_da_empresa(self):
+        malicioso = "<script>alert(1)</script><img src=x onerror=alert(2)>"
+        with radar.liga() as c:
+            c.execute("UPDATE pedidos_acesso SET empresa=? WHERE id=?",
+                      (malicioso, self.pedido))
+        dono = self.entrar("dono")
+        with unittest.mock.patch.object(radar, "enviar_email",
+                                        return_value=(True, "ok")):
+            r = self.post(dono, "/pedidos-de-acesso/%d/aceitar" % self.pedido,
+                          {"cpv": "", "pbmin": "", "plano": "solo"},
+                          "/pedidos-de-acesso/%d/aceitar" % self.pedido)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("foi criada", corpo)
+        self.assertNotIn("<script>alert(1)", corpo)
+        self.assertNotIn("<img src=x", corpo)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", corpo)
+
+
 class TestOProcedimentoAbreAQuemEDeEmpresa(_PlataformaComDuasEmpresas):
     """O «Abrir na Vortal» passava por `/plataforma/<ref>`, que caía no
     prefixo de `ROTAS_SO_DONO`: dava 403 a todas as contas de empresa."""

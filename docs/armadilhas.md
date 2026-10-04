@@ -3681,6 +3681,16 @@ As regras de desenho da empresa. As medidas estão em
 `docs/design.md`** (16/09/2026) — lê-o antes de mexer em cor, letra,
 botões ou no calendário.
 
+- **O subtítulo do `envolver()`, o corpo do `cartao()` e o do
+  `cabecalho_de_pagina()` são HTML por contrato: escapa-se à chegada, em
+  quem chama** (4/10/2026). O `aceitar_pedido()` passava o nome da
+  empresa, que vem do formulário público `/pedir-acesso` sem escape, cru
+  para o subtítulo do «Pedido aceite» — um XSS armazenado que corria no
+  browser do dono. Qualquer texto que um visitante, um fornecedor ou o
+  DR possam escrever passa por `html.escape()` antes de entrar num
+  desses três; o teste é
+  `TestOPedidoAceiteNaoExecutaOQueOVisitanteEscreveu`.
+
 - **A citação «(pág. 2)» não diz de que peça é, e quem escolhe é a
   ficha** (L1 do plano de Outubro, 30/09/2026). A leitura guarda as
   fontes todas juntas, não por campo, e só nomeia a peça quando o
