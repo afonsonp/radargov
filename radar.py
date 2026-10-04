@@ -19192,7 +19192,7 @@ function arvoreConstruir(dados) {
   raizes.forEach(function(cod) { corpo.appendChild(arvoreNo(cod, porCodigo, filhos, total)); });
   document.getElementById('arvore-contagem').textContent =
       // com o espaço dos milhares, como o título diz «9 454» (4.ª ronda)
-      String(dados.length).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') + ' códigos, ' + raizes.length + ' divisões';
+      String(dados.length).replace(/\\B(?=(\\d{3})+(?!\\d))/g, '\\u00a0') + ' códigos, ' + raizes.length + ' divisões';
   arvoreMarcarSemeados();
 }
 
@@ -21306,11 +21306,6 @@ _NOMES_ACCAO = {"análise": "leitura",
                 "data_adjudicacao": "data da adjudicação",
                 "audiencia_em": "notificação do relatório preliminar",
                 "valor_adjudicado": "valor adjudicado",
-<<<<<<< HEAD
-=======
-                # o prazo de entrega (1/10/2026) saía com o nome da
-                # coluna (4.ª ronda)
->>>>>>> a57e9b9 (fix: os achados da 4.ª ronda de testes (oito perfis num painel de ensaio))
                 "prazo_entrega": "prazo de entrega"}
 
 
