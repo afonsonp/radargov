@@ -13150,7 +13150,11 @@ class TestPaginasNaoVarremATabelaLarga(BaseTemporaria):
             passos = [r[-1] for r in c.execute(
                 "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM anuncios" + onde,
                 vals)]
-        self.assertTrue(any("MULTI-INDEX OR" in p for p in passos), passos)
+        # desde 5/10/2026 é um `rowid IN (… UNION …)`, e os dois índices
+        # aparecem pelo nome; nenhum passo varre a tabela larga
+        self.assertTrue(any("ix_anuncios_nif" in p for p in passos), passos)
+        self.assertTrue(any("ix_anuncios_entidade" in p for p in passos), passos)
+        self.assertFalse(any(p.strip() == "SCAN anuncios" for p in passos), passos)
 
     def test_os_indices_existem_e_repor_e_idempotente(self):
         # o mesmo que as migrações: correr duas vezes não muda nada
@@ -26443,6 +26447,49 @@ class TestAQuintaRondaDeTestes(BaseTemporaria):
     def test_um_preco_absurdo_nao_se_le(self):
         self.assertIsNone(radar.preco_escrito("100000000000000000000"))
         self.assertEqual(radar.preco_escrito("118 500,00"), "118.500,00 EUR")
+
+    def test_a_pagina_de_uma_pesquisa_escolhe_se_no_indice(self):
+        """5/10/2026: «escola» por prazo lia o `texto` de cada candidato;
+        agora a página escolhe-se no `ix_anuncios_cobre`, e as linhas e a
+        ordem são as mesmas."""
+        radar.iniciar_db()
+        with radar.liga() as c:
+            for i, (titulo, prazo) in enumerate((("Escola A", "2026-11-02"),
+                                                 ("Escola B", "2026-10-20"),
+                                                 ("Ponte", "2026-10-10"),
+                                                 ("Escola C", ""))):
+                c.execute("INSERT INTO anuncios (ref, titulo, titulo_norm, data_pub, "
+                          "estado, prazo) VALUES (?,?,?,?,?,?)",
+                          ("%d/2026" % i, titulo, titulo.lower(), "2026-09-0%d" % (i + 1),
+                           "novo", prazo))
+        onde, vals = radar.condicoes({"q": "escola", "estado": ""})
+        ordem = radar.ordem_da_lista({"ordem": "prazo"})
+        sql = radar.consulta_da_pagina(onde, 5000, ordem)
+        self.assertIn("INDEXED BY ix_anuncios_cobre", sql)
+        with radar.liga() as c:
+            self.assertEqual([r["ref"] for r in c.execute(sql, vals + [20, 0])],
+                             ["1/2026", "0/2026", "3/2026"])
+
+    def test_o_nif_apanha_as_grafias_sem_nif_pelos_indices(self):
+        """5/10/2026: o `OR` passou a `rowid IN (… UNION …)`; continua a
+        apanhar os anúncios sem NIF com a mesma grafia da entidade."""
+        radar.iniciar_db()
+        with radar.liga() as c:
+            for ref, nif, ent in (("1/2026", "506809323", "Câmara X"),
+                                  ("2/2026", "", "Câmara X"),
+                                  ("3/2026", "", "Outra")):
+                c.execute("INSERT INTO anuncios (ref, titulo, data_pub, estado, nif, "
+                          "entidade) VALUES (?,'t','2026-09-01','novo',?,?)", (ref, nif, ent))
+        onde, vals = radar.condicoes({"nif": "506 809 323", "estado": ""})
+        with radar.liga() as c:
+            self.assertEqual(sorted(r[0] for r in c.execute(
+                "SELECT ref FROM anuncios" + onde, vals)), ["1/2026", "2/2026"])
+
+    def test_a_data_continua_conferida_sem_o_strptime(self):
+        self.assertEqual(radar.data_pt("2026-08-21"), "21/08/2026")
+        self.assertEqual(radar.data_pt("2026-08-21 10:00"), "21/08/2026")
+        self.assertEqual(radar.data_pt("2026-02-31"), "2026-02-31")
+        self.assertEqual(radar.data_pt(""), "—")
 
     def test_o_telefone_grava_se_num_so_formato(self):
         self.assertEqual(radar.telefone_arrumado("912345678"), "912 345 678")

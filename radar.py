@@ -1475,8 +1475,10 @@ def iniciar_db():
                   "ON anuncios(estado, data_pub DESC, ref DESC, prazo, "
                   "detalhe_lido, plataforma, cpv, preco_base, titulo_norm, "
                   "preco_estimado)")
-        # O filtro por entidade (`condicoes()`, campo `nif`), que é
+        # O filtro por entidade (`condicoes()`, campo `nif`), que era
         # `nif = ? OR entidade IN (SELECT DISTINCT entidade WHERE nif=?)`
+        # (desde 5/10/2026 um `rowid IN (... UNION ...)`, que usa os dois
+        # índices mesmo com o recorte de uma aba ao lado)
         # -- as duas metades, porque só com uma delas indexada o SQLite
         # não usa a optimização MULTI-INDEX OR e varre a tabela larga na
         # mesma. **São precisos os dois.** Medido a 17/09/2026 na base
@@ -2213,10 +2215,17 @@ def data_pt(iso, vazio="—"):
     tabelas a mostrar a data em ISO e outras a mostra-la em portugues.
     """
     iso = (iso or "").strip()
-    try:
-        return datetime.strptime(iso[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
-    except ValueError:
-        return iso or vazio
+    # Sem o strptime (5/10/2026): era metade do tempo do CSV dos
+    # concursos -- 400 mil datas, 8,6 s de 16. O date() confere a data
+    # na mesma (o 31/02 continua a não passar).
+    d = iso[:10]
+    if len(d) == 10 and d[4] == "-" and d[7] == "-":
+        try:
+            date(int(d[:4]), int(d[5:7]), int(d[8:]))
+            return "%s/%s/%s" % (d[8:], d[5:7], d[:4])
+        except ValueError:
+            pass
+    return iso or vazio
 
 
 # Os dias e os meses por extenso. Entram na banda COMUM e nao na
@@ -19964,6 +19973,15 @@ def consulta_da_pagina(onde, correspondem, ordem):
     linha inteira, para se ordenarem. Medido numa cópia: a pesquisa sem
     resultados de 17-23 s para 0,04 s, o «Expirou sem ver» de 0,30 para
     0,06 s. Com muitos fica como estava: aí a ordem é o caminho curto."""
+    # **Um filtro de texto que o índice cobre escolhe a página toda no
+    # índice** (5/10/2026): ordenada e cortada às vinte, sem ir à tabela,
+    # e só essas vão buscar a linha inteira. «escola» por prazo levava
+    # 1 s a quente e 10 a 13 s a frio, a ler o `texto` de cada candidato.
+    tabela = _anuncios_para(onde)
+    if tabela != "anuncios":
+        return ("SELECT * FROM anuncios WHERE rowid IN (SELECT rowid FROM "
+                + tabela + onde + " ORDER BY " + ordem + " LIMIT ? OFFSET ?)"
+                " ORDER BY " + ordem)
     if correspondem >= ESPARSO_PARA_A_ORDEM:
         return ("SELECT * FROM anuncios" + onde + " ORDER BY " + ordem
                 + " LIMIT ? OFFSET ?")
@@ -21602,8 +21620,13 @@ def condicoes(args):
     # para mostrar: com ele tambem, prendia-se a uma grafia so.
     nif = re.sub(r"\D", "", args.get("nif") or "")
     if nif:
-        onde.append("(nif = ? OR entidade IN (SELECT DISTINCT entidade "
-                    "FROM anuncios WHERE nif = ?))")
+        # Pelos dois índices, como o distrito (5/10/2026): com o `OR` e o
+        # recorte de uma aba ao lado, o SQLite deixava a optimização
+        # MULTI-INDEX OR e lia a tabela -- o «Expirou sem ver» de uma
+        # entidade levava 2 s a quente e 20 s a frio.
+        onde.append("+rowid IN (SELECT rowid FROM anuncios WHERE nif = ? "
+                    "UNION SELECT rowid FROM anuncios WHERE entidade IN "
+                    "(SELECT entidade FROM anuncios WHERE nif = ?))")
         valores.extend([nif, nif])
     else:
         # **Pelo índice do nome, como o distrito** (3.ª ronda, G82,
