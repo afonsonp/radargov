@@ -1130,8 +1130,10 @@ Formatos portugueses, normalização e o que o SQLite não sabe fazer.
   também é para ver. E o CSV escreve o estado pelo `_NOMES_ESTADO`
   ("por ver"), não pela chave interna ("novo").
 
-- **Datas de filtro validam-se com `data_de_filtro()`** — só ISO; lixo
-  ignora-se e a página avisa (`avisos_de_datas`), incluindo o intervalo
+- **Datas de filtro validam-se com `data_de_filtro()`**, que desde
+  4/10/2026 é o `data_do_texto()` (a ISO passava sem se conferir:
+  «2026-02-31»); lixo ignora-se e a página avisa (`avisos_de_datas`,
+  que avisa também dos valores — «20 mil»), incluindo o intervalo
   invertido. Um `de=lixo` comparado com datas esvaziava a lista em
   silêncio.
 
@@ -4938,6 +4940,22 @@ botões ou no calendário.
   390 com o browser**, não se lê na folha.
 
 ## Convenções
+
+- **Um campo fechado recusa, nunca limpa em silêncio** (4/10/2026, a
+  regra dele: «devem apenas permitir o que se pede; caso submetam algo
+  que não faz sentido deve ser explicado porque não dá e o que deve se
+  meter, de forma curta»). O NIF da empresa passava por um
+  `re.sub(r"\D", "")` antes de se conferir: «abc» gravava-se vazio, com
+  «guardada». O mesmo padrão estava em sete sítios — o `euros_do_texto()`
+  como validador (lê «20 mil» como 20: é um **leitor**, e o validador é
+  o `preco_escrito()`, por `recado_do_preco()` e `valor_de_filtro()`), a
+  ISO sem conferir, o isdigit do Python, que deixa passar «²» e rebenta no
+  `int()`, um `[:n]` antes de validar, um select sem conferir a lista, e
+  um «guardado» sem ter gravado. **A forma de escrever passa** (espaços,
+  pontos, o «PT» de um NIF, «1.10.2026»); **o resto recusa, e o recado
+  diz o que se escreve** («Escreva-o assim: 118 500,00»). E o `maxlength`
+  do HTML não é tecto: o servidor confere o mesmo número
+  (`TECTO_DA_ETIQUETA`). Testes em `TestOsCamposFechadosSoAceitamOQueSePede`.
 
 - **O site está no Acordo Ortográfico, e a aplicação não** (30/09/2026,
   decisão dele). O `site/` escreve «objeto», «setor», «proteção» e os

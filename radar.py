@@ -2368,20 +2368,9 @@ def data_de_filtro(valor):
     em ISO quando vem dos atalhos, e por isso esta funcao tem de ler os
     dois.
     """
-    valor = (valor or "").strip()
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor):
-        return valor
-    # sem ano é o ano corrente (3.ª ronda, G96): «2/10» numa tarefa era
-    # recusado sem se dizer porquê
-    pt = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{4}))?", valor)
-    if not pt:
-        return ""
-    dia, mes = int(pt.group(1)), int(pt.group(2))
-    ano = int(pt.group(3) or date.today().year)
-    try:
-        return date(ano, mes, dia).isoformat()
-    except ValueError:              # 31/02: nao e data, e nao se filtra
-        return ""
+    # A mesma leitura do campo (4/10/2026): a ISO passava sem se conferir
+    # («2026-02-31»), e «1.10.2026» passava num sítio e não no outro.
+    return data_do_texto(valor)
 
 
 def data_para_campo(valor):
@@ -2531,7 +2520,7 @@ def fragmento_local_e_valor(distritos, minimo, maximo=""):
                       % " OR ".join("instr(distrito, ?) > 0" for _ in pedidos))
         valores += ["|%s|" % d for d in pedidos]
     for bruto, sinal in ((minimo, ">="), (maximo, "<=")):
-        v = euros_do_texto(bruto)
+        v = valor_de_filtro(bruto)
         if v is not None:
             partes.append("%s %s ?" % (SQL_PRECO_DO_ANUNCIO, sinal))
             valores.append(v)
@@ -2560,6 +2549,22 @@ def preco_escrito(bruto):
     if not valor or valor > PRECO_MAXIMO:
         return None
     return "{:,.2f}".format(valor).translate(str.maketrans(",.", ".,")) + " EUR"
+
+
+def valor_de_filtro(bruto):
+    """O valor de um filtro de preço em euros, ou None: o mesmo leitor
+    estrito do `preco_escrito()`. O `euros_do_texto()` lia «20 mil» como
+    20 e «1.5» como 15, e o filtro filtrava por isso (4/10/2026)."""
+    escrito = preco_escrito(bruto)
+    return euros_do_texto(escrito) if escrito else None
+
+
+def recado_do_preco(bruto):
+    """A frase curta para um preço que não se lê, ou "" (vazio passa)."""
+    if preco_escrito(bruto) is None:
+        return ("«%s» não é um preço. Escreva-o assim: 118 500,00."
+                % corta(" ".join((bruto or "").split()), 40))
+    return ""
 
 
 def texto_de_campo(bruto, tecto, linhas=False):
@@ -2713,6 +2718,29 @@ def nif_valido(nif):
         return False
     resto = sum(int(d) * (9 - i) for i, d in enumerate(nif[:8])) % 11
     return int(nif[8]) == (0 if resto < 2 else 11 - resto)
+
+
+def problema_do_nif(texto):
+    """(nif, recado) de um NIF escrito à mão: os nove algarismos e "", ou
+    "" e a frase curta para o ecrã. Vazio é ("", ""): é tirá-lo.
+
+    A forma de escrever passa -- espaços, pontos, traços e o «PT» à
+    frente --, e mais nada: até 4/10/2026 um `re.sub(r"\\D", "")` tirava
+    as letras em silêncio, e «abc» gravava-se como vazio, com
+    «guardada» no ecrã (ele, nesse dia)."""
+    limpo = re.sub(r"[\s.\-]", "", texto or "")
+    limpo = re.sub(r"^PT", "", limpo, flags=re.I)
+    if not limpo:
+        return "", ""
+    if not re.fullmatch(r"[0-9]+", limpo):
+        return "", ("O NIF só leva algarismos. Escreva os 9, por exemplo "
+                    "509123456.")
+    if len(limpo) != 9:
+        return "", ("O NIF tem %d algarismos, e são 9." % len(limpo))
+    if not nif_valido(limpo):
+        return "", ("O NIF %s não existe: o último algarismo não confere. "
+                    "Veja se há uma gralha." % limpo)
+    return limpo, ""
 
 
 def prefixo_cpv(pedaco):
@@ -11401,7 +11429,9 @@ EMAIL_POR_CONFIGURAR = "e-mail por configurar"
 EMAIL_SEM_SENHA = "falta a palavra-passe em email_senha.txt"
 EMAIL_SEM_DESTINO = "sem endereço para onde enviar"
 EMAIL_SEM_CANAL = (EMAIL_POR_CONFIGURAR, EMAIL_SEM_SENHA, EMAIL_SEM_DESTINO)
-RX_EMAIL = re.compile(r"[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+")
+# Um só, e sempre com `fullmatch` (4/10/2026): havia dois, e o de baixo
+# ganhava ao importar e aceitava «a,b@c.pt».
+RX_EMAIL = re.compile(r"[^@\s,;<>\"']+@[^@\s,;<>\"']+\.[^@\s,;<>\"']+")
 
 
 def porque_o_email_nao_sai(cfg=None):
@@ -13329,6 +13359,13 @@ def avisos_de_datas(args):
     if de and ate and de > ate:
         fora.append("O intervalo está invertido — de %s até %s não "
                     "apanha nada." % (data_pt(de), data_pt(ate)))
+    # e os valores: «20 mil» era ignorado (ou lido como 20) sem uma
+    # palavra (4/10/2026)
+    for campo in ("pbmin", "pbmax", "min"):
+        bruto = (args.get(campo) or "").strip()
+        if bruto and valor_de_filtro(bruto) is None:
+            fora.append("O valor «%s» não é um preço e foi ignorado. "
+                        "Escreva-o assim: 118 500,00." % corta(bruto, 40))
     return fora
 
 
@@ -13469,7 +13506,7 @@ def condicoes_contratos(args):
     # float() como erro e o filtro caia em silencio -- vinham os 1 893
     # contratos de sempre (teste com utilizadores, 25/09/2026). O
     # euros_do_texto() le as tres escritas; lixo continua a nao filtrar.
-    minimo = euros_do_texto(args.get("min"))
+    minimo = valor_de_filtro(args.get("min"))
     if minimo is not None:
         valores.append(minimo)
         onde.append("c.preco_contratual >= ?")
@@ -19792,9 +19829,9 @@ def campos_do_local_e_valor(valores, com_rotulo=True):
         return ("<details class='dist-alerta'%s><summary>Distritos: %s</summary>"
                 "<fieldset class='dist-interesse'><legend class='so-leitor'>"
                 "Distritos do local de execução</legend>%s</fieldset></details>"
-                "<input type='text' name='pbmin' value='%s' inputmode='numeric' "
+                "<input type='text' name='pbmin' value='%s' inputmode='decimal' "
                 "placeholder='€ preço base mínimo' aria-label='Preço base mínimo'>"
-                "<input type='text' name='pbmax' value='%s' inputmode='numeric' "
+                "<input type='text' name='pbmax' value='%s' inputmode='decimal' "
                 "placeholder='€ máximo' aria-label='Preço base máximo'>"
                 % (" open" if escolhido else "",
                    html.escape(", ".join(d for d in DISTRITOS if d in marcados))
@@ -19804,10 +19841,10 @@ def campos_do_local_e_valor(valores, com_rotulo=True):
             "<select class='mg-field__input' name='dist'>%s</select></label>"
             "<label class='mg-field'><span class='mg-field__label'>Preço base de</span>"
             "<input class='mg-field__input' type='text' name='pbmin' value='%s' "
-            "inputmode='numeric' placeholder='€'></label>"
+            "inputmode='decimal' placeholder='€'></label>"
             "<label class='mg-field'><span class='mg-field__label'>Preço base até</span>"
             "<input class='mg-field__input' type='text' name='pbmax' value='%s' "
-            "inputmode='numeric' placeholder='€'></label>"
+            "inputmode='decimal' placeholder='€'></label>"
             % (opcoes, v("pbmin"), v("pbmax")))
 
 
@@ -22140,6 +22177,11 @@ def _recado_do_preco_do_pedido():
     if bruto and bruto.strip() and preco_escrito(bruto) is None:
         return ("«%s» não é um preço. Escreva-o assim: 118 500,00."
                 % corta(" ".join(bruto.split()), 40))
+    # o lugar: «abc» ou «150» passavam a «falta o lugar» (4/10/2026)
+    lugar = (request.values.get("lugar") or "").strip()
+    if lugar and not (re.fullmatch(r"[0-9]{1,2}", lugar) and int(lugar) >= 1):
+        return ("«%s» não é um lugar. Escreva um número de 1 a 99."
+                % corta(lugar, 20))
     # e as datas e o valor do desfecho, que o diálogo do «Ganho» e do
     # «Perdido» também pede (D3, D10)
     return _desfecho_do_pedido(request.values, vazio_apaga=False)[1]
@@ -22634,7 +22676,7 @@ def _local_e_valor_do_interesse(cfg):
             # à caixa, na mesma linha)
             "<label class='conf-campo'><span>Preço base a partir de</span>"
             "<input type='text' name='pbmin' "
-            "value='%s' inputmode='numeric' placeholder='€, ex. 20 000'></label>"
+            "value='%s' inputmode='decimal' placeholder='€, ex. 20 000'></label>"
             % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
 
 
@@ -22784,9 +22826,9 @@ def interesse_gravar():
     fora = " ".join((request.form.get("cpv_excl") or "").split())
     distritos = "|".join(d for d in request.form.getlist("dist") if d in DISTRITOS)
     pbmin = (request.form.get("pbmin") or "").strip()
-    if pbmin and euros_do_texto(pbmin) is None:
+    if recado_do_preco(pbmin):
         return redirect("/configuracoes/interesse?" + urlencode(
-            {"tom": "erro", "aviso": "«%s» não se lê como preço." % corta(pbmin, 20)}))
+            {"tom": "erro", "aviso": recado_do_preco(pbmin) + " Nada foi guardado."}))
     activo = bool(dentro or distritos or pbmin)
     gravar_config({"interesse_activo": activo, "interesse_cpv": dentro,
                    "interesse_cpv_excl": fora, "interesse_distritos": distritos,
@@ -22965,7 +23007,7 @@ def _caixa_email(cfg):
         "placeholder='nome@gmail.com'></label>"
         "<label>Servidor<input type='text' name='servidor' value='%s' "
         "placeholder='smtp.gmail.com'></label>"
-        "<label>Porta<input type='text' name='porta' value='%s'></label>"
+        "<label>Porta<input type='text' name='porta' value='%s' inputmode='numeric'></label>"
         "<label>Palavra-passe<input type='password' name='senha' value='' "
         "autocomplete='new-password'%s></label>"
         "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
@@ -23943,8 +23985,12 @@ def plataforma_correio():
         porta = _inteiro(request.form, "porta", 1, 65535, "a porta")
     except ValueError as erro:
         return _volta_a("/plataforma#correio", str(erro), erro=True)
+    de = (request.form.get("de") or "").strip()
+    if de and not RX_EMAIL.fullmatch(de):
+        return _volta_a("/plataforma#correio", "«%s» não é um e-mail." % corta(de, 60),
+                        erro=True)
     gravar_config_registado({"email": {
-        "avisos": avisos, "de": (request.form.get("de") or "").strip(),
+        "avisos": avisos, "de": de,
         "servidor": (request.form.get("servidor") or "").strip(), "porta": porta}})
     senha = request.form.get("senha") or ""
     if senha.strip() and not (os.environ.get("RADAR_EMAIL_SENHA") or "").strip():
@@ -24190,7 +24236,9 @@ def plataforma_gravar_plano(id_):
         return _volta_a("/plataforma/empresa/%d#plano" % id_,
                         "No Corporate, escreva quantos utilizadores foram acordados.",
                         erro=True)
-    if utilizadores and not (utilizadores.isdigit() and 0 < int(utilizadores) < 1000):
+    # [0-9] e não isdigit(): «²» é dígito para o Python e rebentava no int()
+    if utilizadores and not (re.fullmatch(r"[0-9]{1,3}", utilizadores)
+                             and int(utilizadores) > 0):
         return _volta_a("/plataforma/empresa/%d#plano" % id_,
                         "O número de utilizadores tem de ser de 1 a 999.", erro=True)
     try:
@@ -24532,10 +24580,10 @@ def _inteiro(form, nome, minimo, maximo, rotulo):
     frase para o ecra. Uma janela de detalhe de 0 dias cala a recolha
     em silencio -- e por isso que ha limites e nao so int()."""
     bruto = (form.get(nome) or "").strip()
-    try:
-        n = int(bruto)
-    except ValueError:
-        raise ValueError("«%s» não é um número (%s)." % (bruto, rotulo))
+    # só algarismos: o int() aceita «1_000» e os dígitos de outras escritas
+    if not re.fullmatch(r"-?[0-9]+", bruto):
+        raise ValueError("«%s» não é um número (%s)." % (corta(bruto, 20), rotulo))
+    n = int(bruto)
     if not minimo <= n <= maximo:
         raise ValueError("%s vai de %d a %d." % (rotulo, minimo, maximo))
     return n
@@ -24566,6 +24614,9 @@ def alertas_remetente():
     a palavra-passe para o email_senha.txt, e so se vier preenchida."""
     de = (request.form.get("de") or "").strip()
     servidor = (request.form.get("servidor") or "").strip()
+    if de and not RX_EMAIL.fullmatch(de):
+        return volta_config_erro("alertas", "«%s» não é um e-mail. Nada foi "
+                                 "guardado." % corta(de, 60))
     try:
         porta = _inteiro(request.form, "porta", 1, 65535, "a porta")
     except ValueError as erro:
@@ -24623,12 +24674,13 @@ def config_recolha():
                  ", ".join(cfg.get("horas_verificacao") or []),
                  nota="HH:MM, separadas por vírgula. O temporizador do sistema "
                       "dispara de hora a hora, e só verifica nas horas desta lista.")
-        + _campo("Janela de recuperação (dias)", "dias_catchup", cfg.get("dias_catchup", 15),
+        + _campo("Janela de recuperação (dias)", "dias_catchup", cfg.get("dias_catchup", 15), extra="inputmode='numeric'",
                  nota="quantos dias para trás o radar volta a olhar quando falha um slot")
-        + _campo("Janela do detalhe (dias)", "detalhe_dias", cfg.get("detalhe_dias", 60),
+        + _campo("Janela do detalhe (dias)", "detalhe_dias", cfg.get("detalhe_dias", 60), extra="inputmode='numeric'",
                  nota="a rotina só lê o detalhe (CPV, prazo, preço) dos anúncios destes últimos dias")
-        + _campo("Detalhes por volta", "detalhes_por_volta", cfg.get("detalhes_por_volta", 40))
-        + _campo("Relidos por volta", "relidos_por_volta", cfg.get("relidos_por_volta", 25),
+        + _campo("Detalhes por volta", "detalhes_por_volta", cfg.get("detalhes_por_volta", 40),
+                 extra="inputmode='numeric'")
+        + _campo("Relidos por volta", "relidos_por_volta", cfg.get("relidos_por_volta", 25), extra="inputmode='numeric'",
                  nota="anúncios com interesse ou proposta em curso, de prazo aberto, que se releem para apanhar alterações")
         + _interruptor("Trazer as consultas preliminares da Vortal", "vortal_preliminares",
                        cfg.get("vortal_preliminares", True))
@@ -24823,7 +24875,7 @@ def config_copias():
         + _interruptor("Cópia diária das bases", "copia_de_seguranca",
                        cfg.get("copia_de_seguranca", True),
                        nota="a plataforma e o ficheiro de cada empresa; o trabalho das empresas não se recupera de mais lado nenhum")
-        + _campo("Cópias a guardar", "copias_a_guardar", cfg.get("copias_a_guardar", 7),
+        + _campo("Cópias a guardar", "copias_a_guardar", cfg.get("copias_a_guardar", 7), extra="inputmode='numeric'",
                  nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso")
         + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
         + "<div class='mg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
@@ -25627,9 +25679,10 @@ def _bloco_da_empresa(cfg=None):
             "<form method='post' action='/configuracoes/conta/empresa' "
             "class='conf-form'>"
             + _campo("Nome", "nome_da_empresa", nome,
-                     nota="como aparece nos contratos")
+                     nota="como aparece nos contratos", extra="maxlength='120'")
             + _campo("NIF", "nif_da_empresa", nif,
-                     nota="nove dígitos; é por aqui que a ligação é certa")
+                     nota="nove dígitos; é por aqui que a ligação é certa",
+                     extra="inputmode='numeric' maxlength='14' autocomplete='off'")
             + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>")
 
 
@@ -25638,18 +25691,16 @@ def config_empresa():
     """Grava quem somos nós. O NIF fica só com os dígitos: o dump do
     IMPIC guarda-o assim, e um espaço ou um ponto a meio fazia a
     comparação falhar sem nada no ecrã a dizer porquê."""
-    nome = " ".join((request.form.get("nome_da_empresa") or "").split())[:120]
+    nome = " ".join((request.form.get("nome_da_empresa") or "").split())
+    if len(nome) > 120:
+        return volta_config_erro("conta", "O nome da empresa tem até 120 "
+                                 "letras (tem %d). Nada foi guardado." % len(nome))
     # sem o [:9] de antes: cortar um NIF de dez dígitos dava outro NIF,
     # e o dígito de controlo é o que apanha a gralha
-    nif = re.sub(r"\D", "", request.form.get("nif_da_empresa") or "")
-    if nif and not nif_valido(nif):
+    nif, recado = problema_do_nif(request.form.get("nif_da_empresa"))
+    if recado:
         return redirect("/configuracoes/conta?%s#empresa" % urlencode({
-            # o motivo certo: um NIF curto não tem dígito para conferir
-            # (4.ª ronda)
-            "aviso": ("O NIF %s não é válido (%s). Nada foi guardado: "
-                      "corrija-o e volte a guardar."
-                      % (nif[:12], "o último dígito não confere" if len(nif) == 9
-                         else "tem %d algarismos, e são 9" % len(nif))),
+            "aviso": recado + " Nada foi guardado.",
             "tom": "erro", "nome_da_empresa": nome,
             "nif_da_empresa": request.form.get("nif_da_empresa") or ""}))
     gravar_config_registado({"nome_da_empresa": nome, "nif_da_empresa": nif})
@@ -26212,9 +26263,8 @@ def alerta_criar():
     maus = ["«%s» não é uma data (dd/mm/aaaa)." % corta(campos[k], 20)
             for k in ("de", "ate")
             if campos.get(k) and not data_de_filtro(campos[k])]
-    maus += ["«%s» não se lê como valor." % corta(campos[k], 20)
-             for k in ("pbmin", "pbmax", "min")
-             if campos.get(k) and euros_do_texto(campos[k]) is None]
+    maus += [recado_do_preco(campos[k]) for k in ("pbmin", "pbmax", "min")
+             if campos.get(k) and recado_do_preco(campos[k])]
     if maus:
         return recusa(maus[0] + " O alerta não foi gravado.")
     consulta = urlencode(pares)
@@ -28694,7 +28744,7 @@ def contratos():
                 "placeholder='dd/mm/aaaa' maxlength='10' "
                 "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
         + campo("Preço mínimo", "<input class='mg-field__input' type='text' "
-                "name='min' value='%s' placeholder='€'>")
+                "name='min' value='%s' placeholder='€' inputmode='decimal'>")
         + botoes_de_filtro("%s") +
         # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
         "<p class='mg-field__hint f-sintaxe' id='sintaxe-cpv'>CPV: um ou "
@@ -33029,11 +33079,20 @@ def contacto_novo():
     if email and not RX_EMAIL.fullmatch(email):
         return _volta_com_erro("«%s» não é um endereço de e-mail. Nada foi "
                                "guardado." % corta(email, 60))
-    criar_contacto(
+    telefone = " ".join((request.form.get("telefone") or "").split())
+    if telefone and not telefone_valido(telefone):
+        return _volta_com_erro("«%s» não é um telefone: são nove algarismos, "
+                               "ou o indicativo e o número. Nada foi guardado."
+                               % corta(telefone, 30))
+    novo = criar_contacto(
         (request.form.get("chave") or "").strip(),
         request.form.get("nome"), request.form.get("papel"),
-        request.form.get("email"), request.form.get("telefone"),
+        request.form.get("email"), telefone,
         request.form.get("notas"), request.form.get("entidade"))
+    # sem entidade não se grava, e dizia «guardado» (4/10/2026)
+    if not novo:
+        return _volta_com_erro("O contacto não foi guardado: falta saber de "
+                               "que entidade é. Abra-o a partir da ficha.")
     return _volta_com_aviso("Contacto «%s» guardado." % corta(nome, 60),
                             ancora="contactos")
 
@@ -33167,7 +33226,7 @@ def _campos_que_a_ranhura_pede(p):
     if estado in ESTADOS_COM_PROPOSTO + ("proposta",) or p["valor_proposta"]:
       pecas.append(
         "<label>Preço proposto<input type='text' name='valor_proposta' "
-        "value='%s' placeholder='ex. 118 500,00'></label>"
+        "value='%s' inputmode='decimal' placeholder='ex. 118 500,00'></label>"
         % html.escape(preco_do_campo(p["valor_proposta"]), quote=True))
     if estado in ("relatorio", "ganho", "perdido") or p["lugar"] or p["top3"]:
         pecas.append(
@@ -33176,7 +33235,7 @@ def _campos_que_a_ranhura_pede(p):
             % ("" if p["lugar"] is None else int(p["lugar"])))
         pecas.append(
             "<label>Os três primeiros<input type='text' name='top3' "
-            "value='%s' placeholder='1º … · 2º … · 3º …'></label>"
+            "maxlength='300' value='%s' placeholder='1º … · 2º … · 3º …'></label>"
             % html.escape(p["top3"] or "", quote=True))
     # As datas e o valor do desfecho (D3 e D10, 26/09/2026): cada um da
     # ranhura em que acontece, e sempre que já tem valor.
@@ -33207,7 +33266,7 @@ def _campos_que_a_ranhura_pede(p):
     if estado == "ganho" or _valor(p, "valor_adjudicado"):
         pecas.append(
             "<label>Valor adjudicado<input type='text' name='valor_adjudicado' "
-            "value='%s' placeholder='vazio: o proposto'></label>"
+            "value='%s' inputmode='decimal' placeholder='vazio: o proposto'></label>"
             % html.escape(preco_do_campo(_valor(p, "valor_adjudicado")), quote=True))
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos:
@@ -33648,9 +33707,16 @@ def nota_corrigir(id_):
     return _volta_com_aviso("Nota corrigida.", ancora="proposta")
 
 
+# o mesmo do `maxlength` do campo: só o browser o fazia cumprir
+TECTO_DA_ETIQUETA = 24
+
+
 @app.route("/etiqueta/<path:ref>/nova", methods=["POST"])
 def etiqueta_nova(ref):
-    nome = (request.form.get("nome") or "").strip()
+    nome = " ".join((request.form.get("nome") or "").split())
+    if len(nome) > TECTO_DA_ETIQUETA:
+        return _volta_com_erro("O nome da etiqueta tem até %d letras."
+                               % TECTO_DA_ETIQUETA)
     if nome:
         with liga() as c:
             existente = c.execute(
@@ -35837,7 +35903,6 @@ def nif_do_pedido(texto):
 # sem eles e uma forma de encher a base (e a caixa de correio) de lixo.
 PEDIDOS_POR_IP_POR_HORA = 5
 PEDIDOS_POR_DIA = 200
-RX_EMAIL = re.compile(r"^[^@\s<>\"']+@[^@\s<>\"']+\.[^@\s<>\"']+$")
 
 
 def operador_completo(cfg=None):
@@ -36289,17 +36354,22 @@ def pedir_acesso():
          for chave, tecto in (("nome", 120), ("empresa", 160),
                               ("email", 200), ("sector", 60), ("telefone", 30))}
     p["mensagem"] = (f.get("mensagem") or "").strip()[:2000]
+    # cortado a 200 e só depois conferido, um e-mail comprido ficava
+    # outro e-mail válido (4/10/2026)
+    if len(" ".join((f.get("email") or "").split())) > 200:
+        return resposta(False, "O e-mail tem mais de 200 caracteres. "
+                               "Confira-o.", 400)
     p["nif"] = nif_do_pedido(f.get("nif"))
     p["plano"] = f.get("plano") if f.get("plano") in PLANOS_DO_PEDIDO else ""
     telefone_bom = telefone_valido(p["telefone"])
     if telefone_bom:
         p["telefone"] = telefone_arrumado(p["telefone"])
-    if not (p["nome"] and p["empresa"] and RX_EMAIL.match(p["email"])
+    if not (p["nome"] and p["empresa"] and RX_EMAIL.fullmatch(p["email"])
             and telefone_bom and p["sector"] in SECTORES_DO_PEDIDO):
         completo = (p["nome"] and p["empresa"] and p["email"] and p["telefone"]
                     and p["sector"] in SECTORES_DO_PEDIDO)
         # só o campo mal escrito diz-se como tal (3.ª ronda, G103)
-        if completo and not RX_EMAIL.match(p["email"]):
+        if completo and not RX_EMAIL.fullmatch(p["email"]):
             return resposta(False, "O e-mail não parece válido. Confira-o: "
                                    "é para lá que respondemos.", 400)
         if completo:
@@ -36707,8 +36777,8 @@ def _perfil_do_formulario(form):
         raise ValueError("«%s» não é um código CPV (só algarismos, ex. 45000000)."
                          % corta(maus[0], 20))
     pbmin = (form.get("pbmin") or "").strip()
-    if pbmin and euros_do_texto(pbmin) is None:
-        raise ValueError("«%s» não se lê como preço." % corta(pbmin, 20))
+    if recado_do_preco(pbmin):
+        raise ValueError(recado_do_preco(pbmin))
     distritos = [d for d in form.getlist("dist") if d in DISTRITOS]
     return {"interesse_activo": bool(cpv or distritos or pbmin),
             "interesse_cpv": "|".join(c.ljust(8, "0") for c in cpv),
@@ -36763,7 +36833,7 @@ def _formulario_do_aceitar(p, aviso=""):
            caixas,
            _campo("Preço base a partir de", "pbmin",
                   request.form.get("pbmin", "") if request.method == "POST" else "",
-                  nota="€; vazio = qualquer valor"),
+                  nota="€; vazio = qualquer valor", extra="inputmode='decimal'"),
            _escolha_do_plano(request.form.get("plano") if request.method == "POST"
                              else p["plano"] or "fundador")),
         titulo_aba="Aceitar o pedido")
@@ -36804,6 +36874,9 @@ def aceitar_pedido(id_):
         perfil = _perfil_do_formulario(request.form)
     except ValueError as erro:
         return _formulario_do_aceitar(p, str(erro))
+    # um plano que não é da lista criava a empresa sem plano, calado
+    if (request.form.get("plano") or "") not in ("",) + tuple(PLANO_DO_PEDIDO):
+        return _formulario_do_aceitar(p, "Escolha o plano da lista.")
     empresa_id = criar_empresa(p["empresa"] or p["nome"])
     with com_empresa(empresa_id):
         gravar_config(dict(perfil, email={"para": p["email"]},
@@ -37105,7 +37178,7 @@ def esqueci_me():
         return pagina_esqueci("O pedido veio de outro sítio.", codigo=403,
                               formulario=False)
     email = " ".join((request.form.get("email") or "").split())[:200]
-    if not RX_EMAIL.match(email):
+    if not RX_EMAIL.fullmatch(email):
         return pagina_esqueci("Escreva um e-mail válido, como nome@empresa.pt.",
                               email=email, codigo=400)
     ip = ip_de_quem_pede()
