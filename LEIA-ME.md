@@ -1520,7 +1520,6 @@ anúncios, é o teste do parser que avisa primeiro.
 | `detalhes.sh` | vai buscar o detalhe de tudo o que ainda não o tem (~3 h), secção 13 |
 | `reler.sh` | manda o modelo reler as peças já guardadas, sem ir à rede |
 | `ensaio.sh` | o ensaio de leitura de um concurso: põe o que o modelo escreveu ao lado do texto do documento, sem gastar orçamento |
-| `medir.sh` | mede de onde vem o token das capturas do DR (só lê as capturas) e abre o resultado |
 | `tunel_fixo.sh` | monta o `https://miragov.pt` (túnel com nome, como serviço, que responde também pelo miragov.com e pelo radargov.pt); diz que registos DNS faltam |
 | `copias_fora.sh` | liga as cópias a um destino fora deste PC (Backblaze B2, cifrado); corre-se uma vez, secção 13 |
 | `tunel.sh` | dá um endereço público temporário ao painel, sem domínio |

@@ -194,13 +194,6 @@ python ferramentas/repetido.py     # o que está escrito duas vezes, com
 python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar
                                    # uma release: árvore, testes, documentação
                                    # e os números medidos do ESTADO.md
-python ferramentas/mede_concorrentes.py [--inventario]  # as medições do L0 do
-python ferramentas/mede_prazo_plataforma.py  # plano de Outubro: o detalhe do BASE,
-python ferramentas/mede_antecipacao.py       # a hora do prazo DR × Vortal e a
-                                   # antecipação. Só leitura e fora da bateria;
-                                   # --amostra N para ensaiar, --pasta
-                                   # ~/Desktop/radar num worktree. Resultados
-                                   # em docs/diario/2026-10.md
 python ferramentas/mede_dl177.py [--ate AAAA-MM-DD]  # o efeito do DL 177/2026
                                    # na parte L: desde 1/10/2026 contra as mesmas
                                    # datas de 2025 e setembro. Só leitura, fora
@@ -245,7 +238,7 @@ Em Ubuntu, `python` nestes comandos é o `.venv/bin/python` que o
 pymupdf. O hook dos testes já escolhe o `.venv` sozinho.
 
 **Os `.sh` são atalhos para o Afonso, não para desenvolvimento.** São
-quinze, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
+catorze, e **o que cada um faz está no `LEIA-ME.md` §14** — é o
 manual dele, e um script que exista sem lá estar é um script que ele
 não sabe que tem (aconteceu ao `actualizar.sh`, que é o gesto mais
 importante que ele faz e faltava no manual até 19/09/2026). Dois que
