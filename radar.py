@@ -12211,6 +12211,19 @@ def norma_entidade(nome):
     return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
 
 
+# Os caracteres de controlo C1 que o dump do IMPIC traz onde devia estar
+# o travessão, as aspas curvas ou as reticências do Windows (5.ª ronda:
+# «Captações de Água \x96 Queiriga» via-se com um espaço duplo, e ia
+# tal e qual para o CSV). Cada um passa ao do cp1252; os que lá não
+# existem saem.
+C1_DO_WINDOWS = {}
+for _i in range(0x80, 0xA0):
+    try:
+        C1_DO_WINDOWS[_i] = bytes([_i]).decode("cp1252")
+    except UnicodeDecodeError:
+        C1_DO_WINDOWS[_i] = None
+
+
 def _des_html(texto):
     """Desfaz as entidades HTML que o dump do IMPIC traz por desescapar.
 
@@ -12234,7 +12247,7 @@ def _des_html(texto):
         if novo == texto:
             break
         texto = novo
-    return texto
+    return texto.translate(C1_DO_WINDOWS)
 
 
 # As entidades que denunciam texto escapado. "&#" apanha as numericas.
@@ -15146,7 +15159,20 @@ def pagina_de_erro(codigo):
             and not g.get("livre"):
         pagina = pagina.replace(ACCAO_DA_PAGINA_DE_ERRO, ACCAO_DA_PAGINA_DE_ERRO
                                 .replace("Voltar ao Hoje", "Voltar ao início"))
-    return Response(pagina, codigo, mimetype="text/html")
+    return Response(com_o_tema_da_conta(pagina), codigo, mimetype="text/html")
+
+
+def com_sessao():
+    """Se quem pede entrou (e não é o acesso livre local)."""
+    return has_request_context() and bool(g.get("utilizador")) and bool(g.get("sessao"))
+
+
+def com_o_tema_da_conta(pagina):
+    """O aspecto que a pessoa escolheu também nas páginas fora do molde
+    (5.ª ronda: o 404 e as páginas legais ficavam claras no escuro)."""
+    if not com_sessao():
+        return pagina
+    return pagina.replace('data-theme="sistema"', 'data-theme="%s"' % tema_da_pessoa(), 1)
 
 
 def _recusa(frase, texto):
@@ -15876,8 +15902,9 @@ main{flex:1;min-width:0;display:flex;flex-direction:column}
 .topo{padding:16px 34px 0;border-bottom:1px solid var(--line);background:var(--surface-raised);
  position:sticky;top:var(--barra-h,50px);z-index:5}
 .migalhas{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.migalhas .b{display:flex;align-items:center;gap:8px;min-width:0;
- font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
+/* a letra vem da `.mg-crumbs`, que o mesmo elemento leva: esta regra
+   sobrepunha-lhe 12 px em negrito, e eram duas formas (5.ª ronda) */
+.migalhas .b{display:flex;align-items:center;gap:8px;min-width:0}
 /* o separador das migalhas e um caractere, nao um risco: leva cor de
    texto, ainda que a mais fraca da escala */
 .migalhas .b s{text-decoration:none;color:var(--ink-muted)}
@@ -16732,6 +16759,9 @@ a.ct-l{color:var(--brand)}
 /* o que ja passou nesta semana continua a ver-se, apagado: um prazo de
    terca que hoje e quinta ainda explica o que aconteceu */
 .cal-dia.passou{background:var(--surface-raised)}
+/* o fim-de-semana já passado também sombreado (5.ª ronda: o sábado da
+   primeira semana ficava branco e os seguintes cinzentos) */
+.cal-dia.passou.fds{background:var(--surface-sunken)}
 .cal-dia.passou .cal-n{color:var(--ink-muted)}
 .cal-n{font:600 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary);
  display:flex;align-items:baseline;gap:5px;margin-bottom:2px}
@@ -17199,6 +17229,11 @@ CSS_NOVO = r"""
  [data-pele=novo] .hj-row .hj-q{order:4;flex:0 0 auto;margin-left:26px}
  [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}
  [data-pele=novo] .hj-row .hj-mexer{order:6}}
+/* no telemóvel o concurso numa linha sua: ficava «2370…» e cortava
+   letras no fim (4.ª e 5.ª rondas) */
+@media (max-width:600px){
+ [data-pele=novo] .hj-row .hj-o{max-width:calc(100% - 30px)}
+ [data-pele=novo] .hj-row .hj-c{order:7;flex:1 1 100%;margin-left:26px;white-space:normal}}
 @media (max-width:900px){
  [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
 
@@ -17236,7 +17271,12 @@ CSS_NOVO = r"""
  [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:760px){
  [data-pele=novo] .fita a{min-height:52px;padding:6px}
- [data-pele=novo] .fita .nota-dia{display:none}}
+ [data-pele=novo] .fita .nota-dia{display:none}
+ /* o número curto fica (5.ª ronda: o dia com tarefas parecia vazio) */
+ [data-pele=novo] .fita .n-curto{display:block;font-weight:600}
+ [data-pele=novo] .fita .longo{display:none}
+ [data-pele=novo] .fita .curto{display:inline}}
+[data-pele=novo] .fita .n-curto,[data-pele=novo] .fita .curto{display:none}
 """
 
 # As duas folhas juntas uma vez so, e nao a cada pedido: os tres moldes
@@ -18882,7 +18922,7 @@ def corta(texto, tecto):
     """Corta e diz que cortou. Sem as reticencias, um objecto cortado a
     meio de palavra ("...suporte do Hardware Oracle onde residem as Base
     de Dado") lia-se como dado estragado e nao como texto cortado."""
-    texto = texto or ""
+    texto = (texto or "").translate(C1_DO_WINDOWS)
     return texto if len(texto) <= tecto else texto[:tecto].rstrip() + "…"
 
 
@@ -22429,6 +22469,8 @@ def celula_csv(valor):
     anuncio que comece por =, +, - ou @ era uma formula ao abrir o CSV
     (auditoria de 14/09/2026): leva um apostrofo a frente, que o Excel
     mostra como texto. Os numeros nao passam por aqui."""
+    if isinstance(valor, str):
+        valor = valor.translate(C1_DO_WINDOWS)
     if isinstance(valor, str) and valor[:1] in ("=", "+", "-", "@", "\t", "\r"):
         return "'" + valor
     return valor
@@ -22588,7 +22630,10 @@ def _local_e_valor_do_interesse(cfg):
     return ("<fieldset class='dist-interesse'><legend>Distritos do local de "
             "execução <span class='nota'>(nenhum marcado = todos; um concurso "
             "nacional entra sempre)</span></legend>%s</fieldset>"
-            "<label>Preço base a partir de<input type='text' name='pbmin' "
+            # com o rótulo por cima, como os outros campos (5.ª ronda: colado
+            # à caixa, na mesma linha)
+            "<label class='conf-campo'><span>Preço base a partir de</span>"
+            "<input type='text' name='pbmin' "
             "value='%s' inputmode='numeric' placeholder='€, ex. 20 000'></label>"
             % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
 
@@ -25691,9 +25736,9 @@ def config_documentos():
     novo = ("<form method='post' class='conf-form' style='margin-top:18px'>"
             "<label class='conf-campo'><span>Tipo</span><select name='tipo'>"
             "%s</select></label>%s%s"
-            # «Acrescentar» e nao «Juntar»: nada se junta, nao ha
-            # ficheiro (UX-ECRAS-EM-FALTA-E-ESCURO, E14)
-            "<button type='submit' class='mg-btn mg-btn--primary'>Acrescentar"
+            # «Adicionar», como nos contactos e nas tarefas (5.ª ronda; era
+            # «Acrescentar», e antes «Juntar», E14)
+            "<button type='submit' class='mg-btn mg-btn--primary'>Adicionar"
             "</button></form>"
             % (opcoes(""), _campo("Número ou descrição", "descricao", "",
                                   extra="maxlength='120'"),
@@ -25748,10 +25793,17 @@ def _bloco_utilizadores(todos, eu):
     com confirmacao; o ultimo admin nao se tira (contas.apagar_utilizador
     recusa)."""
     linhas = "".join(
-        "<div class='l'><span class='ponto' style='background:%s'></span>"
+        # o nome da pessoa ao lado do utilizador, e a bolinha diz o que é
+        # (5.ª ronda: só o «qa4-03», e um ponto verde sem legenda)
+        "<div class='l'><span class='ponto' style='background:%s' title='%s' "
+        "aria-hidden='true'></span>"
         "<span class='t'>%s%s</span><span class='v'>%s%s</span></div>"
         % ("var(--success)" if u["papel"] == "admin" else "var(--line-strong)",
-           html.escape(u["email"]), " (eu)" if u["id"] == eu else "",
+           html.escape(papel_no_ecra(u["papel"]), quote=True),
+           html.escape(("%s · %s" % (u["nome"], u["email"]))
+                       if (u["nome"] or "").strip() and u["nome"] != u["email"]
+                       else u["email"]),
+           " (eu)" if u["id"] == eu else "",
            html.escape(papel_no_ecra(u["papel"])),
            "" if u["id"] == eu else
            (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/repor" % u["id"],
@@ -25775,7 +25827,7 @@ def _bloco_utilizadores(todos, eu):
         "<div class='nota' style='margin-bottom:10px'><b>Gestor</b>: "
         "gere as contas e os dados da empresa. <b>Utilizador</b>: trabalha "
         "nos concursos e nas propostas, sem mexer nas contas.</div>"
-        "<div class='saude'>%s</div>"
+        "<div class='saude contas-da-empresa'>%s</div>"
         # O convite primeiro (teste com utilizadores, 25/09/2026): criar a
         # conta obrigava o admin a inventar a palavra-passe do colega e a
         # manda-la por algum lado. Com o convite, e o colega que a escolhe.
@@ -27829,7 +27881,7 @@ def entidades():
         # O «comparar» tambem por cima da tabela (UX-7-LEIS, F3): so
         # existia depois da 60.a linha, e com ele a instrucao «Marque duas».
         comparar = ("<button type='submit' class='mg-btn mg-btn--secondary'>"
-                    "comparar as marcadas</button>")
+                    "Comparar as marcadas</button>")
         tabela = (
             "<form method='get' action='/entidades'>"
             "<input type='hidden' name='ver' value='%s'>%s"
@@ -30116,7 +30168,10 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         propostas = propostas[:2] + (" · ".join(x for x in (
             propostas[2], "concurso flexível: audiência em %d dias úteis"
             % DIAS_DE_PRONUNCIA_NO_FLEXIVEL) if x),) + propostas[3:]
-    duracao = ess.get("Duração do contrato", ("", "", ""))[0]
+    # «60 DIAS» como o DR o escreve passa a «60 dias» (5.ª ronda)
+    duracao = re.sub(r"\b(DIAS?|MESES|MÊS|MES|ANOS?|SEMANAS?)\b",
+                     lambda m: m.group(1).lower(),
+                     ess.get("Duração do contrato", ("", "", ""))[0])
     renovacoes = " (com renovações previstas)"
     local_nota = ess.get("Local de prestação de serviços", ("", "", ""))[2]
     # «a leitura não encontrou o regime» nas seis fichas de obras, e
@@ -33781,12 +33836,13 @@ def cronologia_da_proposta(p):
     # A mesma marcacao do historico da ficha do anuncio (`ficha-lista`):
     # era texto solto num <div class='hist'>, com a data a 700/16, mais
     # pesada do que o titulo do bloco (UX-ECRAS-EM-FALTA-E-ESCURO, E13).
-    return ("<div class='mg-card lado-cx'><div class='mg-field__label' "
-            "style='margin-bottom:10px'>Cronologia</div>"
-            "<ul class='ficha-lista'>%s</ul></div>"
+    # «Histórico», no cartão do sistema e com o nome da pessoa, como na
+    # ficha do anúncio (5.ª ronda: «Cronologia» com o utilizador, e um
+    # título mais pequeno do que o dos cartões ao lado)
+    return cartao("Histórico", "<ul class='ficha-lista'>%s</ul>"
             % "".join("<li><span class='t'><b>%s</b> %s%s</span>"
                       "<span class='n'>%s</span></li>"
-                      % (html.escape(h["quem"] or ""),
+                      % (html.escape(nome_da_pessoa(h["quem"]) or h["quem"] or ""),
                          html.escape(_NOMES_ACCAO.get(h["accao"] or "", h["accao"] or "")),
                          (" &mdash; %s" % html.escape(corta(h["detalhe"], 80)))
                          if h["detalhe"] else "",
@@ -35967,6 +36023,13 @@ def _do_site(texto):
                            texto, flags=re.S)
         else:
             texto = texto.replace("{{CONCURSOS}}", numero_do_site(n))
+    # Com sessão, o topo não convida a entrar nem a pedir acesso (5.ª
+    # ronda): volta à aplicação, no aspecto da conta
+    if com_sessao():
+        texto = com_o_tema_da_conta(texto.replace(
+            '<a class="entrar" href="/entrar">Entrar</a><a class="btn btn-claro '
+            'btn-pequeno" href="/#acesso">Pedir acesso</a>',
+            '<a class="btn btn-claro btn-pequeno" href="/">Voltar ao Mira Gov</a>'))
     if "{{RITMO}}" in texto:
         ritmo, detalhe = ritmo_da_verificacao(
             ler_config().get("horas_verificacao") or [])
@@ -37610,9 +37673,14 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
         # espera. «7 entregas» com cinco já submetidas lia-se como sete
         # por fazer.
         por_entregar, entregues = _entregas_do_dia(prazos, d)
+        if n:
+            notas.append("<span class='n-curto' aria-hidden='true'>%s</span>"
+                         % mil_pt(n))
         if por_entregar:
-            notas.append("<span class='e'>%s por entregar</span>"
-                         % mil_pt(len(por_entregar)))
+            notas.append("<span class='e'><span class='longo'>%s por entregar"
+                         "</span><span class='curto' aria-hidden='true'>%s ent."
+                         "</span></span>"
+                         % (mil_pt(len(por_entregar)), mil_pt(len(por_entregar))))
         if entregues:
             notas.append("<span class='nota-dia'>%s entregue%s</span>"
                          % (mil_pt(len(entregues)),
