@@ -88,6 +88,7 @@ ISENTOS = {
     "casa.py": "renomeado para empresa.py a 16/09/2026",
     "Analise_Concursos_Publicos.xlsm": "o Excel legado, já importado",
     "AVISOS.txt": "escrito pelo primeiro resumo",
+    "plataforma.json": "nasce dentro de copias/empresa-N-apagada-…, ao apagar uma empresa",
     "curl_DR.txt": "captura do Afonso; não entra no git",
     "curl_detalhe.txt": "captura do Afonso; não entra no git",
     "radar.db": "a base; não entra no git",

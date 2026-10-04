@@ -780,9 +780,10 @@ da empresa. Ou, num terminal:
 .venv/bin/python radar.py --apagar-empresa N
 ```
 
-Pede que escrevas APAGAR, faz uma cópia antes, e a pasta da empresa
-não desaparece: vai para `copias/empresa-N-apagada-…`, e apagas-a tu
-quando tiveres a certeza.
+Pede que escrevas APAGAR, e a pasta da empresa não desaparece: vai para
+`copias/empresa-N-apagada-…`, com as contas, os convites e o plano que
+saíram num `plataforma.json` lá dentro, e apagas-a tu quando tiveres a
+certeza.
 
 **Há três níveis.** **Tu és o dono da plataforma**: só tu vês os
 Indicadores, as Capturas, a Recolha, a Leitura das peças e as Cópias,

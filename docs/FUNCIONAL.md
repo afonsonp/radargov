@@ -1786,13 +1786,15 @@ ronda: estavam a meio, e os semáforos passaram a encher a linha).
   consigo apagar empresas»): um cartão de perigo no fim da página da
   empresa diz o que sai, com os números — as propostas, as tarefas, os
   contactos, as linhas do histórico, a configuração, a triagem, as
-  contas e os convites por usar — e o que fica (a cópia de antes e a
-  pasta dela em `copias/`). Confirma-se **escrevendo o nome** da
+  contas e os convites por usar — e o que fica (a pasta dela em
+  `copias/`, com as linhas que saem do `radar.db` num `plataforma.json`). Confirma-se **escrevendo o nome** da
   empresa (sem contar maiúsculas nem espaços a mais); um nome errado
   não apaga nada. É o mesmo `apagar_empresa()` do `--apagar-empresa`
   (`plataforma_apagar_empresa()`, `POST /plataforma/empresa/<n>/apagar`),
-  e corre no próprio pedido: a cópia de antes demorou 8,8 s numa base
-  de 1,35 GB. Tira também a empresa da lista das suspensas e o «ver
+  e corre no próprio pedido. Desde 4/10/2026 não copia a base inteira
+  (era 1,4 GB e todas as empresas, ~1 minuto com as escritas das outras à
+  espera, visto na 4.ª ronda): guarda só as contas, os convites, o plano e
+  as leituras da empresa (`_guardar_linhas_da_plataforma()`). Tira também a empresa da lista das suspensas e o «ver
   como» de qualquer sessão que a estivesse a ver, e deixa um evento
   da plataforma. No modo de suporte não se apaga (a porta recusa).
 - **Suspender** uma empresa (e reactivar): a confirmação diz quantas

@@ -10074,10 +10074,18 @@ def apagar_empresa(id_):
                          % (id_, empresas_existentes()))
     # o número não volta a ser dado (D10), nem que a pasta em copias/ saia
     marca(MARCA_DA_MAIOR_EMPRESA, max(id_, int(le_marca(MARCA_DA_MAIOR_EMPRESA, "0") or 0)))
-    copia = copia_de_seguranca_com_nome("antes-de-apagar-a-empresa-%d" % id_)
     guardada = os.path.join(COPIAS, "empresa-%d-apagada-%s" % (
         id_, datetime.now().strftime("%Y-%m-%d-%H%M%S")))
     shutil.move(os.path.dirname(db_da_empresa(id_)), guardada)
+    # A cópia de antes é só o que sai do radar.db, ao lado da pasta (4/10/
+    # 2026): era uma cópia da base inteira e de todas as empresas, 1,4 GB e
+    # ~1 minuto com as escritas das outras à espera. O trabalho da empresa
+    # é a pasta, que já fica guardada inteira.
+    try:
+        copia = _guardar_linhas_da_plataforma(id_, guardada)
+    except Exception:
+        shutil.move(guardada, os.path.dirname(db_da_empresa(id_)))
+        raise
     # A pasta sai PRIMEIRO: se o move falhar (OSError), nada se apagou na
     # base. E se a base falhar depois, a pasta volta -- nunca fica uma
     # empresa sem ficheiro com as contas ainda la, nem o contrario.
@@ -10094,6 +10102,28 @@ def apagar_empresa(id_):
         gravar_config({"empresas_suspensas": sorted(suspensas - {id_})})
         saiu["suspensão"] = 1
     return copia, guardada, saiu
+
+
+# O que o `_apagar_da_plataforma()` tira, para o `plataforma.json`
+LINHAS_DA_EMPRESA_NA_PLATAFORMA = (
+    ("utilizadores", "empresa_id=? AND dono=0"), ("convites", "empresa_id=?"),
+    ("planos", "empresa_id=?"), ("leituras_pedidas", "empresa_id=?"))
+
+
+def _guardar_linhas_da_plataforma(id_, pasta):
+    """As linhas do radar.db que são desta empresa, em `plataforma.json`
+    dentro da pasta guardada: chega para a repor à mão. Leva os resumos
+    das palavras-passe, e por isso fica só legível pelo dono."""
+    with _abre(DB) as c:
+        linhas = {t: [dict(r) for r in c.execute(
+            "SELECT * FROM %s WHERE %s" % (t, onde), (id_,))]
+            for t, onde in LINHAS_DA_EMPRESA_NA_PLATAFORMA}
+    caminho = os.path.join(pasta, "plataforma.json")
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump({"empresa": id_, "apagada_em": datetime.now().isoformat(" ", "seconds"),
+                   "linhas": linhas}, f, ensure_ascii=False, indent=1, default=str)
+    so_o_dono(caminho)
+    return caminho
 
 
 def _apagar_da_plataforma(id_):
@@ -13593,9 +13623,20 @@ def aquecer_o_corpus():
     with liga_corpus() as c:
         total_do_corpus(c)
         anos_do_corpus(c)
+    # O «ver tudo» sem empresa nenhuma, que é o que o dono vê (4/10/2026:
+    # sem clientes nada se aquecia além dos totais)
+    cfg_da_plataforma = ler_config()
+    for args in ({"interesse": "nao"}, {"interesse": "nao", "ver": "fim"}):
+        with liga_corpus() as c:
+            contas_do_mercado(c, args, cfg_da_plataforma)
+        resumo_contratos(args)
+    concorrencia_no_perfil({"interesse": "nao"}, cfg_da_plataforma)
     for empresa_id in empresas_a_trabalhar():
         with com_empresa(empresa_id):
             cfg = ler_config()
+            # e os Concorrentes do perfil, que não se aqueciam (36 s)
+            for args in ({}, {"interesse": "nao"}):
+                concorrencia_no_perfil(args, cfg)
             # Tambem sem o perfil (o «ver tudo», e o que o dono ve): 33 s
             # na primeira visita, medido em producao a 29/09/2026. A chave
             # e a mesma em todas as empresas, e da segunda em diante e so
@@ -13607,7 +13648,12 @@ def aquecer_o_corpus():
                 resumo_contratos(args)
             entidades_top("cliente")
             entidades_top("concorrente")
+            # as contagens das abas das Entidades, que não se guardam:
+            # correm aqui para as páginas do corpus estarem na cache
+            _contas_das_abas()
 
+
+HORA_DE_AQUECER = 7
 
 # De quanto em quanto tempo a vigia do corpus olha (segundos).
 INTERVALO_DA_VIGIA = 60
@@ -13621,8 +13667,12 @@ def estado_para_aquecer():
     for empresa_id in empresas_a_trabalhar():
         with com_empresa(empresa_id):
             perfis.append((empresa_id, interesse_definido(ler_config())))
+    # E outra vez às 7 da manhã (4/10/2026): a máquina tem 7 GB, as duas
+    # bases não cabem na cache do sistema, e de noite as cópias e a recolha
+    # empurram-nas para fora -- era a primeira pessoa do dia a pagar
+    manha = datetime.now().hour >= HORA_DE_AQUECER
     return (marca_do_corpus(), time.strftime("%Y-%m-%d", time.gmtime()),
-            repr(perfis))
+            repr(perfis), datetime.now().strftime("%Y-%m-%d"), manha)
 
 
 def vigiar_o_corpus(voltas=None, esperar=time.sleep):
@@ -14244,6 +14294,9 @@ def desconto_de_quem_ganha(c, chave, frag="", vals=()):
                         if len(descs) >= MINIMO_PARA_DESCONTO else None)
 
 
+LIDOS_POR_DEGRAU = 500
+
+
 def concorrencia_no_perfil(args=None, cfg=None):
     """A aba Concorrentes do Mercado: os fornecedores que concorreram nos
     contratos lidos do perfil da empresa (o CPV do interesse; sem perfil,
@@ -14281,7 +14334,12 @@ def concorrencia_no_perfil(args=None, cfg=None):
             return {"lidos": lidos, "com_lista": com_lista, "linhas": [
                 dict(r) for r in c.execute(SQL_DA_CONCORRENCIA.format(onde=onde_p),
                                            [desde] + vals_p)] if lidos else []}
-        d = lembrado_do_corpus(("concorrencia", desde, onde_p, vals_p, todos),
+        # Por degraus de LIDOS_POR_DEGRAU, e não pelo número exacto: a
+        # recolha lê um contrato a cada poucos segundos, e cada visita
+        # recontava tudo (~36 s, 4.ª ronda). O ecrã diz quantos leu --
+        # os do cálculo --, por isso o número e a lista batem sempre.
+        d = lembrado_do_corpus(("concorrencia", desde, onde_p, vals_p,
+                                todos // LIDOS_POR_DEGRAU),
                                contar_os_fornecedores)
     return dict(d, ambito=ambito, frag=preso, vals=vals_p)
 
@@ -14551,7 +14609,14 @@ ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
 ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
                   "/configuracoes/conta/empresa", "/arranque",
                   "/configuracoes/documentos",
-                  "/alertas/interesse", "/configuracoes/propostas")
+                  "/alertas/interesse", "/configuracoes/propostas",
+                  # Os alertas e a janela do urgente são da empresa, como o
+                  # perfil (decisão dele, 4/10/2026: «só o gestor»); a
+                  # página abre-se para ler. E apagar uma proposta.
+                  "/alertas/criar", "/alertas/do-perfil", "/alertas/email",
+                  "/alertas/urgente", "/alertas/enviar", "/filtros")
+# ...e as que têm um número no meio, que o prefixo não apanha
+RX_SO_ADMIN = re.compile(r"/alertas/\d+/|/proposta/\d+/apagar$")
 
 
 def sou_dono():
@@ -14709,8 +14774,8 @@ def sou_admin():
 
 
 def so_admin(caminho):
-    return any(caminho == r or caminho.startswith(r + "/")
-               for r in ROTAS_SO_ADMIN)
+    return (any(caminho == r or caminho.startswith(r + "/")
+                for r in ROTAS_SO_ADMIN) or bool(RX_SO_ADMIN.match(caminho)))
 
 
 def pedido_e_local():
@@ -22978,11 +23043,21 @@ def _conteudo_alertas():
                      "Os avisos ainda não saem por e-mail (%s). Ficam em "
                      "«Últimos avisos», aqui em baixo.</div>"
                      % html.escape(falta)) if falta else ""
-    conteudo = ("<div class='larg'>" + faixa_correio + lista +
-                caixa_seguidas + _caixa_alerta_do_perfil(cfg) +
-                "<div style='height:16px'></div>" + novo +
-                "<div style='height:16px'></div>" + _caixa_email(cfg) +
-                _caixa_urgente() +
+    mexer = (lista + _caixa_alerta_do_perfil(cfg) +
+             "<div style='height:16px'></div>" + novo +
+             "<div style='height:16px'></div>" + _caixa_email(cfg) +
+             _caixa_urgente())
+    if not sou_admin():
+        # Só o gestor muda os alertas (decisão dele, 4/10/2026); o
+        # utilizador vê-os, e a porta recusa o POST na mesma
+        mexer = ("<div class='mg-alert mg-alert--info' style='margin:0 0 12px'>"
+                 "Os alertas são da empresa, e só o gestor%s os muda. Se "
+                 "precisa de outro, peça-lhe.</div>"
+                 "<fieldset disabled style='border:0;padding:0;margin:0;"
+                 "min-width:0'>%s</fieldset>"
+                 % (html.escape(gestores_da_empresa()), mexer))
+    conteudo = ("<div class='larg'>" + faixa_correio + mexer +
+                caixa_seguidas +
                 "<div class='mg-field__label' style='margin:22px 0 12px'>Últimos avisos"
                 "</div>" + historico + "</div>")
 
@@ -24175,8 +24250,8 @@ def plataforma_apagar_empresa(id_):
     em ROTAS_SO_DONO), com o CSRF da porta, e nunca no modo de suporte (a
     porta recusa todos os POST fora do PODE_A_VER_COMO).
 
-    Sincrono: a copia de antes e um VACUUM INTO do radar.db, medido a
-    26/09/2026 em 8,8 s para 1,35 GB -- longe dos 100 s do tunel."""
+    Sincrono: a copia de antes e so as linhas da empresa no radar.db
+    (4/10/2026; era a base inteira, ~1 minuto)."""
     e = _empresa_ou_404(id_)
     if not _o_mesmo_nome(request.form.get("nome"), e["nome"]):
         return _volta_a("/plataforma/empresa/%d#apagar" % id_,
@@ -24189,9 +24264,9 @@ def plataforma_apagar_empresa(id_):
     registar_evento("", "empresa", "apagou a empresa %d (%s); cópia em %s, "
                     "pasta em %s" % (id_, e["nome"], copia, guardada),
                     quem=quem_sou() or "o dono")
-    return _volta_a("/plataforma", "%s saiu da plataforma. A cópia de antes está em "
-                    "copias/%s e a pasta da empresa em copias/%s."
-                    % (e["nome"], os.path.basename(copia), os.path.basename(guardada)))
+    return _volta_a("/plataforma", "%s saiu da plataforma. A pasta da empresa, com "
+                    "as contas e o plano em plataforma.json, está em copias/%s."
+                    % (e["nome"], os.path.basename(guardada)))
 
 
 @app.route("/plataforma/empresa/<int:id_>/ver-como", methods=["POST"])
@@ -33454,7 +33529,7 @@ def ficha_da_proposta(id_):
                html.escape(p["entidade"] or p["entidade_chave"])))
     # O apagar é perigo, e por isso vive dentro de um <details> — a mesma
     # forma do apagar de conta. Era uma rota que nenhum HTML desenhava.
-    apagar = (
+    apagar = "" if not sou_admin() else (   # só o gestor (4/10/2026)
         "<details class='perigo'><summary>Apagar esta proposta</summary>"
         "<p class='nota'>Apaga a proposta e as tarefas dela. Não há volta. "
         "Uma que tenha vindo do DR não se apaga aqui: volta a «Por ver», e "
@@ -35989,6 +36064,18 @@ def pedidos_de_acesso():
                            "ORDER BY id DESC LIMIT 500").fetchall()
     existem = empresas_existentes()
     apagadas = empresas_apagadas()
+    # Os pedidos do mesmo e-mail (4/10/2026, decisão dele: «permite, mas
+    # sinaliza»): quantos fez, e qual destes é, por ordem de chegada
+    por_email = {}
+    for l in sorted(linhas, key=lambda l: l["id"]):
+        por_email.setdefault((l["email"] or "").strip().lower(), []).append(l["id"])
+
+    def repetido(l):
+        ids = por_email.get((l["email"] or "").strip().lower(), [])
+        if len(ids) < 2:
+            return ""
+        return (" <span class='mg-tag %s'>%d.º de %d pedidos deste e-mail</span>"
+                % (tom("avisa"), ids.index(l["id"]) + 1, len(ids)))
     desde, nomes = {}, {}
     for id_ in existem:
         with com_empresa(id_):
@@ -36054,8 +36141,9 @@ def pedidos_de_acesso():
                          _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criado_em"])), "mg-num"),
                          _celula_da_tabela("Nome", html.escape(l["nome"])),
                          _celula_da_tabela("Empresa", html.escape(l["empresa"])),
-                         _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>"
-                                 % (html.escape(l["email"], quote=True), html.escape(l["email"]))),
+                         _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>%s"
+                                 % (html.escape(l["email"], quote=True), html.escape(l["email"]),
+                                    repetido(l))),
                          _celula_da_tabela("Telemóvel", ("<a href='tel:%s'>%s</a>" % (
                              html.escape(re.sub(r"[^\d+]", "", l["telefone"]), quote=True),
                              html.escape(l["telefone"]))) if l["telefone"] else "—", "mg-num"),
@@ -38503,8 +38591,8 @@ def main():
         except ValueError as erro:
             print(erro)
             return
-        print("Cópia de antes em %s." % copia)
-        print("A pasta da empresa está em %s (apaga-a quando quiseres)." % guardada)
+        print("A pasta da empresa está em %s (apaga-a quando quiseres); as "
+              "contas e o plano que saíram estão em %s." % (guardada, copia))
         for k, v in saiu.items():
             print("  %-18s %s" % (k, v))
         return

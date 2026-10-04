@@ -372,6 +372,19 @@ form .btn{justify-self:start}
       <a class="ligacao" href="#perguntas">Perguntas</a>
       <a class="entrar" href="/entrar">Entrar</a>
       <a class="btn btn-claro btn-pequeno" href="#acesso">Pedir acesso</a>
+      <!-- o menu do telemóvel (4/10/2026): abaixo dos 860 px as quatro
+           secções escondiam-se e nada as substituía -->
+      <details class="menu-movel">
+        <summary aria-label="Menu das secções"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></summary>
+        <div class="menu-movel__lista">
+          <a href="#ganhos">O que ganha</a>
+          <a href="#como-funciona">Como funciona</a>
+          <a href="#planos">Planos</a>
+          <a href="#confianca">Fontes</a>
+          <a href="#perguntas">Perguntas</a>
+          <a class="menu-movel__entrar" href="/entrar">Entrar</a>
+        </div>
+      </details>
     </nav>
   </div>
 </header>
@@ -811,6 +824,11 @@ form .btn{justify-self:start}
     a.addEventListener("click", function () {
       document.getElementById("plano").value = a.getAttribute("data-plano");
     });
+  });
+
+  var menu = document.querySelector(".menu-movel");
+  if (menu) menu.addEventListener("click", function (e) {
+    if (e.target.closest("a")) menu.removeAttribute("open");
   });
 
   var NOMES = { nome: "o nome", empresa: "a empresa", email: "o e-mail",

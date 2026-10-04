@@ -18234,6 +18234,17 @@ class TestDonoSemEmpresa(BaseTemporaria):
             self.assertEqual(contas_, {"admin": radar.SEM_EMPRESA})
             self.assertFalse(c.execute("SELECT 1 FROM leituras_pedidas").fetchone())
 
+    def test_a_copia_de_antes_e_so_o_que_sai_da_plataforma(self):
+        """4/10/2026: copiava a base inteira e todas as empresas (1,4 GB,
+        ~1 minuto com as escritas das outras paradas). Agora são as
+        linhas da empresa, ao lado da pasta."""
+        self.assertEqual(self.copia, os.path.join(self.guardada, "plataforma.json"))
+        with open(self.copia, encoding="utf-8") as f:
+            linhas = json.load(f)["linhas"]
+        self.assertEqual([u["email"] for u in linhas["utilizadores"]], ["teste"])
+        self.assertEqual(len(linhas["leituras_pedidas"]), 1)
+        self.assertEqual(os.stat(self.copia).st_mode & 0o077, 0)
+
     def test_o_arranque_nao_faz_renascer_a_empresa(self):
         radar.iniciar_db()
         self.assertEqual(radar.empresas_existentes(), [])
