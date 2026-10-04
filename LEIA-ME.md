@@ -992,6 +992,16 @@ podes também atribuir o concurso, e as tarefas, a uma pessoa: **só a
 quem tem conta na empresa** (desde 29/09/2026). Os nomes antigos,
 escritos à mão antes disso, continuam a aparecer como estavam.
 
+**Sugestões** (desde 4/10/2026). Qualquer pessoa com conta — gestor ou
+utilizador — envia uma pelo menu da conta, em «Enviar uma sugestão»
+(ou pela Ajuda), com uma captura de ecrã se quiser, e vê lá o estado das
+que enviou. Tu lês todas em **Administração da plataforma › Sugestões**
+(`/plataforma/sugestoes`), com a captura, e dás-lhes o estado: nova,
+vista, feita, ou não vamos fazer — é esse estado que a pessoa vê. Chega-te
+**um e-mail por dia**, a partir das 18:00, com as que entraram desde o
+anterior, para o endereço dos avisos da plataforma. Sem nenhuma nova, não
+chega nada.
+
 ## 7-A. Configurações
 
 **As peças novas na plataforma.** Um esclarecimento ou uma errata

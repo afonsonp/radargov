@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 19 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 20 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -124,6 +124,7 @@ as exactas e salta as outras.
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
 | `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) de 30/09 a 4/10/2026, quando o formulário passou a pedir o `telefone` em vez deles |
+| `sugestoes` | as que quem usa envia | O que cada conta tem a dizer (4/10/2026, §4.8): o tipo, o texto, a página de onde partiu, a `captura` (a extensão da imagem, em `sugestoes/<id>.<ext>`), e o `estado` que o dono lhe dá |
 | `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
 | `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
 
@@ -893,7 +894,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**140 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**144 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1405,6 +1406,18 @@ no browser — vale em todos os aparelhos —, e o molde carimba-o no
 pelo claro ou pelo escuro do computador. O ecrã de entrar, o do convite
 e os de erro seguem o computador (não há a quem perguntar).
 
+**As sugestões** (4/10/2026, pedido dele; `/sugestoes`): qualquer conta
+— o gestor e o utilizador — chega lá pelo menu da conta («Enviar uma
+sugestão», que leva a página de onde se parte) ou pela Ajuda. Escolhe o
+tipo (sugestão, algo não funciona, dúvida, elogio), escreve até 2 000
+caracteres e pode juntar uma captura de ecrã (PNG, JPG ou WebP, até 5
+MB, conferida pelos primeiros bytes); vê por baixo as que já enviou e o
+estado de cada uma. Vinte por conta por dia. O dono lê-as todas em
+`/plataforma/sugestoes`, com a captura (só ele a vê) e o estado — nova,
+vista, feita, não vamos fazer —, e o semáforo «Sugestões» e o «A tratar
+hoje» contam as novas. Ao dono chega **um resumo por dia** (§4.10), não
+um e-mail por cada.
+
 ### 4.9 A porta
 
 **Os planos** (desde 1/10/2026, L2.1 do plano de Outubro, com os planos
@@ -1843,6 +1856,11 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
 
 ### 4.10 O que corre sozinho
 
+- **O resumo das sugestões** (4/10/2026): na primeira verificação a
+  partir das 18:00 (`HORA_DO_RESUMO_DAS_SUGESTOES`), as sugestões que
+  chegaram desde o anterior, num e-mail para o endereço dos avisos da
+  plataforma (`resumo_das_sugestoes()`). Sem nenhuma nova, não sai nada;
+  se o envio falhar, vão no de amanhã.
 - **Recolha** de hora a hora, das 08:00 às 20:00 (desde 23/09/2026; o
   `radar-hora.timer` dispara a todas as horas e só as de
   `horas_verificacao` contam; o relógio do painel recupera só a última
