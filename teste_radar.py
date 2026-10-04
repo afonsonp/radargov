@@ -23126,6 +23126,24 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         self.assertIn("o período não se aplica aqui", h)
         self.assertNotIn("class='periodos'", h)
 
+    def test_o_contacto_escrito_volta_ao_campo_depois_de_um_erro(self):
+        """5.ª ronda: com a palavra-passe actual errada, o e-mail escrito
+        perdia-se e tinha de se escrever outra vez."""
+        chefe = self.entrar("chefe")
+        r = self.post(chefe, "/configuracoes/conta",
+                      {"actual": "errada-de-todo", "contacto": "chefe@alfa.pt"},
+                      "/configuracoes/conta")
+        self.assertIn("tom=erro", r.headers["Location"])
+        self.assertIn("contacto=chefe%40alfa.pt", r.headers["Location"])
+        h = self.ver(chefe, r.headers["Location"]).get_data(as_text=True)
+        self.assertIn("value='chefe@alfa.pt'", h)
+
+    def test_um_dia_escolhido_sem_tarefas_diz_se(self):
+        """5.ª ronda: um dia passado sem tarefas marcava-se na fita, e a
+        lista mostrava os próximos sete dias sem dizer nada do dia."""
+        h = self.ver(self.entrar("chefe"), "/?dia=2026-01-05").get_data(as_text=True)
+        self.assertIn("Nada marcado para este dia.", h)
+
     def test_quinta_ronda_o_solo_nao_cria_contas_sem_convite_acima_do_limite(self):
         """5.ª ronda: num Solo o convite era recusado, e o «criar sem
         convite» fazia a segunda e a terceira conta."""

@@ -24923,10 +24923,14 @@ def plataforma_ver_como_sair():
     registar_evento("", "suporte", "saiu da empresa %d" % id_, quem=quem)
     return redirect("/plataforma/empresa/%d" % id_)
 
-def volta_config(seccao, aviso, erro=False):
+def volta_config(seccao, aviso, erro=False, **fica):
+    """De volta à secção com o aviso; o `fica` é o que se escreveu e o
+    formulário volta a mostrar (5.ª ronda: num erro da Conta o e-mail de
+    contacto escrito perdia-se)."""
     pares = {"aviso": aviso}
     if erro:
         pares["tom"] = "erro"
+    pares.update({k: v for k, v in fica.items() if v})
     return redirect("/configuracoes/%s?%s" % (seccao, urlencode(pares)))
 
 
@@ -25661,12 +25665,12 @@ def config_conta():
                               (utilizador["id"],)).fetchone()
             if not actual:
                 # vazia não é errada (4.ª ronda): a frase acusava um engano
-                return volta_config_erro("conta", "Para mudar isto, escreva a "
+                return volta_config("conta", erro=True, contacto=contacto or "", aviso="Para mudar isto, escreva a "
                                          "palavra-passe actual.")
             if not contas.verifica_senha(actual, linha["hash"]):
-                return volta_config_erro("conta", "A palavra-passe actual não está certa.")
+                return volta_config("conta", erro=True, contacto=contacto or "", aviso="A palavra-passe actual não está certa.")
             if nova != outra:
-                return volta_config_erro("conta", "As duas palavras-passe novas não são iguais.")
+                return volta_config("conta", erro=True, contacto=contacto or "", aviso="As duas palavras-passe novas não são iguais.")
             muda_contacto = (contacto is not None
                              and contas.email_limpo(contacto) != linha["contacto"])
             # o contacto confere-se ANTES de a palavra-passe mudar: um
@@ -25674,11 +25678,11 @@ def config_conta():
             porque = muda_contacto and contas.problema_do_contacto(
                 c, utilizador["id"], contacto)
             if porque:
-                return volta_config_erro("conta", "Não gravei: %s." % porque)
+                return volta_config("conta", erro=True, contacto=contacto or "", aviso="Não gravei: %s." % porque)
             if not nova and not muda_contacto:
                 # só a actual, nada para mudar (5.ª ronda: respondia «tem de
                 # ter 8 caracteres» a uma nova que não se escreveu)
-                return volta_config_erro("conta", "Nada mudou: escreva a "
+                return volta_config("conta", erro=True, contacto=contacto or "", aviso="Nada mudou: escreva a "
                                          "palavra-passe nova, ou um e-mail de "
                                          "contacto diferente.")
             muda_senha = bool(nova)
@@ -25686,7 +25690,7 @@ def config_conta():
                 try:
                     contas.criar_utilizador(c, utilizador["email"], nova)
                 except ValueError as erro:
-                    return volta_config_erro("conta", "Não gravei: %s." % erro)
+                    return volta_config("conta", erro=True, contacto=contacto or "", aviso="Não gravei: %s." % erro)
             if muda_contacto:
                 contas.gravar_contacto(c, utilizador["id"], contacto)
         recado = {(True, False): "Palavra-passe mudada.",
@@ -25703,6 +25707,8 @@ def config_conta():
         sessoes = contas.sessoes_de(c, utilizador["id"])
         contacto = c.execute("SELECT contacto FROM utilizadores WHERE id=?",
                              (utilizador["id"],)).fetchone()["contacto"]
+        # o que se escreveu antes de um erro volta ao campo
+        contacto = request.args.get("contacto", contacto)
         todos = contas.utilizadores(c, empresa_activa()) if da_empresa else []
         convites = contas.convites_por_usar(c, empresa_activa()) if da_empresa else []
         suporte = [dict(r) for r in c.execute(
@@ -38872,6 +38878,14 @@ def inicio():
                               if not (esconder and t["feita_em"])],
                              CABEM_NO_BALDE)))
             continue
+        if not aqui and chave == "dia" and dia_escolhido != hoje:
+            # o dia escolhido diz-se mesmo vazio (5.ª ronda: um dia passado
+            # sem tarefas marcava-se na fita e a lista mostrava os próximos
+            # sete dias, sem uma palavra sobre o que se pediu)
+            blocos.append("<div class='hj-g %s'>%s<p class='nota' style='padding:"
+                          "6px 8px'>Nada marcado para este dia.</p></div>"
+                          % (classe, cabeca_do_balde(chave, rotulo, 0, 0)))
+            continue
         if not aqui:
             continue
         if chave == "sem_decisao":
@@ -38895,8 +38909,10 @@ def inicio():
             # o ecra deixar de dizer o que o servidor mandou.
             blocos.append(
                 "<details class='hj-g %s'%s><summary>%s</summary>%s</details>"
-                % (classe, " open" if chave == "semana" else "",
-                   cabeca, corpo))
+                # aberto só com o dia de hoje: com outro escolhido, é esse
+                # que se quer ver, e não sete dias por cima dele
+                % (classe, " open" if chave == "semana" and dia_escolhido == hoje
+                   else "", cabeca, corpo))
 
     if blocos:
         fazer = "".join(blocos)
