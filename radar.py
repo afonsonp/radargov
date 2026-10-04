@@ -26,6 +26,7 @@ import contextlib
 import contextvars
 import copy
 import csv
+import functools
 import hashlib
 import hmac
 import html
@@ -2298,6 +2299,12 @@ def data_do_texto(escrito):
     if not escrito:
         return ""
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", escrito):
+        # conferida: «2026-13-45» e «2026-02-31» passavam tal e qual, e a
+        # tarefa ficava com uma data que não existe (4.ª ronda)
+        try:
+            date.fromisoformat(escrito)
+        except ValueError:
+            return ""
         return escrito
     # sem ano é o ano corrente (3.ª ronda, G96), como no data_de_filtro()
     m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}))?", escrito)
@@ -2625,6 +2632,12 @@ def euros_curto(v):
         if abs(v) >= corte:
             return ("%.1f" % (v / corte)).replace(".", ",") + sufixo
     return "%.0f €" % v
+
+
+def _sem_a_aba(filtro):
+    """O filtro sem o `estado=` da aba: a aba não é um filtro."""
+    return "&".join(p for p in (filtro or "").split("&")
+                    if p and not p.startswith("estado="))
 
 
 def plural(n, singular, plural_=None):
@@ -4363,7 +4376,7 @@ def recolher(cfg):
                 break
             if erro in ("casca", "apiVersion"):
                 registar_expiracao_token(
-                    "curl_DR", "a pesquisa nao foi aceite (%s) nem depois "
+                    "curl_DR", "a pesquisa não foi aceite (%s) nem depois "
                     "de renovar as peças" % erro)
                 return False, ("o DR não aceitou a pesquisa (%s) nem depois de "
                                "renovar as peças; ver amostras/"
@@ -5126,7 +5139,7 @@ def ler_detalhe_de(ref):
     variaveis["Tipo"] = "anuncio-procedimento"
     dados, erro = perguntar_ao_dr(pedido, molde)
     if erro in ("casca", "apiVersion"):
-        registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+        registar_expiracao_token("curl_detalhe", "o detalhe não foi aceite "
                                  "(%s) nem depois de renovar as peças" % erro)
         return False, ("o DR não aceitou o pedido do detalhe (%s) nem depois "
                        "de renovar as peças; refaz a captura" % erro)
@@ -5184,7 +5197,7 @@ def ler_detalhes(limite=40, dias=None, intervalo=1):
         variaveis["Tipo"] = "anuncio-procedimento"
         dados, erro = perguntar_ao_dr(pedido, molde)
         if erro in ("casca", "apiVersion"):
-            registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+            registar_expiracao_token("curl_detalhe", "o detalhe não foi aceite "
                                      "(%s) nem depois de renovar as peças" % erro)
             return feitos, ("o DR não aceitou o detalhe (%s) nem depois de "
                             "renovar as peças; refaz a captura" % erro)
@@ -5261,7 +5274,7 @@ def ler_detalhes_paralelo(limite=40, dias=None, concorrencia=8):
             _guardar_detalhe(ref, dados)
             feitos += 1
     if motivo:
-        registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+        registar_expiracao_token("curl_detalhe", "o detalhe não foi aceite "
                                  "(%s) nem depois de renovar as peças" % motivo)
         return feitos, ("o DR não aceitou o detalhe (%s) nem depois de "
                         "renovar as peças; refaz a captura" % motivo)
@@ -5474,7 +5487,7 @@ def reler_marcados(limite=25):
         variaveis["Tipo"] = "anuncio-procedimento"
         dados, erro = perguntar_ao_dr(pedido, molde)
         if erro in ("casca", "apiVersion"):
-            registar_expiracao_token("curl_detalhe", "o detalhe nao foi aceite "
+            registar_expiracao_token("curl_detalhe", "o detalhe não foi aceite "
                                      "(%s) nem depois de renovar as peças" % erro)
             return feitos, ("o DR não aceitou o detalhe (%s) nem depois de "
                             "renovar as peças; refaz a captura" % erro)
@@ -14144,6 +14157,20 @@ def vigiar_os_concorrentes(voltas=None, esperar=time.sleep, agora=datetime.now):
             esperar(600)
 
 
+@functools.lru_cache(maxsize=2)
+def _contratos_desde(corpus, desde):
+    """Os contratos do âmbito, contados uma vez por dia (o `desde` muda à
+    meia-noite): sem índice na data de publicação era um varrimento dos
+    2 milhões, 7 s em cada abertura da /plataforma (4.ª ronda).
+    ponytail: o corpus muda à segunda; um dia de atraso no total não
+    conta, e um índice custava ~40 MB e uma migração no corpus. O
+    `corpus` está na chave para um teste com outro ficheiro não ler o
+    total de outro."""
+    with liga_corpus() as k:
+        return k.execute("SELECT COUNT(*) FROM contratos WHERE data_publicacao >= ?",
+                         (desde,)).fetchone()[0]
+
+
 def estado_da_recolha():
     """O que se mostra ao dono: quantos lidos, quantos com lista, o total
     do ambito, e os ultimos cortes. Sem corpus, None."""
@@ -14151,9 +14178,7 @@ def estado_da_recolha():
         return None
     desde = (datetime.now() - timedelta(days=365 * ANOS_DOS_CONCORRENTES)
              ).strftime("%Y-%m-%d")
-    with liga_corpus() as k:
-        total = k.execute("SELECT COUNT(*) FROM contratos WHERE data_publicacao >= ?",
-                          (desde,)).fetchone()[0]
+    total = _contratos_desde(CORPUS, desde)
     with liga_concorrentes() as c:
         lidos, com_lista = c.execute(
             "SELECT COUNT(*), COUNT(n_concorrentes) FROM detalhe").fetchone()
@@ -14513,7 +14538,10 @@ LOOPBACK = ("127.0.0.1", "::1")
 ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
                  "/configuracoes/recolha", "/configuracoes/leitura",
                  "/configuracoes/capturas", "/configuracoes/copias",
-                 "/verificar", "/alertas/remetente", "/pedidos-de-acesso")
+                 "/verificar", "/alertas/remetente", "/pedidos-de-acesso",
+                 # refaz o corpus da plataforma inteira (4.a ronda: o botão
+                 # aparecia a qualquer conta de empresa)
+                 "/contratos/actualizar")
 # O que so o admin DA EMPRESA abre (13/09/2026): as contas dela e quem
 # ela e (nome e NIF).
 # E o Perfil da empresa (D7 da 3.ª ronda, 29/09/2026, decisão dele): o
@@ -14809,7 +14837,9 @@ def porta_de_entrada():
             # (23/09/2026), e nao o ecra de entrar: a porta continua
             # fechada -- o site e um ficheiro estatico sem dados --, e
             # so a raiz o mostra. Qualquer outro caminho vai ao login.
-            if request.path == "/":
+            # ...menos a quem a sessão do Solo acabou de fechar: caía no
+            # site sem saber porquê (4.ª ronda)
+            if request.path == "/" and not g.get("fechada"):
                 site = pagina_do_site()
                 if site is not None:
                     return site
@@ -15284,7 +15314,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="s
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
- <p class="entrar-nota">Esqueceu-se da palavra-passe? <a href="/esqueci-me">Receba uma ligação por e-mail</a>. Se entra com um nome de utilizador e não com um e-mail, Peça ao gestor da sua empresa uma ligação para a repor.</p>
+ <p class="entrar-nota">Esqueceu-se da palavra-passe? <a href="/esqueci-me">Receba uma ligação por e-mail</a>. Se entra com um nome de utilizador e não com um e-mail, peça ao gestor da sua empresa uma ligação para a repor.</p>
  <p class="entrar-nota">Sem conta? <a href="/#acesso">Peça acesso</a>.</p>
  </div></section>
 </main></body></html>"""
@@ -17251,7 +17281,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
   }
  });
  function fecha() {
-  l.hidden = true; l.textContent = ''; i.setAttribute('aria-expanded', 'false');
+  l.hidden = true; l.textContent = '';
  }
  function grupo(titulo, itens, rotulo, nota) {
   if (!itens.length) return;
@@ -17277,7 +17307,7 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
   todos.className = 'pesquisa-lista__item pesquisa-lista__todos';
   todos.textContent = n ? 'Ver tudo o que responde' : 'Nada responde: abrir a página';
   l.appendChild(todos);
-  l.hidden = false; i.setAttribute('aria-expanded', 'true');
+  l.hidden = false;
   vivo.textContent = n ? n + ' resultados; seta para baixo para os percorrer'
                        : 'Nenhum resultado';
  }
@@ -17332,6 +17362,9 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
     traz o «desfazer» (ronda em PC, 26/09/2026): sem ancora a pagina
     abre no topo, que e onde o aviso ja esta -- e preso em baixo tapava
     o que la estivesse, como o «Criar o alerta do perfil» nos Alertas. */
+ /* o `h` vinha de quando o aviso se esvaziava (G90) e ficou sem dono:
+    um ReferenceError parava aqui o aviso ao leitor e o foco (4.a ronda) */
+ var h = t.innerHTML;
  if (!location.hash && h.indexOf('desfazer') < 0) t.classList.add('no-topo');
  /* E o foco, se ninguem o levou para a linha (a lista leva-o), vai para
     o aviso: caia no <body>, no topo da pagina (WCAG 2.4.3). */
@@ -18225,7 +18258,7 @@ def caixa_do_motivo():
             "    var sel = form.querySelector('select[name=estado]');\n"
             "    if (!sel) return;\n"
             "    if (sel.value === 'porver') {\n"
-            "      if (!confirm('Voltar «' + form.dataset.titulo + '» a «Por ver»? A proposta e as tarefas dela apagam-se.')) {\n"
+            "      if (!confirm('Voltar «' + form.dataset.titulo + '» a «Por ver»? Sem trabalho escrito, a proposta e as tarefas dela apagam-se; com preço ou notas, fica em «Por analisar».')) {\n"
             "        e.preventDefault();\n"
             "        // cancelar repoe a fase verdadeira (3.a ronda, G34), como\n"
             "        // o Cancelar da caixa do motivo ja fazia\n"
@@ -19158,7 +19191,8 @@ function arvoreConstruir(dados) {
   corpo.innerHTML = '';
   raizes.forEach(function(cod) { corpo.appendChild(arvoreNo(cod, porCodigo, filhos, total)); });
   document.getElementById('arvore-contagem').textContent =
-      dados.length + ' códigos, ' + raizes.length + ' divisões';
+      // com o espaço dos milhares, como o título diz «9 454» (4.ª ronda)
+      String(dados.length).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') + ' códigos, ' + raizes.length + ' divisões';
   arvoreMarcarSemeados();
 }
 
@@ -20680,8 +20714,10 @@ def _lista_de_anuncios():
         % (" open" if (cpv_actual or request.args.get("cpv_excl")) else "",
            # o resumo so quando ha filtro: sem ele dizia "porver", que e
            # o nome interno da aba e nao um filtro
-           html.escape(resumo_filtro(filtro_em_uso, "anuncios"))
-           if filtro_em_uso != "estado=" + estado_actual else "", arvore)
+           # (a aba tira-se sempre: o dono, sem empresa, tem outra aba
+           # actual e via «porver» na mesma, 4.ª ronda)
+           html.escape(resumo_filtro(_sem_a_aba(filtro_em_uso), "anuncios"))
+           if _sem_a_aba(filtro_em_uso) else "", arvore)
         if arvore else "") + faixa_cpv
     conteudo = ("<div class='larg'>" + faixa_avisos +
                 faixa_de_avisos_de_datas(request.args) +
@@ -21270,6 +21306,11 @@ _NOMES_ACCAO = {"análise": "leitura",
                 "data_adjudicacao": "data da adjudicação",
                 "audiencia_em": "notificação do relatório preliminar",
                 "valor_adjudicado": "valor adjudicado",
+<<<<<<< HEAD
+=======
+                # o prazo de entrega (1/10/2026) saía com o nome da
+                # coluna (4.ª ronda)
+>>>>>>> a57e9b9 (fix: os achados da 4.ª ronda de testes (oito perfis num painel de ensaio))
                 "prazo_entrega": "prazo de entrega"}
 
 
@@ -21284,7 +21325,8 @@ def resumo_filtro(consulta, vista=None):
             continue
         valor = campos[campo]
         if campo == "estado":
-            partes.append(_NOMES_ESTADO.get(valor, valor))
+            # as abas da escada pelo nome (4.ª ronda: «porver · prazo…»)
+            partes.append(_NOMES_ESTADO.get(valor) or ROTULOS_DA_ESCADA.get(valor, valor))
         elif campo == "prazo" and valor:
             partes.append("prazo a menos de %d dias" % dias_urgente()
                           if valor == "urgente"
@@ -21614,10 +21656,12 @@ def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
         return ""
     if levantado:
         return ("<div class='cpv-activo'>Perfil da empresa levantado nesta "
-                "vista &mdash; mostra todos os concursos. <a href='%s'>voltar ao perfil"
+                "vista &mdash; mostra %s. <a href='%s'>voltar ao perfil"
                 "</a></div>"
-                % html.escape(sem_pagina(request.args, rota, interesse=""),
-                              quote=True))
+                # «concursos» também nos contratos dizia o que não era (4.ª ronda)
+                % ("todos os contratos" if "contrat" in rota else "todos os concursos",
+                   html.escape(sem_pagina(request.args, rota, interesse=""),
+                               quote=True)))
     quantos = ("<span class='d'> &middot; %s de fora</span>"
                % mil_pt(escondidos)) if escondidos > 0 else ""
     return ("<div class='cpv-activo'>Limitado ao "
@@ -22931,6 +22975,10 @@ def _conteudo_alertas():
     # Os avisos prometiam um e-mail que nao podia sair, e nada o dizia
     # (teste de 26/09/2026). A razao vem do mesmo teste que o envio faz.
     falta = porque_o_email_nao_sai(cfg)
+    # O que só o dono resolve diz-se ao cliente sem o ficheiro do servidor
+    # (4.ª ronda: o gestor lia «falta a palavra-passe em email_senha.txt»)
+    if falta in (EMAIL_SEM_SENHA, EMAIL_POR_CONFIGURAR) and not sou_dono():
+        falta = "o envio da plataforma ainda não está configurado"
     faixa_correio = ("<div class='mg-alert mg-alert--warning' role='status'>"
                      "Os avisos ainda não saem por e-mail (%s). Ficam em "
                      "«Últimos avisos», aqui em baixo.</div>"
@@ -23845,13 +23893,16 @@ def _cartao_do_plano(id_):
             data_pt(p["desde"] or ""),
             "Sem limite de utilizadores." if livres is None else
             "%s de %s." % (plural(livres, "lugar livre", "lugares livres"),
-                           plural(p["utilizadores"], "utilizador"))))
+                           plural(p["utilizadores"], "utilizador", "utilizadores"))))
     else:
         frase = ("<div class='mg-alert mg-alert--warning'>Esta empresa não tem "
                  "plano: não tem limite de utilizadores nem a sessão única do "
                  "Solo. Escolha-o aqui.</div>")
-    opcoes = "".join("<option value='%s'%s>%s</option>" % (
-        k, " selected" if p and p["plano"] == k else "", html.escape(v[0]))
+    # sem plano, o selector não mostra o Solo como se fosse o escolhido
+    # (4.ª ronda)
+    opcoes = ("" if p else "<option value='' selected disabled>— escolha —</option>") + "".join(
+        "<option value='%s'%s>%s</option>" % (
+            k, " selected" if p and p["plano"] == k else "", html.escape(v[0]))
         for k, v in contas.PLANOS.items())
     periodos = "".join("<option value='%s'%s>%s</option>" % (
         k, " selected" if p and p["periodo"] == k else "", k)
@@ -23897,6 +23948,17 @@ def plataforma_gravar_plano(id_):
         return _volta_a("/plataforma/empresa/%d#plano" % id_, str(erro), erro=True)
     registar_evento("", "plano", "mudou o plano da empresa %d para %s"
                     % (id_, f.get("plano")), quem=quem_sou() or "")
+    # Descer não tira contas (é a regra); mas diz-se (4.ª ronda: um Solo
+    # com duas contas gravava-se calado)
+    with liga() as c:
+        p = contas.plano_da_empresa(c, id_)
+        n = len([u for u in contas.utilizadores(c, id_) if not u["dono"]])
+    if p and p["utilizadores"] and n > p["utilizadores"]:
+        return _volta_a("/plataforma/empresa/%d#plano" % id_,
+                        "Plano gravado. A empresa tem %s e o plano só %s: as "
+                        "contas continuam a entrar até tirar as que sobram."
+                        % (plural(n, "conta"), plural(p["utilizadores"], "utilizador",
+                                                       "utilizadores")), erro=True)
     return _volta_a("/plataforma/empresa/%d#plano" % id_, "Plano gravado.")
 
 
@@ -23918,8 +23980,12 @@ def plataforma_criar_convite(id_):
         with liga() as c:
             codigo = contas.criar_convite(c, id_, email, papel)
     except ValueError as erro:
-        # o limite do plano (L2.1): o dono muda o plano no cartão de cima
-        return _volta_a("/plataforma/empresa/%d#plano" % id_, str(erro), erro=True)
+        # o limite do plano (L2.1): o dono muda o plano no cartão de cima.
+        # A frase é a do gestor; ao dono diz-se o que ele pode fazer (4.ª ronda)
+        return _volta_a("/plataforma/empresa/%d#plano" % id_,
+                        str(erro).replace("Para mais, fale connosco.",
+                                          "Mude o plano aqui, ou anule um convite."),
+                        erro=True)
     registar_evento("", "convite", "criou um convite (%s) para a empresa %d"
                     % (papel, id_), quem=quem_sou() or "")
     return _mostrar_convite(e, codigo, papel, email)
@@ -24296,7 +24362,7 @@ def config_recolha():
                  nota="a rotina só lê o detalhe (CPV, prazo, preço) dos anúncios destes últimos dias")
         + _campo("Detalhes por volta", "detalhes_por_volta", cfg.get("detalhes_por_volta", 40))
         + _campo("Relidos por volta", "relidos_por_volta", cfg.get("relidos_por_volta", 25),
-                 nota="anúncios interessa/quadro com prazo aberto que se releem para apanhar alterações")
+                 nota="anúncios com interesse ou proposta em curso, de prazo aberto, que se releem para apanhar alterações")
         + _interruptor("Trazer as consultas preliminares da Vortal", "vortal_preliminares",
                        cfg.get("vortal_preliminares", True))
         + _interruptor("Recuperar um slot falhado na verificação seguinte",
@@ -24904,6 +24970,10 @@ def config_conta():
         with liga() as c:
             linha = c.execute("SELECT hash, contacto FROM utilizadores WHERE id=?",
                               (utilizador["id"],)).fetchone()
+            if not actual:
+                # vazia não é errada (4.ª ronda): a frase acusava um engano
+                return volta_config_erro("conta", "Para mudar isto, escreva a "
+                                         "palavra-passe actual.")
             if not contas.verifica_senha(actual, linha["hash"]):
                 return volta_config_erro("conta", "A palavra-passe actual não está certa.")
             if nova != outra:
@@ -25301,8 +25371,12 @@ def config_empresa():
     nif = re.sub(r"\D", "", request.form.get("nif_da_empresa") or "")
     if nif and not nif_valido(nif):
         return redirect("/configuracoes/conta?%s#empresa" % urlencode({
-            "aviso": "O NIF %s não é válido (o último dígito não confere). "
-                     "Nada foi guardado: corrija-o e volte a guardar." % nif[:12],
+            # o motivo certo: um NIF curto não tem dígito para conferir
+            # (4.ª ronda)
+            "aviso": ("O NIF %s não é válido (%s). Nada foi guardado: "
+                      "corrija-o e volte a guardar."
+                      % (nif[:12], "o último dígito não confere" if len(nif) == 9
+                         else "tem %d algarismos, e são 9" % len(nif))),
             "tom": "erro", "nome_da_empresa": nome,
             "nif_da_empresa": request.form.get("nif_da_empresa") or ""}))
     gravar_config_registado({"nome_da_empresa": nome, "nif_da_empresa": nif})
@@ -26071,8 +26145,9 @@ def caixa_da_pesquisa():
             "concurso, proposta, entidade ou NIF</label>"
             "<input class='pesquisa-geral__campo' id='pesquisa-geral' type='search' "
             "name='q' maxlength='%d' autocomplete='off' placeholder='Procurar  (Ctrl+K)' "
-            "aria-keyshortcuts='Control+K /' aria-controls='pesquisa-geral-lista' "
-            "aria-expanded='false'>"
+            # sem aria-expanded (4.a ronda): num type=search é atributo
+            # proibido; a lista são ligações, e o número anuncia-se no status
+            "aria-keyshortcuts='Control+K /' aria-controls='pesquisa-geral-lista'>"
             "<div class='pesquisa-lista' id='pesquisa-geral-lista' hidden></div>"
             "<div class='so-leitor' role='status' aria-live='polite'></div></form>"
             % TECTO_DA_PESQUISA)
@@ -28089,6 +28164,8 @@ def barra_corpus(anos):
     if a_correr:
         direita = ("<span class='a-correr'>a actualizar&hellip; %s</span>"
                    % html.escape(passo))
+    elif not sou_dono():
+        direita = ""
     else:
         # leva os filtros de agora, para se voltar ao que se estava a ver
         seguir = urlencode(args_da_lista(request.args))
@@ -32114,7 +32191,7 @@ def tarefa_nova():
     # E26: de volta à linha nova, com o aviso, e não ao topo da ficha
     # sem data diz-se onde fica (3.ª ronda, G33): parecia não ter chegado
     # ao Hoje, e estava no balde dobrado do fim
-    return _volta_com_aviso("Tarefa juntada." + (
+    return _volta_com_aviso("Tarefa criada." + (
         recado_da_data_passada(quando) if quando else
         " Sem data: no Hoje fica em «Mais para a frente e sem data»."),
         ancora="t%d" % id_)
@@ -32940,8 +33017,8 @@ def proposta_cx(a):
             # info e nao aviso (UX-7-LEIS, V3): o laranja fica para o prazo
             "<div class='mg-alert mg-alert--info'><div class='mg-alert__body'>"
             "<div class='mg-alert__title'>Falta decidir.</div>"
-            "<div class='mg-alert__text'>Este concurso ainda não está na "
-            "fase nenhuma: «Interessa», lá em cima, abre a proposta e as "
+            "<div class='mg-alert__text'>Este concurso ainda não está em "
+            "nenhuma fase: «Interessa», lá em cima, abre a proposta e as "
             "tarefas.</div></div></div>",
             meta="Ainda sem estado", id_="proposta")
     # O desfecho do Portal BASE, uma vez por ficha e nao uma por lote:
@@ -35833,14 +35910,20 @@ def pedir_acesso():
         titulo = "Pedido recebido" if ok else "Não foi possível enviar"
         texto = (html.escape(erro) if erro else
                  # o que vem a seguir, como a confirmação do site (G99)
-                 "Respondemos para %s, normalmente em dois dias úteis. Quando "
+                 "Respondemos para %s, normalmente no próprio dia útil. Quando "
                  "o pedido for aceite, recebe nesse endereço um convite para "
                  "criar a conta. Se não chegar, veja a pasta de spam ou "
                  "escreva para contacto@miragov.pt."
                  % (html.escape(request.form.get("email") or "") or "o seu e-mail"))
-        return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
-                                       "texto": texto,
-                                       "logo": logotipo(tamanho=24)},
+        # quem pede não tem conta: o botão volta ao site, e no erro ao
+        # formulário (4.ª ronda: dizia «Voltar ao Hoje»)
+        return Response((PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
+                                        "texto": texto,
+                                        "logo": logotipo(tamanho=24)}).replace(
+                            ACCAO_DA_PAGINA_DE_ERRO,
+                            '<a class="mg-btn mg-btn--primary" href="/%s">%s</a>'
+                            % (("", "Voltar ao site") if ok else
+                               ("#acesso", "Voltar ao formulário"))),
                         codigo, mimetype="text/html")
 
     if not origem_e_nossa():
@@ -36443,8 +36526,10 @@ def convite(codigo):
     with liga() as c:
         convite_, porque = contas.convite_valido(c, codigo)
     if not convite_:
-        return pagina_convite(porque[0].upper() + porque[1:] + ". Peça outro "
-                              "ao gestor da sua empresa.",
+        # a frase do anulado já diz a quem pedir (4.ª ronda: dizia-o duas vezes)
+        return pagina_convite(porque[0].upper() + porque[1:] + (
+                                  "." if "peça outro" in porque else
+                                  ". Peça outro a quem o mandou."),
                               codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
         return pagina_convite("Escolha o nome de utilizador e a palavra-passe "
@@ -37344,6 +37429,10 @@ def _o_que_mudou(hoje, cfg):
     # passava por cima do texto ao lado (visto a 22/09/2026).
     if so_a_hora.startswith(data_pt(hoje.isoformat())):
         so_a_hora = so_a_hora.split()[-1]
+    elif re.match(r"\d\d/\d\d/\d{4}", so_a_hora):
+        # de outro dia, só o dia e o mês: a data e a hora em duas linhas
+        # escreviam-se por cima do texto ao lado (4.ª ronda, três perfis)
+        so_a_hora = so_a_hora[:5]
     dica_verif = html.escape(re.sub(r"&\w+;", "—", quando_verif), quote=True)
     # A razao de uma falha e para o dono, que a pode resolver («refaz a
     # captura»); o gestor de uma empresa cliente nao pode fazer nada com
@@ -37446,8 +37535,11 @@ def _o_que_mudou(hoje, cfg):
             % (dica_verif, "&mdash;" if nunca else so_a_hora,
                # com anúncios novos fora do perfil, «nada de novo»
                # desmentia o número de cima (G27)
-               ("Nada de novo no perfil desde a última verificação."
-                if novos else "Nada de novo desde a última verificação.")
+               # «anúncio», e não «nada»: as peças contam-se à parte, e
+               # «35 peças novas» por cima de «nada de novo» desmentia-se
+               # (4.ª ronda)
+               ("Nenhum anúncio novo no perfil desde a última verificação."
+                if novos else "Nenhum anúncio novo desde a última verificação.")
                if verif_ok and not nunca
                else "Ainda não houve uma verificação. O Mira Gov verifica "
                     "sozinho, de hora a hora."))
@@ -38012,12 +38104,15 @@ def passos_do_arranque(cfg=None):
     with liga() as c:
         alerta = bool(c.execute("SELECT 1 FROM filtros_guardados "
                                 "WHERE alerta=1 LIMIT 1").fetchone())
-        # a equipa: um colega com conta, ou um convite que o admin fez
-        # (o do pedido de acesso, que criou a conta dele, não conta)
+        # a equipa: um colega com conta, ou um convite por usar. O que
+        # criou a conta do gestor já foi usado e não conta -- nem o do
+        # pedido, nem o que o dono fez na plataforma (4.ª ronda: o passo
+        # nascia feito numa empresa criada pelo dono)
         colegas = c.execute("SELECT COUNT(*) FROM utilizadores WHERE "
                             "empresa_id=?", (empresa_activa(),)).fetchone()[0]
         convidou = bool(c.execute("SELECT 1 FROM convites WHERE empresa_id=? "
-                                  "AND pedido_id IS NULL LIMIT 1",
+                                  "AND pedido_id IS NULL AND usado_em IS NULL "
+                                  "AND anulado_em IS NULL LIMIT 1",
                                   (empresa_activa(),)).fetchone())
     return [
         (bool(consulta_do_perfil(cfg)), "Perfil da empresa",

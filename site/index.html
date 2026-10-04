@@ -384,7 +384,7 @@ form .btn{justify-self:start}
         <h1 id="t-abertura">Nenhum concurso da sua área fica <em>por ver</em>.</h1>
         <p class="lead">O Mira Gov lê o Diário da República <strong>ao longo do dia</strong>, descarrega as peças e mostra-lhe a que preço o mercado adjudica. A sua equipa deixa de vigiar e passa a decidir.</p>
         <div class="accoes">
-          <a class="btn btn-claro" href="#acesso">Pedir um lugar de fundador</a>
+          <a class="btn btn-claro" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a>
           <a class="btn btn-contorno" href="#planos">Ver os planos</a>
         </div>
         <p class="fontes">Fontes públicas: os anúncios de concursos do Diário da República · as consultas preliminares da Vortal · os contratos do Portal BASE.</p>
@@ -397,7 +397,7 @@ form .btn{justify-self:start}
             <div class="abas">
               <span class="aba" aria-current="true">Por analisar <span class="num">37</span></span>
               <span class="aba">A preparar <span class="num">4</span></span>
-              <span class="aba">Submetido <span class="num">6</span></span>
+              <span class="aba">Submetida <span class="num">6</span></span>
             </div>
           </div>
           <div class="rolo" tabindex="0" role="region" aria-label="Lista de concursos de exemplo">
@@ -522,10 +522,10 @@ form .btn{justify-self:start}
           <div class="cartao-cabeca"><strong>O que as peças pedem</strong><span>Lido do caderno de encargos e do programa</span></div>
           <div class="cartao-corpo">
             <ul class="leitura">
-              <li><span class="rot">Critério de adjudicação</span><span>Proposta economicamente mais vantajosa: preço <span class="num">70%</span>, prazo de resposta <span class="num">30%</span></span><span class="onde num">PP, p. 6</span></li>
-              <li><span class="rot">Requisito técnico</span><span>Técnico com certificação em gases fluorados, no mínimo um por equipa</span><span class="onde num">CE, p. 14</span></li>
-              <li><span class="rot">Documentos a entregar</span><span>Declaração do anexo I, proposta de preço, plano de manutenção</span><span class="onde num">PP, p. 9</span></li>
-              <li><span class="rot">Caução</span><span><span class="num">5%</span> do preço contratual</span><span class="onde num">PP, p. 11</span></li>
+              <li><span class="rot">Critério de adjudicação</span><span>Proposta economicamente mais vantajosa: preço <span class="num">70%</span>, prazo de resposta <span class="num">30%</span></span><span class="onde num">Programa, p. 6</span></li>
+              <li><span class="rot">Requisito técnico</span><span>Técnico com certificação em gases fluorados, no mínimo um por equipa</span><span class="onde num">Caderno de encargos, p. 14</span></li>
+              <li><span class="rot">Documentos a entregar</span><span>Declaração do anexo I, proposta de preço, plano de manutenção</span><span class="onde num">Programa, p. 9</span></li>
+              <li><span class="rot">Caução</span><span><span class="num">5%</span> do preço contratual</span><span class="onde num">Programa, p. 11</span></li>
             </ul>
           </div>
         </div>
@@ -567,10 +567,10 @@ form .btn{justify-self:start}
   <div class="faixa-cta">
     <div class="wrap">
       <div>
-        <h2>Experimente com os concursos da sua área, sem pagar até 31 de dezembro.</h2>
+        <h2>As dez empresas fundadoras experimentam com os concursos da sua área, sem pagar até 31 de dezembro.</h2>
         <p>Escolhemos consigo as áreas que interessam à empresa, e a equipa pode começar a trabalhar no próprio dia.</p>
       </div>
-      <a class="btn btn-primario" href="#acesso">Pedir um lugar de fundador</a>
+      <a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a>
     </div>
   </div>
 
@@ -600,8 +600,8 @@ form .btn{justify-self:start}
           <p>Tudo o que o Mira Gov mostra vem de fontes públicas, e cada anúncio leva a ligação para o original:</p>
           <ul>
             <li><a href="https://diariodarepublica.pt/" rel="noopener">Diário da República</a>, 2.ª série, parte L (a dos contratos públicos)</li>
-            <li>Consultas preliminares publicadas na <a href="https://community.vortal.biz/" rel="noopener">Vortal</a></li>
-            <li>Contratos do <a href="https://www.base.gov.pt/" rel="noopener">Portal BASE</a>, em dados abertos</li>
+            <li>Consultas preliminares ao mercado (o pedido de informação que às vezes antecede um concurso) publicadas na <a href="https://community.vortal.biz/" rel="noopener">Vortal</a></li>
+            <li>Contratos do <a href="https://www.base.gov.pt/" rel="noopener">Portal BASE</a>, o portal onde o Estado publica os contratos que celebra, em dados abertos</li>
           </ul>
         </div>
         <div class="quem">
@@ -629,20 +629,20 @@ form .btn{justify-self:start}
         <article class="plano" aria-labelledby="p-solo">
           <h3 id="p-solo">Solo</h3>
           <p class="preco num">39 € <small>/mês + IVA</small></p>
-          <p class="quem">1 pessoa, uma sessão de cada vez<br>408 €/ano no plano anual</p>
-          <a class="btn btn-contorno" href="#acesso">Pedir o Solo</a>
+          <p class="quem">1 pessoa, uma sessão de cada vez<br>408&nbsp;€/ano no plano anual</p>
+          <a class="btn btn-contorno" href="#acesso" data-plano="solo">Pedir o Solo</a>
         </article>
         <article class="plano destaque" aria-labelledby="p-duo">
           <h3 id="p-duo">Duo</h3>
           <p class="preco num">75 € <small>/mês + IVA</small></p>
-          <p class="quem">2 pessoas, cada uma com a sua conta<br>780 €/ano no plano anual</p>
-          <a class="btn btn-primario" href="#acesso">Pedir o Duo</a>
+          <p class="quem">2 pessoas, cada uma com a sua conta<br>780&nbsp;€/ano no plano anual</p>
+          <a class="btn btn-primario" href="#acesso" data-plano="duo">Pedir o Duo</a>
         </article>
         <article class="plano" aria-labelledby="p-corporate">
           <h3 id="p-corporate">Corporate</h3>
           <p class="preco">Sob consulta</p>
           <p class="quem">Mais de 2 pessoas, com o preço pelo número de pessoas e as condições acordadas por escrito</p>
-          <a class="btn btn-contorno" href="#acesso">Falar connosco</a>
+          <a class="btn btn-contorno" href="#acesso" data-plano="corporate">Falar connosco</a>
         </article>
       </div>
       <div class="em-todos">
@@ -667,16 +667,16 @@ form .btn{justify-self:start}
         <div>
           <span class="selo">10 lugares</span>
           <h2 id="t-fundador">Oferta de fundador.</h2>
-          <p>O Duo a <strong>55 €/mês + IVA</strong>, em vez de 75 €, ou 576 €/ano no plano anual. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
+          <p>O Duo a <strong>55 €/mês + IVA</strong>, em vez de 75 €, ou 576&nbsp;€/ano no plano anual. Sem pagar nada até 31 de dezembro de 2026, e o preço mantém-se enquanto a subscrição não for interrompida.</p>
           <p>Em troca, pedimos a sua opinião franca sobre o que falta, e autorização para citar o nome da empresa e uma apreciação sua.</p>
-          <div class="accoes"><a class="btn btn-primario" href="#acesso">Pedir um lugar de fundador</a></div>
+          <div class="accoes"><a class="btn btn-primario" href="#acesso" data-plano="fundador">Pedir um lugar de fundador</a></div>
           <p class="condicoes">Para as primeiras dez empresas convidadas. As condições estão nos <a href="/termos">termos de utilização</a>.</p>
         </div>
         <ul>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>O plano Duo, para 2 pessoas, com tudo o que o Mira Gov faz</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Nada a pagar até 31 de dezembro de 2026</span></li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>As áreas da empresa configuradas connosco</span></li>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>55 €/mês + IVA a partir de janeiro, ou 576 €/ano no plano anual, enquanto não interromper</span></li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>55 €/mês + IVA a partir de janeiro, ou 576&nbsp;€/ano no plano anual, enquanto não interromper</span></li>
         </ul>
       </div>
     </div>
@@ -720,11 +720,11 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Posso sair quando quiser?</summary>
-          <p>Sim. Até 31 de dezembro de 2026 não paga nada, e pode sair quando quiser. Depois, o serviço é pré-pago, ao mês ou ao ano, e basta não renovar. Se nos pedir, entregamos o trabalho da empresa num ficheiro e apagamos os dados.</p>
+          <p>Sim. As dez empresas fundadoras não pagam nada até 31 de dezembro de 2026, e podem sair quando quiserem. Depois, e para todas as outras desde o primeiro dia, o serviço é pré-pago, ao mês ou ao ano, e basta não renovar. Se nos pedir, entregamos o trabalho da empresa num ficheiro e apagamos os dados.</p>
         </details>
         <details>
           <summary>Quanto custa?</summary>
-          <p>O Solo, para uma pessoa, custa 39 € por mês e o Duo, para duas, 75 €; o Corporate, para mais de duas, é sob consulta, pelo número de pessoas. No plano anual oferecemos um mês e meio e paga-se o ano de uma vez: o Solo fica a 408 € e o Duo a 780 € por ano. Aos preços acresce o IVA. Os três têm o mesmo, com a leitura das peças por IA. As dez empresas fundadoras usam o Duo sem pagar até 31 de dezembro de 2026, e depois a 55 € por mês, ou 48 € no anual, + IVA.</p>
+          <p>O Solo, para uma pessoa, custa 39 € por mês e o Duo, para duas, 75 €; o Corporate, para mais de duas, é sob consulta, pelo número de pessoas. No plano anual oferecemos um mês e meio e paga-se o ano de uma vez: o Solo fica a 408 € e o Duo a 780 € por ano. Aos preços acresce o IVA. Os três têm o mesmo, com a leitura das peças por IA. As dez empresas fundadoras usam o Duo sem pagar até 31 de dezembro de 2026, e depois a 55 € por mês, ou 576 € por ano no plano anual, + IVA.</p>
         </details>
         <details>
           <summary>Como se paga?</summary>
@@ -762,6 +762,7 @@ form .btn{justify-self:start}
             <option>Outro</option>
           </select>
         </div>
+        <input type="hidden" name="plano" id="plano" value="">
         <div class="armadilha" aria-hidden="true"><label for="website">Não preencher</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
         <p class="erro" id="erro" role="alert" hidden></p>
         <button type="submit" class="btn btn-primario" id="enviar">Pedir acesso</button>
@@ -804,6 +805,17 @@ form .btn{justify-self:start}
     if (focar) obrigado.focus();
   }
 
+  // O botão de um plano leva-o, escondido: o formulário não o pergunta
+  // (4/10/2026), mas o dono vê-o já escolhido ao aceitar
+  Array.prototype.forEach.call(document.querySelectorAll("a[data-plano]"), function (a) {
+    a.addEventListener("click", function () {
+      document.getElementById("plano").value = a.getAttribute("data-plano");
+    });
+  });
+
+  var NOMES = { nome: "o nome", empresa: "a empresa", email: "o e-mail",
+                telefone: "o telemóvel", sector: "a área" };
+
   try {
     var guardado = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
     if (guardado && guardado.email) confirma(guardado, false);
@@ -828,6 +840,8 @@ form .btn{justify-self:start}
         ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
         : invalidos.length === 1 && invalidos[0] === telefone && telefone.value.trim()
         ? "O telemóvel não parece válido: são nove algarismos, ou o indicativo e o número."
+        : invalidos.length === 1
+        ? "Falta " + NOMES[invalidos[0].id] + "."
         : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e a área, para podermos responder.");
       invalidos[0].focus();
       return;
@@ -844,6 +858,14 @@ form .btn{justify-self:start}
         } else {
           mostraErro((d && d.erro) || FALHA);
           enviar.disabled = false;
+          // o campo que o servidor recusou fica marcado e com o foco,
+          // como os que o browser apanha
+          var campo = /e-mail/.test(d && d.erro) ? "email"
+                    : /telemóvel/.test(d && d.erro) ? "telefone" : "";
+          if (campo) {
+            document.getElementById(campo).setAttribute("aria-invalid", "true");
+            document.getElementById(campo).focus();
+          }
         }
       })
       .catch(function () { mostraErro(FALHA); enviar.disabled = false; });

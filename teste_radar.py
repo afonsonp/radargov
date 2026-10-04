@@ -18766,7 +18766,7 @@ class TestReporAPalavraPasse(BaseTemporaria):
     def test_a_entrada_diz_a_quem_pedir(self):
         corpo = radar.app.test_client().get(
             "/entrar", environ_base=self.FORA).get_data(as_text=True)
-        self.assertIn("Peça ao gestor da sua empresa", corpo)
+        self.assertIn("peça ao gestor da sua empresa", corpo)
 
 
 class TestCopiasForaDoPC(BaseTemporaria):
@@ -22758,6 +22758,33 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         self.assertEqual(r.status_code, 403)
         self.assertEqual(len(radar.empresas_existentes()), len(antes) + 1)
 
+    def test_quarta_ronda_o_actualizar_contratos_e_so_do_dono(self):
+        """4.ª ronda: o «Actualizar contratos» refaz o corpus da plataforma
+        inteira, e aparecia (e corria) a qualquer conta de empresa."""
+        chefe = self.entrar("chefe")
+        self.assertNotIn("/contratos/actualizar",
+                         self.ver(chefe, "/contratos").get_data(as_text=True))
+        r = self.post(chefe, "/contratos/actualizar", {}, "/contratos")
+        self.assertEqual(r.status_code, 403)
+
+    def test_quarta_ronda_o_gestor_nao_le_o_ficheiro_da_senha(self):
+        """4.ª ronda: os Alertas diziam ao cliente «falta a palavra-passe em
+        email_senha.txt», um ficheiro do servidor que ele não pode tocar."""
+        chefe = self.entrar("chefe")
+        with unittest.mock.patch.object(radar, "porque_o_email_nao_sai",
+                                        lambda cfg=None: radar.EMAIL_SEM_SENHA):
+            h = self.ver(chefe, "/configuracoes/alertas").get_data(as_text=True)
+        self.assertNotIn("email_senha.txt", h)
+        self.assertIn("o envio da plataforma ainda não está configurado", h)
+
+    def test_quarta_ronda_o_solo_abaixo_das_contas_avisa(self):
+        """4.ª ronda: um Duo com duas contas passava a Solo calado."""
+        dono = self.entrar("dono")
+        r = self.post(dono, "/plataforma/empresa/1/plano",
+                      {"plano": "solo", "periodo": "mensal"}, "/plataforma/empresa/1")
+        self.assertIn("tom=erro", r.headers["Location"])
+        self.assertIn("contas+continuam+a+entrar", r.headers["Location"])
+
     def test_o_plano_escolhe_se_ao_aceitar_o_pedido(self):
         """O formulário do site deixou de pedir o plano (4/10/2026): quem o
         escolhe é o dono, no ecrã do aceitar, com a oferta por omissão."""
@@ -24197,7 +24224,7 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
         self.assertIn("</b> <span class='nota'>peças novas hoje", corpo)
         radar.gravar_config({"interesse_activo": True, "interesse_cpv": "45000000"})
         corpo = self.cliente.get("/").get_data(as_text=True)
-        self.assertIn("Nada de novo no perfil desde a última verificação.", corpo)
+        self.assertIn("Nenhum anúncio novo no perfil desde a última verificação.", corpo)
 
     # --- G28 ------------------------------------------------------------
 
@@ -24892,7 +24919,7 @@ class TestTerceiraRondaAPortaEAPlataforma(_PlataformaComDuasEmpresas):
         self.assertIn("Convite para <b>Beta</b>, com o papel de <b>gestor</b>", h)
         h = radar.app.test_client().get("/convite/inventado",
                                         environ_base=self.FORA).get_data(as_text=True)
-        self.assertIn("Peça outro ao gestor da sua empresa", h)
+        self.assertIn("Peça outro a quem o mandou", h)
 
     # -- G56: aceitar um pedido
 
@@ -26346,6 +26373,45 @@ class TestOsDoisPequenosDoPlanoDeOutubro(_CicloDoTesteComUtilizadores):
 
 
 
+class TestAQuartaRondaDeTestes(BaseTemporaria):
+    """4/10/2026, a 4.ª ronda (oito perfis num painel de ensaio). Cada
+    teste é um achado que existiu."""
+
+    def test_o_script_do_aviso_nao_usa_uma_variavel_por_definir(self):
+        """Quatro perfis: `h is not defined` em todas as páginas que voltam
+        com aviso sem âncora -- o leitor de ecrã não o lia, o foco caía no
+        body e o × não fechava."""
+        with open(radar.__file__, encoding="utf-8") as f:
+            js = f.read()
+        bloco = js.split("var t = document.querySelector('.aviso-da-vez');", 1)[1][:1500]
+        self.assertLess(bloco.index("var h ="), bloco.index("h.indexOf('desfazer')"))
+
+    def test_uma_data_iso_impossivel_nao_passa(self):
+        """O destruidor: «2026-13-45» e «2026-02-31» entravam numa tarefa."""
+        for mau in ("2026-13-45", "2026-02-31", "9999-99-99"):
+            self.assertEqual(radar.data_do_texto(mau), "", mau)
+        self.assertEqual(radar.data_do_texto("2026-02-28"), "2026-02-28")
+
+    def test_a_resposta_sem_javascript_volta_ao_site_e_nao_ao_hoje(self):
+        """O visitante sem conta lia «Voltar ao Hoje» e «dois dias úteis»,
+        quando o site diz «no próprio dia útil»."""
+        cliente = radar.app.test_client()
+        with unittest.mock.patch.object(radar, "_avisar_do_pedido", lambda *a: None):
+            ok = cliente.post("/pedir-acesso", data=TestSitePublico.BOM,
+                              environ_base=TestSitePublico.FORA).get_data(as_text=True)
+            mau = cliente.post("/pedir-acesso", data=dict(TestSitePublico.BOM, nome=""),
+                               environ_base=TestSitePublico.FORA).get_data(as_text=True)
+        self.assertNotIn("Voltar ao Hoje", ok + mau)
+        self.assertIn("no próprio dia útil", ok)
+        self.assertIn('href="/">Voltar ao site', ok)
+        self.assertIn('href="/#acesso">Voltar ao formulário', mau)
+
+    def test_o_resumo_do_filtro_nao_mostra_a_aba(self):
+        """O dono via «porver» solto ao lado de «Escolher por CPV»."""
+        self.assertEqual(radar._sem_a_aba("estado=porver"), "")
+        self.assertEqual(radar._sem_a_aba("estado=porver&q=escola"), "q=escola")
+
+
 class TestOPedidoLevaONifEOPlano(BaseTemporaria):
     """30/09/2026, os planos pagos: o formulário pedia o NIF e o plano.
     4/10/2026 (decisão dele): pede só o nome, a empresa, o e-mail, o
@@ -26414,7 +26480,8 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
 
     def test_o_site_pede_so_os_cinco_campos(self):
         with open(radar.SITE, encoding="utf-8") as f:
-            site = f.read()
+            # o «€/ano» vai preso ao número (4.ª ronda: partia no telemóvel)
+            site = f.read().replace("&nbsp;€/ano", " €/ano")
         # o anual paga-se de uma vez desde 1/10/2026 (decisão dele: «pagam logo
         # a totalidade, se saírem saíram»), e não em 12 prestações
         for frase in ("39 €", "75 €", "408 €/ano", "780 €/ano", "576 €/ano",
@@ -26427,7 +26494,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
             self.assertNotIn(frase, site)
         formulario = site.split('id="form-acesso"', 1)[1].split("</form>", 1)[0]
         self.assertEqual(
-            [n for n in re.findall(r'name="(\w+)"', formulario) if n != "website"],
+            [n for n in re.findall(r'name="(\w+)"', formulario) if n not in ("website", "plano")],
             ["nome", "empresa", "email", "telefone", "sector"])
 
     def test_os_termos_publicados_sao_os_dos_planos(self):

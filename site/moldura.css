@@ -62,6 +62,8 @@ a:hover{color:var(--brand-hover)}
 .logo .olho{display:block;flex:none;height:.7em;width:1.12em;margin-right:.25em;color:var(--on-header)}
 .logo .mira{margin-right:.22em}
 @media (max-width:400px){.logo{font-size:22px}}
+/* a 320 px o «Pedir acesso» saía 7 px para fora (4.ª ronda, WCAG 1.4.10) */
+@media (max-width:360px){.topo .wrap{gap:8px}.topo nav{gap:10px}.topo nav .btn-pequeno{padding:8px 10px}.logo{font-size:20px}}
 
 /* Rodapé */
 footer{background:var(--header-deep);color:var(--on-header-muted);padding-block:40px;font-size:.92rem}
