@@ -2342,20 +2342,28 @@ def data_do_texto(escrito):
         # conferida: «2026-13-45» e «2026-02-31» passavam tal e qual, e a
         # tarefa ficava com uma data que não existe (4.ª ronda)
         try:
-            date.fromisoformat(escrito)
+            d = date.fromisoformat(escrito)
         except ValueError:
             return ""
-        return escrito
+        return escrito if ANOS_QUE_SE_ESCREVEM[0] <= d.year <= ANOS_QUE_SE_ESCREVEM[1] else ""
     # sem ano é o ano corrente (3.ª ronda, G96), como no data_de_filtro()
     m = re.fullmatch(r"(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}))?", escrito)
     if not m:
         return ""
     dia, mes = int(m.group(1)), int(m.group(2))
     ano = int(m.group(3) or date.today().year)
+    if not ANOS_QUE_SE_ESCREVEM[0] <= ano <= ANOS_QUE_SE_ESCREVEM[1]:
+        return ""
     try:
         return datetime(ano, mes, dia).strftime("%Y-%m-%d")
     except ValueError:
         return ""
+
+
+# Os anos que uma data escrita à mão pode ter (5.ª ronda: «1900» passava
+# numa adjudicação e num documento, que nascia com uma tarefa «renovar»
+# vencida há 126 anos; «9999» também)
+ANOS_QUE_SE_ESCREVEM = (1990, 2100)
 
 
 def data_de_filtro(valor):
@@ -3916,6 +3924,12 @@ def data_da_tarefa_do_documento(ideal, criada_em):
     é trabalho para hoje. Pelo dia em que NASCEU e não pelo de hoje, para
     a sincronização de amanhã a reconhecer e não a refazer."""
     dia = (criada_em or "")[:10]
+    # já caducado não é «para hoje»: fica atrasado, como está (5.ª ronda:
+    # um alvará caducado há um mês dava «0 atrasadas»)
+    validade = (datetime.strptime(ideal, "%Y-%m-%d").date()
+                + timedelta(days=DIAS_ANTES_DA_VALIDADE)).isoformat()
+    if dia and validade < dia:
+        return ideal
     return max(ideal, dia) if dia else ideal
 
 
@@ -15543,14 +15557,14 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="s
 <title>Entrar — Mira Gov</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
 <body class="entrar-fundo"><main class="mg entrar-duas">
  <section class="entrar-lado">
-  <div><h1><a href="/" title="Voltar ao início">%(logo)s</a></h1><small>Vigilância de concursos públicos</small></div>
+  <div><p class="entrar-marca"><a href="/" title="Voltar ao início">%(logo)s</a></p><small>Vigilância de concursos públicos</small></div>
   <p>Lê o Diário da República e as plataformas ao longo do dia, traz as
   peças, e põe no mesmo sítio o que há para decidir.</p>
   <div class="kv">%(numeros)s</div>
  </section>
  <section class="entrar-form"><div class="entrar-cx">
  <a class="entrar-voltar" href="/">&larr; Voltar ao início</a>
- <h2>Entrar</h2>
+ <h1>Entrar</h1>
  %(aviso)s
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="%(para)s">
@@ -20735,7 +20749,8 @@ def _lista_de_anuncios():
     # e devolvia 60 645: os numeros do selector saem dos anuncios com
     # detalhe lido, que sao 8% da base, e nao havia nada a dize-lo nem
     # forma nenhuma de pedir os outros 92%.
-    opcoes_plat = [("", "todas as plataformas (%s)" % mil(no_filtro))]
+    # «todas (568)»: o texto longo cortava-se no selector (5.ª ronda)
+    opcoes_plat = [("", "todas (%s)" % mil(no_filtro))]
     if porler:
         opcoes_plat.append((POR_LER, "ainda sem detalhe lido (%s)" % mil(porler_filtro)))
     # as plataformas que ja nao existem vao num balde so, "outras"
@@ -21044,7 +21059,12 @@ def _lista_de_anuncios():
         cabeca=cabecalho_de_pagina("Concursos", frase, [], "".join(accoes)),
         script=("" if com_interesse else ARVORE_JS) + LISTA_JS + ENTIDADES_JS
         + caixa_do_motivo(),
-        titulo_aba="%s · Concursos" % (
+        # quantos, e o que se procurou, no título (5.ª ronda: o leitor de
+        # ecrã só chegava ao número a percorrer a página)
+        titulo_aba="%s%s · %s · Concursos" % (
+            ("«%s» · " % corta(request.args.get("q") or "", 40))
+            if (request.args.get("q") or "").strip() else "",
+            plural(correspondem, "resultado"),
             ROTULOS_DA_ESCADA.get(estado_actual) or "Todos"))
 
 
@@ -22510,18 +22530,24 @@ def definir_responsavel(ref):
     nome, recado = conta_escolhida(request.form.get("nome"), agora)
     if nome is None:
         return _volta_com_aviso(recado, erro=True, ancora="responsavel")
+    nova = False
     if not existentes:
         if not nome:
             return volta_ao_referer("/anuncio/" + ref)
         existentes = [proposta(criar_proposta(ref))]
+        nova = True
     with liga() as c:
         c.execute("UPDATE propostas SET responsavel=? WHERE ref=?", (nome, ref))
     if nome != agora:
         registar(ref, "responsável", "%s → %s" % (
             nome_da_pessoa(agora) or "ninguém", nome_da_pessoa(nome) or "ninguém"))
     # E diz que gravou: o «Guardar» voltava sem palavra nenhuma (G8)
-    return _volta_com_aviso("Responsável: %s." % (nome_da_pessoa(nome) or "ninguém"),
-                            ancora="responsavel")
+    # e diz que o concurso entrou na escada, quando entrou (5.ª ronda:
+    # nascia uma proposta em silêncio)
+    return _volta_com_aviso("Responsável: %s.%s" % (
+        nome_da_pessoa(nome) or "ninguém",
+        " O concurso passou a «Por analisar»." if nova else ""),
+        ancora="responsavel")
 
 
 def celula_csv(valor):
@@ -22907,7 +22933,9 @@ def _linha_filtro(f):
         "<button type='submit' class='interruptor %s' title='%s' aria-label='%s'><i></i>"
         "</button></form>"
         "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
-        "<span class='onde'>aplicar a: %s</span>%s%s</div>"
+        # «ver em», e não «aplicar a»: só os anúncios avisam, e os
+        # contratos são uma ligação para ver (5.ª ronda)
+        "<span class='onde'>ver em: %s</span>%s%s</div>"
         "<div class='conta'>%s</div>"
         # o confirm pelas duas escapagens do `accao()`: escrito à mão,
         # o `&quot;` fechava a cadeia de JS e o × apagava sem perguntar
@@ -23112,7 +23140,12 @@ def _caixa_alerta_do_perfil(cfg):
             "<p class='nota'>Avisa por e-mail do que entrar dentro do perfil "
             "da empresa: %s.</p>%s</div>"
             % (descricao, accao("/alertas/do-perfil",
-                                "Criar o alerta do perfil", "bt")))
+                                # com o alerta já criado, o botão diz o
+                                # que faz (5.ª ronda: parecia por criar)
+                                "Actualizar o alerta do perfil"
+                                if any(f["nome"] == NOME_DO_ALERTA_DO_PERFIL
+                                       for f in filtros_de_alerta())
+                                else "Criar o alerta do perfil", "bt")))
 
 
 def _conteudo_alertas():
@@ -23318,9 +23351,11 @@ def _conteudo_alertas():
 # dizer o contrario do que ela faz. Vieram da barra a 13/09 e o sitio
 # serve; o que estava errado era chamar-lhes configuracao.
 SECCOES_CONFIG = (
-    ("conta", "Conta", "a minha conta, a empresa e a equipa, o registo do suporte", False, True),
+    # sem prometer o que nem sempre lá está (5.ª ronda: o registo do
+    # suporte só aparece com entradas, e as entidades seguem-se na ficha)
+    ("conta", "Conta", "a minha conta, a empresa e a equipa", False, True),
     ("interesse", "Perfil da empresa", "os CPV, os distritos e o valor que a empresa trabalha", False, True),
-    ("alertas", "Alertas", "filtros de alerta, entidades, o resumo por e-mail", False, True),
+    ("alertas", "Alertas", "os alertas e o resumo por e-mail", False, True),
     ("importar", "Importar dados", "o registo da empresa, pelo modelo Excel", False, True),
     ("documentos", "Documentos da empresa", "alvará, certidões, ISO e seguros, com a validade", False, True),
     ("indicadores", "Indicadores", "as capturas, a recolha e os contratos do Portal BASE", True, False),
@@ -24224,8 +24259,11 @@ def administracao_da_plataforma():
                     % (e["leituras_mes"], e["leituras_hoje"], e["tecto"])))
         for e in empresas)
     tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
-              "<thead><tr><th>N.º</th><th>Empresa</th><th>Estado</th><th>Contas</th>"
-              "<th>Última entrada</th><th>Propostas em curso</th><th>Leituras</th>"
+              # os cabeçalhos dos números à direita, como eles (5.ª ronda)
+              "<thead><tr><th class='mg-num'>N.º</th><th>Empresa</th><th>Estado</th>"
+              "<th class='mg-num'>Contas</th>"
+              "<th>Última entrada</th><th class='mg-num'>Propostas em curso</th>"
+              "<th>Leituras</th>"
               "</tr></thead><tbody>%s</tbody></table></div>" % linhas
               if empresas else "<div class='mg-empty'>Ainda não há empresas: "
               "nascem ao aceitar um pedido de acesso, ou aqui em baixo.</div>")
@@ -26024,6 +26062,10 @@ def config_empresa():
     IMPIC guarda-o assim, e um espaço ou um ponto a meio fazia a
     comparação falhar sem nada no ecrã a dizer porquê."""
     nome = " ".join((request.form.get("nome_da_empresa") or "").split())
+    # sem nome a empresa desaparecia do topo da barra (5.ª ronda)
+    if not nome:
+        return volta_config_erro("conta", "Escreva o nome da empresa. Nada "
+                                 "foi guardado.")
     if len(nome) > 120:
         return volta_config_erro("conta", "O nome da empresa tem até 120 "
                                  "letras (tem %d). Nada foi guardado." % len(nome))
@@ -26049,8 +26091,16 @@ def _documento_do_pedido(form):
     descricao = texto_de_campo(form.get("descricao"), 120)
     bruta = " ".join((form.get("validade") or "").split())
     validade = data_de_filtro(bruta) if bruta else None
+    if validade and not (ANOS_QUE_SE_ESCREVEM[0] <= int(validade[:4])
+                         <= ANOS_QUE_SE_ESCREVEM[1]):
+        validade = None
     if bruta and not validade:
         return None, "«%s» não é uma data (dd/mm/aaaa)." % corta(bruta, 20)
+    # vazio nas duas não diz que documento é (5.ª ronda: ficava um
+    # «Alvará» sem número e sem validade)
+    if not descricao and not validade:
+        return None, ("Escreva o número ou a descrição do documento, ou a "
+                      "validade. Nada foi guardado.")
     return (tipo, descricao, validade), ""
 
 
@@ -26144,8 +26194,12 @@ def config_documento_gravar(id_):
     if recado:
         return volta_config("documentos", recado, erro=True)
     with liga() as c:
-        c.execute("UPDATE documentos_da_empresa SET tipo=?, descricao=?, "
-                  "validade=? WHERE id=?", doc + (id_,))
+        mudou = c.execute("UPDATE documentos_da_empresa SET tipo=?, descricao=?, "
+                          "validade=? WHERE id=?", doc + (id_,)).rowcount
+    # um documento que já não existe não se dá por guardado (5.ª ronda)
+    if not mudou:
+        return volta_config("documentos", "Esse documento já não existe: "
+                            "nada foi guardado.", erro=True)
     registar("", "documento", "%s %s: válido até %s"
              % (doc[0], doc[1], data_pt(doc[2], "sem validade")))
     sincronizar_documentos(quem=minha_conta())
@@ -26155,7 +26209,11 @@ def config_documento_gravar(id_):
 @app.route("/configuracoes/documentos/<int:id_>/apagar", methods=["POST"])
 def config_documento_apagar(id_):
     with liga() as c:
-        c.execute("DELETE FROM documentos_da_empresa WHERE id=?", (id_,))
+        saiu = c.execute("DELETE FROM documentos_da_empresa WHERE id=?",
+                         (id_,)).rowcount
+    if not saiu:
+        return volta_config("documentos", "Esse documento já não existia.",
+                            erro=True)
     sincronizar_documentos()          # leva as tarefas dele
     return volta_config("documentos", "Documento removido.")
 
@@ -26893,7 +26951,7 @@ def pesquisa_geral():
         cabeca=cabecalho_de_pagina(
             "Procurar", "«%s»" % html.escape(q) if q else
             "Concursos, propostas, entidades e NIF, numa caixa só.",
-            [("Hoje", "/"), ("Procurar", "")]),
+            [("Plataforma", "/plataforma") if contas.sem_empresa(g.get("utilizador")) else ("Hoje", "/"), ("Procurar", "")]),
         titulo_aba="Procurar")
 
 
@@ -27907,7 +27965,8 @@ ABAS_DAS_ENTIDADES = (("nossas", "Com quem trabalhamos"),
                       ("seguidas", "Seguidas"),
                       ("clientes", "Clientes que mais compram"),
                       ("concorrentes", "Concorrentes que mais ganham"),
-                      ("acabar", "Contratos a acabar"))
+                      # conta entidades, e o rótulo dizia contratos (5.ª ronda)
+                      ("acabar", "Com contratos a acabar"))
 
 # A janela do "a acabar". Sao os ~90 dias do documento e nao os
 # `dias_urgente()`: a pergunta aqui nao e "o que fecha para responder",
@@ -35592,6 +35651,10 @@ def situacao():
                     for chave, rotulo in PERIODOS_DA_SITUACAO))
 
     if ver == "triagem":
+        # o funil conta desde sempre: o período não lhe mexia e o selector
+        # dizia o contrário (5.ª ronda) -- sai, e diz-se desde quando
+        selector = ("<p class='nota'>A triagem conta tudo desde que a empresa "
+                    "chegou ao Mira Gov; o período não se aplica aqui.</p>")
         corpo = funil_cx_html()
     elif ver == "cpv":
         bloco = cpv_html_bloco()
@@ -36667,13 +36730,13 @@ def pedir_acesso():
             return redirect("/pedido-recebido", 303)
         # quem pede não tem conta: o botão volta ao formulário (4.ª ronda:
         # dizia «Voltar ao Hoje»)
+        # e o formulário volta ali mesmo, com o que se escreveu (5.ª
+        # ronda: sem JavaScript, o erro obrigava a escrever tudo de novo)
         return Response((PAGINA_ERRO % {"css": LIGACAO_CSS,
                                         "titulo": "Falta corrigir o pedido",
                                         "texto": html.escape(erro),
                                         "logo": logotipo(tamanho=24)}).replace(
-                            ACCAO_DA_PAGINA_DE_ERRO,
-                            '<a class="mg-btn mg-btn--primary" href="/#acesso">'
-                            'Voltar ao formulário</a>'),
+                            ACCAO_DA_PAGINA_DE_ERRO, _formulario_do_pedido_outra_vez()),
                         codigo, mimetype="text/html")
 
     if not origem_e_nossa():
@@ -36736,6 +36799,32 @@ def pedir_acesso():
     threading.Thread(target=_avisar_do_pedido, args=(id_, p),
                      daemon=True).start()
     return resposta(True)
+
+
+def _formulario_do_pedido_outra_vez():
+    """O formulário do pedido com o que veio, para corrigir sem JavaScript
+    (o CSRF não se aplica: a rota é aberta e tem a guarda dentro)."""
+    f = request.form
+
+    def campo(nome, rotulo, tipo="text"):
+        return ("<div class='mg-field'><label class='mg-field__label' for='p-%s'>%s"
+                "</label><input class='mg-field__input' id='p-%s' name='%s' type='%s' "
+                "value='%s' required></div>"
+                % (nome, rotulo, nome, nome, tipo,
+                   html.escape((f.get(nome) or "")[:200], quote=True)))
+    opcoes = "".join("<option%s>%s</option>" % (
+        " selected" if f.get("sector") == o else "", html.escape(o))
+        for o in SECTORES_DO_PEDIDO)
+    return ("<form method='post' action='/pedir-acesso' style='text-align:left'>%s%s%s%s"
+            "<div class='mg-field'><label class='mg-field__label' for='p-sector'>Área"
+            "</label><select class='mg-field__input' id='p-sector' name='sector' "
+            "required><option value=''>Escolher a área</option>%s</select></div>"
+            "<input type='hidden' name='plano' value='%s'>"
+            "<button type='submit' class='mg-btn mg-btn--primary'>Pedir acesso</button>"
+            "</form>"
+            % (campo("nome", "Nome"), campo("empresa", "Empresa"),
+               campo("email", "E-mail", "email"), campo("telefone", "Telemóvel", "tel"),
+               opcoes, html.escape(f.get("plano") or "", quote=True)))
 
 
 TEXTO_DO_PEDIDO_RECEBIDO = (
@@ -38842,9 +38931,11 @@ def inicio():
              % (mil_pt(por_fazer), "" if por_fazer == 1 else "s",
                 mil_pt(quantas["atrasadas"]),
                 "" if quantas["atrasadas"] == 1 else "s"),
-        accoes="<a class='mg-btn mg-btn--sm mg-btn--secondary' href='%s'>%s</a>"
-               % (html.escape(alvo_esconder + "#fazer", quote=True),
-                  "Mostrar as feitas" if esconder else "Esconder as feitas"),
+        # sem tarefas nenhumas não há o que esconder (5.ª ronda)
+        accoes=("<a class='mg-btn mg-btn--sm mg-btn--secondary' href='%s'>%s</a>"
+                % (html.escape(alvo_esconder + "#fazer", quote=True),
+                   "Mostrar as feitas" if esconder else "Esconder as feitas"))
+               if todas or esconder else "",
         pe="<a href='/calendario'>calendário &rarr;</a>",
         id_="fazer", banda=True)
 
