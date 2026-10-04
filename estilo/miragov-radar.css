@@ -516,7 +516,9 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
 .entrar-lado{background:var(--surface-header);color:var(--on-header);
  padding:var(--space-7);border-radius:0 var(--radius-xl) var(--radius-xl) 0;
  display:flex;flex-direction:column;justify-content:space-between;gap:var(--space-6)}
-.entrar-lado h1{margin:0;font:600 var(--text-3xl)/44px var(--font-serif)}
+/* «Entrar» é o h1 da página e a marca um parágrafo (5.ª ronda: o h1
+   era o logótipo) */
+.entrar-lado .entrar-marca{margin:0;font:600 var(--text-3xl)/44px var(--font-serif)}
 .entrar-lado small{display:block;font:400 var(--text-sm)/20px var(--font-sans);
  color:var(--on-header-muted);margin-top:var(--space-2)}
 .entrar-lado p{font:400 var(--text-md)/22px var(--font-sans);color:var(--on-header-muted);
@@ -526,7 +528,7 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
 .entrar-lado .kv b{display:block;font:600 var(--text-xl)/28px var(--font-mono);color:var(--on-header)}
 .entrar-form{display:flex;align-items:center;justify-content:center;padding:var(--space-7)}
 .entrar-cx{width:min(380px,100%);display:flex;flex-direction:column;gap:var(--space-4)}
-.entrar-cx h2{margin:0;font:600 var(--text-xl)/28px var(--font-serif);color:var(--ink)}
+.entrar-cx h1{margin:0;font:600 var(--text-xl)/28px var(--font-serif);color:var(--ink)}
 .entrar-cx form{display:flex;flex-direction:column;gap:var(--space-4)}
 .entrar-nota{margin:0;font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
 .entrar-nota a{color:var(--link)}
@@ -534,13 +536,13 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
    não conseguia voltar ao site). O logotipo liga ao início, e o
    «Voltar ao início» fica por cima do titulo -- no telemovel o painel
    da esquerda vai para cima e pode ficar fora do ecra. */
-.entrar-lado h1 a{color:inherit;text-decoration:none}
+.entrar-lado .entrar-marca a{color:inherit;text-decoration:none}
 .entrar-voltar{align-self:flex-start;font:400 var(--text-sm)/18px var(--font-sans);
  color:var(--link);text-decoration:none}
 .entrar-voltar:hover{text-decoration:underline}
 @media (max-width:800px){main.entrar-duas{grid-template-columns:minmax(0,1fr);min-height:0}
  .entrar-lado{border-radius:0 0 var(--radius-xl) var(--radius-xl);padding:var(--space-6)}
- .entrar-lado h1{font-size:var(--text-3xl);line-height:36px}
+ .entrar-lado .entrar-marca{font-size:var(--text-3xl);line-height:36px}
  .entrar-form{padding:var(--space-6) var(--space-4)}}
 
 /* O FOCO NAS BARRAS (3.a ronda, G69). As duas barras sao azul-marinho nos
@@ -1492,3 +1494,6 @@ fieldset:disabled input,fieldset:disabled select,fieldset:disabled textarea{curs
 .contas-da-empresa .v,.contas-da-empresa .v button{font-family:var(--font-sans)}
 /* o «Mudar» com a altura do selector ao lado (5.ª ronda: 4 px mais baixo) */
 .ranhura .mg-btn--sm{align-self:stretch}
+/* a lista das sugestões está na barra mas é branca: o foco é o do
+   conteúdo, e não o amarelo do topo azul (~1,4:1 sobre branco, 5.ª ronda) */
+.mg-topbar .pesquisa-lista :focus-visible{outline-color:var(--focus)}

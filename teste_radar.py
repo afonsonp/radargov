@@ -23105,6 +23105,27 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
                       "/configuracoes/alertas")
         self.assertEqual(r.status_code, 302)
 
+    def test_segunda_leva_o_documento_vazio_e_o_nome_vazio_recusam_se(self):
+        """5.ª ronda: um «Alvará» sem número nem validade gravava-se, e a
+        empresa sem nome desaparecia do topo da barra."""
+        chefe = self.entrar("chefe")
+        r = self.post(chefe, "/configuracoes/documentos",
+                      {"tipo": radar.TIPOS_DE_DOCUMENTO[0], "descricao": "", "validade": ""},
+                      "/configuracoes/documentos")
+        self.assertIn("tom=erro", r.headers["Location"])
+        r = self.post(chefe, "/configuracoes/documentos",
+                      {"tipo": radar.TIPOS_DE_DOCUMENTO[0], "descricao": "x",
+                       "validade": "01/01/1900"}, "/configuracoes/documentos")
+        self.assertIn("tom=erro", r.headers["Location"])
+        r = self.post(chefe, "/configuracoes/conta/empresa", {"nome_da_empresa": "  "},
+                      "/configuracoes/conta")
+        self.assertIn("tom=erro", r.headers["Location"])
+
+    def test_segunda_leva_a_triagem_nao_mostra_um_periodo_que_nao_aplica(self):
+        h = self.ver(self.entrar("chefe"), "/situacao?ver=triagem").get_data(as_text=True)
+        self.assertIn("o período não se aplica aqui", h)
+        self.assertNotIn("class='periodos'", h)
+
     def test_quinta_ronda_o_solo_nao_cria_contas_sem_convite_acima_do_limite(self):
         """5.ª ronda: num Solo o convite era recusado, e o «criar sem
         convite» fazia a segunda e a terceira conta."""
@@ -26801,6 +26822,17 @@ class TestAQuintaRondaDeTestes(BaseTemporaria):
         self.assertIn("trinta dias antes no plano anual", termos)
         self.assertNotIn("ou trinta dias antes da renovação", termos)
 
+    def test_uma_data_de_1900_ou_9999_nao_se_le(self):
+        for mau in ("01/01/1900", "31/12/9999", "1900-01-01"):
+            self.assertEqual(radar.data_do_texto(mau), "", mau)
+        self.assertEqual(radar.data_do_texto("5/10/2026"), "2026-10-05")
+
+    def test_a_tarefa_de_um_documento_caducado_fica_atrasada(self):
+        """Um alvará caducado há um mês dava a tarefa «para hoje» e
+        «0 atrasadas»."""
+        self.assertEqual(radar.data_da_tarefa_do_documento("2026-08-17", "2026-10-04 09:00"),
+                         "2026-08-17")
+
     def test_o_telefone_grava_se_num_so_formato(self):
         self.assertEqual(radar.telefone_arrumado("912345678"), "912 345 678")
         self.assertEqual(radar.telefone_arrumado("+351912345678"), "+351 912 345 678")
@@ -26872,7 +26904,10 @@ class TestAQuartaRondaDeTestes(BaseTemporaria):
         self.assertNotIn("Voltar ao Hoje", ok + mau)
         self.assertIn("no próprio dia útil", ok)
         self.assertIn('href="/">Voltar ao site', ok)
-        self.assertIn('href="/#acesso">Voltar ao formulário', mau)
+        # desde a 5.ª ronda o formulário volta preenchido, ali mesmo
+        self.assertIn("action='/pedir-acesso'", mau)
+        self.assertIn("value='Obras Lda'", mau)
+        self.assertIn("<option selected>Obras públicas e construção</option>", mau)
 
     def test_o_resumo_do_filtro_nao_mostra_a_aba(self):
         """O dono via «porver» solto ao lado de «Escolher por CPV»."""
@@ -26952,7 +26987,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
             site = f.read().replace("&nbsp;€/ano", " €/ano")
         # o anual paga-se de uma vez desde 1/10/2026 (decisão dele: «pagam logo
         # a totalidade, se saírem saíram»), e não em 12 prestações
-        for frase in ("39 €", "75 €", "408 €/ano", "780 €/ano", "576 €/ano",
+        for frase in ("39 €", "75 €", "429 €/ano", "825 €/ano", "605 €/ano",
                       "55 €/mês + IVA", "31 de dezembro de 2026", "por IA está em todos",
                       'id="planos"'):
             self.assertIn(frase, site)

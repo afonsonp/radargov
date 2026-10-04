@@ -21,7 +21,7 @@ Um pedido do site tem nome, empresa, e-mail, sector (um de «Obras públicas e c
 - O **NIF das empresas clientes** é pedido; o do operador não.
 - O Mira Gov **mapeia e a empresa decide**: nunca promete dizer se um concurso é para ir.
 - **Fundadores: dez lugares no total**, a 55 €/mês + IVA para sempre enquanto não saírem, sem pagar até 31/12/2026, **em troca de um testemunho com o nome da empresa**; até 15/12 dizem se ficam. O fundador é do Duo.
-- Os planos (1/10/2026), todos com as mesmas funcionalidades, só muda o número de pessoas: Solo 39 €/mês ou 408 €/ano (1 pessoa, uma sessão de cada vez), Duo 75 €/mês ou 780 €/ano (2 pessoas), Corporate sob consulta (mais de 2, pelo número). Tudo + IVA, pré-pago, sem carência; o anual paga-se de uma vez.
+- Os planos (1/10/2026), todos com as mesmas funcionalidades, só muda o número de pessoas: Solo 39 €/mês ou 429 €/ano (1 pessoa, uma sessão de cada vez), Duo 75 €/mês ou 825 €/ano (2 pessoas), Corporate sob consulta (mais de 2, pelo número). Tudo + IVA, pré-pago, sem carência; o anual paga-se de uma vez.
 - Responde **em dois dias úteis**, como o site diz.
 - Os pedidos reais até hoje: aceitou todos os que eram de empresas; recusou só testes.
 

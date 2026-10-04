@@ -236,7 +236,7 @@ ensaio de restauro.
   limite de utilizadores, a sessão única do Solo e o cofre fechado no
   Solo; e a LATD, de teste, saiu. A `v2.0.38`, do mesmo dia — **os planos novos: Solo, Equipa e Corporate**, com a leitura
   das peças por IA em todos, o Solo com uma sessão de cada vez e o plano
-  anual pago de uma vez (Solo 408 €, Equipa 780 €, fundador 576 €). A
+  anual pago de uma vez (Solo 429 €, Equipa 825 €, fundador 605 €). A
   `v2.0.37`, do mesmo dia — **a recolha dos concorrentes do Portal BASE** (L5): o painel
   lê-os em fundo, contrato a contrato, e a ficha do concurso mostra «Quem
   costuma concorrer», com o desconto de cada um; e a pesquisa geral na

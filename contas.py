@@ -627,7 +627,10 @@ def recado_do_trinco(espera, agora=None):
     """A frase do trinco para o ecra (G50): a hora a que se pode tentar,
     e nao «espera 674 s» -- que tratava por tu e obrigava a fazer contas."""
     abre = (agora or datetime.now()) + timedelta(seconds=espera + 59)
-    return "demasiadas tentativas; pode tentar de novo às %s" % abre.strftime("%H:%M")
+    # e aponta a saída que não espera (5.ª ronda)
+    return ("demasiadas tentativas; pode tentar de novo às %s, ou pedir já "
+            "uma ligação nova em «Esqueceu-se da palavra-passe?»"
+            % abre.strftime("%H:%M"))
 
 
 def levantar_trinco(c, email="", ip=""):
