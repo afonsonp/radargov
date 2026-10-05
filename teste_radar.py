@@ -26964,15 +26964,19 @@ class TestAQuintaRondaDeTestes(BaseTemporaria):
         self.assertEqual(radar.corta("a\x93b\x94", 80), "a“b”")
         self.assertEqual(radar.celula_csv("x\x85"), "x…")
 
-    def test_os_termos_dizem_quando_sai_a_fatura_no_mensal_e_no_anual(self):
-        """A frase dizia «no início do período, ou trinta dias antes», sem
-        dizer quando era cada um; e trinta dias antes não serve no mensal."""
+    def test_os_termos_deixam_o_pagamento_para_depois(self):
+        """5/10/2026 (decisão dele, depois da 6.ª ronda): os termos
+        prometiam um pré-pago com corte no próprio dia, que o financeiro da
+        ronda leu como incompatível com um pagamento a 30 dias, e não havia
+        ainda maneira de cobrar. Até as condições se definirem, não há
+        cobranças, e nenhuma empresa paga sem as ter aceitado."""
         with open(os.path.join(os.path.dirname(radar.SITE), "termos.html"),
                   encoding="utf-8") as f:
             termos = f.read()
-        self.assertIn("sete dias antes no plano mensal", termos)
-        self.assertIn("trinta dias antes no plano anual", termos)
-        self.assertNotIn("ou trinta dias antes da renovação", termos)
+        self.assertIn("Durante a fase beta não há cobranças.", termos)
+        self.assertIn("Nenhuma empresa passa a pagar sem as ter aceitado.", termos)
+        self.assertNotIn("o acesso ao serviço pára nesse dia", termos)
+        self.assertNotIn("sete dias antes no plano mensal", termos)
 
     def test_uma_data_de_1900_ou_9999_nao_se_le(self):
         for mau in ("01/01/1900", "31/12/9999", "1900-01-01"):
@@ -27156,18 +27160,19 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         # opcional (LANC-F, 4/10/2026)
         self.assertNotIn("required", re.search(r"<textarea[^>]*>", formulario).group(0))
 
-    def test_os_planos_estao_indisponiveis_por_tras_de_um_vidro(self):
+    def test_os_planos_estao_a_vista_com_a_nota_do_fundador(self):
         """5/10/2026 (decisão dele): enquanto os pagamentos não estão
-        prontos, os três cartões ficam desfocados por trás de um painel
-        só, com a frase e a ligação para a oferta de fundador, e os botões
-        de pedir saem dos cartões. Um selo na diagonal em cada cartão foi a
-        primeira versão, no mesmo dia: «muito stock»."""
+        prontos, os botões de pedir saem dos cartões. O selo na diagonal
+        era «muito stock»; o vidro fosco que se lhe seguiu escondia os
+        preços que o «Quanto custa?» dizia em claro, e o leitor de ecrã lia
+        o desfocado (6.ª ronda). Ficam à vista, com uma linha por baixo."""
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
         planos = site.split('<div class="planos', 1)[1].split('<div class="em-todos"', 1)[0]
-        self.assertIn('class="planos indisponiveis"', site)
-        self.assertEqual(planos.count('class="planos-vidro"'), 1)
-        self.assertIn("Os planos abrem em breve.", planos)
+        self.assertNotIn("indisponiveis", site)
+        self.assertNotIn("planos-vidro", site)
+        self.assertNotIn("filter:blur", site)
+        self.assertIn("Os planos pagos abrem em breve.", planos)
         self.assertIn('href="#fundador"', planos)
         self.assertIn('id="fundador"', site)
         self.assertNotIn("plano-selo", site)
