@@ -297,11 +297,17 @@ section{padding-block:88px}
    Desde 1/10/2026 têm todos o mesmo: os cartões dizem só as pessoas e o
    preço, e o que o Mira Gov faz é uma lista só, por baixo */
 /* Indisponíveis (5/10/2026, decisão dele): enquanto os pagamentos não
-   estão prontos, um selo na diagonal por cima de cada cartão, o cartão
-   esbatido por baixo, e sem os botões de pedir */
-.planos.indisponiveis .plano{position:relative;overflow:hidden}
-.planos.indisponiveis .plano>:not(.plano-selo){opacity:.4}
-.plano-selo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-14deg);margin:0;padding:8px 18px;border:3px solid var(--seal);border-radius:10px;color:var(--seal);background:color-mix(in srgb,var(--surface-raised) 80%,transparent);font:700 1.15rem/1.2 var(--font-sans);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+   estão prontos, os cartões ficam desfocados por trás de um painel só.
+   O painel é pegajoso: no telemóvel os cartões empilham-se, e acompanha
+   quem desce. O selo na diagonal de cada cartão, a primeira versão do
+   mesmo dia, era «muito stock» */
+.planos.indisponiveis{position:relative}
+.planos.indisponiveis .plano{filter:blur(4px);opacity:.55;user-select:none;pointer-events:none}
+.planos-vidro{position:absolute;inset:-8px;display:flex;justify-content:center;align-items:flex-start;padding:40px 16px}
+.planos-vidro>div{position:sticky;top:120px;max-width:380px;text-align:center;background:color-mix(in srgb,var(--surface-raised) 82%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-md);padding:24px 28px}
+.planos-vidro h3{font-family:var(--font-serif);font-size:1.35rem;margin:0 0 8px}
+.planos-vidro p{margin:0 0 16px;color:var(--ink-secondary)}
+@media (min-width:901px){.planos-vidro{align-items:center}.planos-vidro>div{position:static}}
 .planos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .plano{display:flex;flex-direction:column;gap:14px;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:28px}
 .plano.destaque{border-color:var(--brand);box-shadow:var(--shadow-sm)}
@@ -652,20 +658,22 @@ form .btn{justify-self:start}
           <h3 id="p-solo">Solo</h3>
           <p class="preco num">39 € <small>/mês + IVA</small></p>
           <p class="quem">1 pessoa, uma sessão de cada vez<br>429&nbsp;€/ano no plano anual</p>
-          <p class="plano-selo">Indisponível</p>
         </article>
         <article class="plano destaque" aria-labelledby="p-duo">
           <h3 id="p-duo">Duo</h3>
           <p class="preco num">75 € <small>/mês + IVA</small></p>
           <p class="quem">2 pessoas, cada uma com a sua conta<br>825&nbsp;€/ano no plano anual</p>
-          <p class="plano-selo">Indisponível</p>
         </article>
         <article class="plano" aria-labelledby="p-corporate">
           <h3 id="p-corporate">Corporate</h3>
           <p class="preco">Sob consulta</p>
           <p class="quem">Mais de 2 pessoas, com o preço pelo número de pessoas e as condições acordadas por escrito</p>
-          <p class="plano-selo">Indisponível</p>
         </article>
+        <div class="planos-vidro"><div>
+          <h3>Os planos abrem em breve.</h3>
+          <p>Até lá, há a oferta de fundador.</p>
+          <a class="btn btn-primario" href="#fundador">Ver a oferta de fundador</a>
+        </div></div>
       </div>
       <div class="em-todos">
         <h3>Em todos os planos</h3>
@@ -683,7 +691,7 @@ form .btn{justify-self:start}
     </div>
   </section>
 
-  <section aria-labelledby="t-fundador">
+  <section id="fundador" aria-labelledby="t-fundador">
     <div class="wrap">
       <div class="beta">
         <div>
