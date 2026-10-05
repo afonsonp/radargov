@@ -27778,6 +27778,23 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         site = self._ficheiro("site", "index.html")
         self.assertIn('" de " + p.empresa.replace(/\\.$/, "")', site)
 
+    def test_sexta_ronda_o_formulario_diz_o_que_esta_mal(self):
+        """6.ª ronda (5/10/2026, perfis 8, 15 e 19): o e-mail sem domínio de
+        topo passava no browser e o servidor recusava-o depois; «Falta o
+        telemóvel» com o telemóvel escrito; o campo opcional cortava aos
+        500 sem dizer nada; e a frase do erro ficava debaixo da barra."""
+        site = self._ficheiro("site", "index.html")
+        # o mesmo que o RX_EMAIL do servidor: um ponto depois da @
+        self.assertIn('type="email" autocomplete="email" required maxlength="200" '
+                      'pattern="[^@\\s]+@[^@\\s]+\\.[^@\\s]+"', site)
+        self.assertTrue(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", "ana@obras.pt"))
+        self.assertFalse(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", "ana@obras"))
+        self.assertIn('" não parece válido"', site)
+        self.assertIn('frases.push("Falta " + lista(vazios))', site)
+        self.assertIn('<small id="mensagem-conta">0 de 500</small>', site)
+        self.assertIn('erro.scrollIntoView({ block: "center" });', site)
+        self.assertIn("invalidos[0].focus({ preventScroll: true });", site)
+
     # -- UX-ECRAS-EM-FALTA-E-ESCURO.md ---------------------------------
 
     def test_e1_a_situacao_diz_quantas_e_os_euros(self):

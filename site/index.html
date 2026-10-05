@@ -773,7 +773,7 @@ form .btn{justify-self:start}
           <div class="campo"><label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" required maxlength="160"></div>
         </div>
         <div class="duas">
-          <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+          <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200" pattern="[^@\s]+@[^@\s]+\.[^@\s]+"></div>
           <div class="campo"><label for="telefone">Telemóvel</label><input id="telefone" name="telefone" type="tel" autocomplete="tel" required maxlength="30" pattern="[0-9 .\(\)\+\-]{9,30}"></div>
         </div>
         <div class="campo">
@@ -792,7 +792,8 @@ form .btn{justify-self:start}
              nova se pré-preenche; os obrigatórios continuam cinco -->
         <div class="campo">
           <label for="mensagem">O que vende, e onde (opcional)</label>
-          <textarea id="mensagem" name="mensagem" maxlength="500" placeholder="Ex.: manutenção de elevadores, no Porto e em Braga"></textarea>
+          <textarea id="mensagem" name="mensagem" maxlength="500" aria-describedby="mensagem-conta" placeholder="Ex.: manutenção de elevadores, no Porto e em Braga"></textarea>
+          <small id="mensagem-conta">0 de 500</small>
         </div>
         <input type="hidden" name="plano" id="plano" value="">
         <!-- a visita de onde vem o pedido (ANL): o beacon põe-lhe o número -->
@@ -861,6 +862,14 @@ form .btn{justify-self:start}
   var NOMES = { nome: "o nome", empresa: "a empresa", email: "o e-mail",
                 telefone: "o telemóvel", sector: "a área" };
 
+  // o campo opcional corta aos 500 sem dizer nada a quem cola um texto
+  // maior (6.ª ronda, perfil 19): o contador torna o corte visível
+  var mensagem = document.getElementById("mensagem");
+  var conta = document.getElementById("mensagem-conta");
+  if (mensagem && conta) mensagem.addEventListener("input", function () {
+    conta.textContent = mensagem.value.length + " de " + mensagem.maxLength;
+  });
+
   try {
     var guardado = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
     if (guardado && guardado.email) confirma(guardado, false);
@@ -881,15 +890,30 @@ form .btn{justify-self:start}
       // formulário vazio mandava preencher o que já estava preenchido
       var email = document.getElementById("email");
       var telefone = document.getElementById("telefone");
+      // o que está vazio falta; o que está escrito mas mal não falta (6.ª
+      // ronda: «Falta o telemóvel» com o telemóvel preenchido)
+      var vazios = invalidos.filter(function (el) { return !el.value.trim(); });
+      var mal = invalidos.filter(function (el) { return el.value.trim(); });
+      function lista(els) {
+        return els.map(function (el) { return NOMES[el.id]; })
+          .join(", ").replace(/, ([^,]*)$/, " e $1");
+      }
+      var frases = [];
+      if (vazios.length) frases.push("Falta " + lista(vazios));
+      if (mal.length) frases.push(lista(mal) + (mal.length > 1 ? " não parecem válidos"
+                                                                : " não parece válido"));
+      var junta = frases.join("; ");
       mostraErro(invalidos.length === 1 && invalidos[0] === email && email.value.trim()
         ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
         : invalidos.length === 1 && invalidos[0] === telefone && telefone.value.trim()
         ? "O telemóvel não parece válido: são nove algarismos, ou o indicativo e o número."
-        : invalidos.length < 5
-        ? "Falta " + invalidos.map(function (el) { return NOMES[el.id]; })
-            .join(", ").replace(/, ([^,]*)$/, " e $1") + "."
+        : vazios.length < 5
+        ? junta.charAt(0).toUpperCase() + junta.slice(1) + "."
         : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e a área, para podermos responder.");
-      invalidos[0].focus();
+      // a frase do erro fica por cima dos campos, e o foco no campo
+      // deixava-a debaixo da barra fixa (6.ª ronda, perfil 19)
+      erro.scrollIntoView({ block: "center" });
+      invalidos[0].focus({ preventScroll: true });
       return;
     }
     enviar.disabled = true;
