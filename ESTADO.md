@@ -183,7 +183,9 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.60`**, de
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.61`**, de
+  5/10/2026 — **a caixa da pesquisa diz só «Procurar»**. Antes dela, a
+  `v2.0.60`, de
   5/10/2026 — **a visita guiada dentro da aplicação: um balão leva a
   pessoa por onze passos, e carregar no destacado avança**. Antes dela,
   a `v2.0.59`, de
