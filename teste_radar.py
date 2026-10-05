@@ -14108,6 +14108,22 @@ class TestAVisitaGuiada(BaseTemporaria):
             self.assertNotIn("type='hidden'", texto, nome)
             self.assertIn('content="noindex"', texto, nome)
 
+    def test_o_fim_da_visita_leva_ao_lugar_de_fundador(self):
+        """6.ª ronda (5/10/2026, perfis 9, 12 e 14): o botão principal do
+        fim era um mailto, que tirava a pessoa do browser no momento em que
+        mais queria avançar; o «Sair da visita» voltava ao topo do site; e
+        o «Ver outra vez» saía na letra do browser."""
+        with open(os.path.join(self.RAIZ, "site", "demo.html"), encoding="utf-8") as f:
+            pagina = f.read()
+        fim = pagina.split('id="vg-fim"', 1)[1]
+        self.assertIn('<a class="btn btn-primario" href="/#acesso">'
+                      'Pedir um lugar de fundador</a>', fim)
+        self.assertNotIn('btn-primario" href="mailto:', fim)
+        self.assertIn('href="mailto:contacto@miragov.pt', fim)
+        self.assertIn('<a class="sair" href="/#fundador">', pagina)
+        self.assertIn(".vg-fim .recomecar{display:inline-block;margin-top:16px;"
+                      "font:inherit", pagina)
+
 
 class TestOSiteDaTerceiraRonda(BaseTemporaria):
     """O lote 9 da 3.ª ronda (29/09/2026), o site público, relatório 07.
