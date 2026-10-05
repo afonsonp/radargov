@@ -946,8 +946,8 @@ conta continua a ser de **uma** empresa só. O menu é o mesmo `mg-menu` do «Ma
 o Tab para fora ou com um clique fora (3.ª ronda, G71).
 
 **A pesquisa geral** (J1 da auditoria das sete leis, 2R-D8; 1/10/2026):
-entre a navegação e o menu da conta há uma caixa só, «Procurar
-(Ctrl+K)», que acha **concursos** (pelo título, pela entidade, pela
+entre a navegação e o menu da conta há uma caixa só, «Procurar» (o
+atalho não se escreve nela desde 5/10/2026, mas continua), que acha **concursos** (pelo título, pela entidade, pela
 referência e pelo NIF, por pedaço de palavra, com todas as palavras
 lá — os mais recentes primeiro, sem as republicações), as **propostas
 da empresa** de quem procura (nunca as de outra: vivem no ficheiro
