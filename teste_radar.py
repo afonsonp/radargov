@@ -29098,6 +29098,34 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
         self.assertIn("mesmo telemóvel noutra empresa", lista)
         self.assertIn("mesma mensagem noutro pedido", lista)
 
+    def test_sexta_ronda_os_repetidos_que_passavam_sem_etiqueta(self):
+        """6.ª ronda (5/10/2026, perfis 18 e 19): a colega da mesma empresa,
+        com o mesmo telemóvel, não levava etiqueta (só «noutra empresa»);
+        quem já tinha conta pedia outra vez sem aviso; e o recusado voltava
+        a pedir e parecia novo."""
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "sofia@obras.pt", "Cadeira-Azul-2026!x",
+                                    nome="Sofia", papel="tester")
+            for empresa, email, tel, estado, quando in (
+                    ("Obras Rápidas, Lda.", "rui@obras.pt", "910000019", "aceite",
+                     "2026-10-05 10:00"),
+                    ("Obras Rapidas", "sofia@obras.pt", "910 000 019", "",
+                     "2026-10-05 11:00"),
+                    ("Café Central", "cafe@central.pt", "910000119", "recusado",
+                     "2026-10-05 09:00"),
+                    ("Café Central", "cafe@central.pt", "910000119", "",
+                     "2026-10-05 12:00")):
+                c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
+                          "email, telefone, sector, mensagem, estado, decidido_em) "
+                          "VALUES (?, 'X', ?, ?, ?, 'Outro', '', ?, ?)",
+                          (quando, empresa, email, tel, estado,
+                           quando if estado else None))
+        lista = self.ver(self.entrar("dono"), "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("mesmo telemóvel de outro pedido", lista)
+        self.assertIn("mesma empresa noutro pedido", lista)
+        self.assertIn("já tem conta", lista)
+        self.assertIn("recusado a 05/10/2026", lista)
+
     def test_o_convite_leva_a_nota(self):
         dono = self.entrar("dono")
         url = "/pedidos-de-acesso/%d/aceitar" % self.pedido

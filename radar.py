@@ -37589,24 +37589,57 @@ def pedidos_de_acesso():
 
     def chave_msg(l):
         return " ".join(simplifica(l["mensagem"]).split())
-    empresas_do_tel, ids_da_msg = {}, {}
+    def chave_empresa(l):
+        """O nome sem a forma jurídica: «Obras Rápidas, Lda.» e «Obras
+        Rapidas» são a mesma empresa."""
+        nome = re.sub(r"[^a-z0-9]+", " ", simplifica(l["empresa"] or "").lower())
+        return " ".join(re.sub(r"\b(?:lda|limitada|unipessoal|s a|sa)\b", " ",
+                               nome).split())
+    empresas_do_tel, ids_do_tel, ids_da_msg, ids_da_empresa = {}, {}, {}, {}
     for l in linhas:
         if chave_tel(l):
-            empresas_do_tel.setdefault(chave_tel(l), set()).add(
-                simplifica(l["empresa"]).strip())
+            empresas_do_tel.setdefault(chave_tel(l), set()).add(chave_empresa(l))
+            ids_do_tel.setdefault(chave_tel(l), set()).add(l["id"])
         if chave_msg(l):
             ids_da_msg.setdefault(chave_msg(l), set()).add(l["id"])
+        if chave_empresa(l):
+            ids_da_empresa.setdefault(chave_empresa(l), set()).add(l["id"])
+    # quem já tem conta, e o que já se decidiu à mesma pessoa (6.ª ronda,
+    # 5/10/2026: a colega entrou pelo convite e pediu outra vez; o recusado
+    # pediu outra vez e parecia novo)
+    with liga() as c:
+        conta_do_email = {(r["email"] or "").strip().lower(): r["empresa_id"]
+                          for r in c.execute("SELECT email, empresa_id FROM utilizadores")}
 
     def repetido(l):
-        ids = por_email.get((l["email"] or "").strip().lower(), [])
+        email = (l["email"] or "").strip().lower()
+        ids = por_email.get(email, [])
         etiquetas = []
         if len(ids) >= 2:
             etiquetas.append("%d.º de %d pedidos deste e-mail"
                              % (ids.index(l["id"]) + 1, len(ids)))
         if len(empresas_do_tel.get(chave_tel(l), ())) >= 2:
             etiquetas.append("mesmo telemóvel noutra empresa")
+        elif ids_do_tel.get(chave_tel(l), set()) - set(ids):
+            etiquetas.append("mesmo telemóvel de outro pedido")
+        if (len(ids_da_empresa.get(chave_empresa(l), ())) >= 2
+                and len(ids_da_empresa[chave_empresa(l)] - set(ids)) >= 1):
+            etiquetas.append("mesma empresa noutro pedido")
         if len(ids_da_msg.get(chave_msg(l), ())) >= 2:
             etiquetas.append("mesma mensagem noutro pedido")
+        if email in conta_do_email:
+            id_ = conta_do_email[email] or 0
+            etiquetas.append("já tem conta" + (
+                " (<a href='/plataforma/empresa/%d'>empresa %d</a>)" % (id_, id_)
+                if id_ else ""))
+        for o in linhas:
+            if (o["id"] < l["id"] and o["estado"] in ("recusado", "espera")
+                    and ((o["email"] or "").strip().lower() == email
+                         or (chave_tel(o) and chave_tel(o) == chave_tel(l)))):
+                dia_ = data_pt((o["decidido_em"] or o["criado_em"] or "")[:10])
+                etiquetas.append("recusado a %s" % dia_ if o["estado"] == "recusado"
+                                 else "em espera desde %s" % dia_)
+                break
         return "".join(" <span class='mg-tag %s'>%s</span>" % (tom("avisa"), e)
                        for e in etiquetas)
     desde, nomes = {}, {}
