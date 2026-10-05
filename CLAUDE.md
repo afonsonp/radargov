@@ -187,6 +187,10 @@ python ferramentas/ecrans.py [--empresa N]  # todos os ecrãs num HTML só,
                                    # embutidos; a empresa (a primeira, por
                                    # omissão) vista pelo gestor, a plataforma
                                    # pelo dono. Gerado e ignorado pelo git
+python ferramentas/demo.py         # os ecrãs da visita guiada (/demo):
+                                   # site/demo/<n>.html, de uma empresa
+                                   # inventada numa base temporária; corre-se
+                                   # quando um ecrã muda, e vai para o git
 python ferramentas/valida_docs.py  # o que a documentação cita existe? e as
                                    # contagens deriváveis batem? (também corre
                                    # na bateria de testes, e trava o commit)
@@ -324,7 +328,11 @@ abertos por igualdade — o robots é uma lista branca; as páginas
 do site passam todas pelo `_do_site()`, que lhes põe os tokens da
 aplicação e a moldura (`site/moldura.css`) — e, desde 4/10/2026, o beacon
 das visitas (`registar_visita()`, `/visita`, aberta com a guarda dentro;
-o painel é o `/plataforma/visitas`). O que isso quer dizer está no
+o painel é o `/plataforma/visitas`); e, desde 5/10/2026, a visita
+guiada: o `/demo` (`site/demo.html`, por igualdade) e os ecrãs dela,
+`/demo/<n>` (prefixo; o `int` da rota e o ficheiro são a lista branca),
+gerados pelo `ferramentas/demo.py` sobre uma base temporária com uma
+empresa inventada. O que isso quer dizer está no
 `docs/FUNCIONAL.md` §4.9 e nas armadilhas, «Contas e a porta».
 
 **O endereço público é `https://miragov.pt`** desde 25/09/2026 (até aí

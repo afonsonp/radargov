@@ -897,7 +897,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**151 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**153 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1500,7 +1500,13 @@ Abertos, por igualdade, também o **`/robots.txt`**, o **`/sitemap.xml`**
 (as páginas públicas, `paginas_publicas()`, com o `<lastmod>` da data do
 ficheiro; as legais só quando existem), a **`/partilha.png`** (a imagem
 do Open Graph, `site/partilha.png`) e o **`/llms.txt`** (o resumo do
-site para os agentes de IA, `site/llms.txt`; 29/09/2026). E o **`/visita`**
+site para os agentes de IA, `site/llms.txt`; 29/09/2026). A **visita
+guiada** (5/10/2026): o **`/demo`** (`site/demo.html`, as legendas, no
+mapa do site) mostra oito ecrãs da aplicação em iframes, cada um um
+**`/demo/<n>`** (`site/demo/<n>.html`), com uma empresa inventada, sem
+scripts nem envios — gerados pelo `ferramentas/demo.py` numa base
+temporária; nada vem das bases verdadeiras. A abertura do site liga-lhe
+pelo «Ver por dentro». E o **`/visita`**
 (4/10/2026), o beacon da medição das visitas: POST aberto, com a guarda
 dentro — a origem, o corpo até 2 KB, um `id` de 16 hexadecimais de uma
 visita das últimas seis horas, os números cortados — e responde 204

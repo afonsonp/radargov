@@ -14048,6 +14048,44 @@ class TestSitePublico(BaseTemporaria):
 TestSitePublico._avisar_original = staticmethod(radar._avisar_do_pedido)
 
 
+class TestAVisitaGuiada(BaseTemporaria):
+    """O `/demo` (5/10/2026): os ecrãs verdadeiros com uma empresa
+    inventada, para quem não tem conta. Abre sem sessão, não deixa nada
+    vivo (scripts, envios), e a folha de estilo segue a etiqueta de hoje
+    -- a de quando se gerou dava 404 ao primeiro CSS novo."""
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    PASTA = os.path.join(os.path.dirname(radar.__file__), "site", "demo")
+
+    def setUp(self):
+        super().setUp()
+        self.cliente = radar.app.test_client()
+
+    def get(self, caminho):
+        return self.cliente.get(caminho, environ_base=self.FORA)
+
+    def test_abre_sem_sessao_com_os_ecras(self):
+        r = self.get("/demo")
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        for n in re.findall(r'src="/demo/(\d+)"', corpo):
+            e = self.get("/demo/" + n)
+            self.assertEqual(e.status_code, 200, n)
+            self.assertIn(radar.FOLHA_CSS, e.get_data(as_text=True))
+        self.assertEqual(self.get("/demo/99").status_code, 404)
+        self.assertEqual(self.get("/demo/x").status_code, 404)
+
+    def test_os_ecras_gerados_estao_mortos(self):
+        nomes = sorted(os.listdir(self.PASTA))
+        self.assertTrue(nomes)
+        for nome in nomes:
+            with open(os.path.join(self.PASTA, nome), encoding="utf-8") as f:
+                texto = f.read()
+            self.assertNotIn("<script", texto.lower(), nome)
+            self.assertEqual(len(re.findall(r"<form\b", texto, re.I)),
+                             len(re.findall(r"<form inert", texto, re.I)), nome)
+            self.assertIn('content="noindex"', texto, nome)
+
+
 class TestOSiteDaTerceiraRonda(BaseTemporaria):
     """O lote 9 da 3.ª ronda (29/09/2026), o site público, relatório 07.
     Cada teste é um achado que existiu:
@@ -14101,7 +14139,7 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         r = self.get("/sitemap.xml")
         self.assertEqual((r.status_code, r.mimetype), (200, "application/xml"))
         locs = re.findall(r"<loc>https?://[^/<]*(/[^<]*)</loc>", r.get_data(as_text=True))
-        self.assertEqual(locs, ["/", "/acessibilidade", "/privacidade", "/termos"])
+        self.assertEqual(locs, ["/", "/demo", "/acessibilidade", "/privacidade", "/termos"])
         # sem operador, as legais não existem e não entram no mapa
         self.cfg.pop("operador")
         self.assertNotIn("/termos", self.get("/sitemap.xml").get_data(as_text=True))
@@ -14185,7 +14223,7 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
             if caminho != "/":
                 self.assertEqual((dados[0]["@type"], dados[0]["url"]),
                                  ("WebPage", canonical))
-        self.assertEqual(len(titulos), 4)
+        self.assertEqual(len(titulos), 5)
 
     def test_o_faq_dos_dados_e_o_que_a_pagina_mostra(self):
         corpo = self.get("/").get_data(as_text=True)

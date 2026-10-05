@@ -7,6 +7,7 @@ O Mira Gov não é um serviço oficial: não representa o Diário da República,
 ## O site
 
 - [Página inicial](https://miragov.pt/): o que o Mira Gov faz, como funciona, de onde vêm os dados, as perguntas frequentes e o formulário de pedido de acesso
+- [Visita guiada](https://miragov.pt/demo): os ecrãs da aplicação, um a um, com uma empresa de exemplo
 - [Planos](https://miragov.pt/#planos): os três planos, os preços e a oferta de fundador
 - [Pedir acesso](https://miragov.pt/#acesso): o formulário do pedido (nome, empresa, e-mail, telemóvel e área); configuramos o perfil da empresa (os códigos CPV do setor) com quem pede
 - [Perguntas frequentes](https://miragov.pt/#perguntas)
