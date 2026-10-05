@@ -296,7 +296,12 @@ section{padding-block:88px}
 /* Os planos (30/09/2026): três cartões, o do meio com a régua da marca.
    Desde 1/10/2026 têm todos o mesmo: os cartões dizem só as pessoas e o
    preço, e o que o Mira Gov faz é uma lista só, por baixo */
-.planos-aviso{margin-bottom:20px}
+/* Indisponíveis (5/10/2026, decisão dele): enquanto os pagamentos não
+   estão prontos, um selo na diagonal por cima de cada cartão, o cartão
+   esbatido por baixo, e sem os botões de pedir */
+.planos.indisponiveis .plano{position:relative;overflow:hidden}
+.planos.indisponiveis .plano>:not(.plano-selo){opacity:.4}
+.plano-selo{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-14deg);margin:0;padding:8px 18px;border:3px solid var(--seal);border-radius:10px;color:var(--seal);background:color-mix(in srgb,var(--surface-raised) 80%,transparent);font:700 1.15rem/1.2 var(--font-sans);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
 .planos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .plano{display:flex;flex-direction:column;gap:14px;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:28px}
 .plano.destaque{border-color:var(--brand);box-shadow:var(--shadow-sm)}
@@ -642,25 +647,24 @@ form .btn{justify-self:start}
         <h2 id="t-planos">Três planos.</h2>
         <p>Mesmo serviço em todos os planos; muda só o número de pessoas.</p>
       </div>
-      <p class="planos-aviso"><span class="selo">Indisponíveis de momento.</span></p>
-      <div class="planos">
+      <div class="planos indisponiveis">
         <article class="plano" aria-labelledby="p-solo">
           <h3 id="p-solo">Solo</h3>
           <p class="preco num">39 € <small>/mês + IVA</small></p>
           <p class="quem">1 pessoa, uma sessão de cada vez<br>429&nbsp;€/ano no plano anual</p>
-          <a class="btn btn-contorno" href="#acesso" data-plano="solo">Pedir o Solo</a>
+          <p class="plano-selo">Indisponível</p>
         </article>
         <article class="plano destaque" aria-labelledby="p-duo">
           <h3 id="p-duo">Duo</h3>
           <p class="preco num">75 € <small>/mês + IVA</small></p>
           <p class="quem">2 pessoas, cada uma com a sua conta<br>825&nbsp;€/ano no plano anual</p>
-          <a class="btn btn-primario" href="#acesso" data-plano="duo">Pedir o Duo</a>
+          <p class="plano-selo">Indisponível</p>
         </article>
         <article class="plano" aria-labelledby="p-corporate">
           <h3 id="p-corporate">Corporate</h3>
           <p class="preco">Sob consulta</p>
           <p class="quem">Mais de 2 pessoas, com o preço pelo número de pessoas e as condições acordadas por escrito</p>
-          <a class="btn btn-contorno" href="#acesso" data-plano="corporate">Falar connosco</a>
+          <p class="plano-selo">Indisponível</p>
         </article>
       </div>
       <div class="em-todos">
