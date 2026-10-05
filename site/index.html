@@ -808,6 +808,7 @@ form .btn{justify-self:start}
           <h3>Pedido recebido</h3>
           <p>Recebemos o pedido<span id="ob-empresa"></span>. Respondemos para <strong id="ob-email"></strong>, normalmente no próprio dia útil. Quando o pedido for aceite, recebe nesse endereço um convite para criar a conta.</p>
           <p>Se não chegar, veja a pasta de spam ou escreva para <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a>.</p>
+          <p id="ob-estado" hidden>Guarde <a id="ob-estado-a" href="#">esta ligação</a>: diz-lhe em que ponto está o pedido, sem precisar de pedir outra vez.</p>
         </div>
       </form>
     </div>
@@ -836,6 +837,12 @@ form .btn{justify-self:start}
     // a frase acaba em ponto: «Lda.» e «S.A.» davam «Lda..» (6.ª ronda)
     document.getElementById("ob-empresa").textContent = p.empresa ? " de " + p.empresa.replace(/\.$/, "") : "";
     document.getElementById("ob-email").textContent = p.email;
+    // a página de estado do pedido (6.ª ronda): quem voltava não tinha
+    // onde ver se fora aceite, e pedia outra vez
+    if (p.estado && /^\/pedido\/[\w-]+$/.test(p.estado)) {
+      document.getElementById("ob-estado-a").href = p.estado;
+      document.getElementById("ob-estado").hidden = false;
+    }
     Array.prototype.forEach.call(form.children, function (el) {
       if (el !== obrigado) el.hidden = true;
     });
@@ -925,7 +932,8 @@ form .btn{justify-self:start}
       .then(function (d) {
         if (d && d.ok) {
           var p = { empresa: document.getElementById("empresa").value.trim(),
-                    email: document.getElementById("email").value.trim() };
+                    email: document.getElementById("email").value.trim(),
+                    estado: d.estado || "" };
           try { sessionStorage.setItem(CHAVE, JSON.stringify(p)); } catch (e) {}
           confirma(p, true);
         } else {

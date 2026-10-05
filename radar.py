@@ -38,6 +38,7 @@ import mimetypes
 import os
 import re
 import queue
+import secrets
 import shlex
 import shutil
 import smtplib
@@ -1248,10 +1249,14 @@ def iniciar_db():
         # O telemóvel (4/10/2026): o formulário passou a pedir só o nome,
         # a empresa, o e-mail, o telemóvel e a área -- o NIF e o plano
         # assustavam quem só queria experimentar (decisão dele).
+        # O `codigo` (6.ª ronda, 5/10/2026): o resumo SHA-256 do código da
+        # página de estado do pedido, `/pedido/<código>` -- como o dos
+        # convites, só o resumo fica na base. Os de antes ficam sem página.
         for nome, tipo in (("estado", "TEXT"), ("empresa_id", "INTEGER"),
                            ("motivo", "TEXT"), ("decidido_em", "TEXT"),
                            ("nif", "TEXT"), ("plano", "TEXT"),
-                           ("telefone", "TEXT"), ("vista", "TEXT")):
+                           ("telefone", "TEXT"), ("vista", "TEXT"),
+                           ("codigo", "TEXT")):
             if nome not in cols_pa:
                 c.execute("ALTER TABLE pedidos_acesso ADD COLUMN %s %s" % (nome, tipo))
         # As visitas ao site público (ANL, 4/10/2026): uma linha por página
@@ -14868,7 +14873,10 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
 # E os ecrãs da visita guiada (`/demo/<n>`, 5/10/2026): o conversor
 # `int` da rota e a existência do ficheiro são a lista branca, e o que lá
 # está é uma empresa inventada (`ferramentas/demo.py`).
-PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/", "/demo/")
+# E a página de estado do pedido (`/pedido/<código>`, 6.ª ronda): a
+# guarda é o código, que só quem pediu tem, como no convite.
+PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/", "/demo/",
+                    "/pedido/")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o DONO da plataforma abre (F4, 23/09/2026): o sistema -- as
@@ -37423,14 +37431,16 @@ def pedir_acesso():
     nao tem JavaScript."""
     quer_json = pede_json()
 
-    def resposta(ok, erro="", codigo=200):
+    def resposta(ok, erro="", codigo=200, estado=""):
         if quer_json:
-            return Response(json.dumps({"ok": ok, "erro": erro}), codigo,
-                            mimetype="application/json")
+            return Response(json.dumps(dict({"ok": ok, "erro": erro},
+                                            **({"estado": estado} if estado else {}))),
+                            codigo, mimetype="application/json")
         if ok:
             # Post/Redirect/Get (5.ª ronda): o 200 ao POST fazia o F5 voltar
-            # a mandar o pedido, e foi assim que nasceu um terceiro
-            return redirect("/pedido-recebido", 303)
+            # a mandar o pedido, e foi assim que nasceu um terceiro. Desde a
+            # 6.ª ronda vai para a página de estado do pedido.
+            return redirect(estado or "/pedido-recebido", 303)
         # quem pede não tem conta: o botão volta ao formulário (4.ª ronda:
         # dizia «Voltar ao Hoje»)
         # e o formulário volta ali mesmo, com o que se escreveu (5.ª
@@ -37498,18 +37508,66 @@ def pedir_acesso():
                 or do_email >= PEDIDOS_POR_EMAIL_POR_DIA):
             return resposta(False, "Recebemos muitos pedidos agora. Tente "
                                    "de novo mais tarde.", 429)
+        # a página de estado do pedido (6.ª ronda): o código só vai para
+        # quem pediu; na base fica o resumo
+        codigo_do_pedido = secrets.token_urlsafe(18)
         id_ = c.execute(
             "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
-            "sector, mensagem, ip, nif, plano, telefone, vista) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "sector, mensagem, ip, nif, plano, telefone, vista, codigo) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (agora.isoformat(" ", "seconds"), p["nome"], p["empresa"],
              p["email"], p["sector"], p["mensagem"], ip, p["nif"],
-             p["plano"], p["telefone"], vista)).lastrowid
+             p["plano"], p["telefone"], vista,
+             _resumo_do_codigo(codigo_do_pedido))).lastrowid
     # de onde veio quem pediu (ANL): a visita que o beacon pôs no formulário
     marcar_evento_da_visita(vista, ["enviado"])
     threading.Thread(target=_avisar_do_pedido, args=(id_, p),
                      daemon=True).start()
-    return resposta(True)
+    return resposta(True, estado="/pedido/" + codigo_do_pedido)
+
+
+def _resumo_do_codigo(codigo):
+    return hashlib.sha256((codigo or "").encode("utf-8")).hexdigest()
+
+
+# O que a página de estado diz em cada estado do pedido (6.ª ronda,
+# 5/10/2026): quem pedia não tinha onde ver se fora aceite, e pedia outra
+# vez. O recusado não leva o motivo, como o e-mail da recusa.
+ESTADO_DO_PEDIDO = {
+    "": ("Recebemos o seu pedido",
+         "Estamos a vê-lo. Respondemos para o e-mail que indicou, normalmente "
+         "no próprio dia útil."),
+    "espera": ("O seu pedido está em lista de espera",
+               "Os lugares de fundador estão ocupados por agora. Avisamos por "
+               "e-mail quando abrir um, e não precisa de pedir outra vez."),
+    "aceite": ("O seu pedido foi aceite",
+               "Enviámos o convite para criar a conta para %s. Se não o "
+               "encontrar, veja também no correio indesejado, ou escreva para "
+               "<a href='mailto:contacto@miragov.pt'>contacto@miragov.pt</a>."),
+    "recusado": ("Não pudemos aceitar o pedido",
+                 "Obrigado pelo interesse. Se achar que foi engano, escreva para "
+                 "<a href='mailto:contacto@miragov.pt'>contacto@miragov.pt</a>."),
+}
+
+
+@app.route("/pedido/<codigo>")
+def estado_do_pedido(codigo):
+    """A página de estado do pedido (rota aberta: a guarda é o código, que
+    só quem pediu tem, como no convite). Um código que não existe dá 404,
+    sem dizer mais nada."""
+    with liga() as c:
+        p = c.execute("SELECT estado, email FROM pedidos_acesso WHERE codigo=?",
+                      (_resumo_do_codigo(codigo),)).fetchone() if codigo else None
+    if not p:
+        abort(404)
+    titulo, texto = ESTADO_DO_PEDIDO.get(p["estado"] or "", ESTADO_DO_PEDIDO[""])
+    if "%s" in texto:
+        texto = texto % "<b>%s</b>" % html.escape(p["email"] or "o seu e-mail")
+    return Response((PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": html.escape(titulo),
+                                    "texto": texto, "logo": logotipo(tamanho=24)}).replace(
+                        ACCAO_DA_PAGINA_DE_ERRO,
+                        '<a class="mg-btn mg-btn--primary" href="/">Voltar ao site</a>'),
+                    mimetype="text/html", headers={"Cache-Control": "no-store"})
 
 
 def _formulario_do_pedido_outra_vez():

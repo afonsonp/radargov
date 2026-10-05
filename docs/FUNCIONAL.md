@@ -897,7 +897,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**153 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**154 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1482,6 +1482,13 @@ validados e cortados — o telemóvel por `telefone_valido()` —, e tectos de `
 `PEDIDOS_POR_DIA` — este último a 1000, só de reserva, desde 4/10/2026: a 200, um robô fechava o formulário ao site inteiro), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
+Desde 5/10/2026 também, por prefixo, a **página de estado do pedido**,
+`/pedido/<código>` (`estado_do_pedido()`): o envio do formulário devolve
+o caminho, a confirmação mostra-o, e sem JavaScript o 303 vai lá; diz
+recebido, em espera, aceite (com o e-mail para onde foi o convite) ou
+recusado (sem o motivo). O código só existe para quem pediu; na base, a
+coluna `pedidos_acesso.codigo` guarda o resumo. Os pedidos de antes não
+têm página.
 A **`/acessibilidade`** (D15, 26/09/2026): a declaração de
 acessibilidade, com a estrutura do modelo do DL 83/2018 — o estado
 (parcialmente conforme com a WCAG 2.1 AA), o que não está conforme, a

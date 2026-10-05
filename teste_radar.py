@@ -13985,19 +13985,52 @@ class TestSitePublico(BaseTemporaria):
     def test_um_pedido_bom_grava_e_avisa(self):
         r = self.pedir()
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.get_json(), {"ok": True, "erro": ""})
+        resposta = r.get_json()
+        self.assertEqual((resposta["ok"], resposta["erro"]), (True, ""))
+        # e a página de estado do pedido (6.ª ronda)
+        self.assertRegex(resposta["estado"], r"^/pedido/[\w-]{20,}$")
         (p,) = self.pedidos()
         self.assertEqual((p["nome"], p["email"], p["ip"]),
                          ("Ana Silva", "ana@obras.pt", "203.0.113.7"))
         self.assertEqual(len(self.avisos), 1)
 
     def test_sem_javascript_responde_uma_pagina(self):
-        # Post/Redirect/Get desde a 5.ª ronda: o F5 reenviava o pedido
+        # Post/Redirect/Get desde a 5.ª ronda: o F5 reenviava o pedido.
+        # Desde a 6.ª, o Get é a página de estado do pedido
         r = self.pedir(Accept="text/html")
-        self.assertEqual((r.status_code, r.headers["Location"]), (303, "/pedido-recebido"))
-        r = self.cliente.get("/pedido-recebido", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 303)
+        self.assertRegex(r.headers["Location"], r"^/pedido/[\w-]{20,}$")
+        r = self.cliente.get(r.headers["Location"], environ_base=self.FORA)
         self.assertEqual(r.status_code, 200)
+        self.assertIn("Recebemos o seu pedido", r.get_data(as_text=True))
+        # a página antiga continua, para quem a tenha guardada
+        r = self.cliente.get("/pedido-recebido", environ_base=self.FORA)
         self.assertIn("Pedido recebido", r.get_data(as_text=True))
+
+    def test_sexta_ronda_a_pagina_de_estado_do_pedido(self):
+        """6.ª ronda (5/10/2026, perfil 19): quem pedia não tinha onde ver
+        se fora aceite, recusado ou posto em espera, e pedia outra vez. A
+        página abre-se só com o código, que fica na base em resumo."""
+        caminho = self.pedir().get_json()["estado"]
+        codigo = caminho.rsplit("/", 1)[1]
+        with radar.liga() as c:
+            guardado = c.execute("SELECT codigo FROM pedidos_acesso").fetchone()[0]
+        self.assertNotEqual(guardado, codigo)
+        self.assertEqual(guardado, radar.hashlib.sha256(codigo.encode()).hexdigest())
+        for estado, frase in (("", "Recebemos o seu pedido"),
+                              ("espera", "lista de espera"),
+                              ("aceite", "Enviámos o convite para criar a conta para "
+                                         "<b>ana@obras.pt</b>"),
+                              ("recusado", "Não pudemos aceitar o pedido")):
+            with radar.liga() as c:
+                c.execute("UPDATE pedidos_acesso SET estado=?", (estado or None,))
+            r = self.cliente.get(caminho, environ_base=self.FORA)
+            self.assertEqual(r.status_code, 200, estado)
+            self.assertIn(frase, r.get_data(as_text=True), estado)
+            self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(self.cliente.get("/pedido/nao-existe-este",
+                                          environ_base=self.FORA).status_code, 404)
+        self.assertEqual(self.cliente.post(caminho, environ_base=self.FORA).status_code, 405)
 
     def test_o_robo_que_preenche_a_armadilha_nao_grava_nada(self):
         r = self.pedir(dict(self.BOM, website="http://spam"))
