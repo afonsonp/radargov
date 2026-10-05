@@ -37590,11 +37590,7 @@ def pedidos_de_acesso():
     def chave_msg(l):
         return " ".join(simplifica(l["mensagem"]).split())
     def chave_empresa(l):
-        """O nome sem a forma jurídica: «Obras Rápidas, Lda.» e «Obras
-        Rapidas» são a mesma empresa."""
-        nome = re.sub(r"[^a-z0-9]+", " ", simplifica(l["empresa"] or "").lower())
-        return " ".join(re.sub(r"\b(?:lda|limitada|unipessoal|s a|sa)\b", " ",
-                               nome).split())
+        return chave_do_nome_da_empresa(l["empresa"])
     empresas_do_tel, ids_do_tel, ids_da_msg, ids_da_empresa = {}, {}, {}, {}
     for l in linhas:
         if chave_tel(l):
@@ -38098,9 +38094,9 @@ def _formulario_do_aceitar(p, aviso=""):
         "<div class='larg'>%s<div class='mg-card conf-cx'>"
         "<p><b>%s</b>, de %s &middot; <a href='mailto:%s'>%s</a>%s<br>"
         "Área: %s</p>%s</div>"
-        "<form method='post' class='mg-card conf-cx conf-form'>"
+        "<form method='post' class='mg-card conf-cx conf-form'>%s"
         "<div class='mg-field__label' style='flex:1 1 100%%'>O perfil da "
-        "empresa nova</div>"
+        "empresa nova <span class='nota'>(só para uma empresa nova)</span></div>"
         "<p class='nota' style='flex:1 1 100%%'>O site promete «configuramos o "
         "perfil consigo». %s; afine-o antes "
         "de aceitar, ou deixe-o vazio e a empresa define-o depois.</p>"
@@ -38126,6 +38122,7 @@ def _formulario_do_aceitar(p, aviso=""):
            html.escape(p["sector"] or "—"),
            ("<p class='nota'>«%s»</p>" % html.escape(p["mensagem"]))
            if p["mensagem"] else "",
+           _escolha_da_empresa(p),
            "Vem do sector e do que a mensagem diz" if (cpv or distritos)
            else "O sector e a mensagem não chegaram para o sugerir: escreva-o",
            _campo("CPV", "cpv", cpv, nota="códigos separados por «|», ex. "
@@ -38155,6 +38152,104 @@ def _escolha_do_plano(escolhido):
                 for k, v in PLANOS_DO_PEDIDO.items()))
 
 
+def chave_do_nome_da_empresa(nome):
+    """O nome sem a forma jurídica nem a pontuação: «Obras Rápidas, Lda.»
+    e «Obras Rapidas» são a mesma empresa (6.ª ronda, 5/10/2026)."""
+    nome = re.sub(r"[^a-z0-9]+", " ", simplifica(nome or "").lower())
+    return " ".join(re.sub(r"\b(?:lda|limitada|unipessoal|s a|sa)\b", " ",
+                           nome).split())
+
+
+def _empresas_para_juntar():
+    """[(id, nome)] das empresas que existem, para o «juntar» do aceitar."""
+    nomes = []
+    for id_ in empresas_existentes():
+        with com_empresa(id_):
+            nomes.append((id_, ler_config().get("nome_da_empresa") or "empresa %d" % id_))
+    return nomes
+
+
+def _escolha_da_empresa(p):
+    """Criar uma empresa nova ou juntar a pessoa a uma que já existe (6.ª
+    ronda: a colega da mesma empresa só podia nascer noutra empresa). A
+    que tem o mesmo nome vem escolhida."""
+    juntar = request.method == "POST" and request.form.get("destino") == "juntar"
+    escolhida = request.form.get("empresa_id", "") if juntar else ""
+    opcoes = []
+    for id_, nome in _empresas_para_juntar():
+        if not escolhida and chave_do_nome_da_empresa(nome) == \
+                chave_do_nome_da_empresa(p["empresa"]):
+            escolhida, juntar = str(id_), juntar or request.method == "GET"
+        opcoes.append("<option value='%d'%s>%s (empresa %d)</option>"
+                      % (id_, " selected" if str(id_) == escolhida else "",
+                         html.escape(nome), id_))
+    if not opcoes:
+        return ""
+    return ("<fieldset style='flex:1 1 100%%'><legend class='mg-field__label'>"
+            "Para onde vai quem pediu</legend>"
+            "<label><input type='radio' name='destino' value='nova'%s> uma "
+            "empresa nova, com o perfil e o plano de baixo</label><br>"
+            "<label><input type='radio' name='destino' value='juntar'%s> juntar "
+            "a uma empresa que já existe, como utilizador:</label> "
+            "<select class='mg-field__input' name='empresa_id' "
+            "aria-label='A empresa'>%s</select></fieldset>"
+            % ("" if juntar else " checked", " checked" if juntar else "",
+               "".join(opcoes)))
+
+
+def _juntar_pedido(p):
+    """O «aceitar» que junta a pessoa a uma empresa que já existe: não
+    cria empresa nem mexe no perfil (é o dela), e o convite é de
+    utilizador -- quem é gestor decide-o o gestor. O plano conta."""
+    try:
+        empresa_id = int(request.form.get("empresa_id") or "")
+    except ValueError:
+        empresa_id = 0
+    if empresa_id not in empresas_existentes():
+        return _formulario_do_aceitar(p, "Escolha a empresa da lista.")
+    with liga() as c:
+        if contas.lugares_livres(c, empresa_id) == 0:
+            return _formulario_do_aceitar(p, contas.frase_do_limite(c, empresa_id))
+        codigo = contas.criar_convite(c, empresa_id, p["email"], "tester", p["id"])
+        c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=?, "
+                  "decidido_em=? WHERE id=?",
+                  (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), p["id"]))
+    with com_empresa(empresa_id):
+        nome = ler_config().get("nome_da_empresa") or p["empresa"]
+    registar_evento("", "pedido aceite", "%s (junta à empresa %d)"
+                    % (p["empresa"], empresa_id))
+    return _pedido_aceite(p, empresa_id, nome, codigo, "tester",
+                          "Juntou-se à empresa %d, %s." % (empresa_id, html.escape(nome)),
+                          "Junta-se à empresa n.º %d" % empresa_id,
+                          "<p>O perfil e o plano são os da empresa: não mudaram.</p>")
+
+
+def _pedido_aceite(p, empresa_id, nome, codigo, papel, titulo, destaque, sobre):
+    """O ecrã depois de aceitar: manda o convite e mostra a ligação, que
+    serve se o e-mail não sair -- e a nota com ela, que de outro modo ia
+    só no e-mail (6.ª ronda, 5/10/2026)."""
+    ligacao = endereco_do_painel() + "/convite/" + codigo
+    nota = (request.form.get("nota") or "").strip()[:TECTO_DA_NOTA_DO_CONVITE]
+    bem, porque = enviar_convite(p["email"], ligacao, nome, papel, p["nome"],
+                                 pedido=True, nota=nota)
+    envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])
+             if bem else "<b>O e-mail não saiu</b> (%s). Mande-lhe a "
+             "ligação%s." % (html.escape(porque or "sem razão"),
+                             ", com a nota que escreveu: «%s»" % html.escape(nota)
+                             if nota else ""))
+    return envolver(
+        "configuracoes", "Pedido aceite", titulo,
+        # o número e a ligação no corpo (G56 da 3.ª ronda): o subtítulo
+        # passava despercebido, e confirmar a empresa era voltar à lista
+        "<div class='larg'><div class='mg-card conf-cx'><p><b>%s</b> &mdash; "
+        "<a href='/plataforma/empresa/%d'>abrir a página dela</a>.</p><p>%s</p>%s"
+        "<p>A ligação, que serve uma vez e dura %d dias:</p>"
+        "%s<p><a href='/pedidos-de-acesso'>voltar aos "
+        "pedidos</a></p></div></div>"
+        % (destaque, empresa_id, envio, sobre, contas.DIAS_DE_CONVITE,
+           caixa_de_copiar(ligacao, "Ligação do convite")))
+
+
 @app.route("/pedidos-de-acesso/<int:id_>/aceitar", methods=["GET", "POST"])
 def aceitar_pedido(id_):
     """F5: do pedido do site a empresa a trabalhar. Cria a empresa, com o
@@ -38176,6 +38271,8 @@ def aceitar_pedido(id_):
                         "aos pedidos</a></div>")
     if request.method == "GET":
         return _formulario_do_aceitar(p)
+    if request.form.get("destino") == "juntar":
+        return _juntar_pedido(p)
     try:
         perfil = _perfil_do_formulario(request.form)
     except ValueError as erro:
@@ -38200,32 +38297,15 @@ def aceitar_pedido(id_):
         c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=?, "
                   "decidido_em=? WHERE id=?",
                   (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id_))
-    ligacao = endereco_do_painel() + "/convite/" + codigo
-    bem, porque = enviar_convite(
-        p["email"], ligacao, p["empresa"], "admin", p["nome"], pedido=True,
-        nota=(request.form.get("nota") or "").strip()[:TECTO_DA_NOTA_DO_CONVITE])
     registar_evento("", "pedido aceite", "%s (empresa %d)"
                     % (p["empresa"], empresa_id))
-    envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])
-             if bem else "<b>O e-mail não saiu</b> (%s). Mande-lhe a "
-             "ligação." % html.escape(porque or "sem razão"))
-    return envolver(
-        "configuracoes", "Pedido aceite",
+    return _pedido_aceite(
+        p, empresa_id, p["empresa"], codigo, "admin",
         "A empresa %d, %s, foi criada." % (empresa_id, html.escape(p["empresa"])),
-        # o número e a ligação no corpo (G56 da 3.ª ronda): o subtítulo
-        # passava despercebido, e confirmar a empresa era voltar à lista
-        "<div class='larg'><div class='mg-card conf-cx'><p><b>Empresa n.º %d "
-        "criada</b> &mdash; <a href='/plataforma/empresa/%d'>abrir a página "
-        "dela</a>.</p><p>%s</p><p>%s</p>"
-        "<p>A ligação, que serve uma vez e dura %d dias:</p>"
-        "%s<p><a href='/pedidos-de-acesso'>voltar aos "
-        "pedidos</a></p></div></div>"
-        % (empresa_id, empresa_id, envio,
-           ("Perfil da empresa: %s." % descricao_do_interesse(perfil))
-           if perfil["interesse_activo"] else
-           "Sem perfil: a empresa define-o no primeiro dia.",
-           contas.DIAS_DE_CONVITE,
-           caixa_de_copiar(ligacao, "Ligação do convite")))
+        "Empresa n.º %d criada" % empresa_id,
+        "<p>%s</p>" % (("Perfil da empresa: %s." % descricao_do_interesse(perfil))
+                       if perfil["interesse_activo"] else
+                       "Sem perfil: a empresa define-o no primeiro dia."))
 
 
 PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">

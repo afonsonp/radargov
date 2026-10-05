@@ -29126,6 +29126,62 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
         self.assertIn("já tem conta", lista)
         self.assertIn("recusado a 05/10/2026", lista)
 
+    def _pedido_da_beta(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                      "sector, mensagem) VALUES ('2026-10-05 11:00', 'Sofia', "
+                      "'Beta, Lda.', 'sofia@beta.pt', 'Outro', '')")
+            return c.execute("SELECT MAX(id) FROM pedidos_acesso").fetchone()[0]
+
+    def test_sexta_ronda_aceitar_junta_a_uma_empresa_que_ja_existe(self):
+        """6.ª ronda (5/10/2026, perfis 18 e 19): a colega da mesma empresa
+        só podia ser aceite como uma empresa nova. Juntar não cria empresa
+        nem mexe no perfil, e o convite é de utilizador."""
+        pedido = self._pedido_da_beta()
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % pedido
+        # a do mesmo nome vem escolhida
+        h = self.ver(dono, url).get_data(as_text=True)
+        self.assertIn("value='juntar' checked", h)
+        self.assertIn("<option value='%d' selected>Beta" % self.beta, h)
+        antes = radar.empresas_existentes()
+        r = self.post(dono, url, {"destino": "juntar", "empresa_id": str(self.beta),
+                                  "nota": "Bem-vinda"}, url)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Junta-se à empresa n.º %d" % self.beta, r.get_data(as_text=True))
+        self.assertEqual(radar.empresas_existentes(), antes)
+        with radar.liga() as c:
+            self.assertEqual(tuple(c.execute(
+                "SELECT empresa_id, papel FROM convites WHERE email='sofia@beta.pt'"
+            ).fetchone()), (self.beta, "tester"))
+            self.assertEqual(tuple(c.execute(
+                "SELECT estado, empresa_id FROM pedidos_acesso WHERE id=?", (pedido,)
+            ).fetchone()), ("aceite", self.beta))
+
+    def test_sexta_ronda_juntar_respeita_o_plano(self):
+        pedido = self._pedido_da_beta()
+        with radar.liga() as c:
+            radar.contas.gravar_plano(c, self.beta, "solo")
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % pedido
+        r = self.post(dono, url, {"destino": "juntar", "empresa_id": str(self.beta)}, url)
+        self.assertIn("já estão todos ocupados", r.get_data(as_text=True))
+        with radar.liga() as c:
+            self.assertIsNone(c.execute(
+                "SELECT 1 FROM convites WHERE email='sofia@beta.pt'").fetchone())
+
+    def test_sexta_ronda_com_o_correio_em_baixo_a_nota_fica_no_ecra(self):
+        """Perfil 18: a nota ia só no e-mail, e com o correio em baixo
+        perdia-se -- o ecrã mostrava a ligação e não a nota."""
+        pedido = self._pedido_da_beta()
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % pedido
+        with unittest.mock.patch.object(radar, "enviar_convite",
+                                        lambda *a, **k: (False, "sem servidor")):
+            r = self.post(dono, url, {"destino": "nova", "cpv": "", "pbmin": "",
+                                      "plano": "solo", "nota": "Ligo amanhã"}, url)
+        self.assertIn("com a nota que escreveu: «Ligo amanhã»", r.get_data(as_text=True))
+
     def test_o_convite_leva_a_nota(self):
         dono = self.entrar("dono")
         url = "/pedidos-de-acesso/%d/aceitar" % self.pedido
