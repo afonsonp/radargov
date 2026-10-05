@@ -27074,6 +27074,20 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         # opcional (LANC-F, 4/10/2026)
         self.assertNotIn("required", re.search(r"<textarea[^>]*>", formulario).group(0))
 
+    def test_os_planos_estao_indisponiveis_com_o_selo(self):
+        """5/10/2026 (decisão dele): enquanto os pagamentos não estão
+        prontos, cada plano leva um selo «Indisponível» na diagonal, por
+        cima do cartão, e os botões de pedir saem dos cartões. A oferta
+        de fundador continua a pedir-se."""
+        with open(radar.SITE, encoding="utf-8") as f:
+            site = f.read()
+        planos = site.split('<div class="planos', 1)[1].split('<div class="em-todos"', 1)[0]
+        self.assertIn('class="planos indisponiveis"', site)
+        self.assertEqual(planos.count('class="plano-selo"'), 3)
+        self.assertNotIn("data-plano", planos)
+        self.assertNotIn("planos-aviso", site)
+        self.assertIn('data-plano="fundador"', site)
+
     def test_os_termos_publicados_sao_os_dos_planos(self):
         pasta = os.path.dirname(radar.SITE)
         with open(os.path.join(pasta, "termos.html"), encoding="utf-8") as f:
@@ -28635,7 +28649,8 @@ class TestOsPlanos(BaseTemporaria):
         site = textos["index.html"]
         titulo = re.search(r'<h2 id="t-planos">(.*?)</h2>', site).group(1)
         self.assertEqual(titulo, "Três planos.")
-        cartoes = site.split('<div class="planos">', 1)[1].split("</section>", 1)[0]
+        # «planos» ou «planos indisponiveis» (5/10/2026)
+        cartoes = site.split('<div class="planos', 1)[1].split("</section>", 1)[0]
         self.assertEqual(len(re.findall(r'<article class="plano', cartoes)), 3)
         for h3 in ("Solo", "Duo", "Corporate"):
             self.assertIn(">%s</h3>" % h3, cartoes)
