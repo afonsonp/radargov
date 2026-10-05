@@ -27723,6 +27723,13 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
     def test_c2_11_o_sobre_do_site_a_600(self):
         self.assertNotIn(".sobre{font-weight:700", self._ficheiro("site", "index.html"))
 
+    def test_sexta_ronda_a_confirmacao_nao_dobra_o_ponto(self):
+        """6.ª ronda (5/10/2026, dez perfis): «Recebemos o pedido de
+        Mobiliário Central, Lda..» -- a frase acaba em ponto e quase todos
+        os nomes de empresa também."""
+        site = self._ficheiro("site", "index.html")
+        self.assertIn('" de " + p.empresa.replace(/\\.$/, "")', site)
+
     # -- UX-ECRAS-EM-FALTA-E-ESCURO.md ---------------------------------
 
     def test_e1_a_situacao_diz_quantas_e_os_euros(self):

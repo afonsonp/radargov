@@ -840,7 +840,8 @@ form .btn{justify-self:start}
   // A confirmação TROCA o formulário e recebe o foco (G98): aparecia por
   // baixo do botão, fora do ecrã, e o foco ia para o body.
   function confirma(p, focar) {
-    document.getElementById("ob-empresa").textContent = p.empresa ? " de " + p.empresa : "";
+    // a frase acaba em ponto: «Lda.» e «S.A.» davam «Lda..» (6.ª ronda)
+    document.getElementById("ob-empresa").textContent = p.empresa ? " de " + p.empresa.replace(/\.$/, "") : "";
     document.getElementById("ob-email").textContent = p.email;
     Array.prototype.forEach.call(form.children, function (el) {
       if (el !== obrigado) el.hidden = true;
