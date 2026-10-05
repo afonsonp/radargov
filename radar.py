@@ -1267,6 +1267,15 @@ def iniciar_db():
             segundos INTEGER DEFAULT 0, scroll INTEGER DEFAULT 0,
             eventos TEXT DEFAULT '', com_js INTEGER DEFAULT 0)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_visitas_dia ON visitas(dia)")
+        # O uso da aplicação pelas contas das empresas (ANL, o grupo E,
+        # 4/10/2026): a rota e o método de cada página aberta ou gravada,
+        # para o dono ver o que encrava e ajudar. Da plataforma, como as
+        # contas; só o dono o vê; 13 meses (`registar_uso()`).
+        c.execute("""CREATE TABLE IF NOT EXISTS uso (
+            quando TEXT, dia TEXT, utilizador_id INTEGER, empresa_id INTEGER,
+            rota TEXT, metodo TEXT)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_uso_empresa ON uso(empresa_id, dia)")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_uso_dia ON uso(dia)")
         c.execute("""CREATE TABLE IF NOT EXISTS documentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, nome TEXT,
             ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
@@ -24829,7 +24838,8 @@ def plataforma_empresa(id_):
              % ("<div class='mg-alert mg-alert--danger'>Suspensa: as contas não entram "
                 "e não recebe alertas.</div>" if suspensa else "",
                 stats, _cartao_da_nota(id_), bloco_plano, bloco_contas, bloco_convites,
-                _cartao_da_actividade(id_), bloco_alertas, bloco_perfil,
+                _cartao_da_actividade(id_) + _cartao_do_uso(id_), bloco_alertas,
+                bloco_perfil,
                 _cartao_de_apagar(e, fecha_contas, len(convites),
                                   any(u["dono"] for u in contas_))))
     return envolver(
@@ -36907,6 +36917,112 @@ def visita():
     except (ValueError, TypeError, AttributeError):
         pass
     return Response("", 204)
+
+
+# ---------------------------------------------------------------------- uso
+#
+# O uso da aplicação pelas contas das empresas (ANL, o grupo E, desenho
+# aceite por ele a 4/10/2026): para o dono ver quem encravou e ajudar por
+# e-mail, sem dizer ao cliente o pormenor. Só a rota (a regra do Flask, sem
+# os valores), o método e a conta; nada do que se escreveu.
+
+# Os percursos que se seguem: (nome, a página onde começa, as gravações que
+# o acabam). Começado e não acabado = abriu o início depois da última vez
+# que gravou o fim.
+PERCURSOS_DO_USO = (
+    ("O perfil da empresa", "/configuracoes/interesse", ("/alertas/interesse",)),
+    ("Criar um alerta", "/configuracoes/alertas", ("/alertas/criar", "/alertas/do-perfil")),
+    ("Importar o histórico", "/configuracoes/importar", ("/configuracoes/importar/confirmar",)),
+    ("Os documentos da empresa", "/configuracoes/documentos", ("/configuracoes/documentos",)),
+    ("Criar uma proposta", "/proposta/nova", ("/proposta/nova",)),
+)
+DIAS_DO_USO = 365 + 31               # os 13 meses, como as visitas
+PREFIXOS_FORA_DO_USO = ("/tipo", "/estilo", "/favicon", "/visita", "/saude",
+                        "/marca", "/robots", "/sitemap")
+_PODA_DO_USO = {}
+
+
+@app.after_request
+def registar_uso(resposta):
+    """Uma linha no `uso` por página que uma conta de empresa abre ou
+    grava. Não contam o dono (nem no modo de suporte), as respostas de
+    erro e os ficheiros que a página pede. Nunca estraga a resposta."""
+    try:
+        regra = request.url_rule.rule if request.url_rule else ""
+        u = g.get("utilizador")
+        if (not regra or not u or contas.e_dono(u) or resposta.status_code >= 400
+                or request.method not in ("GET", "POST")
+                or regra.startswith(PREFIXOS_FORA_DO_USO)):
+            return resposta
+        agora = datetime.now()
+        with liga() as c:
+            if _PODA_DO_USO.get("dia") != agora.date().isoformat():
+                _PODA_DO_USO["dia"] = agora.date().isoformat()
+                c.execute("DELETE FROM uso WHERE dia < ?", (
+                    (agora.date() - timedelta(days=DIAS_DO_USO)).isoformat(),))
+            c.execute("INSERT INTO uso VALUES (?,?,?,?,?,?)",
+                      (agora.strftime("%Y-%m-%d %H:%M:%S"), agora.date().isoformat(),
+                       u["id"], u.get("empresa_id"), regra[:120], request.method))
+    except (sqlite3.Error, RuntimeError, KeyError):
+        pass
+    return resposta
+
+
+def uso_da_empresa(id_, dias=30):
+    """(contas, por_acabar) da empresa nos últimos `dias`: por conta, os
+    dias em que entrou, a última vez e as páginas que mais abriu; e os
+    percursos começados e não acabados, por conta, com quantas vezes."""
+    desde = (date.today() - timedelta(days=dias)).isoformat()
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT c.email, u.quando, u.dia, u.rota, u.metodo FROM uso u "
+            "JOIN utilizadores c ON c.id = u.utilizador_id "
+            "WHERE u.empresa_id=? AND u.dia >= ? ORDER BY u.quando", (id_, desde)).fetchall()
+    por_conta = {}
+    for l in linhas:
+        por_conta.setdefault(l["email"], []).append(l)
+    contas_, por_acabar = [], []
+    for email, ls in sorted(por_conta.items()):
+        paginas = Counter(l["rota"] for l in ls if l["metodo"] == "GET")
+        contas_.append({"email": email, "dias": len({l["dia"] for l in ls}),
+                        "ultima": ls[-1]["quando"],
+                        "paginas": [r for r, _ in paginas.most_common(3)]})
+        for nome, inicio, fins in PERCURSOS_DO_USO:
+            ultimo_fim = max((l["quando"] for l in ls
+                              if l["metodo"] == "POST" and l["rota"] in fins), default="")
+            abertos = [l["quando"] for l in ls if l["metodo"] == "GET"
+                       and l["rota"] == inicio and l["quando"] > ultimo_fim]
+            if abertos:
+                por_acabar.append({"email": email, "percurso": nome,
+                                   "vezes": len(abertos), "ultima": abertos[-1]})
+    return contas_, por_acabar
+
+
+def _cartao_do_uso(id_):
+    """O uso da aplicação na página da empresa: só o dono a vê."""
+    contas_, por_acabar = uso_da_empresa(id_)
+    if not contas_:
+        return cartao("Uso da aplicação", "<p class='nota'>Ninguém da empresa usou a "
+                      "aplicação nos últimos 30 dias.</p>", id_="uso")
+    tabela = ("<table class='mg-table tab-plataforma'><thead><tr><th>Conta</th>"
+              "<th>Dias com uso</th><th>Última vez</th><th>O que mais abre</th></tr>"
+              "</thead><tbody>%s</tbody></table>" % "".join(
+                  "<tr>%s%s%s%s</tr>" % (
+                      _celula_da_tabela("Conta", html.escape(u["email"])),
+                      _celula_da_tabela("Dias com uso", "%d" % u["dias"], "mg-num"),
+                      _celula_da_tabela("Última vez", html.escape(data_hora_pt(u["ultima"][:16])),
+                                        "mg-num"),
+                      _celula_da_tabela("O que mais abre", html.escape(", ".join(u["paginas"]))))
+                  for u in contas_))
+    encravados = ("<div class='mg-field__label' style='margin:16px 0 6px'>Começados "
+                  "e não acabados</div><ul class='ficha-lista'>%s</ul>" % "".join(
+                      "<li><b>%s</b>: %s — abriu %s sem gravar, a última a %s</li>"
+                      % (html.escape(p["email"]), html.escape(p["percurso"]),
+                         plural(p["vezes"], "vez", "vezes"),
+                         html.escape(data_hora_pt(p["ultima"][:16])))
+                      for p in por_acabar)) if por_acabar else ""
+    return cartao("Uso da aplicação", tabela + encravados,
+                  meta="os últimos 30 dias; só tu vês", id_="uso")
 
 
 def _tabela_das_visitas(titulo, cabecalhos, linhas):

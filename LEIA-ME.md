@@ -806,6 +806,15 @@ O gestor de cada empresa vê a mesma actividade, só da empresa dele, em
 Configurações › Conta › Actividade da empresa. Ao lado de «Plataforma»,
 na barra, aparece o número dos pedidos de acesso por decidir.
 
+**O uso da aplicação** vê-se na página de cada empresa, no cartão «Uso
+da aplicação»: por conta, em quantos dias usou nos últimos 30, a última
+vez e o que mais abre; e os **percursos começados e não acabados** —
+abriu o perfil da empresa, a criação de um alerta, a importação do
+histórico, os documentos ou uma proposta nova, e não gravou. É a deixa
+para um e-mail a oferecer ajuda («vi que a importação costuma encravar
+no segundo passo, quer que o ajude?»), sem lhe contar o pormenor. Só tu
+o vês, e a política de privacidade diz que se regista.
+
 **As visitas ao site** vêem-se em Plataforma › Visitas ao site: quantas,
 de onde vieram (o LinkedIn, o Google, uma campanha com `utm_campaign`
 no endereço), quanto tempo ficaram, até onde desceram, quantas
