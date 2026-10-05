@@ -28959,6 +28959,182 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
         self.assertEqual(r.status_code, 429)
 
 
+class TestORestoDaPaginaDoDono(_PlataformaComDuasEmpresas):
+    """2R-§7 (a síntese da segunda ronda; o que faltava, aceite por ele a
+    4/10/2026): o emblema dos pedidos, suspender ou tirar uma conta pelo
+    suporte, o registo de actividade, «porque é que este não avisou», o
+    tecto mensal das leituras, exportar uma empresa e a nota interna."""
+
+    def test_o_emblema_dos_pedidos_por_decidir_so_ao_dono(self):
+        corpo = self.ver(self.entrar("dono"), "/plataforma").get_data(as_text=True)
+        self.assertIn("Plataforma <span class='barra-emblema' "
+                      "aria-label='1 pedido de acesso por decidir'>1</span>", corpo)
+        with radar.liga() as c:
+            c.execute("UPDATE pedidos_acesso SET estado='espera'")
+        corpo = self.ver(self.entrar("dono"), "/plataforma").get_data(as_text=True)
+        self.assertNotIn("barra-emblema", corpo)
+
+    def test_suspender_uma_conta_fecha_a_porta_e_fica_pelo_suporte(self):
+        rita = self.entrar("rita")
+        dono = self.entrar("dono")
+        r = self.post(dono, "/plataforma/contas/%d/suspender" % self.ids["rita"],
+                      pagina="/plataforma/empresa/1")
+        self.assertEqual(r.status_code, 302)
+        # a sessão dela fechou-se, e a palavra-passe certa já não entra
+        self.assertEqual(self.ver(rita, "/concursos").status_code, 302)
+        r = radar.app.test_client().post(
+            "/entrar", data={"email": "rita", "senha": "senha-comprida"},
+            environ_base=self.FORA)
+        self.assertIn("suspensa", r.get_data(as_text=True))
+        with radar.com_empresa(1), radar.liga() as c:
+            linha = c.execute("SELECT quem, detalhe FROM historico "
+                              "WHERE accao='conta' ORDER BY id DESC").fetchone()
+        self.assertEqual(linha["quem"], "suporte")
+        self.assertIn("rita", linha["detalhe"])
+        self.assertIn("suspensa", self.ver(dono, "/plataforma/empresa/1")
+                      .get_data(as_text=True))
+        self.post(dono, "/plataforma/contas/%d/reactivar" % self.ids["rita"],
+                  pagina="/plataforma/empresa/1")
+        self.entrar("rita")
+        # tirar a conta, também pelo suporte
+        self.post(dono, "/plataforma/contas/%d/tirar" % self.ids["rita"],
+                  pagina="/plataforma/empresa/1")
+        with radar.liga() as c:
+            self.assertIsNone(c.execute("SELECT 1 FROM utilizadores WHERE email='rita'")
+                              .fetchone())
+        # o gestor da empresa não chega cá
+        r = self.post(self.entrar("chefe"), "/plataforma/contas/%d/suspender"
+                      % self.ids["beto"])
+        self.assertEqual(r.status_code, 403)
+
+    def test_a_conta_do_dono_nao_se_suspende(self):
+        dono = self.entrar("dono")
+        r = self.post(dono, "/plataforma/contas/%d/suspender" % self.ids["dono"],
+                      pagina="/plataforma/empresa/1")
+        self.assertIn("tom=erro", r.headers["Location"])
+        self.entrar("dono")
+
+    def test_o_registo_de_actividade_ve_o_gestor_e_o_dono(self):
+        radar.app.test_client().post(
+            "/entrar", data={"email": "rita", "senha": "errada-mesmo"},
+            environ_base=self.FORA, headers={"User-Agent": "Mozilla/5.0 (iPhone)"})
+        self.entrar("rita")
+        with radar.com_empresa(1):
+            radar.registar("", "configuração", "alertas: x -> y", quem="chefe")
+            radar.registar("1/2026", "estado", "novo -> interessa", quem="rita")
+        with radar.com_empresa(self.beta):
+            radar.registar("", "configuração", "SEGREDO-DA-BETA", quem="beto")
+        corpo = self.ver(self.entrar("chefe"), "/actividade").get_data(as_text=True)
+        for frase in ("palavra-passe errada ao entrar", "entrou", "203.0.113.7", "iPhone",
+                      "alertas: x -&gt; y", "novo -&gt; interessa"):
+            self.assertIn(frase, corpo)
+        self.assertNotIn("SEGREDO-DA-BETA", corpo)
+        self.assertNotIn("beto", corpo)
+        self.assertEqual(self.ver(self.entrar("rita"), "/actividade").status_code, 403)
+        corpo = self.ver(self.entrar("dono"), "/plataforma/empresa/1/actividade"
+                         ).get_data(as_text=True)
+        self.assertIn("iPhone", corpo)
+        self.assertIn("alertas: x -&gt; y", corpo)
+
+    def test_as_entradas_guardam_se_noventa_dias(self):
+        antiga = (datetime.datetime.now() - datetime.timedelta(days=91)
+                  ).strftime("%Y-%m-%d %H:%M:%S")
+        with radar.liga() as c:
+            c.execute("INSERT INTO entradas (quando, email, resultado) "
+                      "VALUES (?, 'velho', 'falhou')", (antiga,))
+        self.entrar("rita")
+        with radar.liga() as c:
+            self.assertIsNone(c.execute("SELECT 1 FROM entradas WHERE email='velho'")
+                              .fetchone())
+            self.assertIsNotNone(c.execute("SELECT 1 FROM entradas WHERE email='rita' "
+                                           "AND resultado='entrou'").fetchone())
+
+    def test_o_registo_distingue_as_falhas_e_nao_guarda_as_do_repor(self):
+        """A revisão de segurança de 4/10/2026: um código do segundo factor
+        errado parecia um lapso na palavra-passe, e as chaves sintéticas do
+        repor enchiam o registo de 90 dias sem precisar de um e-mail."""
+        with radar.liga() as c:
+            radar.contas.registar_falha(c, "rita", "198.51.100.1",
+                                        resultado="falhou_codigo_2f")
+            radar.contas.registar_falha(c, radar.contas.PREFIXO_DO_REPOR + "198.51.100.1",
+                                        "198.51.100.1")
+            self.assertEqual(
+                [r[0] for r in c.execute("SELECT email FROM entradas")], ["rita"])
+        corpo = self.ver(self.entrar("chefe"), "/actividade").get_data(as_text=True)
+        self.assertIn("código do segundo factor errado", corpo)
+        with zipfile.ZipFile(radar.exportar_empresa(1)) as z:
+            entradas = json.loads(z.read("plataforma.json"))["linhas"]["entradas"]
+        self.assertIn("falhou_codigo_2f", [e["resultado"] for e in entradas])
+
+    def test_porque_e_que_este_nao_avisou(self):
+        with radar.com_empresa(1):
+            self.assertEqual(radar.porque_nao_avisou("1/2026"),
+                             ["Nenhum alerta está ligado."])
+            with radar.liga() as c:
+                c.execute("UPDATE anuncios SET cpv='72000000' WHERE ref='1/2026'")
+                c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta) "
+                          "VALUES ('Software', 'cpv=72', 1)")
+                c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta) "
+                          "VALUES ('Obras', 'cpv=45', 1)")
+                c.execute("INSERT INTO filtros_guardados (nome, consulta, alerta) "
+                          "VALUES ('Parado', 'cpv=72', 0)")
+            frases = radar.porque_nao_avisou("1/2026")
+            self.assertIn("Cabe no alerta «Software», e entra na próxima "
+                          "verificação.", frases)
+            self.assertIn("Não cabe no alerta «Obras».", frases)
+            self.assertIn("Cabe no alerta «Parado», mas ele está desligado.", frases)
+            fid = [f["id"] for f in radar.filtros_de_alerta() if f["nome"] == "Software"][0]
+            radar.arquivar_o_acervo(fid)
+            self.assertIn("Já estava na base quando o alerta «Software» foi "
+                          "ligado: o acervo não se avisa.",
+                          radar.porque_nao_avisou("1/2026"))
+        corpo = self.ver(self.entrar("chefe"), "/anuncio/1/2026").get_data(as_text=True)
+        self.assertIn("o acervo não se avisa", corpo)
+
+    def test_o_tecto_mensal_das_leituras(self):
+        mes = datetime.datetime.now().strftime("%Y-%m-01 09:00")
+        with radar.liga() as c:
+            for _ in range(2):
+                c.execute("INSERT INTO leituras_pedidas VALUES (?, 1, 'x', 'chefe')",
+                          (mes,))
+        cfg = dict(radar.ler_config(), leituras_por_empresa_por_dia=50,
+                   leituras_por_empresa_por_mes=2)
+        with radar.com_empresa(1), \
+                unittest.mock.patch.object(radar, "sou_dono", return_value=False):
+            pode, porque = radar.pode_pedir_leitura("1/2026", cfg)
+            self.assertFalse(pode)
+            self.assertIn("este mês", porque)
+            # 0, ou sem a chave, é sem tecto mensal
+            cfg["leituras_por_empresa_por_mes"] = 0
+            self.assertTrue(radar.pode_pedir_leitura("1/2026", cfg)[0])
+
+    def test_exportar_uma_empresa(self):
+        caminho = radar.exportar_empresa(1)
+        self.assertTrue(caminho.startswith(radar.COPIAS))
+        self.assertEqual(os.stat(caminho).st_mode & 0o077, 0)
+        with zipfile.ZipFile(caminho) as z:
+            nomes = z.namelist()
+            self.assertIn("empresa.db", nomes)
+            plataforma = json.loads(z.read("plataforma.json"))
+        contas_ = plataforma["linhas"]["utilizadores"]
+        self.assertEqual(sorted(u["email"] for u in contas_), ["chefe", "rita"])
+        self.assertNotIn("hash", contas_[0])
+        with self.assertRaises(ValueError):
+            radar.exportar_empresa(99)
+
+    def test_a_nota_interna_so_o_dono(self):
+        dono = self.entrar("dono")
+        self.post(dono, "/plataforma/empresa/1/nota", {"nota": "Liga às <2.as>"},
+                  "/plataforma/empresa/1")
+        corpo = self.ver(dono, "/plataforma/empresa/1").get_data(as_text=True)
+        self.assertIn("Liga às &lt;2.as&gt;", corpo)
+        chefe = self.entrar("chefe")
+        self.assertEqual(self.post(chefe, "/plataforma/empresa/1/nota",
+                                   {"nota": "x"}).status_code, 403)
+        for pagina in ("/", "/configuracoes/conta", "/actividade"):
+            self.assertNotIn("Liga às", self.ver(chefe, pagina).get_data(as_text=True))
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

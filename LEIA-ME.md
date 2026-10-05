@@ -785,6 +785,31 @@ Pede que escrevas APAGAR, e a pasta da empresa não desaparece: vai para
 saíram num `plataforma.json` lá dentro, e apagas-a tu quando tiveres a
 certeza.
 
+Quando um cliente te pedir **os dados dele** (é um direito, pelo RGPD),
+ou quando parares e tiveres de lhos entregar:
+
+```bash
+.venv/bin/python radar.py --exportar-empresa N
+```
+
+Fica um zip em `copias/exportacao-empresa-N-…zip`, só legível por ti: a
+base da empresa, a configuração, a triagem, os documentos dela, e as
+contas e o plano num `plataforma.json` — sem as palavras-passe.
+
+Na página de cada empresa tens também: os botões **suspender**,
+**reactivar** e **tirar** em cada conta (fica no histórico da empresa
+como feito «pelo suporte», e a pessoa suspensa não entra nem com a
+palavra-passe certa); a **nota interna**, que só tu lês; e a
+**Actividade** — quem entrou, de onde e com que aparelho, as entradas
+falhadas, as mudanças de configuração e as triagens dos últimos 90 dias.
+O gestor de cada empresa vê a mesma actividade, só da empresa dele, em
+Configurações › Conta › Actividade da empresa. Ao lado de «Plataforma»,
+na barra, aparece o número dos pedidos de acesso por decidir.
+
+O tecto das leituras das peças por empresa é por dia
+(`leituras_por_empresa_por_dia`, 10) e pode ser também por mês
+(`leituras_por_empresa_por_mes` no `config.json`; 0 é sem tecto).
+
 **Há três níveis.** **Tu és o dono da plataforma**: só tu vês os
 Indicadores, as Capturas, a Recolha, a Leitura das peças e as Cópias,
 o botão «Verificar agora», a conta que envia o e-mail e os pedidos de

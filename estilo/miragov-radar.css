@@ -1497,3 +1497,6 @@ fieldset:disabled input,fieldset:disabled select,fieldset:disabled textarea{curs
 /* a lista das sugestões está na barra mas é branca: o foco é o do
    conteúdo, e não o amarelo do topo azul (~1,4:1 sobre branco, 5.ª ronda) */
 .mg-topbar .pesquisa-lista :focus-visible{outline-color:var(--focus)}
+/* o número dos pedidos por decidir ao lado de «Plataforma» (2R-§7 (3)):
+   o selo, que se lê sobre a barra escura nos três temas */
+.barra-emblema{display:inline-block;min-width:1.4em;margin-left:4px;padding:0 5px;border-radius:var(--radius-full);background:var(--seal);color:var(--on-brand);font:600 .75rem/1.5 var(--font-sans);text-align:center}

@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 48
+- [Contas e a porta](#contas-e-a-porta) &middot; 49
 - [A interface](#a-interface) &middot; 131
 - [Convenções](#convencoes) &middot; 8
 
-São **456** ao todo, contados a 4/10/2026. Contam-se por secção com
+São **457** ao todo, contados a 4/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3168,6 +3168,15 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   `nif_da_empresa` ao aceitar; o plano escolhe-o o dono no ecrã do
   aceitar (`_escolha_do_plano()`), e o do pedido, se houver, só vem
   pré-escolhido.
+- **A conta suspensa trava-se em três sítios, e não na rota do
+  `/entrar`** (2R-§7 (8), 4/10/2026). O `contas.entrar()` (depois da
+  palavra-passe certa: a quem não a sabe não se diz que a conta existe),
+  o `usar_pendente()` (a conta pode ser suspensa com o código do segundo
+  factor por dar) e o `utilizador_da_sessao()` (uma sessão que
+  sobrevivesse). O convite e a ligação de repor passam pelo `entrar()`.
+  E as entradas do registo de actividade escrevem-se no `_abrir_sessao()`
+  e no `registar_falha()`, pela mesma razão: há quatro caminhos para
+  abrir uma sessão, e uma linha na rota via só um.
 - **O tecto que trava quem insiste é o do e-mail, não o do site**
   (LANC-F, 4/10/2026). O `PEDIDOS_POR_DIA` era 200 para o site inteiro:
   um robô que o enchesse fechava o formulário a toda a gente no dia do

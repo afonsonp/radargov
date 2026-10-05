@@ -118,7 +118,8 @@ as exactas e salta as outras.
 | `utilizadores` | **1** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram. O `contacto` (1/10/2026) é o e-mail para onde vai o «esqueci-me» quando o utilizador não é um e-mail; vem do convite (§4.9) |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
 | `estado` | 22 | Marcas do sistema (última verificação, migrações feitas) |
-| `entradas_falhadas` | 1 | Tentativas de login falhadas |
+| `entradas_falhadas` | 1 | Tentativas de login falhadas, para o trinco (poda-se aos 15 minutos) |
+| `entradas` | as dos últimos 90 dias | O registo das entradas (2R-§7 (11), 4/10/2026): «entrou», «falhou» ou «suspensa», com o e-mail, a conta e a empresa quando o e-mail é de uma conta, o IP e o navegador (`contas.registar_entrada()`, `DIAS_DE_ENTRADAS`). É o que o ecrã «Actividade» lê |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
@@ -894,7 +895,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**145 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**149 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1948,6 +1949,10 @@ mesma rota sem sair da página (§4.3).
 | Pôr um pedido de acesso em espera, com aviso por e-mail | `/pedidos-de-acesso` (dono) |
 | Criar · anular · gerar de novo um convite | página da empresa (dono); anular também em Configurações › Conta (admin) |
 | Suspender · reactivar uma empresa | página da empresa (dono) |
+| Suspender · reactivar · tirar **uma conta**, «pelo suporte» | página da empresa, cartão Contas (dono) |
+| Ver o registo de actividade da empresa | `/actividade`, a partir de Configurações › Conta (gestor); página da empresa (dono) |
+| Escrever a nota interna de uma empresa | página da empresa (dono; a empresa nunca a lê) |
+| Exportar os dados de uma empresa (RGPD) | consola, `--exportar-empresa N` (dono) |
 | Entrar e sair do «ver como a empresa, só leitura» | página da empresa, faixa (dono) |
 | Gravar o correio da plataforma · mandar um e-mail de teste | `/plataforma` › Correio (dono) |
 | Importar o modelo · desfazer uma importação | Configurações › Importar |
