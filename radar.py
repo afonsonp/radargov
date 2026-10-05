@@ -27185,7 +27185,7 @@ def caixa_da_pesquisa():
             "method='get'><label class='so-leitor' for='pesquisa-geral'>Procurar "
             "concurso, proposta, entidade ou NIF</label>"
             "<input class='pesquisa-geral__campo' id='pesquisa-geral' type='search' "
-            "name='q' maxlength='%d' autocomplete='off' placeholder='Procurar (Ctrl+K)'%s "
+            "name='q' maxlength='%d' autocomplete='off' placeholder='Procurar'%s "
             # sem aria-expanded (4.a ronda): num type=search é atributo
             # proibido; a lista são ligações, e o número anuncia-se no status
             "aria-keyshortcuts='Control+K /' aria-controls='pesquisa-geral-lista'>"
