@@ -24,7 +24,7 @@ from datetime import date, timedelta
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 os.chdir(RAIZ)
-import fitz  # noqa: E402
+import pymupdf as fitz  # noqa: E402
 import radar  # noqa: E402
 
 # --- a base inventada ----------------------------------------------------
@@ -113,18 +113,20 @@ with radar.liga() as c:
         " preco_anormalmente_baixo, localizacao, caucao, habilitacao,"
         " pagamentos, modelo, quando, pergunta) VALUES"
         " (?,?,?,?,?,?,?,?,?,?,?,?)",
-        ("9101/2026",
-         "Manutenção preventiva trimestral e corretiva, com resposta em 4 horas, "
-         "de 212 equipamentos de climatização em 18 edifícios (CE, p. 3)",
-         "Um técnico responsável com 5 anos de experiência em AVAC e certificação "
-         "de técnico de climatização (PC, p. 6)",
-         "Proposta de preço; lista de preços unitários; plano de manutenção; "
-         "declaração do anexo I (PC, p. 8)",
+        ("9104/2026",
+         "Fornecimento e instalação de 6 bombas de calor ar-água, com "
+         "desmontagem das caldeiras existentes e ligação à rede de "
+         "aquecimento da escola (CE, p. 3)",
+         "Um diretor de obra com 5 anos de experiência em AVAC e um técnico "
+         "com certificação em sistemas de climatização (PC, p. 6)",
+         "Proposta de preço; lista de preços unitários; plano de trabalhos; "
+         "fichas técnicas dos equipamentos; declaração do anexo I (PC, p. 8)",
          "Abaixo de 20% do preço base (PC, p. 9)",
-         "Concelho de Leiria, 18 edifícios listados no anexo II (CE, p. 14)",
+         "Escola Básica de Pombal, com obra fora do horário letivo (CE, p. 14)",
          "5% do preço contratual (PC, p. 11)",
          "Alvará de construção da 4.ª subcategoria da 4.ª categoria (PC, p. 12)",
-         "Mensal, a 60 dias da fatura (CE, p. 19)",
+         "30% na adjudicação e 70% na receção provisória, a 60 dias da "
+         "fatura (CE, p. 19)",
          "demo", dia(0), radar.VERSAO_DA_PERGUNTA))
 
 # Os contratos do Portal BASE: quem ganha, a que preço, quando acaba
@@ -207,10 +209,22 @@ cliente = radar.app.test_client()
 cliente.set_cookie("sessao", "ana")
 
 # --- os ecrãs -------------------------------------------------------------
-# A ordem é a dos passos do `site/demo.html`, que leva as legendas: o
-# passo n mostra o `site/demo/<n>.html`.
-ECRAS = ["/", "/concursos", "/anuncio/9101/2026", "/propostas",
-         "/calendario", "/contratos", "/entidades", "/situacao"]
+# Pela ordem do percurso da visita (`site/demo.html`, que leva os passos):
+# o ecrã n é o `site/demo/<n>.html`. Entre a ficha e as Propostas o
+# concurso passa mesmo a «Interessa», como o clique da visita faz.
+POMBAL = radar.chave_entidade("506334562", "Município de Pombal")
+
+
+def interessa():
+    with radar.com_empresa(EMPRESA):
+        radar.criar_proposta("9104/2026", estado="analisar")
+        radar.sincronizar_tarefas()
+
+
+ECRAS = [("/", None), ("/concursos", None), ("/anuncio/9104/2026", None),
+         ("/propostas", interessa), ("/calendario", None),
+         ("/contratos", None), ("/entidade/" + POMBAL, None),
+         ("/situacao", None)]
 
 SCRIPTS = re.compile(r"<script\b.*?</script>", re.S | re.I)
 
@@ -230,7 +244,13 @@ def ecra(caminho):
         texto = re.sub(r"(<div id='graf-corpo'[^>]*>).*?</div>",
                        lambda m: m.group(1) + resumo + "</div>", texto,
                        count=1, flags=re.S)
-    texto = re.sub(r"<form\b", "<form inert", texto, flags=re.I)
+    # um <form> passa a <div>: nada se envia, e o que a visita destaca
+    # continua a poder receber o clique (o `inert` tirava-lho também)
+    texto = re.sub(r"<form\b", "<div data-form", texto, flags=re.I)
+    texto = re.sub(r"</form>", "</div>", texto, flags=re.I)
+    # os campos escondidos (o csrf, o envio) são da sessão inventada e não
+    # servem a ninguém; numa página pública não ficam
+    texto = re.sub(r"<input type='hidden'[^>]*>", "", texto)
     texto = re.sub(r"""\shref=(["'])(?!/estilo/|/tipo/|/favicon)[^"']*\1""",
                    ' tabindex="-1"', texto)
     return texto.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
@@ -238,7 +258,9 @@ def ecra(caminho):
 
 def gerar(pasta=os.path.join(RAIZ, "site", "demo")):
     os.makedirs(pasta, exist_ok=True)
-    for n, caminho in enumerate(ECRAS, 1):
+    for n, (caminho, antes) in enumerate(ECRAS, 1):
+        if antes:
+            antes()
         with open(os.path.join(pasta, "%d.html" % n), "w", encoding="utf-8") as f:
             f.write(ecra(caminho))
         print("  %d  %-24s ok" % (n, caminho))

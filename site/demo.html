@@ -4,127 +4,253 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Visita guiada — Mira Gov</title>
-<meta name="description" content="O Mira Gov por dentro, ecrã a ecrã, com uma empresa de exemplo: os concursos, a leitura das peças, as propostas e o mercado.">
+<meta name="description" content="Entre no Mira Gov com uma empresa de exemplo e siga o caminho de um concurso: da lista à leitura das peças, à proposta e ao mercado de quem ganha.">
 <link rel="canonical" href="https://miragov.pt/demo">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "@id": "https://miragov.pt/demo", "url": "https://miragov.pt/demo", "name": "Visita guiada — Mira Gov", "description": "O Mira Gov por dentro, ecrã a ecrã, com uma empresa de exemplo: os concursos, a leitura das peças, as propostas e o mercado.", "inLanguage": "pt-PT", "isPartOf": {"@type": "WebSite", "@id": "https://miragov.pt/#site", "name": "Mira Gov", "url": "https://miragov.pt/"}, "publisher": {"@type": "Organization", "@id": "https://miragov.pt/#organizacao", "name": "Mira Gov"}, "breadcrumb": {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Mira Gov", "item": "https://miragov.pt/"}, {"@type": "ListItem", "position": 2, "name": "Visita guiada", "item": "https://miragov.pt/demo"}]}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "@id": "https://miragov.pt/demo", "url": "https://miragov.pt/demo", "name": "Visita guiada — Mira Gov", "description": "Entre no Mira Gov com uma empresa de exemplo e siga o caminho de um concurso: da lista à leitura das peças, à proposta e ao mercado de quem ganha.", "inLanguage": "pt-PT", "isPartOf": {"@type": "WebSite", "@id": "https://miragov.pt/#site", "name": "Mira Gov", "url": "https://miragov.pt/"}, "publisher": {"@type": "Organization", "@id": "https://miragov.pt/#organizacao", "name": "Mira Gov"}, "breadcrumb": {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Mira Gov", "item": "https://miragov.pt/"}, {"@type": "ListItem", "position": 2, "name": "Visita guiada", "item": "https://miragov.pt/demo"}]}}</script>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <!--MOLDURA-->
 <style>
-/* A visita guiada (5/10/2026). Os ecrãs são os da aplicação, cada um no
-   seu iframe (/demo/<n>), com uma empresa inventada; aqui só a moldura,
-   as legendas e o caminho para pedir a demonstração. */
-.visita{padding-block:48px 72px}
-.visita h1{font-size:clamp(30px,4vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing:-.01em}
-.visita .abre{max-width:62ch;color:var(--ink-secondary);margin:0 0 20px}
-.visita .aviso{display:inline-block;font-size:14px;background:var(--surface-sunken);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 28px}
-.indice-visita{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 40px;padding:0;list-style:none}
-.indice-visita a{display:inline-block;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:14px;text-decoration:none;color:var(--ink)}
-.indice-visita a:hover{border-color:var(--brand);color:var(--brand)}
-.passo{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:28px;align-items:start;margin:0 0 56px;scroll-margin-top:84px}
-.passo .num{font:600 13px/1 var(--font-mono);color:var(--ink-secondary)}
-.passo h2{font-size:24px;margin:8px 0 10px}
-.passo p{margin:0;color:var(--ink-secondary)}
-.legenda{position:sticky;top:84px}
-.ecra-demo{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface-sunken);box-shadow:0 2px 10px rgb(0 0 0 / .06)}
-.ecra-demo .barra-janela{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line)}
-.ecra-demo .barra-janela i{width:10px;height:10px;border-radius:50%;background:var(--line)}
-.ecra-demo iframe{display:block;width:100%;height:640px;border:0;background:#fff}
-.fecho{border-top:1px solid var(--line);padding-top:40px;text-align:center}
-.fecho h2{font-size:28px;margin:0 0 10px}
-.fecho p{max-width:56ch;margin:0 auto 24px;color:var(--ink-secondary)}
-.fecho .accoes{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-@media (max-width:860px){
-  .passo{grid-template-columns:minmax(0,1fr);gap:14px}
-  .legenda{position:static}
-  .ecra-demo iframe{height:560px}
+/* A visita guiada (5/10/2026, à maneira das demos interactivas): a
+   aplicação em ecrã inteiro, num iframe com os ecrãs verdadeiros de uma
+   empresa inventada (/demo/<n>), e por cima um balão que aponta onde
+   carregar. Carregar no destacado avança; o resto não responde. */
+html,body{height:100%}
+body{display:flex;flex-direction:column;overflow:hidden}
+.so-leitor{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.vg-barra{display:flex;align-items:center;gap:16px;padding:0 16px;min-height:40px;background:var(--header-deep);color:var(--on-header);flex:none}
+.vg-nome{font-size:15px;white-space:nowrap}
+.vg-passo{font-size:14px;color:var(--on-header-muted);white-space:nowrap}
+.vg-progresso{flex:1;height:4px;border-radius:2px;background:var(--header-line);overflow:hidden;min-width:40px}
+.vg-progresso i{display:block;height:100%;background:var(--seal-on-dark);width:0;transition:width .3s}
+.vg-barra .sair{color:var(--on-header);font-size:14px;white-space:nowrap}
+.vg-palco{position:relative;flex:1;min-height:0}
+.vg-palco iframe{display:block;width:100%;height:100%;border:0;background:var(--surface)}
+.vg-balao{position:absolute;z-index:5;max-width:340px;background:var(--surface-raised);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgb(0 0 0 / .22);padding:16px 18px 14px;font-size:15px;line-height:1.5;transition:top .25s,left .25s}
+.vg-balao h2{font-size:17px;margin:0 0 6px}
+.vg-balao p{margin:0 0 12px;color:var(--ink-secondary)}
+.vg-balao .vg-accoes{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.vg-balao .vg-dica{font-size:13px;color:var(--ink-muted);text-align:center;flex:1}
+.vg-balao button{white-space:nowrap;font:600 14px/1 var(--font-sans);border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)}
+.vg-balao button.primario{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.vg-balao button:disabled{visibility:hidden}
+.vg-balao.abanar{animation:abanar .35s}
+@keyframes abanar{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.vg-fim{position:absolute;inset:0;z-index:6;display:grid;place-items:center;background:rgb(0 0 0 / .45);padding:16px}
+.vg-fim .cartao{max-width:520px;background:var(--surface-raised);border-radius:16px;padding:32px 28px;text-align:center;box-shadow:0 20px 50px rgb(0 0 0 / .3)}
+.vg-fim h2{font-size:26px;margin:0 0 10px}
+.vg-fim p{color:var(--ink-secondary);margin:0 0 22px}
+.vg-fim .accoes{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.vg-fim .recomecar{display:inline-block;margin-top:16px;font-size:14px;background:none;border:0;color:var(--link);cursor:pointer;text-decoration:underline}
+@media (max-width:700px){
+  .vg-passo{display:none}
+  .vg-balao{left:8px!important;right:8px;top:auto!important;bottom:8px;max-width:none}
+  .vg-balao.em-cima{top:8px!important;bottom:auto}
 }
+@media (prefers-reduced-motion:reduce){.vg-balao{transition:none}.vg-balao.abanar{animation:none}}
 </style>
 </head>
 <body>
-<!--TOPO-->
-<main id="conteudo" tabindex="-1">
-<div class="wrap visita">
-  <h1>O Mira Gov por dentro.</h1>
-  <p class="abre">Oito ecrãs, pela ordem em que se trabalha: do concurso que entra hoje à proposta entregue, e ao mercado de quem ganha. Pode deslizar dentro de cada ecrã.</p>
-  <p class="aviso">A empresa, os concursos e os contratos são de exemplo. Nada aqui se grava nem se envia.</p>
-
-  <ol class="indice-visita" aria-label="Os passos da visita">
-    <li><a href="#p1">1 · Hoje</a></li>
-    <li><a href="#p2">2 · Concursos</a></li>
-    <li><a href="#p3">3 · A ficha</a></li>
-    <li><a href="#p4">4 · Propostas</a></li>
-    <li><a href="#p5">5 · Calendário</a></li>
-    <li><a href="#p6">6 · Mercado</a></li>
-    <li><a href="#p7">7 · Entidades</a></li>
-    <li><a href="#p8">8 · Situação</a></li>
-  </ol>
-
-  <section class="passo" id="p1" aria-labelledby="t1">
-    <div class="legenda"><span class="num">1 / 8</span><h2 id="t1">Hoje</h2>
-      <p>Ao entrar, o dia: a semana com os prazos de cada dia, o que entrou e o que cada pessoa da equipa tem para fazer.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/1" title="Ecrã Hoje, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p2" aria-labelledby="t2">
-    <div class="legenda"><span class="num">2 / 8</span><h2 id="t2">Concursos</h2>
-      <p>Tudo o que o Diário da República publica na sua área, numa lista só, verificado ao longo do dia e recortado pelo perfil da empresa.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/2" title="Lista dos concursos, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p3" aria-labelledby="t3">
-    <div class="legenda"><span class="num">3 / 8</span><h2 id="t3">A ficha de um concurso</h2>
-      <p>O anúncio e as peças já descarregadas e lidas por IA — a equipa, os documentos a entregar, a caução — com a página de onde vem cada linha. E o que esta entidade contratou das outras vezes.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/3" title="Ficha de um concurso, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p4" aria-labelledby="t4">
-    <div class="legenda"><span class="num">4 / 8</span><h2 id="t4">Propostas</h2>
-      <p>Cada concurso a que a empresa vai, fase a fase, com o preço, o responsável e o que falta fazer.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/4" title="Propostas, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p5" aria-labelledby="t5">
-    <div class="legenda"><span class="num">5 / 8</span><h2 id="t5">Calendário</h2>
-      <p>Os prazos, dia a dia, para nenhuma entrega apanhar a equipa de surpresa.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/5" title="Calendário dos prazos, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p6" aria-labelledby="t6">
-    <div class="legenda"><span class="num">6 / 8</span><h2 id="t6">Mercado</h2>
-      <p>Os contratos do Portal BASE na sua área: quem ganha, a que preço e quando acaba — que é quando se volta a contratar.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/6" title="Mercado dos contratos, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p7" aria-labelledby="t7">
-    <div class="legenda"><span class="num">7 / 8</span><h2 id="t7">Entidades</h2>
-      <p>As entidades que mais compram o que a empresa faz, e os concorrentes que mais ganham.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/7" title="Entidades, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="passo" id="p8" aria-labelledby="t8">
-    <div class="legenda"><span class="num">8 / 8</span><h2 id="t8">Situação</h2>
-      <p>Como vai o negócio: o que está em jogo, a taxa de vitória e a triagem do período.</p></div>
-    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
-      <iframe src="/demo/8" title="Ponto de situação, com uma empresa de exemplo" loading="lazy"></iframe></div>
-  </section>
-
-  <section class="fecho" aria-labelledby="t-fecho">
-    <h2 id="t-fecho">Ver com os concursos da sua área?</h2>
-    <p>Numa demonstração de 20 minutos mostramos-lhe o Mira Gov com o perfil da sua empresa. Ou peça já um dos dez lugares de fundador.</p>
-    <div class="accoes">
-      <a class="btn btn-primario" href="mailto:contacto@miragov.pt?subject=Pedido%20de%20demonstra%C3%A7%C3%A3o">Pedir uma demonstração</a>
-      <a class="btn" href="/#acesso">Pedir um lugar de fundador</a>
+<h1 class="so-leitor">Visita guiada ao Mira Gov</h1>
+<header class="vg-barra">
+  <strong class="vg-nome">Visita guiada</strong>
+  <span class="vg-passo" id="vg-passo" aria-live="polite"></span>
+  <span class="vg-progresso" aria-hidden="true"><i id="vg-progresso"></i></span>
+  <a class="sair" href="/">Sair da visita</a>
+</header>
+<main class="vg-palco" id="conteudo">
+  <iframe id="vg-ecra" title="O Mira Gov, com uma empresa de exemplo" src="/demo/1"></iframe>
+  <div class="vg-balao" id="vg-balao" role="dialog" aria-labelledby="vg-titulo" hidden>
+    <h2 id="vg-titulo"></h2>
+    <p id="vg-texto"></p>
+    <div class="vg-accoes">
+      <button type="button" id="vg-antes">← Antes</button>
+      <span class="vg-dica" id="vg-dica"></span>
+      <button type="button" class="primario" id="vg-depois">Seguinte →</button>
     </div>
-  </section>
-</div>
+  </div>
+  <div class="vg-fim" id="vg-fim" hidden>
+    <div class="cartao" role="dialog" aria-labelledby="vg-fim-titulo">
+      <h2 id="vg-fim-titulo">E com os concursos da sua área?</h2>
+      <p>Isto foi uma empresa de exemplo. Numa demonstração de 20 minutos mostramos-lhe o Mira Gov com o perfil da sua empresa — ou peça já um dos dez lugares de fundador.</p>
+      <div class="accoes">
+        <a class="btn btn-primario" href="mailto:contacto@miragov.pt?subject=Pedido%20de%20demonstra%C3%A7%C3%A3o">Pedir uma demonstração</a>
+        <a class="btn" href="/#acesso">Pedir um lugar de fundador</a>
+      </div>
+      <button type="button" class="recomecar" id="vg-recomecar">Ver outra vez</button>
+    </div>
+  </div>
 </main>
-<!--RODAPE-->
+<script>
+(function () {
+  // Cada passo: o ecrã (/demo/<n>), o que se destaca e, se houver, onde
+  // se carrega para avançar. `alvo` é [selector, texto que tem de conter].
+  var PASSOS = [
+    { ecra: 1, alvo: [".mg-topbar__link, .barra-baixo a", "Concursos"], titulo: "O dia da equipa",
+      texto: "Este é o Hoje da Ana, gestora da Climatérmica: os prazos da semana e o que cada pessoa tem para fazer. Vamos ver o que entrou.",
+      dica: "Carregue em Concursos" },
+    { ecra: 2, alvo: ["tr#a-9104-2026"], titulo: "Os concursos da sua área",
+      texto: "Tudo o que o Diário da República publicou, recortado pelo perfil da empresa, numa lista só. Entrou um de bombas de calor, em Pombal.",
+      dica: "Abra o concurso" },
+    { ecra: 3, alvo: ["a", "O que as peças pedem"], titulo: "A ficha do concurso",
+      texto: "O preço base, os prazos, o critério, a caução — do anúncio. As peças já foram descarregadas da plataforma e lidas.",
+      dica: "Veja o que as peças pedem" },
+    { ecra: 3, foco: ["#pecas-pedem"], titulo: "As peças, lidas por IA",
+      texto: "O objeto, a equipa, os documentos a entregar, as condições de pagamento. Cada linha diz a página de onde veio, para confirmar no original." },
+    { ecra: 3, foco: ["#mercado"], titulo: "O que esta entidade costuma pagar",
+      texto: "Dos contratos do Portal BASE: quanto a entidade paga por isto, com que desconto, e quem costuma ganhar." },
+    { ecra: 3, alvo: ["button", "Interessa"], titulo: "Interessa?",
+      texto: "Um clique e o concurso passa a proposta, com as tarefas e os prazos criados sozinhos.",
+      dica: "Carregue em Interessa" },
+    { ecra: 4, alvo: [".mg-topbar__link, .barra-baixo a", "Calendário"], foco: ["tr", "9104"], titulo: "A proposta, fase a fase",
+      texto: "O concurso entrou em «Por analisar». Daqui segue até à entrega e à decisão, com o responsável e o que falta fazer.",
+      dica: "Abra o Calendário" },
+    { ecra: 5, alvo: [".mg-topbar__link, .barra-baixo a", "Mercado"], titulo: "Os prazos, dia a dia",
+      texto: "As entregas, os esclarecimentos e as tarefas de cada proposta, para nada apanhar a equipa de surpresa. E quem ganha neste mercado?",
+      dica: "Carregue em Mercado" },
+    { ecra: 6, alvo: ["a", "Município de Pombal"], titulo: "Quem ganha, e por quanto",
+      texto: "Os contratos celebrados na sua área: quem comprou, quem ganhou e o preço. A entidade do nosso concurso está aqui.",
+      dica: "Abra o Município de Pombal" },
+    { ecra: 7, alvo: [".mg-topbar__link, .barra-baixo a", "Situação"], titulo: "A ficha da entidade",
+      texto: "Quanto compra, a quem, e quando acabam os contratos — que é quando volta a contratar. Por fim, como vai o negócio.",
+      dica: "Carregue em Situação" },
+    { ecra: 8, foco: [".mg-stats"], titulo: "Como vai o negócio",
+      texto: "O que está em jogo, a taxa de vitória e porque se perde, no período que escolher." }
+  ];
+
+  var ecra = document.getElementById("vg-ecra");
+  var balao = document.getElementById("vg-balao");
+  var fim = document.getElementById("vg-fim");
+  var antes = document.getElementById("vg-antes");
+  var depois = document.getElementById("vg-depois");
+  var n = 0, carregado = 0, marcado = [];
+
+  function acha(doc, par) {
+    if (!doc || !par) return null;
+    var todos = doc.querySelectorAll(par[0]);
+    for (var i = 0; i < todos.length; i++) {
+      var e = todos[i];
+      if (par[1] && e.textContent.indexOf(par[1]) < 0) continue;
+      // à vista de facto: no telemóvel o Mercado está num «Mais» fechado
+      if (e.checkVisibility ? e.checkVisibility() : e.getClientRects().length) return e;
+    }
+    return null;
+  }
+
+  function prepara(doc) {
+    // o estilo do destaque, dentro do ecrã; e nada lá dentro responde,
+    // a não ser o alvo do passo
+    var s = doc.createElement("style");
+    s.textContent = ".vg-destaque{outline:3px solid #f5a524!important;outline-offset:3px;border-radius:6px;" +
+      "box-shadow:0 0 0 6px rgb(245 165 36 / .25)!important;position:relative;z-index:2}" +
+      ".vg-alvo{cursor:pointer!important;animation:vg-pulso 1.4s ease-in-out infinite}" +
+      "@keyframes vg-pulso{50%{box-shadow:0 0 0 12px rgb(245 165 36 / .1)}}" +
+      "@media (prefers-reduced-motion:reduce){.vg-alvo{animation:none}}" +
+      "*{cursor:default}";
+    doc.head.appendChild(s);
+    doc.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var p = PASSOS[n], alvo = p && acha(doc, p.alvo);
+      if (alvo && alvo.contains(ev.target)) avanca();
+      else { balao.classList.remove("abanar"); void balao.offsetWidth; balao.classList.add("abanar"); }
+    }, true);
+    doc.addEventListener("submit", function (ev) { ev.preventDefault(); }, true);
+    doc.defaultView.addEventListener("scroll", posiciona, { passive: true });
+  }
+
+  function limpa() {
+    marcado.forEach(function (e) { e.classList.remove("vg-destaque", "vg-alvo"); });
+    marcado = [];
+  }
+
+  function mostra() {
+    var p = PASSOS[n];
+    if (carregado !== p.ecra) {
+      balao.hidden = true;
+      ecra.src = "/demo/" + p.ecra;
+      return;                      // o `load` volta a chamar
+    }
+    var doc = ecra.contentDocument;
+    limpa();
+    var alvo = acha(doc, p.alvo), foco = acha(doc, p.foco);
+    [foco, alvo].forEach(function (e) {
+      if (e) { e.classList.add("vg-destaque"); marcado.push(e); }
+    });
+    if (alvo) alvo.classList.add("vg-alvo");
+    var ver = foco || alvo;
+    if (ver) ver.scrollIntoView({ block: "center" });
+    document.getElementById("vg-titulo").textContent = p.titulo;
+    document.getElementById("vg-texto").textContent = p.texto;
+    document.getElementById("vg-dica").textContent = alvo ? (p.dica || "") : "";
+    document.getElementById("vg-passo").textContent = "Passo " + (n + 1) + " de " + PASSOS.length;
+    document.getElementById("vg-progresso").style.width = ((n + 1) / PASSOS.length * 100) + "%";
+    antes.disabled = n === 0;
+    depois.textContent = n === PASSOS.length - 1 ? "Acabar" : "Seguinte →";
+    balao.hidden = false;
+    posiciona();
+    try { history.replaceState(null, "", "#passo-" + (n + 1)); } catch (e) {}
+  }
+
+  function posiciona() {
+    if (balao.hidden || !ecra.contentDocument) return;
+    var p = PASSOS[n], doc = ecra.contentDocument;
+    var e = acha(doc, p.alvo) || acha(doc, p.foco);
+    var palco = ecra.getBoundingClientRect();
+    var bw = balao.offsetWidth, bh = balao.offsetHeight;
+    var top = 16, left = palco.width - bw - 16;
+    if (e) {
+      var r = e.getBoundingClientRect();
+      // por baixo do destaque; se não couber, por cima; e ao lado dele
+      // quando é alto (uma secção inteira)
+      if (r.height > palco.height * 0.45) {
+        top = Math.max(16, Math.min(palco.height - bh - 16, r.top));
+        left = r.right + 16 + bw < palco.width ? r.right + 16 : palco.width - bw - 16;
+      } else {
+        top = r.bottom + 14;
+        if (top + bh > palco.height - 8) top = Math.max(8, r.top - bh - 14);
+        left = Math.max(12, Math.min(palco.width - bw - 12, r.left));
+      }
+    }
+    // no telemóvel o balão vive numa ponta; foge para a outra quando o
+    // destaque está na metade de baixo (a barra de baixo da aplicação)
+    balao.classList.toggle("em-cima", !!e && e.getBoundingClientRect().top > palco.height / 2);
+    balao.style.top = top + "px";
+    balao.style.left = left + "px";
+  }
+
+  function avanca() {
+    if (n === PASSOS.length - 1) { acaba(); return; }
+    n++; mostra();
+  }
+
+  function acaba() {
+    limpa();
+    balao.hidden = true;
+    fim.hidden = false;
+    document.getElementById("vg-passo").textContent = "Fim da visita";
+    fim.querySelector("a").focus();
+  }
+
+  ecra.addEventListener("load", function () {
+    var doc = ecra.contentDocument;
+    if (!doc) return;
+    carregado = +(ecra.src.match(/\/demo\/(\d+)/) || [])[1];
+    prepara(doc);
+    mostra();
+  });
+  antes.addEventListener("click", function () { if (n > 0) { n--; mostra(); } });
+  depois.addEventListener("click", avanca);
+  document.getElementById("vg-recomecar").addEventListener("click", function () {
+    fim.hidden = true; n = 0; mostra();
+  });
+  window.addEventListener("resize", posiciona);
+  document.addEventListener("keydown", function (ev) {
+    if (!fim.hidden) return;
+    if (ev.key === "ArrowRight") avanca();
+    if (ev.key === "ArrowLeft" && n > 0) { n--; mostra(); }
+  });
+  var m = location.hash.match(/passo-(\d+)/);
+  if (m) n = Math.max(0, Math.min(PASSOS.length - 1, m[1] - 1));
+})();
+</script>
 </body>
 </html>
