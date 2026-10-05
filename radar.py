@@ -36584,9 +36584,13 @@ SITE = os.path.join(BASE_DIR, "site", "index.html")
 # LANC-F (4/10/2026): três engenharias escolheram «Tecnologias de
 # informação» no ensaio do lançamento. Entrou a engenharia, e a de TI
 # mudou de nome; o nome antigo ainda passa, de uma página em cache.
+# E três que dão CPV (6.ª ronda, 5/10/2026): a limpeza, a vigilância, os
+# jardins e a consultoria escolhiam «Prestação de serviços» ou «Outro», e
+# o perfil chegava ao dono sem CPV em 7 pedidos de 17.
 SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Engenharia e projetos",
-                      "Fornecimento de bens", "Prestação de serviços",
-                      "Software e informática", "Outro")
+                      "Limpeza, segurança e manutenção", "Espaços verdes e ambiente",
+                      "Software e informática", "Consultoria",
+                      "Fornecimento de bens", "Prestação de serviços", "Outro")
 SECTORES_ANTIGOS = ("Tecnologias de informação",)
 # O que o formulario do site deixa escolher (30/09/2026): o valor e como
 # se diz. A oferta de fundador e o Duo a preco de fundador. Os planos
@@ -37977,13 +37981,20 @@ def _repor_por_email(email):
 CPV_DO_SECTOR = {"Obras públicas e construção": "45000000",
                  "Engenharia e projetos": "71000000",
                  "Software e informática": "72000000|48000000",
-                 "Tecnologias de informação": "72000000|48000000"}
+                 "Tecnologias de informação": "72000000|48000000",
+                 "Limpeza, segurança e manutenção": "90910000|79710000|50700000",
+                 "Espaços verdes e ambiente": "77300000|90600000",
+                 "Consultoria": "79400000"}
 # As regiões que quem pede escreve em vez dos distritos (LANC-F,
 # 4/10/2026), pelo `DISTRITOS_POR_REGIAO`. «Centro» sozinho é quase
 # sempre outra coisa («centro de saúde», «centro escolar»): só conta
-# com «região» ou «zona» antes.
+# com «região» ou «zona» antes -- ou colado a outra região, «Norte e
+# Centro», que marcava só o Norte (6.ª ronda, 5/10/2026).
+_OUTRAS_REGIOES = r"(?:norte|lisboa|vale do tejo|alentejo|algarve)"
 RX_REGIAO_NA_MENSAGEM = {
-    regiao: re.compile(r"\b(?:regiao|zona) centro\b" if regiao == "Centro"
+    regiao: re.compile(r"\b(?:regiao|zona) centro\b|\b%s\s*(?:,|e)\s*centro\b"
+                       r"|\bcentro\s*(?:,|e)\s*%s\b" % (_OUTRAS_REGIOES, _OUTRAS_REGIOES)
+                       if regiao == "Centro"
                        else r"\b%s\b" % re.escape(simplifica(regiao)))
     for regiao, _ in DISTRITOS_POR_REGIAO}
 RX_CPV_NA_MENSAGEM = re.compile(r"\b(\d{8})(?:-\d)?\b")

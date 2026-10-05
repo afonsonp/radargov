@@ -29047,6 +29047,31 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
                          "Região Autónoma dos Açores|Região Autónoma da Madeira")
         # «centro» sozinho é quase sempre outra coisa
         self.assertEqual(distritos("obras no centro de saúde do Porto"), "Porto")
+        # colado a outra região é a região (6.ª ronda: marcava só o Norte)
+        centro = "Aveiro|Castelo Branco|Coimbra|Guarda|Leiria|Viseu"
+        norte = "Braga|Bragança|Porto|Viana do Castelo|Vila Real"
+        self.assertEqual(set(distritos("Norte e Centro").split("|")),
+                         set((norte + "|" + centro).split("|")))
+        self.assertEqual(set(distritos("Centro, Alentejo").split("|")),
+                         set((centro + "|Beja|Évora|Portalegre").split("|")))
+        self.assertEqual(distritos("no centro escolar"), "")
+
+    def test_as_areas_que_dizem_de_que_dao_cpv(self):
+        """6.ª ronda (5/10/2026): 7 de 17 pedidos chegavam ao dono sem CPV
+        -- a limpeza, a vigilância, os jardins e a consultoria escolhiam
+        «Prestação de serviços» ou «Outro»."""
+        def cpv(sector):
+            return radar.perfil_do_pedido({"sector": sector, "mensagem": ""})[0]
+        self.assertEqual(cpv("Limpeza, segurança e manutenção"),
+                         "90910000|79710000|50700000")
+        self.assertEqual(cpv("Espaços verdes e ambiente"), "77300000|90600000")
+        self.assertEqual(cpv("Consultoria"), "79400000")
+        self.assertEqual(cpv("Prestação de serviços"), "")
+        with open(radar.SITE, encoding="utf-8") as f:
+            site = f.read()
+        for sector in radar.SECTORES_DO_PEDIDO:
+            self.assertIn("<option>%s</option>" % sector, site)
+        self.assertTrue(self.pedir(sector="Consultoria").get_json()["ok"])
 
     def test_o_sector_ja_nao_engana(self):
         self.assertIn("Engenharia e projetos", radar.SECTORES_DO_PEDIDO)
