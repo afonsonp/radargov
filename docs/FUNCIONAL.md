@@ -117,14 +117,14 @@ as exactas e salta as outras.
 | `erros` | a série, por tipo, com o `visto_em` que o dono põe em `/plataforma/erros` | Poda a 200 por tipo — a contagem não quer dizer nada |
 | `utilizadores` | **1** | Quem entra. As 19 contas da segunda ronda de testes com utilizadores já saíram. O `contacto` (1/10/2026) é o e-mail para onde vai o «esqueci-me» quando o utilizador não é um e-mail; vem do convite (§4.9) |
 | `sessoes` | as abertas agora | Caducam aos 30 dias, e o «sair de todos» esvazia-as. `ver_como`: a empresa que o dono está a ver, só para ler, nessa sessão (26/09/2026) |
-| `estado` | 22 | Marcas do sistema (última verificação, migrações feitas) |
+| `estado` | 24 | Marcas do sistema (última verificação, migrações feitas) |
 | `entradas_falhadas` | 1 | Tentativas de login falhadas, para o trinco (poda-se aos 15 minutos) |
 | `entradas` | as dos últimos 90 dias | O registo das entradas (2R-§7 (11), 4/10/2026): «entrou», «falhou» ou «suspensa», com o e-mail, a conta e a empresa quando o e-mail é de uma conta, o IP e o navegador (`contas.registar_entrada()`, `DIAS_DE_ENTRADAS`). É o que o ecrã «Actividade» lê |
 | `leituras_pedidas` | **0** | As leituras das peças que cada empresa pediu, para o tecto por dia (F7) |
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
-| `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) de 30/09 a 4/10/2026, quando o formulário passou a pedir o `telefone` em vez deles; `estado` também «espera» (a lista de espera, LANC-F); a `vista`, a visita ao site de onde veio (4/10/2026) |
+| `pedidos_acesso` | **9** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) de 30/09 a 4/10/2026, quando o formulário passou a pedir o `telefone` em vez deles; `estado` também «espera» (a lista de espera, LANC-F); a `vista`, a visita ao site de onde veio (4/10/2026) |
 | `uso` | o dos últimos 13 meses | O uso da aplicação pelas contas das empresas (ANL, 4/10/2026): a rota (a regra do Flask, sem os valores), o método, a conta, a empresa e a hora de cada página aberta ou gravada (`registar_uso()`, um `after_request`). O dono e o modo de suporte não contam. O dono vê-o no cartão «Uso da aplicação» da página de cada empresa, com os percursos começados e não acabados (`PERCURSOS_DO_USO`, `uso_da_empresa()`) |
 | `visitas` | as dos últimos 13 meses | As visitas ao site público (ANL, 4/10/2026): a página, o dia, o domínio de onde veio, os UTM, o aparelho, o `visitante` (um resumo com o sal do dia, nunca o IP), o tempo, o scroll e os eventos (§4.9) |
 | `sugestoes` | as que quem usa envia | O que cada conta tem a dizer (4/10/2026, §4.8): o tipo, o texto, a página de onde partiu, a `captura` (a extensão da imagem, em `sugestoes/<id>.<ext>`), e o `estado` que o dono lhe dá |
@@ -221,11 +221,11 @@ viaja**: não está no git.
 
 | Tabela | Linhas | O que é |
 |---|---|---|
-| `contratos` | **2 009 640** | Cada contrato celebrado. Desde 2015 |
-| `contrato_adjudicatario` | 2 041 974 | Quem ganhou (um contrato pode ter vários) |
-| `contrato_cpv` | 2 042 820 | Os CPV de cada contrato |
-| `entidades` | **180 507** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
-| `entidade_nomes` | 256 875 | Todas as grafias por que uma entidade já apareceu |
+| `contratos` | **2 015 483** | Cada contrato celebrado. Desde 2015 |
+| `contrato_adjudicatario` | 2 047 847 | Quem ganhou (um contrato pode ter vários) |
+| `contrato_cpv` | 2 048 759 | Os CPV de cada contrato |
+| `entidades` | **180 845** | Identidade: chave, NIF, nome, nº de grafias, quanto compra, quanto ganha |
+| `entidade_nomes` | 257 310 | Todas as grafias por que uma entidade já apareceu |
 
 E, desde o lote 10 (29/09/2026), o **índice de texto** dos objectos,
 `contratos_fts` (FTS5 `trigram`, de conteúdo externo: só os trigramas,
