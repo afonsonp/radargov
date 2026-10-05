@@ -894,7 +894,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**144 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**145 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1475,8 +1475,8 @@ criptografia estão no **`contas.py`**, que não importa o radar.
 **O que fica aberto sem sessão** não é só o `/entrar`: também o
 `/saude`, o `/favicon.svg`, o **`/pedir-acesso`** (o formulário do site,
 com a guarda dentro da própria rota: origem, campo-armadilha, campos
-validados e cortados — o telemóvel por `telefone_valido()` —, e tectos de `PEDIDOS_POR_IP_POR_HORA` e
-`PEDIDOS_POR_DIA`), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
+validados e cortados — o telemóvel por `telefone_valido()` —, e tectos de `PEDIDOS_POR_IP_POR_HORA`, `PEDIDOS_POR_EMAIL_POR_DIA` e
+`PEDIDOS_POR_DIA` — este último a 1000, só de reserva, desde 4/10/2026: a 200, um robô fechava o formulário ao site inteiro), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
 A **`/acessibilidade`** (D15, 26/09/2026): a declaração de
@@ -1529,7 +1529,7 @@ que não serve diz «peça outro ao gestor da sua empresa».
 acesso do site», o dono carrega em **aceitar…**, que desde 26/09/2026
 (D13 da segunda ronda) abre primeiro **o perfil da empresa nova**: os
 CPV que o sector diz sem dúvida (`CPV_DO_SECTOR`) mais os códigos
-escritos na mensagem, e os distritos que ela nomeia
+escritos na mensagem, e os distritos que ela nomeia — também pelas regiões, «Algarve», «Norte», «região Centro», pelo `DISTRITOS_POR_REGIAO` (LANC-F, 4/10/2026); a mensagem é o campo opcional «O que vende, e onde» do formulário
 (`perfil_do_pedido()`; também o «CPV 909» escrito à mão, completado a
 oito algarismos, G56 da 3.ª ronda — e quando nada se sugere o ecrã
 di-lo, em vez de «vem do sector e da mensagem»), para o dono afinar
@@ -1835,8 +1835,15 @@ ronda: estavam a meio, e os semáforos passaram a encher a linha).
   resumo (`empresas_a_trabalhar()`). A lista é `empresas_suspensas` no
   config.json da plataforma.
 - **Os pedidos de acesso** recusam-se com o motivo, sem se apagar
-  (`recusar_pedido()`); um recusado não se aceita. Os por decidir vêm
-  num bloco em cima e os decididos por baixo (30/09/2026). No telemóvel
+  (`recusar_pedido()`); um recusado não se aceita. Desde 4/10/2026
+  (LANC-F) o recusar tem a caixa «avisar por e-mail», que manda um texto
+  fixo sem o motivo (`responder_ao_pedido()`), e há o **«pôr em
+  espera»** (`pedido_em_espera()`), que avisa sozinho e deixa aceitar ou
+  recusar depois; o aceitar leva uma nota opcional, que vai no e-mail do
+  convite. A lista assinala os repetidos: o mesmo e-mail, o mesmo
+  telemóvel noutra empresa, a mesma mensagem noutro pedido. Os por
+  decidir vêm num bloco em cima, os em espera a seguir e os decididos
+  por baixo (30/09/2026). No telemóvel
   a lista são cartões, com o «aceitar» à vista. O pedido aceite mostra a
   ligação do convite com o botão «Copiar», como o convite da Conta.
 - **O admin da empresa** vê e anula os convites por usar da empresa dele
@@ -1937,7 +1944,8 @@ mesma rota sem sair da página (§4.3).
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
 | Gerar a ligação de repor a palavra-passe | Configurações › Conta (admin), página da empresa na `/plataforma` (dono) |
 | Pedir a ligação de repor por e-mail | `/esqueci-me`, a partir do `/entrar` (sem sessão; nunca a conta do dono) |
-| Recusar um pedido de acesso, com o motivo | `/pedidos-de-acesso` (dono) |
+| Recusar um pedido de acesso, com o motivo (e, se se quiser, avisar por e-mail) | `/pedidos-de-acesso` (dono) |
+| Pôr um pedido de acesso em espera, com aviso por e-mail | `/pedidos-de-acesso` (dono) |
 | Criar · anular · gerar de novo um convite | página da empresa (dono); anular também em Configurações › Conta (admin) |
 | Suspender · reactivar uma empresa | página da empresa (dono) |
 | Entrar e sair do «ver como a empresa, só leitura» | página da empresa, faixa (dono) |

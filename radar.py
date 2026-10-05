@@ -36238,9 +36238,13 @@ TIPOS = {
 # site na raiz, e tudo o resto continua a ir ao login.
 
 SITE = os.path.join(BASE_DIR, "site", "index.html")
-SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Fornecimento de bens",
-                      "Prestação de serviços", "Tecnologias de informação",
-                      "Outro")
+# LANC-F (4/10/2026): três engenharias escolheram «Tecnologias de
+# informação» no ensaio do lançamento. Entrou a engenharia, e a de TI
+# mudou de nome; o nome antigo ainda passa, de uma página em cache.
+SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Engenharia e projetos",
+                      "Fornecimento de bens", "Prestação de serviços",
+                      "Software e informática", "Outro")
+SECTORES_ANTIGOS = ("Tecnologias de informação",)
 # O que o formulario do site deixa escolher (30/09/2026): o valor e como
 # se diz. A oferta de fundador e o Duo a preco de fundador. Os planos
 # mudaram a 1/10/2026 (decisao dele): sairam o Vigia e o VigIA+, e no
@@ -36285,7 +36289,15 @@ def nif_do_pedido(texto):
 # Os tectos de quem escreve sem conta: um formulario aberto a internet
 # sem eles e uma forma de encher a base (e a caixa de correio) de lixo.
 PEDIDOS_POR_IP_POR_HORA = 5
-PEDIDOS_POR_DIA = 200
+# O do site inteiro era 200 (LANC-F, 4/10/2026): um robô que o enchesse
+# fechava o formulário a toda a gente no dia do anúncio. O tecto que
+# trava quem insiste é o do e-mail; o do dia fica alto, só de reserva.
+PEDIDOS_POR_EMAIL_POR_DIA = 3
+PEDIDOS_POR_DIA = 1000
+# O campo opcional do formulário (LANC-F): vai para a `mensagem`, que é
+# de onde o `perfil_do_pedido()` tira os CPV e os distritos.
+ROTULO_DO_QUE_VENDE = "O que vende, e onde (opcional)"
+TECTO_DO_QUE_VENDE = 500
 
 
 def operador_completo(cfg=None):
@@ -36748,9 +36760,9 @@ def pedir_acesso():
     if telefone_bom:
         p["telefone"] = telefone_arrumado(p["telefone"])
     if not (p["nome"] and p["empresa"] and RX_EMAIL.fullmatch(p["email"])
-            and telefone_bom and p["sector"] in SECTORES_DO_PEDIDO):
+            and telefone_bom and p["sector"] in SECTORES_DO_PEDIDO + SECTORES_ANTIGOS):
         completo = (p["nome"] and p["empresa"] and p["email"] and p["telefone"]
-                    and p["sector"] in SECTORES_DO_PEDIDO)
+                    and p["sector"] in SECTORES_DO_PEDIDO + SECTORES_ANTIGOS)
         # só o campo mal escrito diz-se como tal (3.ª ronda, G103)
         if completo and not RX_EMAIL.fullmatch(p["email"]):
             return resposta(False, "O e-mail não parece válido. Confira-o: "
@@ -36770,7 +36782,12 @@ def pedir_acesso():
         do_dia = c.execute(
             "SELECT COUNT(*) n FROM pedidos_acesso WHERE criado_em>=?",
             (agora.strftime("%Y-%m-%d"),)).fetchone()["n"]
-        if do_ip >= PEDIDOS_POR_IP_POR_HORA or do_dia >= PEDIDOS_POR_DIA:
+        do_email = c.execute(
+            "SELECT COUNT(*) n FROM pedidos_acesso WHERE lower(email)=? "
+            "AND criado_em>=?", (p["email"].lower(), agora.strftime("%Y-%m-%d"))
+        ).fetchone()["n"]
+        if (do_ip >= PEDIDOS_POR_IP_POR_HORA or do_dia >= PEDIDOS_POR_DIA
+                or do_email >= PEDIDOS_POR_EMAIL_POR_DIA):
             return resposta(False, "Recebemos muitos pedidos agora. Tente "
                                    "de novo mais tarde.", 429)
         id_ = c.execute(
@@ -36803,12 +36820,17 @@ def _formulario_do_pedido_outra_vez():
             "<div class='mg-field'><label class='mg-field__label' for='p-sector'>Área"
             "</label><select class='mg-field__input' id='p-sector' name='sector' "
             "required><option value=''>Escolher a área</option>%s</select></div>"
+            "<div class='mg-field'><label class='mg-field__label' for='p-mensagem'>"
+            "%s</label><textarea class='mg-field__input' id='p-mensagem' "
+            "name='mensagem' maxlength='%d'>%s</textarea></div>"
             "<input type='hidden' name='plano' value='%s'>"
             "<button type='submit' class='mg-btn mg-btn--primary'>Pedir acesso</button>"
             "</form>"
             % (campo("nome", "Nome"), campo("empresa", "Empresa"),
                campo("email", "E-mail", "email"), campo("telefone", "Telemóvel", "tel"),
-               opcoes, html.escape(f.get("plano") or "", quote=True)))
+               opcoes, ROTULO_DO_QUE_VENDE, TECTO_DO_QUE_VENDE,
+               html.escape((f.get("mensagem") or "")[:TECTO_DO_QUE_VENDE]),
+               html.escape(f.get("plano") or "", quote=True)))
 
 
 TEXTO_DO_PEDIDO_RECEBIDO = (
@@ -36849,12 +36871,34 @@ def pedidos_de_acesso():
     for l in sorted(linhas, key=lambda l: l["id"]):
         por_email.setdefault((l["email"] or "").strip().lower(), []).append(l["id"])
 
+    # E a mesma pessoa noutra empresa, pelo telemóvel, e a mesma mensagem
+    # noutro pedido (LANC-F, 4/10/2026: no ensaio, 8 pessoas pediram por
+    # várias empresas e 18 pedidos traziam a mesma mensagem-modelo)
+    def chave_tel(l):
+        return re.sub(r"\D", "", l["telefone"] or "")[-9:]
+
+    def chave_msg(l):
+        return " ".join(simplifica(l["mensagem"]).split())
+    empresas_do_tel, ids_da_msg = {}, {}
+    for l in linhas:
+        if chave_tel(l):
+            empresas_do_tel.setdefault(chave_tel(l), set()).add(
+                simplifica(l["empresa"]).strip())
+        if chave_msg(l):
+            ids_da_msg.setdefault(chave_msg(l), set()).add(l["id"])
+
     def repetido(l):
         ids = por_email.get((l["email"] or "").strip().lower(), [])
-        if len(ids) < 2:
-            return ""
-        return (" <span class='mg-tag %s'>%d.º de %d pedidos deste e-mail</span>"
-                % (tom("avisa"), ids.index(l["id"]) + 1, len(ids)))
+        etiquetas = []
+        if len(ids) >= 2:
+            etiquetas.append("%d.º de %d pedidos deste e-mail"
+                             % (ids.index(l["id"]) + 1, len(ids)))
+        if len(empresas_do_tel.get(chave_tel(l), ())) >= 2:
+            etiquetas.append("mesmo telemóvel noutra empresa")
+        if len(ids_da_msg.get(chave_msg(l), ())) >= 2:
+            etiquetas.append("mesma mensagem noutro pedido")
+        return "".join(" <span class='mg-tag %s'>%s</span>" % (tom("avisa"), e)
+                       for e in etiquetas)
     desde, nomes = {}, {}
     for id_ in existem:
         with com_empresa(id_):
@@ -36900,14 +36944,22 @@ def pedidos_de_acesso():
                 "<input class='mg-field__input' type='text' name='motivo' required "
                 "maxlength='300' placeholder='motivo' aria-label='Motivo da recusa do "
                 "pedido de %s' style='width:12em'>"
+                "<label class='nota'><input type='checkbox' name='avisar' value='1'> "
+                "avisar por e-mail</label>"
                 "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
-                "recusar</button></form></div>"
+                "recusar</button></form>%s</div>"
                 % (l["id"], l["id"],
                    # G58: recusar não se desfaz, e não perguntava
                    html.escape(json.dumps("Recusar o pedido de %s? Fica recusado, "
                                           "com o motivo, e não se desfaz."
                                           % (l["empresa"] or l["nome"])), quote=True),
-                   html.escape(l["empresa"] or l["nome"], quote=True)))
+                   html.escape(l["empresa"] or l["nome"], quote=True),
+                   # a lista de espera (LANC-F): o e-mail sai sozinho
+                   "" if l["estado"] == "espera" else
+                   "<form class='accao' method='post' action='/pedidos-de-acesso/%d/espera'>"
+                   "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary' "
+                   "title='Fica na lista de espera, e quem pediu recebe um e-mail a "
+                   "dizê-lo'>pôr em espera</button></form>" % l["id"]))
 
     def tabela(linhas):
         return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
@@ -36934,7 +36986,8 @@ def pedidos_de_acesso():
 
     # Os por decidir em cima, num cartao seu, e os decididos por baixo
     # (UX-7-LEIS M5, 30/09/2026): estavam misturados por ordem de chegada.
-    por_decidir = [l for l in linhas if l["estado"] not in ("aceite", "recusado")]
+    por_decidir = [l for l in linhas if not l["estado"]]
+    em_espera = [l for l in linhas if l["estado"] == "espera"]
     decididos = [l for l in linhas if l["estado"] in ("aceite", "recusado")]
     def seccao(titulo, estes):
         return ("<h2 class='mg-card__title pedidos-titulo'>%s &middot; %s</h2>%s"
@@ -36942,6 +36995,7 @@ def pedidos_de_acesso():
     if linhas:
         corpo = ((seccao("Por decidir", por_decidir) if por_decidir else
                   "<p class='nota'>Nenhum pedido por decidir.</p>")
+                 + (seccao("Em espera", em_espera) if em_espera else "")
                  + (seccao("Decididos", decididos) if decididos else ""))
     else:
         corpo = ("<div class='mg-empty'>Ainda não chegou nenhum pedido pelo "
@@ -36964,20 +37018,54 @@ def recusar_pedido(id_):
     motivo = texto_de_campo(request.form.get("motivo"), 300)
     if not motivo:
         return _volta_a("/pedidos-de-acesso", "Diga o motivo da recusa.", erro=True)
+    p = _pedido_por_decidir(id_)
+    if not p:
+        return _volta_a("/pedidos-de-acesso", "Esse pedido já estava decidido.",
+                        erro=True)
     with liga() as c:
-        p = c.execute("SELECT empresa, estado FROM pedidos_acesso WHERE id=?",
-                      (id_,)).fetchone()
-        if not p:
-            abort(404)
-        if p["estado"]:
-            return _volta_a("/pedidos-de-acesso", "Esse pedido já estava decidido.",
-                            erro=True)
         c.execute("UPDATE pedidos_acesso SET estado='recusado', motivo=?, "
                   "decidido_em=? WHERE id=?",
                   (motivo, datetime.now().strftime("%Y-%m-%d %H:%M"), id_))
     registar_evento("", "pedido recusado", "%s: %s" % (p["empresa"], motivo),
                     quem=quem_sou() or "")
-    return _volta_a("/pedidos-de-acesso", "Pedido de %s recusado." % p["empresa"])
+    # avisar é escolha do dono (LANC-F): um pedido lixo não leva e-mail
+    envio = ""
+    if request.form.get("avisar"):
+        bem, porque = responder_ao_pedido(p, "recusado")
+        envio = (" Avisado por e-mail." if bem else
+                 " O e-mail não saiu (%s)." % porque)
+    return _volta_a("/pedidos-de-acesso", "Pedido de %s recusado.%s"
+                    % (p["empresa"], envio))
+
+
+def _pedido_por_decidir(id_):
+    """A linha do pedido, se ainda se pode decidir (por decidir ou em
+    espera); None se já foi aceite ou recusado. 404 se não existe."""
+    with liga() as c:
+        p = c.execute("SELECT * FROM pedidos_acesso WHERE id=?", (id_,)).fetchone()
+    if not p:
+        abort(404)
+    return p if (p["estado"] or "") in ("", "espera") else None
+
+
+@app.route("/pedidos-de-acesso/<int:id_>/espera", methods=["POST"])
+def pedido_em_espera(id_):
+    """Põe o pedido na lista de espera (LANC-F, 4/10/2026: as vagas, 10
+    fundadores e depois ~20 empresas por semana) e avisa quem pediu.
+    Continua a poder aceitar-se ou recusar-se. Só o dono (ROTAS_SO_DONO,
+    por prefixo)."""
+    p = _pedido_por_decidir(id_)
+    if not p or p["estado"] == "espera":
+        return _volta_a("/pedidos-de-acesso", "Esse pedido já não estava por decidir.",
+                        erro=True)
+    with liga() as c:
+        c.execute("UPDATE pedidos_acesso SET estado='espera', decidido_em=? WHERE id=?",
+                  (datetime.now().strftime("%Y-%m-%d %H:%M"), id_))
+    registar_evento("", "pedido em espera", p["empresa"], quem=quem_sou() or "")
+    bem, porque = responder_ao_pedido(p, "espera")
+    return _volta_a("/pedidos-de-acesso", "Pedido de %s em espera. %s"
+                    % (p["empresa"], "Avisado por e-mail." if bem else
+                       "O e-mail não saiu (%s)." % porque), erro=not bem)
 
 TEXTO_DO_CONVITE = """%(ola)s
 
@@ -37012,9 +37100,12 @@ PASSOS_DO_CONVITE = {
 }
 
 
-def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False):
+def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False,
+                            nota=""):
     """(assunto, texto, html) do convite. `pedido` é o aceite de um
-    pedido de acesso; sem ele, é o convite que o dono ou o gestor criam."""
+    pedido de acesso; sem ele, é o convite que o dono ou o gestor criam.
+    `nota` é o que o dono escreve a quem pediu (LANC-F, 4/10/2026: no
+    ensaio do lançamento, 52 precisaram de um segundo e-mail)."""
     papel_ecra = papel_no_ecra(papel).lower()
     empresa = empresa or "sua empresa"
     frase = ("O seu pedido de acesso ao Mira Gov foi aceite. A sua conta é "
@@ -37026,10 +37117,12 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False):
     passos = PASSOS_DO_CONVITE.get(papel, PASSOS_DO_CONVITE["tester"])
     ola = "Olá %s," % nome if nome else "Olá,"
     texto = TEXTO_DO_CONVITE % {
-        "ola": ola, "frase": frase, "ligacao": ligacao, "ate": ate,
+        "ola": ola, "frase": frase + ("\n\n" + nota if nota else ""),
+        "ligacao": ligacao, "ate": ate,
         "passos": "\n".join("%d. %s" % (i, p) for i, p in enumerate(passos, 1))}
     corpo = (
         _em_paragrafo(html.escape(ola)) + _em_paragrafo(html.escape(frase))
+        + (_em_paragrafo(html.escape(nota).replace("\n", "<br>")) if nota else "")
         + _em_botao(ligacao, "Criar a conta")
         + _em_paragrafo("A ligação serve uma vez e é válida até <b>%s</b>." % ate)
         + "<p style=\"margin:18px 0 6px;font:700 11px/1.4 %s;color:%s;"
@@ -37044,19 +37137,52 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False):
                              "este convite, pode ignorá-lo."))
 
 
-def enviar_convite(email, ligacao, empresa, papel, nome="", pedido=False):
+def enviar_convite(email, ligacao, empresa, papel, nome="", pedido=False, nota=""):
     """Manda o convite para `email`, da conta da plataforma. (bem, porque);
     uma falha não derruba quem convida -- a ligação mostra-se na mesma."""
     if not email:
         return False, "sem endereço"
-    assunto, texto, em_html = texto_e_html_do_convite(ligacao, empresa, papel,
-                                                      nome, pedido)
+    return _mandar_a(email, *texto_e_html_do_convite(ligacao, empresa, papel,
+                                                     nome, pedido, nota))
+
+
+def _mandar_a(email, assunto, texto, em_html):
+    """Um e-mail da conta da plataforma para um endereço só. (bem, porque);
+    nunca rebenta -- o servidor pode responder o que quiser."""
     try:
         return enviar_email(assunto, texto,
                             _junta(dict(ler_config()), {"email": {"para": email}}),
                             em_html)
-    except Exception as erro:              # o servidor pode responder o que quiser
+    except Exception as erro:
         return False, "%s: %s" % (type(erro).__name__, str(erro)[:120])
+
+
+# O que quem pediu recebe quando o pedido não se aceita já (LANC-F,
+# 4/10/2026). Texto fixo: o motivo da recusa é do dono, e não sai.
+RESPOSTA_AO_PEDIDO = {
+    "recusado": ("O seu pedido de acesso ao Mira Gov",
+                 "Obrigado pelo interesse no Mira Gov. Neste momento não "
+                 "conseguimos aceitar o seu pedido.\n\nSe a situação da sua "
+                 "empresa mudar, pode voltar a pedir no site, ou responder a "
+                 "este e-mail."),
+    "espera": ("O seu pedido de acesso ao Mira Gov está na lista de espera",
+               "Recebemos o seu pedido de acesso ao Mira Gov. Estamos a abrir "
+               "por vagas, para acompanhar bem cada empresa que entra, e o seu "
+               "pedido ficou na lista de espera.\n\nEscrevemos-lhe assim que "
+               "houver lugar. Dúvidas? Responda a este e-mail."),
+}
+
+
+def responder_ao_pedido(p, estado):
+    """Manda a quem pediu a resposta fixa de `estado` (RESPOSTA_AO_PEDIDO).
+    (bem, porque)."""
+    assunto, texto = RESPOSTA_AO_PEDIDO[estado]
+    ola = "Olá %s," % p["nome"] if p["nome"] else "Olá,"
+    corpo = "".join(_em_paragrafo(html.escape(x)) for x in
+                    [ola] + texto.split("\n\n"))
+    return _mandar_a(p["email"], assunto, "%s\n\n%s\n\nMira Gov\n" % (ola, texto),
+                     moldura_do_email(assunto, _em_cartao_branco(corpo),
+                                      "Responda a este e-mail se tiver dúvidas."))
 
 
 TEXTO_DA_REPOSICAO = """%(ola)s
@@ -37143,7 +37269,17 @@ def _repor_por_email(email):
 # aceitar. Só as divisões que o sector diz sem dúvida: «Fornecimento de
 # bens» ou «Prestação de serviços» não dizem de que -- ficam vazios.
 CPV_DO_SECTOR = {"Obras públicas e construção": "45000000",
+                 "Engenharia e projetos": "71000000",
+                 "Software e informática": "72000000|48000000",
                  "Tecnologias de informação": "72000000|48000000"}
+# As regiões que quem pede escreve em vez dos distritos (LANC-F,
+# 4/10/2026), pelo `DISTRITOS_POR_REGIAO`. «Centro» sozinho é quase
+# sempre outra coisa («centro de saúde», «centro escolar»): só conta
+# com «região» ou «zona» antes.
+RX_REGIAO_NA_MENSAGEM = {
+    regiao: re.compile(r"\b(?:regiao|zona) centro\b" if regiao == "Centro"
+                       else r"\b%s\b" % re.escape(simplifica(regiao)))
+    for regiao, _ in DISTRITOS_POR_REGIAO}
 RX_CPV_NA_MENSAGEM = re.compile(r"\b(\d{8})(?:-\d)?\b")
 # «CPV 909», «cpv: 4521» -- o prefixo que quem pede escreve à mão (G56 da
 # 3.ª ronda): só os códigos de 8 algarismos entravam, e o ecrã dizia
@@ -37171,8 +37307,10 @@ def perfil_do_pedido(p):
         cpv += [c.ljust(8, "0") for c in re.findall(r"\d+", fila)
                 if 2 <= len(c) < 8 and c.ljust(8, "0") not in cpv]
     simples = simplifica(mensagem)
-    distritos = [d for d in DISTRITOS
-                 if re.search(r"\b%s\b" % re.escape(simplifica(d)), simples)]
+    das_regioes = {d for regiao, ds in DISTRITOS_POR_REGIAO
+                   if RX_REGIAO_NA_MENSAGEM[regiao].search(simples) for d in ds}
+    distritos = [d for d in DISTRITOS if d in das_regioes
+                 or re.search(r"\b%s\b" % re.escape(simplifica(d)), simples)]
     return "|".join(cpv), "|".join(distritos)
 
 
@@ -37221,6 +37359,10 @@ def _formulario_do_aceitar(p, aviso=""):
         "Distritos do local de execução <span class='nota'>(nenhum marcado = "
         "todos)</span></legend>%s</fieldset>"
         "%s%s"
+        "<label class='mg-field' style='flex:1 1 100%%'><span class='mg-field__label'>"
+        "Nota para quem pediu <span class='nota'>(opcional; vai no e-mail do "
+        "convite)</span></span><textarea class='mg-field__input' name='nota' "
+        "maxlength='%d'>%s</textarea></label>"
         "<div style='flex:1 1 100%%;display:flex;gap:8px'>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Aceitar e "
         "mandar o convite</button>"
@@ -37244,8 +37386,13 @@ def _formulario_do_aceitar(p, aviso=""):
                   request.form.get("pbmin", "") if request.method == "POST" else "",
                   nota="€; vazio = qualquer valor", extra="inputmode='decimal'"),
            _escolha_do_plano(request.form.get("plano") if request.method == "POST"
-                             else p["plano"] or "fundador")),
+                             else p["plano"] or "fundador"),
+           TECTO_DA_NOTA_DO_CONVITE,
+           html.escape(request.form.get("nota", "") if request.method == "POST" else "")),
         titulo_aba="Aceitar o pedido")
+
+
+TECTO_DA_NOTA_DO_CONVITE = 1000
 
 
 def _escolha_do_plano(escolhido):
@@ -37304,8 +37451,9 @@ def aceitar_pedido(id_):
                   "decidido_em=? WHERE id=?",
                   (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id_))
     ligacao = endereco_do_painel() + "/convite/" + codigo
-    bem, porque = enviar_convite(p["email"], ligacao, p["empresa"], "admin",
-                                 p["nome"], pedido=True)
+    bem, porque = enviar_convite(
+        p["email"], ligacao, p["empresa"], "admin", p["nome"], pedido=True,
+        nota=(request.form.get("nota") or "").strip()[:TECTO_DA_NOTA_DO_CONVITE])
     registar_evento("", "pedido aceite", "%s (empresa %d)"
                     % (p["empresa"], empresa_id))
     envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])

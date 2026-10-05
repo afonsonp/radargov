@@ -15,17 +15,17 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 12
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
-- [Contratos e entidades](#contratos-e-entidades) &middot; 39
+- [Contratos e entidades](#contratos-e-entidades) &middot; 40
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 46
-- [A interface](#a-interface) &middot; 129
-- [Convenções](#convencoes) &middot; 7
+- [Contas e a porta](#contas-e-a-porta) &middot; 48
+- [A interface](#a-interface) &middot; 131
+- [Convenções](#convencoes) &middot; 8
 
-São **450** ao todo, contados a 4/10/2026. Contam-se por secção com
+São **456** ao todo, contados a 4/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3168,6 +3168,13 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   `nif_da_empresa` ao aceitar; o plano escolhe-o o dono no ecrã do
   aceitar (`_escolha_do_plano()`), e o do pedido, se houver, só vem
   pré-escolhido.
+- **O tecto que trava quem insiste é o do e-mail, não o do site**
+  (LANC-F, 4/10/2026). O `PEDIDOS_POR_DIA` era 200 para o site inteiro:
+  um robô que o enchesse fechava o formulário a toda a gente no dia do
+  anúncio. Passou a 1000, só de reserva, e entrou o
+  `PEDIDOS_POR_EMAIL_POR_DIA` (3), contado sem maiúsculas. Um teste que
+  mande o mesmo pedido cinco vezes para medir o tecto por IP bate antes
+  no do e-mail: varia o e-mail (`TestSitePublico.outro_email()`).
 
 - **O que pede sessão nunca sai sem `private` no `Cache-Control`**
   (26/09/2026, segunda ronda do teste com utilizadores). As páginas das
