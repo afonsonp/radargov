@@ -28,6 +28,7 @@ import email.utils
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -14052,12 +14053,28 @@ class TestAVisitaGuiada(BaseTemporaria):
     """O `/demo` (5/10/2026): os ecrãs verdadeiros com uma empresa
     inventada, para quem não tem conta. Abre sem sessão, não deixa nada
     vivo (scripts, envios), e a folha de estilo segue a etiqueta de hoje
-    -- a de quando se gerou dava 404 ao primeiro CSS novo."""
+    -- a de quando se gerou dava 404 ao primeiro CSS novo.
+
+    Os ecrãs não estão no git (gera-os o `actualizar.sh`): o teste gera-os
+    numa pasta sua, por um processo à parte -- o `ferramentas/demo.py`
+    aponta o `radar` para uma base temporária ao importar, e fazê-lo
+    aqui dentro mexia nos caminhos dos outros testes."""
     FORA = {"REMOTE_ADDR": "203.0.113.7"}
-    PASTA = os.path.join(os.path.dirname(radar.__file__), "site", "demo")
+    RAIZ = os.path.dirname(os.path.abspath(radar.__file__))
+
+    @classmethod
+    def setUpClass(cls):
+        cls.site = tempfile.mkdtemp()
+        cls.addClassCleanup(shutil.rmtree, cls.site, ignore_errors=True)
+        cls.PASTA = os.path.join(cls.site, "demo")
+        subprocess.run([sys.executable, os.path.join(cls.RAIZ, "ferramentas", "demo.py"),
+                        cls.PASTA], check=True, capture_output=True, timeout=300)
+        shutil.copy(os.path.join(cls.RAIZ, "site", "demo.html"), cls.site)
 
     def setUp(self):
         super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "SITE", os.path.join(self.site, "index.html")))
         self.cliente = radar.app.test_client()
 
     def get(self, caminho):

@@ -189,8 +189,9 @@ python ferramentas/ecrans.py [--empresa N]  # todos os ecrãs num HTML só,
                                    # pelo dono. Gerado e ignorado pelo git
 python ferramentas/demo.py         # os ecrãs da visita guiada (/demo):
                                    # site/demo/<n>.html, de uma empresa
-                                   # inventada numa base temporária; corre-se
-                                   # quando um ecrã muda, e vai para o git
+                                   # inventada numa base temporária. O
+                                   # actualizar.sh corre-o sozinho; não vai
+                                   # para o git
 python ferramentas/valida_docs.py  # o que a documentação cita existe? e as
                                    # contagens deriváveis batem? (também corre
                                    # na bateria de testes, e trava o commit)

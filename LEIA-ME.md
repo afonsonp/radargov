@@ -1348,7 +1348,8 @@ correres, na pasta:
 ./actualizar.sh
 ```
 
-Traz a última versão publicada, instala o que for preciso e **reinicia
+Traz a última versão publicada, instala o que for preciso, refaz os
+ecrãs da visita guiada do site (`/demo`) e **reinicia
 sempre o painel** — mesmo quando não havia nada a trazer, porque o
 painel só lê o código ao arrancar. Demora segundos. Três coisas a
 saber:
