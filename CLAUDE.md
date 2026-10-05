@@ -179,6 +179,7 @@ python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar,
 python radar.py --criar-utilizador NOME [--empresa N]  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass; sem --empresa é da 1
 python radar.py --criar-empresa "NOME"   # F4: uma empresa nova, com o ficheiro dela vazio; diz o número
 python radar.py --apagar-empresa N [--sim] # tira a empresa inteira (a pasta vai para copias/, com as linhas da plataforma em plataforma.json); o dono fica sem empresa
+python radar.py --exportar-empresa N  # os dados de uma empresa num zip em copias/ (RGPD): a base dela, os ficheiros da pasta e plataforma.json sem as palavras-passe
 python radar.py --limpar-uso [--sim]    # tira da base os erros, sessões, entradas falhadas e eventos de pessoas; VACUUM no fim
 python ferramentas/ecrans.py [--empresa N]  # todos os ecrãs num HTML só,
                                    # para os ver lado a lado: o HTML verdadeiro
@@ -630,7 +631,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **456 pontos** (contados a 4/10/2026), cada um de um erro que
+São **457 pontos** (contados a 4/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

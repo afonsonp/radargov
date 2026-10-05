@@ -202,6 +202,8 @@ CONFIG_INICIAL = {
     # impede uma empresa de gastar sozinha o orcamento diario, que e de
     # todas. O dono nao conta, nem o que a plataforma le sozinha.
     "leituras_por_empresa_por_dia": 10,
+    # E por mes (2R-§7 (13), 4/10/2026): 0 e sem tecto mensal.
+    "leituras_por_empresa_por_mes": 0,
     # F6 (23/09/2026): o destino das copias FORA deste PC, um "remote" do
     # rclone -- o copias_fora.sh cria-o, cifrado. Vazio, ou o rclone por
     # instalar, e as copias ficam so aqui, e o painel di-lo.
@@ -10226,6 +10228,52 @@ def _guardar_linhas_da_plataforma(id_, pasta):
     return caminho
 
 
+def exportar_empresa(id_):
+    """Os dados de uma empresa num zip, para lhos entregar (RGPD, 2R-§7
+    (15), 4/10/2026; só o dono, pela consola: `--exportar-empresa N`). A
+    base dela copiada pela API de cópia do SQLite (inteira, mesmo com o
+    painel a escrever), os outros ficheiros da pasta dela (a configuração,
+    a triagem, o cofre) e as linhas da plataforma que são dela, em
+    `plataforma.json` -- sem os resumos das palavras-passe, que não são
+    dados dela. Fica em `copias/`, só legível pelo dono. Devolve o
+    caminho."""
+    if id_ not in empresas_existentes():
+        raise ValueError("a empresa %s não existe (há: %s)"
+                         % (id_, empresas_existentes()))
+    pasta = os.path.dirname(db_da_empresa(id_))
+    os.makedirs(COPIAS, exist_ok=True)
+    caminho = os.path.join(COPIAS, "exportacao-empresa-%d-%s.zip"
+                           % (id_, datetime.now().strftime("%Y-%m-%d-%H%M%S")))
+    with _abre(DB) as c:
+        # e as entradas das contas dela, que são dados pessoais das
+        # pessoas dela (revisão de segurança de 4/10/2026)
+        linhas = {t: [{k: v for k, v in dict(r).items() if k != "hash"}
+                      for r in c.execute("SELECT * FROM %s WHERE %s" % (t, onde), (id_,))]
+                  for t, onde in LINHAS_DA_EMPRESA_NA_PLATAFORMA
+                  + (("entradas", "empresa_id=?"),)}
+    # nasce já só do dono: o so_o_dono() do fim deixava-o legível a
+    # todos enquanto se escrevia
+    os.close(os.open(caminho, os.O_CREAT | os.O_WRONLY | os.O_EXCL, 0o600))
+    with tempfile.TemporaryDirectory() as tmp:
+        copia = os.path.join(tmp, "empresa.db")
+        with sqlite3.connect(db_da_empresa(id_)) as origem, \
+                sqlite3.connect(copia) as destino:
+            origem.backup(destino)
+        with zipfile.ZipFile(caminho, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(copia, "empresa.db")
+            for raiz, _, nomes in os.walk(pasta):
+                for nome in nomes:
+                    if nome.startswith("empresa.db"):      # e o -wal, o -shm
+                        continue
+                    completo = os.path.join(raiz, nome)
+                    z.write(completo, os.path.relpath(completo, pasta))
+            z.writestr("plataforma.json", json.dumps(
+                {"empresa": id_, "exportada_em": datetime.now().isoformat(" ", "seconds"),
+                 "linhas": linhas}, ensure_ascii=False, indent=1, default=str))
+    so_o_dono(caminho)
+    return caminho
+
+
 def _apagar_da_plataforma(id_):
     """O que o `apagar_empresa()` tira do radar.db, numa transaccao so."""
     saiu = {}
@@ -10840,6 +10888,70 @@ def _anuncios_para(onde):
     return "anuncios INDEXED BY ix_anuncios_cobre"
 
 
+def onde_do_alerta(consulta):
+    """(onde, valores) dos anuncios que um alerta apanha, ou None quando
+    nada no filtro e sobre anuncios. O mesmo para o `registar_alertas()`
+    e para o `porque_nao_avisou()`."""
+    # So a parte que os anuncios entendem. Passar o filtro inteiro a
+    # condicoes() deixava os campos de contratos cairem em silencio,
+    # e um alerta "CPV 72 + ganho por MEO" passava a avisar de todos
+    # os anuncios de CPV 72. O separador marca esses filtros.
+    aplicavel, _ = filtro_para(consulta or "", "anuncios")
+    args = dict(parse_qsl(aplicavel, keep_blank_values=True))
+    # o estado nao entra: procuram-se anuncios que correspondem, e a
+    # triagem deles e outra conversa
+    args.pop("estado", None)
+    if not args:
+        return None
+    return condicoes(dict(args, estado=""))
+
+
+def porque_nao_avisou(ref):
+    """[frases] -- porque e que os alertas da empresa activa nao avisaram
+    deste anuncio, alerta a alerta (2R-§7 (12), 4/10/2026: o gestor via
+    um concurso que esperava num alerta e nao tinha como saber porque
+    nao lhe chegou). Os que avisaram dizem-se a parte, pelo
+    `envios_dos_alertas()`; aqui ficam de fora."""
+    with liga() as c:
+        alertas = c.execute("SELECT id, nome, consulta, alerta FROM filtros_guardados "
+                            "ORDER BY nome COLLATE NOCASE").fetchall()
+        vistos = {r["filtro_id"]: r["enviado_em"] for r in c.execute(
+            "SELECT filtro_id, enviado_em FROM alertas_vistos WHERE ref=?", (ref,))}
+        alteracao = (c.execute("SELECT estado FROM anuncios WHERE ref=?", (ref,))
+                     .fetchone() or {"estado": ""})["estado"] == "alteracao"
+    if not any(a["alerta"] for a in alertas):
+        return ["Nenhum alerta está ligado."]
+    frases = []
+    for a in alertas:
+        enviado = vistos.get(a["id"], False)
+        if enviado == ACERVO:
+            frases.append("Já estava na base quando o alerta «%s» foi ligado: o "
+                          "acervo não se avisa." % a["nome"])
+            continue
+        if enviado:                     # avisou: diz-se no registo dos envios
+            continue
+        filtro = onde_do_alerta(a["consulta"])
+        cabe = False
+        if filtro:
+            onde, valores = filtro
+            with liga() as c:
+                cabe = c.execute("SELECT 1 FROM anuncios" + onde + " AND ref=?",
+                                 valores + [ref]).fetchone() is not None
+        if not cabe:
+            frases.append("Não cabe no alerta «%s»." % a["nome"])
+        elif not a["alerta"]:
+            frases.append("Cabe no alerta «%s», mas ele está desligado." % a["nome"])
+        elif alteracao:
+            frases.append("Cabe no alerta «%s», mas é uma alteração a um anúncio: "
+                          "essas avisam-se à parte." % a["nome"])
+        elif enviado is None:
+            frases.append("Cabe no alerta «%s», e sai no próximo envio." % a["nome"])
+        else:
+            frases.append("Cabe no alerta «%s», e entra na próxima verificação."
+                          % a["nome"])
+    return frases
+
+
 def registar_alertas():
     """Anota que anuncios caem em que alerta, sem os enviar.
 
@@ -10854,18 +10966,10 @@ def registar_alertas():
     agora = datetime.now().strftime("%Y-%m-%d %H:%M")
     novos = 0
     for f in filtros_de_alerta():
-        # So a parte que os anuncios entendem. Passar o filtro inteiro a
-        # condicoes() deixava os campos de contratos cairem em silencio,
-        # e um alerta "CPV 72 + ganho por MEO" passava a avisar de todos
-        # os anuncios de CPV 72. O separador marca esses filtros.
-        aplicavel, fora = filtro_para(f["consulta"] or "", "anuncios")
-        args = dict(parse_qsl(aplicavel, keep_blank_values=True))
-        # o estado nao entra: procuram-se anuncios que correspondem, e a
-        # triagem deles e outra conversa
-        args.pop("estado", None)
-        if not args:
+        filtro = onde_do_alerta(f["consulta"])
+        if not filtro:
             continue                    # nada aqui e sobre anuncios
-        onde, valores = condicoes(dict(args, estado=""))
+        onde, valores = filtro
         with liga() as c:
             # Sem LIMIT: com um tecto, cada volta descobria "novos" que
             # eram so os seguintes da fila -- 200 na primeira, 153 na
@@ -14765,7 +14869,10 @@ ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
                   # perfil (decisão dele, 4/10/2026: «só o gestor»); a
                   # página abre-se para ler. E apagar uma proposta.
                   "/alertas/criar", "/alertas/do-perfil", "/alertas/email",
-                  "/alertas/urgente", "/alertas/enviar", "/filtros")
+                  "/alertas/urgente", "/alertas/enviar", "/filtros",
+                  # o registo de actividade (2R-§7 (11)): IPs e aparelhos
+                  # das contas da empresa, que o utilizador não vê
+                  "/actividade")
 # ...e as que têm um número no meio, que o prefixo não apanha
 RX_SO_ADMIN = re.compile(r"/alertas/\d+/|/proposta/\d+/apagar$")
 
@@ -18732,6 +18839,22 @@ TOPO = """<div class="topo">
  </div>"""
 
 
+def _emblema_dos_pedidos():
+    """O número dos pedidos de acesso por decidir, ao lado de «Plataforma»
+    na barra do dono (2R-§7 (3), 4/10/2026). Os em espera não contam:
+    já tiveram resposta. Vazio quando não há nenhum."""
+    try:
+        with liga() as c:
+            n = c.execute("SELECT COUNT(*) FROM pedidos_acesso WHERE "
+                          "COALESCE(estado,'') = ''").fetchone()[0]
+    except sqlite3.OperationalError:
+        return ""
+    if not n:
+        return ""
+    return (" <span class='barra-emblema' aria-label='%s por decidir'>%d</span>"
+            % (plural(n, "pedido de acesso", "pedidos de acesso"), n))
+
+
 def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
              abas="", script="", titulo_aba=None, cabeca=""):
     """Monta uma pagina completa a partir do esqueleto partilhado.
@@ -18781,7 +18904,8 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
              % (" aria-current='page'" if activo == "ajuda" else "",
                 icone("ajuda", 20) or "?"))
     if sem_empresa:
-        itens.append("<a class='mg-topbar__link' href='/plataforma'>Plataforma</a>")
+        itens.append("<a class='mg-topbar__link' href='/plataforma'>Plataforma%s</a>"
+                     % _emblema_dos_pedidos())
     else:
         itens.append("<a class='mg-topbar__link' href=\"/configuracoes\"%s "
                      "title='A conta, o perfil da empresa, os alertas e o resto das "
@@ -23603,6 +23727,7 @@ def resumo_das_empresas():
             "perfil": perfil,
             "leituras_hoje": li.get("hoje") or 0, "leituras_mes": li.get("mes") or 0,
             "tecto": cfg.get("leituras_por_empresa_por_dia") or 0,
+            "tecto_mes": cfg.get("leituras_por_empresa_por_mes") or 0,
             "suspensa": id_ in suspensas})
     return fora
 
@@ -24406,6 +24531,157 @@ def _empresa_ou_404(id_):
     return next(e for e in resumo_das_empresas() if e["id"] == id_)
 
 
+def _gestos_do_suporte(u):
+    """Os botões de uma conta na página da empresa: repor, e (2R-§7 (8))
+    suspender ou reactivar e tirar. A conta do dono só se repõe."""
+    gestos = [accao("/plataforma/contas/%d/repor" % u["id"], "repor palavra-passe",
+                    "mini", rotulo="Gerar a ligação para repor a palavra-passe "
+                    "de %s" % u["email"])]
+    if u["dono"]:
+        return gestos
+    if u["suspensa"]:
+        gestos.append(accao("/plataforma/contas/%d/reactivar" % u["id"], "reactivar",
+                            "mini", rotulo="Reactivar a conta de %s" % u["email"]))
+    else:
+        gestos.append(accao("/plataforma/contas/%d/suspender" % u["id"], "suspender",
+                            "mini cuidado", "Suspender a conta de %s? Fecham-se as "
+                            "sessões, e não entra até a reactivar." % u["email"],
+                            rotulo="Suspender a conta de %s" % u["email"]))
+    gestos.append(accao("/plataforma/contas/%d/tirar" % u["id"], "tirar", "mini cuidado",
+                        "Tirar a conta de %s? Não se desfaz." % u["email"],
+                        rotulo="Tirar a conta de %s" % u["email"]))
+    return gestos
+
+
+# O que o registo de actividade mostra do `historico` da empresa (2R-§7
+# (11), 4/10/2026): as mudanças de configuração, as triagens e o que se
+# fez às contas. As entradas vêm da tabela `entradas` da plataforma, com o
+# IP e o aparelho -- e por isso o «entrou» do histórico fica de fora.
+ACCOES_DA_ACTIVIDADE = ("configuração", "estado", "conta", "suporte", "importação",
+                        "saiu de todos os aparelhos")
+# Cada falha diz o que falhou (revisão de segurança de 4/10/2026): um
+# código do segundo factor errado é de quem já tem a palavra-passe, e
+# não pode parecer um lapso ao escrevê-la.
+RESULTADOS_DA_ENTRADA = {
+    "entrou": "entrou", "falhou": "palavra-passe errada ao entrar",
+    "falhou_codigo_2f": "código do segundo factor errado (a palavra-passe estava certa)",
+    "falhou_senha_actual": "palavra-passe actual errada, ao mudar a segurança",
+    "suspensa": "tentou entrar com a conta suspensa"}
+DIAS_DA_ACTIVIDADE = 90
+
+
+def actividade_da_empresa(id_, limite=200):
+    """[{quando, quem, o_que, detalhe, ip, aparelho}] da empresa `id_`, do
+    mais recente, nos últimos DIAS_DA_ACTIVIDADE dias. Só as contas dela:
+    a falhada de um e-mail que não é conta não tem empresa, e não entra."""
+    desde = (datetime.now() - timedelta(days=DIAS_DA_ACTIVIDADE)).strftime("%Y-%m-%d")
+    with liga() as c:
+        entradas = c.execute(
+            "SELECT quando, email, resultado, ip, agente FROM entradas "
+            "WHERE empresa_id=? AND quando >= ? ORDER BY quando DESC LIMIT ?",
+            (id_, desde, limite)).fetchall()
+    with com_empresa(id_), liga() as c:
+        feitos = c.execute(
+            "SELECT quando, quem, accao, ref, detalhe FROM historico "
+            "WHERE accao IN (%s) AND quando >= ? ORDER BY quando DESC LIMIT ?"
+            % ",".join("?" * len(ACCOES_DA_ACTIVIDADE)),
+            list(ACCOES_DA_ACTIVIDADE) + [desde, limite]).fetchall()
+    linhas = [{"quando": e["quando"][:16], "quem": e["email"],
+               "o_que": RESULTADOS_DA_ENTRADA.get(e["resultado"], e["resultado"]),
+               "detalhe": "", "ip": e["ip"] or "",
+               "aparelho": aparelho_do_agente(e["agente"] or "")} for e in entradas]
+    linhas += [{"quando": (h["quando"] or "")[:16], "quem": h["quem"] or "",
+                "o_que": _NOMES_ACCAO.get(h["accao"], h["accao"]),
+                "detalhe": ("%s: %s" % (h["ref"], h["detalhe"]) if h["ref"]
+                            else h["detalhe"] or ""), "ip": "", "aparelho": ""}
+               for h in feitos]
+    return sorted(linhas, key=lambda l: l["quando"], reverse=True)[:limite]
+
+
+def tabela_da_actividade(linhas):
+    if not linhas:
+        return ("<p class='nota'>Nada nos últimos %d dias.</p>" % DIAS_DA_ACTIVIDADE)
+    return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
+            "<thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th>"
+            "<th>IP</th><th>Aparelho</th></tr></thead><tbody>%s</tbody></table></div>"
+            % "".join("<tr>%s%s%s%s%s%s</tr>" % (
+                _celula_da_tabela("Quando", html.escape(data_hora_pt(l["quando"])), "mg-num"),
+                _celula_da_tabela("Quem", html.escape(l["quem"])),
+                _celula_da_tabela("O quê", html.escape(l["o_que"])),
+                _celula_da_tabela("Detalhe", html.escape(corta(l["detalhe"], 160))),
+                _celula_da_tabela("IP", html.escape(l["ip"]), "mg-num"),
+                _celula_da_tabela("Aparelho", html.escape(l["aparelho"])))
+                for l in linhas))
+
+
+TEXTO_DA_ACTIVIDADE = ("As entradas nas contas da empresa (as boas e as falhadas, "
+                       "com o IP e o aparelho), as mudanças de configuração, as "
+                       "triagens e o que se fez às contas, nos últimos %d dias."
+                       % DIAS_DA_ACTIVIDADE)
+
+
+@app.route("/actividade")
+def actividade():
+    """O registo de actividade da empresa, para o gestor (2R-§7 (11),
+    4/10/2026; ROTAS_SO_ADMIN). Só a empresa activa: é o
+    `actividade_da_empresa()` que recorta, pela empresa do pedido."""
+    return envolver(
+        "configuracoes", "Actividade", "",
+        "<div class='larg'>%s</div>" % tabela_da_actividade(
+            actividade_da_empresa(empresa_activa())),
+        titulo_aba="Actividade",
+        cabeca=cabecalho_de_pagina("Actividade", TEXTO_DA_ACTIVIDADE,
+                                   [("Configurações", "/configuracoes"),
+                                    ("Actividade", "")]))
+
+
+@app.route("/plataforma/empresa/<int:id_>/actividade")
+def plataforma_actividade(id_):
+    """O mesmo registo, para o dono, de qualquer empresa."""
+    e = _empresa_ou_404(id_)
+    return envolver(
+        "configuracoes", "Actividade", "",
+        "<div class='larg'>%s</div>" % tabela_da_actividade(actividade_da_empresa(id_)),
+        titulo_aba="Actividade · %s" % e["nome"],
+        cabeca=cabecalho_de_pagina(
+            "Actividade", TEXTO_DA_ACTIVIDADE,
+            [("Plataforma", "/plataforma"), (e["nome"], "/plataforma/empresa/%d" % id_),
+             ("Actividade", "")]))
+
+
+def nota_da_empresa(id_):
+    """A nota interna do dono sobre uma empresa (2R-§7 (16)): vive no
+    `estado` da plataforma, e não na base da empresa -- quem lá está não
+    a lê, nem numa exportação."""
+    return le_marca("nota_da_empresa_%d" % id_, "")
+
+
+@app.route("/plataforma/empresa/<int:id_>/nota", methods=["POST"])
+def plataforma_nota(id_):
+    _empresa_ou_404(id_)
+    marca("nota_da_empresa_%d" % id_, texto_de_campo(request.form.get("nota"), 4000,
+                                                     linhas=True))
+    return _volta_a("/plataforma/empresa/%d#nota" % id_, "Nota gravada.")
+
+
+def _cartao_da_nota(id_):
+    return cartao(
+        "Nota interna",
+        "<form method='post' action='/plataforma/empresa/%d/nota' class='accao'>"
+        "<label class='mg-field'><span class='mg-field__label'>Só tu a vês: a "
+        "empresa nunca a lê</span><textarea class='mg-field__input' name='nota' "
+        "rows='3' maxlength='4000'>%s</textarea></label>"
+        "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>Gravar a "
+        "nota</button></form>" % (id_, html.escape(nota_da_empresa(id_))), id_="nota")
+
+
+def _cartao_da_actividade(id_):
+    linhas = actividade_da_empresa(id_, limite=8)
+    return cartao("Actividade", tabela_da_actividade(linhas),
+                  pe="<a href='/plataforma/empresa/%d/actividade'>Ver tudo</a>" % id_,
+                  id_="actividade")
+
+
 @app.route("/plataforma/empresa/<int:id_>")
 def plataforma_empresa(id_):
     """A pagina de UMA empresa, para o dono (a §7 da segunda ronda): as
@@ -24429,16 +24705,16 @@ def plataforma_empresa(id_):
     fecha_sessoes = sum(sessoes.get(u["id"], 0) for u in contas_ if not u["dono"])
     linhas_contas = "".join(
         "<tr>%s%s%s%s%s</tr>" % (
-            _celula_da_tabela("Utilizador", html.escape(u["email"])),
+            _celula_da_tabela("Utilizador", html.escape(u["email"]) + (
+                " <span class='mg-tag %s'>suspensa</span>" % tom("mau")
+                if u["suspensa"] else "")),
             _celula_da_tabela("Papel", html.escape(papel_no_ecra(u["papel"])
                                         + (" · dono" if u["dono"] else ""))),
             _celula_da_tabela("Última entrada", html.escape(
                 data_hora_pt((u["ultimo_acesso"] or "")[:16], "nunca"))),
             _celula_da_tabela("Sessões abertas", "%d" % sessoes.get(u["id"], 0), "mg-num"),
-            _celula_da_tabela("", accao("/plataforma/contas/%d/repor" % u["id"],
-                              "repor palavra-passe", "mini",
-                              rotulo="Gerar a ligação para repor a palavra-passe "
-                              "de %s" % u["email"])))
+            _celula_da_tabela("", "<div class='mg-row' style='gap:6px;flex-wrap:wrap'>%s</div>"
+                              % "".join(_gestos_do_suporte(u))))
         for u in contas_)
     bloco_contas = cartao(
         "Contas", ("<table class='mg-table tab-plataforma'><thead><tr><th>Utilizador</th>"
@@ -24523,16 +24799,19 @@ def plataforma_empresa(id_):
             "última entrada %s" % ha_quanto(e["ultima"])),
         kpi("Propostas em curso", "%d" % e["activas"]),
         kpi("Leituras do modelo hoje", "%d / %d" % (e["leituras_hoje"], e["tecto"]),
-            "tecto por dia; %d este mês" % e["leituras_mes"]),
+            "tecto por dia; %d este mês%s" % (
+                e["leituras_mes"],
+                " de %d" % e["tecto_mes"] if e["tecto_mes"] else "")),
         kpi("Alertas ligados", "%d" % len(e["alertas"]),
             "o e-mail não sai (suspensa)" if suspensa else
             "o e-mail não sai: nenhum ligado" if not e["alertas"] else
             "o e-mail sai" if not e["email"] else "o e-mail não sai"))
     corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "%s%s%s%s%s%s%s%s</div>"
+             "%s%s%s%s%s%s%s%s%s%s</div>"
              % ("<div class='mg-alert mg-alert--danger'>Suspensa: as contas não entram "
                 "e não recebe alertas.</div>" if suspensa else "",
-                stats, bloco_plano, bloco_contas, bloco_convites, bloco_alertas, bloco_perfil,
+                stats, _cartao_da_nota(id_), bloco_plano, bloco_contas, bloco_convites,
+                _cartao_da_actividade(id_), bloco_alertas, bloco_perfil,
                 _cartao_de_apagar(e, fecha_contas, len(convites),
                                   any(u["dono"] for u in contas_))))
     return envolver(
@@ -25762,7 +26041,11 @@ def config_conta():
                    # G58 da 3.ª ronda: fechava tudo, esta incluída, sem perguntar
                    "Sair de todos os aparelhos? As %d sessões desta conta "
                    "fecham-se, esta também, e volta à entrada." % len(sessoes))
-           if sessoes else ""))
+           if sessoes else "")
+        # o registo de actividade, só do gestor (2R-§7 (11))
+        + ("<p class='nota' style='margin-top:14px'><a href='/actividade'>Actividade "
+           "da empresa</a>: quem entrou, de onde, e o que mudou.</p>"
+           if da_empresa and sou_admin() else ""))
     corpo += _bloco_do_aspecto(utilizador)
     if contas.pode_ter_segundo_factor(utilizador):
         corpo += _bloco_do_segundo_factor(utilizador)
@@ -32436,6 +32719,13 @@ def ficha(ref):
             % (html.escape(data_hora_pt(e["quando"])), html.escape(e["alerta"]),
                html.escape(CANAIS_DO_ENVIO.get(e["canal"], "sem registo do canal")))
             for e in avisos)) + linhas_hist
+    # e os que não avisaram, e porquê (2R-§7 (12), 4/10/2026)
+    nao_avisou = porque_nao_avisou(ref)
+    if nao_avisou:
+        linhas_hist = ("<details class='ficha-nota'><summary>Porque é que os alertas "
+                       "não avisaram</summary><ul class='ficha-lista'>%s</ul></details>"
+                       % "".join("<li>%s</li>" % html.escape(f) for f in nao_avisou)
+                       ) + linhas_hist
     hist_cx = cartao("Histórico", linhas_hist, id_="historico")
 
     # O indice (em pilulas, como o `EcraFicha`) tem de cobrir a pagina:
@@ -32606,15 +32896,25 @@ def pode_pedir_leitura(ref, cfg=None):
         return False, ("As peças deste concurso já estão lidas, e a leitura "
                        "é a mesma para todos. Volta a ler-se sozinha se "
                        "aparecer uma peça nova.")
-    tecto = int((cfg or ler_config()).get("leituras_por_empresa_por_dia", 10))
+    cfg = cfg or ler_config()
+    tecto = int(cfg.get("leituras_por_empresa_por_dia", 10))
+    # e o tecto do mês (2R-§7 (13), 4/10/2026): o do dia deixava uma
+    # empresa gastar trinta dias de orçamento num mês cheio; 0 = sem ele
+    tecto_mes = int(cfg.get("leituras_por_empresa_por_mes") or 0)
+    agora = datetime.now()
     with liga() as c:
-        hoje = c.execute("SELECT COUNT(*) FROM leituras_pedidas WHERE "
-                         "empresa_id=? AND quando >= ?",
-                         (empresa_activa(), datetime.now().strftime("%Y-%m-%d"))
-                         ).fetchone()[0]
+        def desde(dia):
+            return c.execute("SELECT COUNT(*) FROM leituras_pedidas WHERE "
+                             "empresa_id=? AND quando >= ?",
+                             (empresa_activa(), dia)).fetchone()[0]
+        hoje = desde(agora.strftime("%Y-%m-%d"))
+        mes = desde(agora.strftime("%Y-%m-01")) if tecto_mes else 0
     if hoje >= tecto:
         return False, ("A vossa empresa já pediu %d leituras hoje, que é o "
                        "limite diário. Amanhã há mais." % hoje)
+    if tecto_mes and mes >= tecto_mes:
+        return False, ("A vossa empresa já pediu %d leituras este mês, que é o "
+                       "limite mensal. No dia 1 há mais." % mes)
     return True, ""
 
 
@@ -37896,6 +38196,38 @@ def plataforma_repor_utilizador(utilizador_id):
     return _gerar_reposicao(utilizador_id, "/plataforma")
 
 
+GESTOS_DO_SUPORTE = {"suspender": "suspensa", "reactivar": "reactivada",
+                     "tirar": "tirada"}
+
+
+@app.route("/plataforma/contas/<int:utilizador_id>/<gesto>", methods=["POST"])
+def plataforma_gesto_na_conta(utilizador_id, gesto):
+    """Suspender, reactivar ou tirar UMA conta, pelo dono (2R-§7 (8),
+    4/10/2026; a empresa inteira já se suspendia). Fica no histórico da
+    empresa da conta com `quem` = «suporte», que é como o gestor dela o
+    vê no registo de actividade. Só o dono (ROTAS_SO_DONO, por prefixo)."""
+    if gesto not in GESTOS_DO_SUPORTE:
+        abort(404)
+    with liga() as c:
+        linha = c.execute("SELECT email, empresa_id FROM utilizadores WHERE id=?",
+                          (utilizador_id,)).fetchone()
+        if not linha:
+            abort(404)
+        volta = "/plataforma/empresa/%d#contas" % linha["empresa_id"]
+        try:
+            if gesto == "tirar":
+                contas.apagar_utilizador(c, utilizador_id, quem=g.utilizador)
+            else:
+                contas.suspender_conta(c, utilizador_id, gesto == "suspender")
+        except ValueError as erro:
+            return _volta_a(volta, "Não se fez: %s." % erro, erro=True)
+    feito = "conta %s %s pelo suporte" % (linha["email"], GESTOS_DO_SUPORTE[gesto])
+    with com_empresa(linha["empresa_id"]):
+        registar("", "conta", feito, quem="suporte")
+    registar_evento("", "suporte", feito, quem=quem_sou() or "")
+    return _volta_a(volta, feito[0].upper() + feito[1:] + ".")
+
+
 @app.route("/favicon.svg")
 def favicon():
     """O olho no selo azul, como ícone do separador.
@@ -39557,6 +39889,18 @@ def main():
               "contas e o plano que saíram estão em %s." % (guardada, copia))
         for k, v in saiu.items():
             print("  %-18s %s" % (k, v))
+        return
+
+    if "--exportar-empresa" in sys.argv:
+        # 4/10/2026 (2R-§7 (15)): os dados de uma empresa num zip, para
+        # lhos entregar (RGPD). Só pela consola, que só o dono tem.
+        i = sys.argv.index("--exportar-empresa")
+        try:
+            id_ = int(sys.argv[i + 1])
+            print("A exportação está em %s" % exportar_empresa(id_))
+        except (IndexError, ValueError) as erro:
+            print(erro if isinstance(erro, ValueError) and str(erro).startswith("a empresa")
+                  else "Uso: python radar.py --exportar-empresa N")
         return
 
     if "--ensaiar-copia" in sys.argv:

@@ -94,6 +94,21 @@ def iniciar_tabelas(c):
     if "aspecto" not in cols:
         c.execute("ALTER TABLE utilizadores ADD COLUMN aspecto TEXT "
                   "NOT NULL DEFAULT 'normal'")
+    # Uma conta suspensa pelo suporte (2R-§7 (8), 4/10/2026): o dia, ou
+    # NULL. Não entra nem com a palavra-passe certa, e as sessões dela
+    # fecham-se ao suspender.
+    if "suspensa" not in cols:
+        c.execute("ALTER TABLE utilizadores ADD COLUMN suspensa TEXT")
+    # As entradas, as boas e as falhadas, para o registo de actividade
+    # (2R-§7 (11), 4/10/2026): a `entradas_falhadas` serve só o trinco e
+    # poda-se aos 15 minutos. Guardam-se DIAS_DE_ENTRADAS dias.
+    c.execute("""CREATE TABLE IF NOT EXISTS entradas (
+        quando TEXT, utilizador_id INTEGER, email TEXT, empresa_id INTEGER,
+        ip TEXT, agente TEXT, resultado TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_entradas_empresa "
+              "ON entradas(empresa_id, quando)")
+    # a poda corre a cada entrada; sem este, varria a tabela inteira
+    c.execute("CREATE INDEX IF NOT EXISTS ix_entradas_quando ON entradas(quando)")
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes (
         token TEXT PRIMARY KEY, utilizador_id INTEGER NOT NULL,
         criada_em TEXT, expira TEXT, ip TEXT, agente TEXT)""")
@@ -496,7 +511,8 @@ def utilizadores(c, empresa_id=None):
     as contas das outras (F4)."""
     onde, args = ("WHERE empresa_id=?", (empresa_id,)) if empresa_id else ("", ())
     return [dict(r) for r in c.execute(
-        "SELECT id, email, nome, papel, criado_em, ultimo_acesso, empresa_id, dono "
+        "SELECT id, email, nome, papel, criado_em, ultimo_acesso, empresa_id, dono, "
+        "suspensa "
         "FROM utilizadores %s ORDER BY id" % onde, args)]
 
 
@@ -663,7 +679,7 @@ def trincos_fechados(c, agora=None):
     return fechados
 
 
-def registar_falha(c, email, ip, agora=None):
+def registar_falha(c, email, ip, agora=None, agente="", resultado="falhou"):
     agora = agora or datetime.now()
     c.execute("INSERT INTO entradas_falhadas VALUES (?,?,?)",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), email_limpo(email),
@@ -671,6 +687,61 @@ def registar_falha(c, email, ip, agora=None):
     poda = (agora - timedelta(minutes=MINUTOS_DE_TRINCO * 4)).strftime(
         "%Y-%m-%d %H:%M:%S")
     c.execute("DELETE FROM entradas_falhadas WHERE quando < ?", (poda,))
+    # As chaves do repor («repor:<ip>») não são entradas de ninguém, e um
+    # atacante enchia o registo de 90 dias sem saber um e-mail (revisão de
+    # segurança de 4/10/2026): ficam só no trinco, que se poda à hora.
+    if not (email or "").startswith(PREFIXO_DO_REPOR):
+        registar_entrada(c, email, resultado, ip, agente, agora)
+
+
+# O registo das entradas guarda-se 90 dias (2R-§7 (11)): chega para
+# perceber um acesso estranho, e não fica um histórico de onde cada
+# pessoa esteve.
+DIAS_DE_ENTRADAS = 90
+
+
+def registar_entrada(c, email, resultado, ip="", agente="", agora=None):
+    """Uma linha no registo das entradas: «entrou» ou «falhou». A falhada
+    de um e-mail que não é conta fica sem empresa -- só o dono a vê. Poda
+    o que passou dos DIAS_DE_ENTRADAS."""
+    agora = agora or datetime.now()
+    email = email_limpo(email)
+    conta = c.execute("SELECT id, empresa_id FROM utilizadores WHERE email=?",
+                      (email,)).fetchone()
+    c.execute("INSERT INTO entradas VALUES (?,?,?,?,?,?,?)",
+              (agora.strftime("%Y-%m-%d %H:%M:%S"), conta[0] if conta else None,
+               email[:200], conta[1] if conta else None, (ip or "")[:64],
+               (agente or "")[:200], resultado))
+    c.execute("DELETE FROM entradas WHERE quando < ?",
+              ((agora - timedelta(days=DIAS_DE_ENTRADAS)).strftime("%Y-%m-%d %H:%M:%S"),))
+
+
+def suspender_conta(c, utilizador_id, suspender=True, agora=None):
+    """Suspende (ou reactiva) uma conta, pelo suporte: fecha-lhe as
+    sessões. A do dono não se suspende -- ficava a plataforma sem porta.
+    Devolve a linha da conta, ou None se não existe; ValueError no dono."""
+    linha = c.execute("SELECT id, email, empresa_id, dono FROM utilizadores "
+                      "WHERE id=?", (utilizador_id,)).fetchone()
+    if not linha:
+        return None
+    if linha["dono"]:
+        raise ValueError("a conta do dono da plataforma não se suspende")
+    agora = agora or datetime.now()
+    c.execute("UPDATE utilizadores SET suspensa=? WHERE id=?",
+              (agora.strftime("%Y-%m-%d %H:%M:%S") if suspender else None,
+               utilizador_id))
+    if suspender:
+        sair_de_todos(c, utilizador_id)
+    return dict(linha)
+
+
+RECADO_DA_SUSPENSA = ("esta conta está suspensa; fale com o gestor da sua "
+                      "empresa ou com o suporte")
+
+
+def _suspensa(c, utilizador_id):
+    return bool(c.execute("SELECT suspensa FROM utilizadores WHERE id=?",
+                          (utilizador_id,)).fetchone()[0])
 
 
 # ------------------------------------------------------------------ convites
@@ -1013,7 +1084,7 @@ def _senha_actual(c, utilizador_id, senha, ip, agora):
     if espera:
         return recado_do_trinco(espera, agora)
     if not verifica_senha(senha or "", linha["hash"]):
-        registar_falha(c, linha["email"], ip, agora)
+        registar_falha(c, linha["email"], ip, agora, resultado="falhou_senha_actual")
         return "a palavra-passe actual não está certa"
     return None
 
@@ -1137,7 +1208,7 @@ def desligar_com_codigo(c, utilizador_id, senha, codigo, ip="", agora=None):
     if not usado:
         email = c.execute("SELECT email FROM utilizadores WHERE id=?",
                           (utilizador_id,)).fetchone()[0]
-        registar_falha(c, email, ip, agora)
+        registar_falha(c, email, ip, agora, resultado="falhou_codigo_2f")
         return None, "o código não está certo"
     desligar_segundo_factor(c, utilizador_id)
     return usado, None
@@ -1203,7 +1274,9 @@ def usar_pendente(c, codigo, codigo_2f, ip="", agente="", agora=None):
         return None, recado_do_trinco(espera, agora)
     usado = verificar_codigo(c, pendente["utilizador_id"], codigo_2f, agora)
     if not usado:
-        registar_falha(c, pendente["email"], ip, agora)
+        # a palavra-passe já estava certa: é o sinal mais grave do registo
+        registar_falha(c, pendente["email"], ip, agora, agente,
+                       resultado="falhou_codigo_2f")
         if pendente["tentativas"] + 1 >= TENTATIVAS_DO_PENDENTE:
             c.execute("DELETE FROM segundo_factor WHERE resumo=?", (_resumo(codigo),))
             return None, "código errado demasiadas vezes; entre outra vez"
@@ -1211,6 +1284,8 @@ def usar_pendente(c, codigo, codigo_2f, ip="", agente="", agora=None):
                   (_resumo(codigo),))
         return None, "código errado"
     c.execute("DELETE FROM segundo_factor WHERE resumo=?", (_resumo(codigo),))
+    if _suspensa(c, pendente["utilizador_id"]):    # suspensa entretanto
+        return None, RECADO_DA_SUSPENSA
     token, utilizador = _abrir_sessao(c, pendente["utilizador_id"], ip, agente, agora)
     return token, dict(utilizador, codigo_usado=usado)
 
@@ -1263,8 +1338,13 @@ def entrar(c, email, senha, ip="", agente="", agora=None, aparelho=""):
     linha = c.execute("SELECT id, hash FROM utilizadores WHERE email=?",
                       (email,)).fetchone()
     if not linha or not verifica_senha(senha or "", linha["hash"]):
-        registar_falha(c, email, ip, agora)
+        registar_falha(c, email, ip, agora, agente)
         return None, "utilizador ou palavra-passe errados"
+    # só depois da palavra-passe certa: a quem não a sabe não se diz
+    # que a conta existe, nem que está suspensa
+    if _suspensa(c, linha["id"]):
+        registar_entrada(c, email, "suspensa", ip, agente, agora)
+        return None, RECADO_DA_SUSPENSA
     if segundo_factor_ligado(c, linha["id"]) \
             and not aparelho_de_confianca(c, linha["id"], aparelho, agora):
         return None, {"pendente": criar_pendente(c, linha["id"], agora)}
@@ -1283,6 +1363,7 @@ def _abrir_sessao(c, utilizador_id, ip, agente, agora):
                    "%Y-%m-%d %H:%M:%S"), ip or "", (agente or "")[:200]))
     c.execute("UPDATE utilizadores SET ultimo_acesso=? WHERE id=?",
               (agora.strftime("%Y-%m-%d %H:%M:%S"), linha["id"]))
+    registar_entrada(c, linha["email"], "entrou", ip, agente, agora)
     # A sessao unica do Solo (L2.1, decisao dele a 1/10/2026): a ultima
     # entrada ganha, e as outras fecham-se, ficando registadas para quem
     # as tinha saber porque. E aqui, e nao na rota do /entrar, porque o
@@ -1310,8 +1391,10 @@ def utilizador_da_sessao(c, token, agora=None):
     linha = c.execute(
         "SELECT s.expira, u.id, u.email, u.nome, u.papel, u.empresa_id, "
         "u.dono, u.aspecto, s.ver_como FROM sessoes s "
-        "JOIN utilizadores u ON u.id = s.utilizador_id WHERE s.token=?",
-        (token,)).fetchone()
+        "JOIN utilizadores u ON u.id = s.utilizador_id WHERE s.token=? "
+        # uma sessão que sobrevivesse à suspensão não vale (as sessões
+        # fecham-se ao suspender; isto é a segunda guarda)
+        "AND u.suspensa IS NULL", (token,)).fetchone()
     if not linha:
         return None
     if linha["expira"] <= agora.strftime("%Y-%m-%d %H:%M:%S"):
