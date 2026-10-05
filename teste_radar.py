@@ -16225,10 +16225,13 @@ class TestMudancasDeSetembro(BaseTemporaria):
                 self.assertEqual(r.mimetype, "text/plain")
         # e o que e dele continua a abrir
         for rota in ("/", "/calendario", "/contratos", "/configuracoes/conta",
-                     "/configuracoes/interesse", "/configuracoes/alertas",
-                     "/configuracoes/importar"):
+                     "/configuracoes/interesse", "/configuracoes/alertas"):
             with self.subTest(rota=rota):
                 self.assertEqual(tester.get(rota, environ_base=self.FORA).status_code, 200)
+        # o Importar é do gestor desde a 6.ª ronda (5/10/2026): mexe nas
+        # propostas da empresa toda
+        self.assertEqual(tester.get("/configuracoes/importar",
+                                    environ_base=self.FORA).status_code, 403)
 
     def test_o_indice_e_o_verificar_agora_seguem_o_papel(self):
         tester = self.entrar("teste")
@@ -16245,8 +16248,10 @@ class TestMudancasDeSetembro(BaseTemporaria):
         self.assertIn("href='/plataforma'", html_a)
         self.assertNotIn("href='/plataforma'", html_t)
         self.assertEqual(tester.get("/plataforma", environ_base=self.FORA).status_code, 403)
-        for seccao in ("conta", "interesse", "alertas", "importar"):
+        for seccao in ("conta", "interesse", "alertas"):
             self.assertIn("href='/configuracoes/%s'" % seccao, html_t)
+        self.assertNotIn("href='/configuracoes/importar'", html_t)
+        self.assertIn("href='/configuracoes/importar'", html_a)
         # o bloco dos utilizadores so ao admin
         self.assertIn("Criar utilizador", html_a)
         self.assertNotIn("Criar utilizador", html_t)
@@ -23217,6 +23222,22 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         r = self.post(chefe, "/alertas/criar", {"nome": "do chefe", "q": "escola"},
                       "/configuracoes/alertas")
         self.assertEqual(r.status_code, 302)
+
+    def test_sexta_ronda_so_o_gestor_importa_e_desfaz(self):
+        """6.ª ronda (5/10/2026): o utilizador abria o Importar e chegava ao
+        confirmar e ao desfazer, que mexem nas propostas da empresa toda; o
+        índice também lho mostrava."""
+        rita = self.entrar("rita")
+        r = self.ver(rita, "/configuracoes/importar")
+        self.assertEqual(r.status_code, 403)
+        for rota in ("/configuracoes/importar", "/configuracoes/importar/confirmar",
+                     "/configuracoes/importar/desfazer"):
+            r = self.post(rita, rota, {}, "/configuracoes/importar")
+            self.assertEqual(r.status_code, 403, rota)
+        h = self.ver(rita, "/configuracoes").get_data(as_text=True)
+        self.assertNotIn("/configuracoes/importar", h)
+        chefe = self.entrar("chefe")
+        self.assertEqual(self.ver(chefe, "/configuracoes/importar").status_code, 200)
 
     def test_segunda_leva_o_documento_vazio_e_o_nome_vazio_recusam_se(self):
         """5.ª ronda: um «Alvará» sem número nem validade gravava-se, e a

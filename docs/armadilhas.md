@@ -3276,7 +3276,11 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   compara por igualdade ou por prefixo com barra, para os `POST` de
   uma secção entrarem com o `GET` dela. Uma rota nova do sistema entra
   nessa lista — esconder a ligação no índice (`seccoes_visiveis()`)
-  não é guarda nenhuma, é só o índice. E o `sou_admin()` responde
+  não é guarda nenhuma, é só o índice. **E uma secção da empresa que
+  mexe no que é de todos também** (6.ª ronda, 5/10/2026): o Importar
+  ficou de fora quando os alertas e os documentos entraram, e o
+  utilizador importava e desfazia as propostas da empresa inteira; o
+  índice mostrava-lho, porque lê a mesma lista. E o `sou_admin()` responde
   **sim** no acesso livre local sem conta: é o computador do Afonso
   antes de haver contas, e sem isto nem se chegava à Conta para as
   criar. **Com mais do que uma conta, o acesso livre é o primeiro

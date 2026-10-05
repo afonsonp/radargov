@@ -1985,7 +1985,7 @@ mesma rota sem sair da página (§4.3).
 | Exportar os dados de uma empresa (RGPD) | consola, `--exportar-empresa N` (dono) |
 | Entrar e sair do «ver como a empresa, só leitura» | página da empresa, faixa (dono) |
 | Gravar o correio da plataforma · mandar um e-mail de teste | `/plataforma` › Correio (dono) |
-| Importar o modelo · desfazer uma importação | Configurações › Importar |
+| Importar o modelo · desfazer uma importação | Configurações › Importar (gestor) |
 | Fechar as tarefas de uma proposta fechada | ficha |
 
 ---

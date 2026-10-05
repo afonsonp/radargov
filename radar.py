@@ -14894,6 +14894,9 @@ ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
 ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
                   "/configuracoes/conta/empresa", "/arranque",
                   "/configuracoes/documentos",
+                  # importar e desfazer mexem nas propostas da empresa
+                  # toda (6.ª ronda, 5/10/2026: o utilizador fazia-o)
+                  "/configuracoes/importar",
                   "/alertas/interesse", "/configuracoes/propostas",
                   # Os alertas e a janela do urgente são da empresa, como o
                   # perfil (decisão dele, 4/10/2026: «só o gestor»); a
