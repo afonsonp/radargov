@@ -124,7 +124,8 @@ as exactas e salta as outras.
 | `convites` | **0** | Os convites de quem teve o pedido de acesso aceite (F5): o resumo do código, a empresa, o prazo, se já se usou e se foi anulado (`anulado_em`, 26/09/2026) |
 | `reposicoes` | **4** | As ligações para repor a palavra-passe (D17, 26/09/2026): o resumo do código, a conta, quem a gerou, o prazo e se já se usou (§4.9) |
 | `segundo_factor` | dez por conta que o liga, mais os pendentes e os aparelhos | O segundo factor (28/09/2026): o pedido de entrada à espera do código, os aparelhos de confiança e os códigos de recuperação, pelo `tipo`, todos só em resumo (§4.9). A chave da app está no `utilizadores` (`totp_segredo`) |
-| `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) de 30/09 a 4/10/2026, quando o formulário passou a pedir o `telefone` em vez deles |
+| `pedidos_acesso` | **6** | Os pedidos do formulário do site público (§4.9), desde a `v1.12.0`; `estado` aceite ou recusado, com `motivo` e `decidido_em` desde 26/09/2026; o `nif` da empresa e o `plano` que interessa (`PLANOS_DO_PEDIDO`) de 30/09 a 4/10/2026, quando o formulário passou a pedir o `telefone` em vez deles; `estado` também «espera» (a lista de espera, LANC-F); a `vista`, a visita ao site de onde veio (4/10/2026) |
+| `visitas` | as dos últimos 13 meses | As visitas ao site público (ANL, 4/10/2026): a página, o dia, o domínio de onde veio, os UTM, o aparelho, o `visitante` (um resumo com o sal do dia, nunca o IP), o tempo, o scroll e os eventos (§4.9) |
 | `sugestoes` | as que quem usa envia | O que cada conta tem a dizer (4/10/2026, §4.8): o tipo, o texto, a página de onde partiu, a `captura` (a extensão da imagem, em `sugestoes/<id>.<ext>`), e o `estado` que o dono lhe dá |
 | `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
 | `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
@@ -895,7 +896,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**149 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**151 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1498,7 +1499,25 @@ Abertos, por igualdade, também o **`/robots.txt`**, o **`/sitemap.xml`**
 (as páginas públicas, `paginas_publicas()`, com o `<lastmod>` da data do
 ficheiro; as legais só quando existem), a **`/partilha.png`** (a imagem
 do Open Graph, `site/partilha.png`) e o **`/llms.txt`** (o resumo do
-site para os agentes de IA, `site/llms.txt`; 29/09/2026). Desde esse
+site para os agentes de IA, `site/llms.txt`; 29/09/2026). E o **`/visita`**
+(4/10/2026), o beacon da medição das visitas: POST aberto, com a guarda
+dentro — a origem, o corpo até 2 KB, um `id` de 16 hexadecimais de uma
+visita das últimas seis horas, os números cortados — e responde 204
+sempre que não é abuso. **A medição das visitas** (ANL, decisão dele a
+4/10/2026: sem cookies, sem terceiros, sem guardar o IP): cada página do
+site servida a quem não tem sessão grava uma linha em `visitas`
+(`registar_visita()`, chamada pelo `_do_site()`) — a página, o domínio
+de onde veio, os UTM, telemóvel ou computador, e o `visitante`, um HMAC
+do IP e do navegador com um sal do dia que só vive em memória
+(`_SAL_DAS_VISITAS`). Não contam os robôs (`RX_ROBO`), quem tem sessão
+nem o próprio PC. O beacon (`BEACON_DA_VISITA`) junta o tempo com a
+página à vista, o scroll e quatro eventos (`EVENTOS_DA_VISITA`); o
+pedido de acesso leva o `id` da visita (`pedidos_acesso.vista`) e marca
+o «enviado». Guardam-se 13 meses (`DIAS_DAS_VISITAS`, podados ao virar o
+sal). O dono vê tudo em **`/plataforma/visitas`**, com o período do
+`/situacao`: visitas, visitantes (únicos por dia, somados), a mediana do
+tempo, o scroll médio, o que fizeram, de onde vieram, as campanhas, os
+pedidos por origem e as páginas. Desde esse
 dia o robots é uma **lista branca**: abre as páginas do mapa, o que elas
 pedem para se desenharem e o `/entrar` (`ABERTOS_AO_ROBOT`), e fecha o
 resto — o `/entrar` abre-se para o motor ler o `noindex` que leva. Cada

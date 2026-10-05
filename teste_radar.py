@@ -14575,10 +14575,14 @@ class TestContas(BaseTemporaria):
                        # E o «esqueci-me» por e-mail (1/10/2026): quem o
                        # usa não consegue entrar, e a guarda é a origem,
                        # o tecto e a resposta igual (TestPesquisaGeralERepor)
+                       # E o beacon das visitas (4/10/2026): quem visita o
+                       # site não tem conta; a guarda é a origem, o tamanho
+                       # e o id da visita (TestAsVisitasAoSite)
                        and r.rule not in ("/entrar", "/pedir-acesso",
                                           "/convite/<codigo>",
                                           "/repor/<codigo>",
-                                          "/entrar/codigo", "/esqueci-me"))
+                                          "/entrar/codigo", "/esqueci-me",
+                                          "/visita"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -27063,7 +27067,8 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
             self.assertNotIn(frase, site)
         formulario = site.split('id="form-acesso"', 1)[1].split("</form>", 1)[0]
         self.assertEqual(
-            [n for n in re.findall(r'name="(\w+)"', formulario) if n not in ("website", "plano")],
+            [n for n in re.findall(r'name="(\w+)"', formulario)
+             if n not in ("website", "plano", "vista")],
             ["nome", "empresa", "email", "telefone", "sector", "mensagem"])
         # os obrigatórios continuam cinco: «o que vende, e onde» é
         # opcional (LANC-F, 4/10/2026)
@@ -29133,6 +29138,138 @@ class TestORestoDaPaginaDoDono(_PlataformaComDuasEmpresas):
                                    {"nota": "x"}).status_code, 403)
         for pagina in ("/", "/configuracoes/conta", "/actividade"):
             self.assertNotIn("Liga às", self.ver(chefe, pagina).get_data(as_text=True))
+
+
+class TestAsVisitasAoSite(BaseTemporaria):
+    """ANL, o site (pedido dele a 4/10/2026): de onde vêm as visitas, o que
+    vêem, quanto ficam e o que fazem -- sem cookies, sem terceiros e sem
+    guardar o IP. O IP só entra num resumo com um sal do dia que vive em
+    memória; os robôs, quem tem sessão e o próprio PC não contam."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    NAVEGADOR = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)"}
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "_avisar_do_pedido", lambda id_, p: None))
+        radar._SAL_DAS_VISITAS.clear()
+        self.cliente = radar.app.test_client()
+
+    def ver(self, caminho="/", ambiente=None, **cabecalhos):
+        return self.cliente.get(caminho, environ_base=ambiente or self.FORA,
+                                headers=dict(self.NAVEGADOR, **cabecalhos))
+
+    def visitas(self):
+        with radar.liga() as c:
+            return [dict(r) for r in c.execute("SELECT * FROM visitas ORDER BY quando")]
+
+    def beacon(self, dados, **cabecalhos):
+        return self.cliente.post("/visita", data=json.dumps(dados),
+                                 content_type="text/plain;charset=UTF-8",
+                                 environ_base=self.FORA, headers=cabecalhos)
+
+    def test_uma_visita_guarda_de_onde_veio_e_nao_o_ip(self):
+        r = self.ver("/?utm_source=linkedin&utm_medium=social&utm_campaign=lancamento",
+                     Referer="https://www.linkedin.com/feed/update/123")
+        corpo = r.get_data(as_text=True)
+        (v,) = self.visitas()
+        self.assertEqual((v["caminho"], v["origem"], v["utm_fonte"], v["utm_meio"],
+                          v["utm_campanha"], v["aparelho"]),
+                         ("/", "linkedin.com", "linkedin", "social", "lancamento", "iPhone"))
+        self.assertRegex(v["visitante"], r"^[0-9a-f]{16}$")
+        self.assertNotIn("203.0.113.7", json.dumps(v))
+        # o beacon vai na página, com o número desta visita
+        self.assertIn("sendBeacon", corpo)
+        self.assertIn(v["id"], corpo)
+
+    def test_o_mesmo_visitante_no_mesmo_dia_e_outro_no_dia_seguinte(self):
+        self.ver()
+        self.ver("/acessibilidade")
+        a, b = self.visitas()
+        self.assertEqual(a["visitante"], b["visitante"])
+        radar._SAL_DAS_VISITAS["dia"] = "2000-01-01"     # o sal de outro dia
+        self.ver()
+        self.assertNotEqual(self.visitas()[-1]["visitante"], a["visitante"])
+
+    def test_robos_o_proprio_pc_e_quem_tem_sessao_nao_contam(self):
+        r = self.ver(**{"User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)"})
+        self.assertEqual(r.status_code, 200)
+        self.assertNotIn("sendBeacon", r.get_data(as_text=True))
+        self.ver(ambiente={"REMOTE_ADDR": "127.0.0.1"})
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "admin", "senha-comprida", pela_consola=True)
+        self.cliente.post("/entrar", data={"email": "admin", "senha": "senha-comprida"},
+                          environ_base=self.FORA)
+        self.ver("/acessibilidade")
+        self.assertEqual(self.visitas(), [])
+
+    def test_o_beacon_junta_o_tempo_o_scroll_e_os_eventos(self):
+        self.ver()
+        vid = self.visitas()[0]["id"]
+        self.assertEqual(self.beacon({"v": vid, "s": 42, "p": 80,
+                                      "e": ["clique", "form", "inventado"]}).status_code, 204)
+        self.beacon({"v": vid, "s": 10, "p": 30, "e": ["precos"]})
+        v = self.visitas()[0]
+        self.assertEqual((v["segundos"], v["scroll"], v["com_js"]), (42, 80, 1))
+        self.assertEqual(v["eventos"], "|clique|form|precos|")
+        # de outro sítio, grande de mais, ou de uma visita que não existe
+        self.assertEqual(self.beacon({"v": vid, "s": 999}, Origin="https://mau.example")
+                         .status_code, 403)
+        self.assertEqual(self.beacon({"v": vid, "x": "a" * 3000}).status_code, 413)
+        self.assertEqual(self.beacon({"v": "0" * 16, "s": 5}).status_code, 204)
+        self.assertEqual(self.visitas()[0]["segundos"], 42)
+
+    def test_o_pedido_fica_ligado_a_visita(self):
+        self.ver("/?utm_campaign=lancamento")
+        vid = self.visitas()[0]["id"]
+        r = self.cliente.post("/pedir-acesso", data=dict(TestSitePublico.BOM, vista=vid),
+                              environ_base=self.FORA, headers={"Accept": "application/json"})
+        self.assertTrue(r.get_json()["ok"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT vista FROM pedidos_acesso").fetchone()[0], vid)
+        self.assertIn("|enviado|", self.visitas()[0]["eventos"])
+
+    def test_guardam_se_treze_meses(self):
+        velho = (datetime.date.today() - datetime.timedelta(days=400)).isoformat()
+        with radar.liga() as c:
+            c.execute("INSERT INTO visitas (id, quando, dia, caminho) VALUES "
+                      "('aaaaaaaaaaaaaaaa', ?, ?, '/')", (velho + " 10:00:00", velho))
+        self.ver()
+        self.assertEqual([v["caminho"] for v in self.visitas()], ["/"])
+        self.assertNotIn("aaaaaaaaaaaaaaaa", [v["id"] for v in self.visitas()])
+
+    def test_a_privacidade_diz_o_que_se_mede(self):
+        with open(os.path.join(os.path.dirname(radar.SITE), "privacidade.html"),
+                  encoding="utf-8") as f:
+            texto = f.read()
+        for frase in ("Medição das visitas", "não guardamos o endereço IP", "13 meses"):
+            self.assertIn(frase, texto)
+
+
+class TestOPainelDasVisitas(_PlataformaComDuasEmpresas):
+    """O painel das visitas é do dono, com o período do /situacao."""
+
+    def test_o_dono_ve_de_onde_vem_e_o_funil(self):
+        hoje = datetime.date.today().isoformat()
+        with radar.liga() as c:
+            for i, (origem, campanha, eventos, segundos) in enumerate((
+                    ("linkedin.com", "lancamento", "|clique|form|enviado|", 90),
+                    ("linkedin.com", "lancamento", "|clique|", 30),
+                    ("google.com", "", "", 10))):
+                c.execute("INSERT INTO visitas (id, quando, dia, caminho, origem, "
+                          "utm_campanha, visitante, eventos, segundos, scroll, com_js) "
+                          "VALUES (?, ?, ?, '/', ?, ?, ?, ?, ?, 50, 1)",
+                          ("%016x" % i, hoje + " 10:00:00", hoje, origem, campanha,
+                           "v%d" % (i % 2), eventos, segundos))
+        corpo = self.ver(self.entrar("dono"), "/plataforma/visitas?periodo=mes"
+                         ).get_data(as_text=True)
+        for frase in ("linkedin.com", "google.com", "lancamento",
+                      "Clicaram em «Pedir acesso»", "Enviaram o pedido"):
+            self.assertIn(frase, corpo)
+        self.assertIn("/plataforma/visitas", self.ver(self.entrar("dono"), "/plataforma")
+                      .get_data(as_text=True))
+        self.assertEqual(self.ver(self.entrar("chefe"), "/plataforma/visitas").status_code, 403)
 
 
 if __name__ == "__main__":
