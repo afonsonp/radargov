@@ -1501,11 +1501,15 @@ Abertos, por igualdade, também o **`/robots.txt`**, o **`/sitemap.xml`**
 ficheiro; as legais só quando existem), a **`/partilha.png`** (a imagem
 do Open Graph, `site/partilha.png`) e o **`/llms.txt`** (o resumo do
 site para os agentes de IA, `site/llms.txt`; 29/09/2026). A **visita
-guiada** (5/10/2026): o **`/demo`** (`site/demo.html`, as legendas, no
-mapa do site) mostra oito ecrãs da aplicação em iframes, cada um um
-**`/demo/<n>`** (`site/demo/<n>.html`), com uma empresa inventada, sem
-scripts nem envios — gerados pelo `ferramentas/demo.py` numa base
-temporária; nada vem das bases verdadeiras. A abertura do site liga-lhe
+guiada** (5/10/2026): o **`/demo`** (`site/demo.html`, no mapa do site)
+é a aplicação em ecrã inteiro, com uma empresa inventada, e um balão que
+leva a pessoa por onze passos — do Hoje aos Concursos, à ficha com a
+leitura das peças, ao «Interessa», às Propostas, ao Calendário, ao Mercado,
+à entidade e à Situação: carregar no destacado avança, e o resto não
+responde. Os ecrãs são os verdadeiros, um **`/demo/<n>`** cada
+(`site/demo/<n>.html`), sem scripts, formulários nem campos escondidos,
+gerados pelo `ferramentas/demo.py` numa base temporária pela ordem do
+percurso; nada vem das bases verdadeiras, e o `actualizar.sh` refá-los. A abertura do site liga-lhe
 pelo «Ver por dentro». E o **`/visita`**
 (4/10/2026), o beacon da medição das visitas: POST aberto, com a guarda
 dentro — a origem, o corpo até 2 KB, um `id` de 16 hexadecimais de uma

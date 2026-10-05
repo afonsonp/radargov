@@ -14084,7 +14084,11 @@ class TestAVisitaGuiada(BaseTemporaria):
         r = self.get("/demo")
         self.assertEqual(r.status_code, 200)
         corpo = r.get_data(as_text=True)
-        for n in re.findall(r'src="/demo/(\d+)"', corpo):
+        # os ecrãs que a visita cita (o iframe e cada passo) existem todos
+        ecras = set(re.findall(r'src="/demo/(\d+)"', corpo)
+                    + re.findall(r"ecra: (\d+)", corpo))
+        self.assertEqual(len(ecras), len(os.listdir(self.PASTA)))
+        for n in ecras:
             e = self.get("/demo/" + n)
             self.assertEqual(e.status_code, 200, n)
             self.assertIn(radar.FOLHA_CSS, e.get_data(as_text=True))
@@ -14098,8 +14102,10 @@ class TestAVisitaGuiada(BaseTemporaria):
             with open(os.path.join(self.PASTA, nome), encoding="utf-8") as f:
                 texto = f.read()
             self.assertNotIn("<script", texto.lower(), nome)
-            self.assertEqual(len(re.findall(r"<form\b", texto, re.I)),
-                             len(re.findall(r"<form inert", texto, re.I)), nome)
+            # nada se envia (o <form> passa a <div>, para o clique da
+            # visita chegar ao alvo) e nada da sessão inventada fica
+            self.assertNotIn("<form", texto.lower(), nome)
+            self.assertNotIn("type='hidden'", texto, nome)
             self.assertIn('content="noindex"', texto, nome)
 
 
