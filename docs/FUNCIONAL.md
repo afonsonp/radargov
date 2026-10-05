@@ -1,6 +1,6 @@
 # Documento funcional — Mira Gov
 
-> **Última revisão: 4 de outubro de 2026**, sobre a `v2.0.54`. Este
+> **Última revisão: 5 de outubro de 2026**, sobre a `v2.0.56`. Este
 > ficheiro **não é instantâneo**: descreve a aplicação como ela é, e
 > corrige-se quando o comportamento muda. Os números são medidos, não
 > estimados — a data em cima diz de quando.
