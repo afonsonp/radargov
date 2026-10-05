@@ -29272,6 +29272,67 @@ class TestOPainelDasVisitas(_PlataformaComDuasEmpresas):
         self.assertEqual(self.ver(self.entrar("chefe"), "/plataforma/visitas").status_code, 403)
 
 
+class TestOUsoDaAplicacao(_PlataformaComDuasEmpresas):
+    """ANL, a aplicação (desenho aceite por ele a 4/10/2026): o que cada
+    conta abre e os percursos começados e não acabados, para o dono ajudar
+    por e-mail. Só o dono vê; o dono e o modo de suporte não contam; 13
+    meses; e a política de privacidade di-lo."""
+
+    def usos(self, email):
+        with radar.liga() as c:
+            return [tuple(r) for r in c.execute(
+                "SELECT u.rota, u.metodo FROM uso u JOIN utilizadores c "
+                "ON c.id = u.utilizador_id WHERE c.email=? ORDER BY u.quando", (email,))]
+
+    def test_regista_o_que_a_conta_abre_e_nao_o_dono(self):
+        chefe = self.entrar("chefe")
+        self.ver(chefe, "/configuracoes/interesse")
+        self.assertIn(("/configuracoes/interesse", "GET"), self.usos("chefe"))
+        # os ficheiros que a página pede não são uso
+        self.assertFalse([r for r, _ in self.usos("chefe") if r.startswith(("/estilo", "/tipo"))])
+        dono = self.entrar("dono")
+        self.ver(dono, "/plataforma")
+        self.post(dono, "/plataforma/empresa/1/ver-como", pagina="/plataforma/empresa/1")
+        self.ver(dono, "/concursos")
+        self.assertEqual(self.usos("dono"), [])
+
+    def test_o_dono_ve_os_percursos_por_acabar(self):
+        chefe = self.entrar("chefe")
+        for _ in range(2):
+            self.ver(chefe, "/configuracoes/interesse")
+        self.ver(chefe, "/configuracoes/alertas")
+        # o alerta criou-se: esse percurso acabou
+        with radar.liga() as c:
+            c.execute("INSERT INTO uso (quando, dia, utilizador_id, empresa_id, rota, metodo) "
+                      "VALUES (datetime('now', 'localtime', '+1 minute'), date('now'), ?, 1, "
+                      "'/alertas/criar', 'POST')", (self.ids["chefe"],))
+        corpo = self.ver(self.entrar("dono"), "/plataforma/empresa/1").get_data(as_text=True)
+        self.assertIn("Uso da aplicação", corpo)
+        bloco = corpo.split("Uso da aplicação", 1)[1]
+        self.assertIn("O perfil da empresa", bloco)
+        self.assertIn("2 vezes", bloco)
+        self.assertNotIn("Criar um alerta", bloco)
+        # o gestor não vê o uso de ninguém
+        self.assertNotIn("Uso da aplicação", self.ver(chefe, "/configuracoes/conta")
+                         .get_data(as_text=True))
+
+    def test_guardam_se_treze_meses(self):
+        velho = (datetime.date.today() - datetime.timedelta(days=400)).isoformat()
+        with radar.liga() as c:
+            c.execute("INSERT INTO uso (quando, dia, utilizador_id, empresa_id, rota, metodo) "
+                      "VALUES (?, ?, 1, 1, '/velho', 'GET')", (velho + " 10:00:00", velho))
+        radar._PODA_DO_USO.clear()
+        self.ver(self.entrar("chefe"), "/concursos")
+        with radar.liga() as c:
+            self.assertIsNone(c.execute("SELECT 1 FROM uso WHERE rota='/velho'").fetchone())
+
+    def test_a_privacidade_diz_que_se_regista_o_uso(self):
+        with open(os.path.join(os.path.dirname(radar.SITE), "privacidade.html"),
+                  encoding="utf-8") as f:
+            texto = f.read()
+        self.assertIn("Uso da aplicação", texto)
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
