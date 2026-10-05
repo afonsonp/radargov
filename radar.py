@@ -21038,15 +21038,21 @@ def _lista_de_anuncios():
         # Sem filtro nenhum, mas com o interesse a tapar: dizer "o que
         # entrou esta triado" com 1290 anuncios escondidos era uma
         # afirmacao falsa por cima da faixa que diz o contrario.
+        # Em «Por ver», os do perfil que já fecharam estão em «Todos»:
+        # uma empresa acabada de chegar via 0 e achava que estava
+        # avariado (6.ª ronda, 5/10/2026)
+        fechados = (" Os do perfil que já fecharam estão em "
+                    "<a href='%s?estado='>Todos</a>." % LISTA
+                    if estado_actual == ENTRADA_DA_ESCADA[0] else "")
         corpo_lista = ("<div class='mg-empty'>Nada aqui <b>dentro do "
                        "perfil da empresa</b> &mdash; há %s de fora dele. "
                        "<a href='%s'>ver tudo</a> ou "
-                       "<a href='/configuracoes/interesse'>mudar o perfil</a>."
+                       "<a href='/configuracoes/interesse'>mudar o perfil</a>.%s"
                        "</div>"
                        % (mil(escondidos_interesse),
                           html.escape(sem_pagina(request.args, rota,
                                                  interesse="nao"),
-                                      quote=True)))
+                                      quote=True), fechados))
     elif (estado_actual == ENTRADA_DA_ESCADA[0]
           and filtro_em_uso == "estado=" + ENTRADA_DA_ESCADA[0]):
         # O vazio proprio da entrada sem filtro: nada por decidir e
@@ -39784,13 +39790,23 @@ def inicio():
                     html.escape(base_sem("quem", "dia") or "/", quote=True)))
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
+        # Nem um botão «ver os 0 por decidir», que levava a uma lista
+        # vazia: com nada aberto no perfil diz-se isso (6.ª ronda, 5/10/2026)
+        if por_ver:
+            seguir = ("<a class='mg-btn mg-btn--primary' href='%s'>ver os %s "
+                      "por decidir</a> " % (LISTA + "?estado=porver", mil_pt(por_ver)))
+        else:
+            seguir = ("Hoje não há concursos abertos dentro do perfil da "
+                      "empresa. <a class='mg-btn mg-btn--primary' href='%s'>"
+                      "Ver os que já fecharam</a> "
+                      "<a href='/configuracoes/interesse'>rever o perfil</a> · "
+                      % (LISTA + "?estado="))
         fazer = ("<div class='mg-empty'>Nada por fazer ainda. As tarefas nascem "
                  "sozinhas quando um concurso ganha proposta — os prazos "
                  "de esclarecimentos e de entrega vêm do anúncio.<br><br>"
-                 "<a class='mg-btn mg-btn--primary' href='%s'>ver os %s por decidir</a> "
+                 + seguir +
                  "<a href='/proposta/nova'>ou crie uma proposta sem "
-                 "anúncio</a></div>"
-                 % (LISTA + "?estado=porver", mil_pt(por_ver)))
+                 "anúncio</a></div>")
 
     sem_feitas = base_sem("feitas")
     alvo_esconder = sem_feitas if esconder else (

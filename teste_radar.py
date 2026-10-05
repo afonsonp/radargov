@@ -12625,7 +12625,20 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         um «0» não diz nada. Diz de onde nascem as tarefas e tem saída."""
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertIn("Nada por fazer", corpo)
-        self.assertIn(radar.LISTA + "?estado=porver", corpo)
+        # sem nada aberto, o botão «ver os 0 por decidir» levava a uma
+        # lista vazia (6.ª ronda, 5/10/2026): diz-se e manda-se a «Todos»
+        self.assertNotIn("ver os 0 por decidir", corpo)
+        self.assertIn("Hoje não há concursos abertos dentro do perfil", corpo)
+        self.assertIn(radar.LISTA + "?estado='>Ver os que já fecharam", corpo)
+        # com um aberto por decidir, o botão volta
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo) VALUES ('61/2026','Software','CML',"
+                      "'novo',?,?)", (datetime.date.today().isoformat(),
+                                     (datetime.date.today()
+                                      + datetime.timedelta(days=20)).isoformat()))
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("ver os 1 por decidir", corpo)
 
     def test_a_mensagem_da_verificacao_nao_leva_entidades_html(self):
         """A `ultima_mensagem` é uma marca na base, e quem a mostra
