@@ -29,4 +29,9 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo " Portão da release ligado (corre ao empurrar uma tag vX.Y.Z)."
 fi
 
+# Os ecrãs da visita guiada (/demo): o actualizar.sh refá-los a cada
+# release; aqui fazem-se a primeira vez
+"$PY" ferramentas/demo.py >/dev/null 2>&1 \
+  || echo " Aviso: não consegui gerar os ecrãs da visita guiada (/demo)."
+
 "$PY" -c "import flask, requests, pypdf, pymupdf, cryptography, openpyxl; print('   Está tudo. Corre agora o iniciar.sh.')"

@@ -105,3 +105,6 @@ ecrans-radargov.html
 # contradiziam o código três dias depois de gerados. **Geram-se quando
 # se precisa, não se guardam**; estão no histórico do git.
 docs/*.html
+
+# os ecrãs da visita guiada (/demo): gera-os o actualizar.sh
+site/demo/

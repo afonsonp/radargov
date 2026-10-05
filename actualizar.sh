@@ -85,6 +85,13 @@ else
   FINAL=" Pronto. A pasta está agora na release $ULTIMA."
 fi
 
+# Os ecrãs da visita guiada (/demo, 5/10/2026): gerados aqui, sempre,
+# para mostrarem o código que está instalado. Uma base temporária com uma
+# empresa inventada; uma falha avisa e não trava nada.
+source ./_python.sh
+"$PY" ferramentas/demo.py >/dev/null 2>&1 \
+  || echo " Aviso: não consegui gerar os ecrãs da visita guiada (/demo)."
+
 # O painel le o radar.py ao arrancar e mais nunca: reinicia-se SEMPRE,
 # tambem quando nao houve nada a trazer. Nesta pasta e o caso normal --
 # programa-se aqui, por isso nunca ha nada a trazer, e sem isto o

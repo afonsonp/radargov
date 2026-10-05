@@ -9,10 +9,11 @@ o tira -- mas sobre uma base TEMPORÁRIA, com uma empresa inventada
 nem uma proposta, nem um contrato. Os scripts saem, os formulários e as
 ligações ficam mortos. As legendas estão no `site/demo.html`.
 
-    python ferramentas/demo.py
+    python ferramentas/demo.py [PASTA]
 
-Corre-se de novo quando um ecrã mudar; os ficheiros gerados vão para o
-git, porque são o que o `/demo` serve.
+Não vão para o git: o `actualizar.sh` (e o `instalar.sh`) gera-os de
+cada vez, e assim a visita mostra sempre os ecrãs do código instalado.
+A PASTA é para os testes; por omissão é `site/demo/`.
 """
 import os
 import re
@@ -235,8 +236,7 @@ def ecra(caminho):
     return texto.replace("<head>", '<head><meta name="robots" content="noindex">', 1)
 
 
-def gerar():
-    pasta = os.path.join(RAIZ, "site", "demo")
+def gerar(pasta=os.path.join(RAIZ, "site", "demo")):
     os.makedirs(pasta, exist_ok=True)
     for n, caminho in enumerate(ECRAS, 1):
         with open(os.path.join(pasta, "%d.html" % n), "w", encoding="utf-8") as f:
@@ -245,4 +245,4 @@ def gerar():
 
 
 if __name__ == "__main__":
-    gerar()
+    gerar(*sys.argv[1:2])
