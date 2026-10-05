@@ -27089,6 +27089,8 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         self.assertIn('href="#fundador"', planos)
         self.assertIn('id="fundador"', site)
         self.assertNotIn("plano-selo", site)
+        # decisão dele, no mesmo dia: o site não diz porque é que não abrem
+        self.assertNotIn("métodos de pagamento", site)
         self.assertNotIn("data-plano", planos)
         self.assertIn('data-plano="fundador"', site)
 
