@@ -778,11 +778,18 @@ form .btn{justify-self:start}
           <select id="sector" name="sector" required>
             <option value="">Escolher a área</option>
             <option>Obras públicas e construção</option>
+            <option>Engenharia e projetos</option>
             <option>Fornecimento de bens</option>
             <option>Prestação de serviços</option>
-            <option>Tecnologias de informação</option>
+            <option>Software e informática</option>
             <option>Outro</option>
           </select>
+        </div>
+        <!-- opcional (LANC-F, 4/10/2026): é daqui que o perfil da empresa
+             nova se pré-preenche; os obrigatórios continuam cinco -->
+        <div class="campo">
+          <label for="mensagem">O que vende, e onde (opcional)</label>
+          <textarea id="mensagem" name="mensagem" maxlength="500" placeholder="Ex.: manutenção de elevadores, no Porto e em Braga"></textarea>
         </div>
         <input type="hidden" name="plano" id="plano" value="">
         <div class="armadilha" aria-hidden="true"><label for="website">Não preencher</label><input id="website" name="website" type="text" tabindex="-1" autocomplete="off"></div>

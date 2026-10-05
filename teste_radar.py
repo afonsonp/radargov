@@ -14010,24 +14010,29 @@ class TestSitePublico(BaseTemporaria):
         self.assertEqual(len(p["nome"]), 120)
         self.assertEqual(len(p["mensagem"]), 2000)
 
+    def outro_email(self, i):
+        """Um e-mail por pedido: o tecto por e-mail (3 por dia, LANC-F)
+        batia antes do por IP que estes testes medem."""
+        return dict(self.BOM, email="a%d@obras.pt" % i)
+
     def test_tecto_por_ip_por_hora(self):
-        for _ in range(radar.PEDIDOS_POR_IP_POR_HORA):
-            self.assertEqual(self.pedir().status_code, 200)
-        self.assertEqual(self.pedir().status_code, 429)
+        for i in range(radar.PEDIDOS_POR_IP_POR_HORA):
+            self.assertEqual(self.pedir(self.outro_email(i)).status_code, 200)
+        self.assertEqual(self.pedir(self.outro_email(98)).status_code, 429)
         # outro IP ainda entra
         outro = {"REMOTE_ADDR": "198.51.100.9"}
-        self.assertEqual(self.pedir(ambiente=outro).status_code, 200)
+        self.assertEqual(self.pedir(self.outro_email(99), ambiente=outro).status_code, 200)
 
     def test_o_tecto_conta_pelo_ip_da_cloudflare(self):
         """O X-Forwarded-For pode vir feito pelo visitante; o IP que a
         Cloudflare escreve em Cf-Connecting-Ip nao. Variar o primeiro a
         cada pedido nao pode furar o tecto."""
         for i in range(radar.PEDIDOS_POR_IP_POR_HORA):
-            self.assertEqual(self.pedir(**{
+            self.assertEqual(self.pedir(self.outro_email(i), **{
                 "Cf-Connecting-Ip": "192.0.2.1",
                 "X-Forwarded-For": "10.0.0.%d" % i}).status_code, 200)
-        r = self.pedir(**{"Cf-Connecting-Ip": "192.0.2.1",
-                          "X-Forwarded-For": "10.0.0.99"})
+        r = self.pedir(self.outro_email(99), **{"Cf-Connecting-Ip": "192.0.2.1",
+                                                "X-Forwarded-For": "10.0.0.99"})
         self.assertEqual(r.status_code, 429)
 
     def test_o_aviso_guarda_o_que_o_email_respondeu(self):
@@ -27059,7 +27064,10 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         formulario = site.split('id="form-acesso"', 1)[1].split("</form>", 1)[0]
         self.assertEqual(
             [n for n in re.findall(r'name="(\w+)"', formulario) if n not in ("website", "plano")],
-            ["nome", "empresa", "email", "telefone", "sector"])
+            ["nome", "empresa", "email", "telefone", "sector", "mensagem"])
+        # os obrigatórios continuam cinco: «o que vende, e onde» é
+        # opcional (LANC-F, 4/10/2026)
+        self.assertNotIn("required", re.search(r"<textarea[^>]*>", formulario).group(0))
 
     def test_os_termos_publicados_sao_os_dos_planos(self):
         pasta = os.path.dirname(radar.SITE)
@@ -28812,6 +28820,143 @@ class TestOPrecoEstimadoNaoEOPrecoBase(BaseTemporaria):
                                  "WHERE ref='9/2026'").fetchone()[0]
         self.assertIn("preco_estimado", colunas)
         self.assertEqual(estimado, "13.000.000,00 EUR")
+
+
+class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
+    """LANC-F (o ensaio do lançamento, 30/09/2026; o desenho aceite por
+    ele a 4/10/2026): o formulário não dizia o que a empresa vende nem
+    onde, três engenharias escolheram «Tecnologias de informação», os
+    repetidos só se viam pelo e-mail, o convite não levava nota (52
+    precisaram de um segundo e-mail), as regiões não davam distritos,
+    recusar não avisava, não havia lista de espera, e o tecto de 200 por
+    dia era um só para o site inteiro."""
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "_avisar_do_pedido", lambda id_, p: None))
+        self.mandados = []
+        self.enterContext(unittest.mock.patch.object(
+            radar, "enviar_email",
+            lambda assunto, texto, cfg=None, em_html=None, **k: self.mandados.append(
+                (cfg["email"]["para"], assunto, texto, em_html or "")) or (True, "ok")))
+
+    def pedir(self, **mudar):
+        dados = dict(TestSitePublico.BOM, **mudar)
+        return radar.app.test_client().post(
+            "/pedir-acesso", data=dados, environ_base=self.FORA,
+            headers={"Accept": "application/json"})
+
+    def test_o_que_vende_e_onde_vai_para_a_mensagem(self):
+        self.assertTrue(self.pedir(mensagem="Limpeza no Algarve").get_json()["ok"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT mensagem FROM pedidos_acesso "
+                                       "ORDER BY id DESC").fetchone()[0],
+                             "Limpeza no Algarve")
+
+    def test_as_regioes_dao_os_distritos(self):
+        def distritos(mensagem):
+            return radar.perfil_do_pedido({"sector": "Outro", "mensagem": mensagem})[1]
+        self.assertEqual(distritos("Trabalhamos no Algarve"), "Faro")
+        self.assertEqual(distritos("todo o Alentejo"), "Beja|Évora|Portalegre")
+        self.assertEqual(distritos("no Norte"),
+                         "Braga|Bragança|Porto|Viana do Castelo|Vila Real")
+        self.assertEqual(distritos("na região Centro"),
+                         "Aveiro|Castelo Branco|Coimbra|Guarda|Leiria|Viseu")
+        self.assertEqual(distritos("Açores e Madeira"),
+                         "Região Autónoma dos Açores|Região Autónoma da Madeira")
+        # «centro» sozinho é quase sempre outra coisa
+        self.assertEqual(distritos("obras no centro de saúde do Porto"), "Porto")
+
+    def test_o_sector_ja_nao_engana(self):
+        self.assertIn("Engenharia e projetos", radar.SECTORES_DO_PEDIDO)
+        self.assertIn("Software e informática", radar.SECTORES_DO_PEDIDO)
+        self.assertNotIn("Tecnologias de informação", radar.SECTORES_DO_PEDIDO)
+        self.assertEqual(radar.perfil_do_pedido(
+            {"sector": "Engenharia e projetos", "mensagem": ""})[0], "71000000")
+        with open(radar.SITE, encoding="utf-8") as f:
+            site = f.read()
+        self.assertIn("<option>Engenharia e projetos</option>", site)
+        # uma página antiga, em cache, ainda manda o nome de antes
+        self.assertTrue(self.pedir(sector="Tecnologias de informação").get_json()["ok"])
+
+    def test_os_repetidos_vem_tambem_pela_pessoa_e_pela_mensagem(self):
+        with radar.liga() as c:
+            for empresa, email, tel, msg in (
+                    ("Delta", "a@delta.pt", "912 345 678", "Somos a melhor empresa"),
+                    ("Épsilon", "b@epsilon.pt", "912345678", "outra coisa"),
+                    ("Zeta", "c@zeta.pt", "933 333 333", "somos a melhor  empresa")):
+                c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                          "telefone, sector, mensagem) VALUES ('2026-10-04 10:00', "
+                          "'Rui', ?, ?, ?, 'Outro', ?)", (empresa, email, tel, msg))
+        lista = self.ver(self.entrar("dono"), "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("mesmo telemóvel noutra empresa", lista)
+        self.assertIn("mesma mensagem noutro pedido", lista)
+
+    def test_o_convite_leva_a_nota(self):
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % self.pedido
+        self.assertIn("name='nota'", self.ver(dono, url).get_data(as_text=True))
+        self.post(dono, url, {"cpv": "", "pbmin": "", "plano": "solo",
+                              "nota": "Ligo-lhe amanhã <às 10h>"}, url)
+        para, _, texto, em_html = self.mandados[-1]
+        self.assertEqual(para, "ze@gama.pt")
+        self.assertIn("Ligo-lhe amanhã <às 10h>", texto)
+        self.assertIn("Ligo-lhe amanhã &lt;às 10h&gt;", em_html)
+
+    def test_recusar_avisa_so_quando_se_pede_e_sem_o_motivo(self):
+        dono = self.entrar("dono")
+        self.post(dono, "/pedidos-de-acesso/%d/recusar" % self.pedido,
+                  {"motivo": "parece um robô", "avisar": "1"}, "/pedidos-de-acesso")
+        self.assertEqual(len(self.mandados), 1)
+        para, _, texto, em_html = self.mandados[0]
+        self.assertEqual(para, "ze@gama.pt")
+        self.assertNotIn("robô", texto + em_html)
+        with radar.liga() as c:
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                      "sector) VALUES ('2026-10-04 10:00', 'X', 'Y', 'x@y.pt', 'Outro')")
+            outro = c.execute("SELECT MAX(id) FROM pedidos_acesso").fetchone()[0]
+        self.post(dono, "/pedidos-de-acesso/%d/recusar" % outro,
+                  {"motivo": "lixo"}, "/pedidos-de-acesso")
+        self.assertEqual(len(self.mandados), 1)
+
+    def test_por_em_espera_avisa_e_deixa_decidir_depois(self):
+        dono = self.entrar("dono")
+        r = self.post(dono, "/pedidos-de-acesso/%d/espera" % self.pedido, {},
+                      "/pedidos-de-acesso")
+        self.assertEqual(r.status_code, 302)
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT estado FROM pedidos_acesso WHERE id=?",
+                                       (self.pedido,)).fetchone()[0], "espera")
+        self.assertEqual([m[0] for m in self.mandados], ["ze@gama.pt"])
+        self.assertIn("lista de espera", self.mandados[0][2])
+        lista = self.ver(dono, "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("Em espera", lista)
+        # já não é «por decidir» no a tratar hoje, mas aceita-se e recusa-se
+        self.assertNotIn("pedido de acesso por decidir",
+                         self.ver(dono, "/plataforma").get_data(as_text=True))
+        self.assertEqual(self.ver(dono, "/pedidos-de-acesso/%d/aceitar"
+                                  % self.pedido).status_code, 200)
+        self.post(dono, "/pedidos-de-acesso/%d/recusar" % self.pedido,
+                  {"motivo": "sem vaga"}, "/pedidos-de-acesso")
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT estado FROM pedidos_acesso WHERE id=?",
+                                       (self.pedido,)).fetchone()[0], "recusado")
+
+    def test_o_tecto_e_por_email_e_nao_so_do_site_inteiro(self):
+        self.assertEqual(radar.PEDIDOS_POR_DIA, 1000)
+        for i in range(radar.PEDIDOS_POR_EMAIL_POR_DIA):
+            # cada um de um IP, para o tecto por IP não contar
+            r = radar.app.test_client().post(
+                "/pedir-acesso", data=dict(TestSitePublico.BOM, email="Mesmo@x.pt"),
+                environ_base={"REMOTE_ADDR": "203.0.113.%d" % (10 + i)},
+                headers={"Accept": "application/json"})
+            self.assertTrue(r.get_json()["ok"])
+        r = radar.app.test_client().post(
+            "/pedir-acesso", data=dict(TestSitePublico.BOM, email="mesmo@x.pt"),
+            environ_base={"REMOTE_ADDR": "203.0.113.99"},
+            headers={"Accept": "application/json"})
+        self.assertEqual(r.status_code, 429)
 
 
 if __name__ == "__main__":

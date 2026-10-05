@@ -854,7 +854,13 @@ como estava.
 
 **Os pedidos de acesso** têm, ao lado do «aceitar…», um **recusar**
 com o motivo: o pedido fica na lista, com o dia e a razão, e deixa de
-contar como por decidir.
+contar como por decidir. Marca «avisar por e-mail» se quiseres que a
+pessoa saiba (o e-mail é um texto fixo, sem o motivo). O **«pôr em
+espera»** é a lista de espera das vagas: a pessoa recebe um e-mail a
+dizê-lo, e o pedido continua a poder aceitar-se ou recusar-se. Ao
+aceitar podes escrever uma **nota**, que vai no e-mail do convite. As
+etiquetas amarelas avisam de repetidos: o mesmo e-mail, o mesmo
+telemóvel noutra empresa, a mesma mensagem.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
