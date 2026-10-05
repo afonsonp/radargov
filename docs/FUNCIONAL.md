@@ -1969,7 +1969,7 @@ mesma rota sem sair da página (§4.3).
 | Criar / ligar / apagar alerta · enviar resumo | Configurações |
 | Criar o alerta a partir do perfil (`/alertas/do-perfil`) | Configurações › Alertas |
 | Dispensar o cartão «Pôr a empresa a trabalhar» | Hoje (admin) |
-| Aceitar um pedido de acesso, com o perfil da empresa nova | `/pedidos-de-acesso` (dono) |
+| Aceitar um pedido de acesso, com o perfil da empresa nova — ou juntar quem pediu a uma empresa que já existe, como utilizador, dentro do plano dela (desde 5/10/2026) | `/pedidos-de-acesso` (dono) |
 | Verificar agora · actualizar contratos | Configurações |
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |

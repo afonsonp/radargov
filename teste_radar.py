@@ -27668,7 +27668,10 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         """J8: a ligação do pedido aceite estava num `<code>`, sem
         «Copiar». M5: os pendentes misturados com os decididos. V8: um
         «aceitar…» cheio por pedido, e «activa» verde."""
-        self.assertIn("caixa_de_copiar(ligacao", inspect.getsource(radar.aceitar_pedido))
+        # o ecrã do aceite é o `_pedido_aceite()` desde 5/10/2026: o mesmo
+        # para a empresa nova e para o «juntar»
+        self.assertIn("_pedido_aceite(", inspect.getsource(radar.aceitar_pedido))
+        self.assertIn("caixa_de_copiar(ligacao", inspect.getsource(radar._pedido_aceite))
         with radar.liga() as c:
             for estado in ("recusado", ""):
                 c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
