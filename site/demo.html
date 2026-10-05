@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-PT" data-theme="sistema">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visita guiada — Mira Gov</title>
+<meta name="description" content="O Mira Gov por dentro, ecrã a ecrã, com uma empresa de exemplo: os concursos, a leitura das peças, as propostas e o mercado.">
+<link rel="canonical" href="https://miragov.pt/demo">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebPage", "@id": "https://miragov.pt/demo", "url": "https://miragov.pt/demo", "name": "Visita guiada — Mira Gov", "description": "O Mira Gov por dentro, ecrã a ecrã, com uma empresa de exemplo: os concursos, a leitura das peças, as propostas e o mercado.", "inLanguage": "pt-PT", "isPartOf": {"@type": "WebSite", "@id": "https://miragov.pt/#site", "name": "Mira Gov", "url": "https://miragov.pt/"}, "publisher": {"@type": "Organization", "@id": "https://miragov.pt/#organizacao", "name": "Mira Gov"}, "breadcrumb": {"@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Mira Gov", "item": "https://miragov.pt/"}, {"@type": "ListItem", "position": 2, "name": "Visita guiada", "item": "https://miragov.pt/demo"}]}}</script>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!--MOLDURA-->
+<style>
+/* A visita guiada (5/10/2026). Os ecrãs são os da aplicação, cada um no
+   seu iframe (/demo/<n>), com uma empresa inventada; aqui só a moldura,
+   as legendas e o caminho para pedir a demonstração. */
+.visita{padding-block:48px 72px}
+.visita h1{font-size:clamp(30px,4vw,44px);line-height:1.1;margin:0 0 12px;letter-spacing:-.01em}
+.visita .abre{max-width:62ch;color:var(--ink-secondary);margin:0 0 20px}
+.visita .aviso{display:inline-block;font-size:14px;background:var(--surface-sunken);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 28px}
+.indice-visita{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 40px;padding:0;list-style:none}
+.indice-visita a{display:inline-block;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:14px;text-decoration:none;color:var(--ink)}
+.indice-visita a:hover{border-color:var(--brand);color:var(--brand)}
+.passo{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:28px;align-items:start;margin:0 0 56px;scroll-margin-top:84px}
+.passo .num{font:600 13px/1 var(--font-mono);color:var(--ink-secondary)}
+.passo h2{font-size:24px;margin:8px 0 10px}
+.passo p{margin:0;color:var(--ink-secondary)}
+.legenda{position:sticky;top:84px}
+.ecra-demo{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface-sunken);box-shadow:0 2px 10px rgb(0 0 0 / .06)}
+.ecra-demo .barra-janela{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.ecra-demo .barra-janela i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.ecra-demo iframe{display:block;width:100%;height:640px;border:0;background:#fff}
+.fecho{border-top:1px solid var(--line);padding-top:40px;text-align:center}
+.fecho h2{font-size:28px;margin:0 0 10px}
+.fecho p{max-width:56ch;margin:0 auto 24px;color:var(--ink-secondary)}
+.fecho .accoes{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+@media (max-width:860px){
+  .passo{grid-template-columns:minmax(0,1fr);gap:14px}
+  .legenda{position:static}
+  .ecra-demo iframe{height:560px}
+}
+</style>
+</head>
+<body>
+<!--TOPO-->
+<main id="conteudo" tabindex="-1">
+<div class="wrap visita">
+  <h1>O Mira Gov por dentro.</h1>
+  <p class="abre">Oito ecrãs, pela ordem em que se trabalha: do concurso que entra hoje à proposta entregue, e ao mercado de quem ganha. Pode deslizar dentro de cada ecrã.</p>
+  <p class="aviso">A empresa, os concursos e os contratos são de exemplo. Nada aqui se grava nem se envia.</p>
+
+  <ol class="indice-visita" aria-label="Os passos da visita">
+    <li><a href="#p1">1 · Hoje</a></li>
+    <li><a href="#p2">2 · Concursos</a></li>
+    <li><a href="#p3">3 · A ficha</a></li>
+    <li><a href="#p4">4 · Propostas</a></li>
+    <li><a href="#p5">5 · Calendário</a></li>
+    <li><a href="#p6">6 · Mercado</a></li>
+    <li><a href="#p7">7 · Entidades</a></li>
+    <li><a href="#p8">8 · Situação</a></li>
+  </ol>
+
+  <section class="passo" id="p1" aria-labelledby="t1">
+    <div class="legenda"><span class="num">1 / 8</span><h2 id="t1">Hoje</h2>
+      <p>Ao entrar, o dia: a semana com os prazos de cada dia, o que entrou e o que cada pessoa da equipa tem para fazer.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/1" title="Ecrã Hoje, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p2" aria-labelledby="t2">
+    <div class="legenda"><span class="num">2 / 8</span><h2 id="t2">Concursos</h2>
+      <p>Tudo o que o Diário da República publica na sua área, numa lista só, verificado ao longo do dia e recortado pelo perfil da empresa.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/2" title="Lista dos concursos, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p3" aria-labelledby="t3">
+    <div class="legenda"><span class="num">3 / 8</span><h2 id="t3">A ficha de um concurso</h2>
+      <p>O anúncio e as peças já descarregadas e lidas por IA — a equipa, os documentos a entregar, a caução — com a página de onde vem cada linha. E o que esta entidade contratou das outras vezes.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/3" title="Ficha de um concurso, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p4" aria-labelledby="t4">
+    <div class="legenda"><span class="num">4 / 8</span><h2 id="t4">Propostas</h2>
+      <p>Cada concurso a que a empresa vai, fase a fase, com o preço, o responsável e o que falta fazer.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/4" title="Propostas, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p5" aria-labelledby="t5">
+    <div class="legenda"><span class="num">5 / 8</span><h2 id="t5">Calendário</h2>
+      <p>Os prazos, dia a dia, para nenhuma entrega apanhar a equipa de surpresa.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/5" title="Calendário dos prazos, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p6" aria-labelledby="t6">
+    <div class="legenda"><span class="num">6 / 8</span><h2 id="t6">Mercado</h2>
+      <p>Os contratos do Portal BASE na sua área: quem ganha, a que preço e quando acaba — que é quando se volta a contratar.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/6" title="Mercado dos contratos, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p7" aria-labelledby="t7">
+    <div class="legenda"><span class="num">7 / 8</span><h2 id="t7">Entidades</h2>
+      <p>As entidades que mais compram o que a empresa faz, e os concorrentes que mais ganham.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/7" title="Entidades, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="passo" id="p8" aria-labelledby="t8">
+    <div class="legenda"><span class="num">8 / 8</span><h2 id="t8">Situação</h2>
+      <p>Como vai o negócio: o que está em jogo, a taxa de vitória e a triagem do período.</p></div>
+    <div class="ecra-demo"><div class="barra-janela" aria-hidden="true"><i></i><i></i><i></i></div>
+      <iframe src="/demo/8" title="Ponto de situação, com uma empresa de exemplo" loading="lazy"></iframe></div>
+  </section>
+
+  <section class="fecho" aria-labelledby="t-fecho">
+    <h2 id="t-fecho">Ver com os concursos da sua área?</h2>
+    <p>Numa demonstração de 20 minutos mostramos-lhe o Mira Gov com o perfil da sua empresa. Ou peça já um dos dez lugares de fundador.</p>
+    <div class="accoes">
+      <a class="btn btn-primario" href="mailto:contacto@miragov.pt?subject=Pedido%20de%20demonstra%C3%A7%C3%A3o">Pedir uma demonstração</a>
+      <a class="btn" href="/#acesso">Pedir um lugar de fundador</a>
+    </div>
+  </section>
+</div>
+</main>
+<!--RODAPE-->
+</body>
+</html>

@@ -14851,7 +14851,10 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/partilha.png", "/llms.txt", "/afonso-pinto.jpg",
                  "/esqueci-me", "/pedido-recebido",
                  # o beacon das visitas (ANL): a guarda está na rota
-                 "/visita")
+                 "/visita",
+                 # a visita guiada (5/10/2026): um ficheiro do `site/`,
+                 # sem dados verdadeiros, só GET
+                 "/demo")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -14862,7 +14865,10 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
 # D17, 26/09/2026) e o mesmo caso -- quem a abre nao consegue entrar --,
 # e a guarda tambem e dentro da rota (`repor()`): o codigo, a origem, o
 # uso unico e o trinco.
-PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/")
+# E os ecrãs da visita guiada (`/demo/<n>`, 5/10/2026): o conversor
+# `int` da rota e a existência do ficheiro são a lista branca, e o que lá
+# está é uma empresa inventada (`ferramentas/demo.py`).
+PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/", "/demo/")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o DONO da plataforma abre (F4, 23/09/2026): o sistema -- as
@@ -37218,6 +37224,34 @@ def acessibilidade():
         return pagina_de_erro(404)
 
 
+# A visita guiada (5/10/2026, pedido dele): os ecrãs verdadeiros, com uma
+# empresa inventada, para quem ainda não tem conta ver sozinho e pedir a
+# demonstração. A página é o `site/demo.html` (as legendas); cada ecrã é
+# um `site/demo/<n>.html`, gerado pelo `ferramentas/demo.py` e mostrado
+# num iframe -- o CSS da aplicação não se mistura com o do site.
+@app.route("/demo")
+def demo():
+    try:
+        with open(os.path.join(os.path.dirname(SITE), "demo.html"),
+                  encoding="utf-8") as f:
+            return Response(_do_site(f.read()), mimetype="text/html")
+    except OSError:
+        return pagina_de_erro(404)
+
+
+@app.route("/demo/<int:n>")
+def ecra_da_demo(n):
+    try:
+        with open(os.path.join(os.path.dirname(SITE), "demo", "%d.html" % n),
+                  encoding="utf-8") as f:
+            texto = f.read()
+    except OSError:
+        return pagina_de_erro(404)
+    # a etiqueta da folha muda com o CSS, e a de quando se gerou dava 404
+    return Response(re.sub(r"/estilo/[\w-]+\.css", FOLHA_CSS, texto),
+                    mimetype="text/html")
+
+
 # O que um motor de busca pede antes de tudo (3.ª ronda, G100): o
 # `/robots.txt` e o `/sitemap.xml` iam ao /entrar e recebiam a página de
 # entrar com 200. São rotas abertas por IGUALDADE, sem dados: o robots diz
@@ -37231,6 +37265,7 @@ def acessibilidade():
 # o `noindex` dele. Tudo o resto fica fechado, e assim uma rota nova da
 # aplicação nasce fechada sem ninguém se lembrar dela aqui.
 PAGINAS_DO_SITE = (("/", "index.html"),
+                   ("/demo", "demo.html"),
                    ("/acessibilidade", "acessibilidade.html"),
                    ("/privacidade", "privacidade.html"),
                    ("/termos", "termos.html"))
