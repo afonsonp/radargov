@@ -14108,6 +14108,20 @@ class TestAVisitaGuiada(BaseTemporaria):
             self.assertNotIn("type='hidden'", texto, nome)
             self.assertIn('content="noindex"', texto, nome)
 
+    def test_os_baloes_dizem_o_que_o_ecra_mostra(self):
+        """6.ª ronda (5/10/2026, perfis 4 e 15): o balão do passo 3 dava as
+        peças por descarregadas e lidas, e a ficha ao lado dizia «Ainda não
+        foram trazidas» -- o gerador punha os PDF no disco e não na base.
+        E o do passo 1 prometia «o que cada pessoa tem para fazer» a um
+        Hoje com as tarefas todas sem dono."""
+        with open(os.path.join(self.PASTA, "3.html"), encoding="utf-8") as f:
+            ficha = f.read()
+        self.assertNotIn("Ainda não foram trazidas", ficha)
+        self.assertIn("Caderno de Encargos", ficha)
+        with open(os.path.join(self.RAIZ, "site", "demo.html"), encoding="utf-8") as f:
+            pagina = f.read()
+        self.assertNotIn("o que cada pessoa tem para fazer", pagina)
+
     def test_o_fim_da_visita_leva_ao_lugar_de_fundador(self):
         """6.ª ronda (5/10/2026, perfis 9, 12 e 14): o botão principal do
         fim era um mailto, que tirava a pessoa do browser no momento em que
