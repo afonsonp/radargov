@@ -902,7 +902,9 @@ espera»** é a lista de espera das vagas: a pessoa recebe um e-mail a
 dizê-lo, e o pedido continua a poder aceitar-se ou recusar-se. Ao
 aceitar podes escrever uma **nota**, que vai no e-mail do convite. As
 etiquetas amarelas avisam de repetidos: o mesmo e-mail, o mesmo
-telemóvel noutra empresa, a mesma mensagem.
+telemóvel (noutra empresa ou na mesma), a mesma empresa noutro pedido,
+a mesma mensagem — e de quem **já tem conta** ou **já foi recusado ou
+posto em espera** antes, pelo e-mail ou pelo telemóvel.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do
