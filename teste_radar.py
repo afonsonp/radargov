@@ -27058,7 +27058,7 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         # o anual paga-se de uma vez desde 1/10/2026 (decisão dele: «pagam logo
         # a totalidade, se saírem saíram»), e não em 12 prestações
         for frase in ("39 €", "75 €", "429 €/ano", "825 €/ano", "605 €/ano",
-                      "55 €/mês + IVA", "31 de dezembro de 2026", "por IA está em todos",
+                      "55 €/mês + IVA", "31 de dezembro de 2026",
                       'id="planos"'):
             self.assertIn(frase, site)
         for frase in ("Contas para toda a equipa", "Todas as que precisar",

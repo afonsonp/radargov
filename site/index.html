@@ -296,6 +296,7 @@ section{padding-block:88px}
 /* Os planos (30/09/2026): três cartões, o do meio com a régua da marca.
    Desde 1/10/2026 têm todos o mesmo: os cartões dizem só as pessoas e o
    preço, e o que o Mira Gov faz é uma lista só, por baixo */
+.planos-aviso{margin-bottom:20px}
 .planos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .plano{display:flex;flex-direction:column;gap:14px;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:28px}
 .plano.destaque{border-color:var(--brand);box-shadow:var(--shadow-sm)}
@@ -594,7 +595,7 @@ form .btn{justify-self:start}
     <div class="wrap">
       <div class="cabeca">
         <p class="sobre">Como funciona</p>
-        <h2 id="t-como">Três passos, e o primeiro é o único que dá trabalho.</h2>
+        <h2 id="t-como">Três passos.</h2>
       </div>
       <ol class="passos">
         <li><h3>Diga o que a empresa faz</h3><p>Escolhemos consigo os códigos CPV da sua área, a classificação que cada concurso traz. É por eles que o Mira Gov escolhe os concursos que lhe mostra.</p></li>
@@ -639,8 +640,9 @@ form .btn{justify-self:start}
       <div class="cabeca">
         <p class="sobre">Planos</p>
         <h2 id="t-planos">Três planos.</h2>
-        <p>Têm todos o mesmo: muda só o número de pessoas (e o Solo tem uma sessão aberta de cada vez). A leitura das peças por IA está em todos. Aos preços acresce o IVA. O serviço é pré-pago, ao mês ou ao ano. O plano anual tem um mês grátis (paga 11 meses, de uma vez), no início; basta não renovar para sair.</p>
+        <p>Mesmo serviço em todos os planos; muda só o número de pessoas.</p>
       </div>
+      <p class="planos-aviso"><span class="selo">Indisponíveis de momento.</span></p>
       <div class="planos">
         <article class="plano" aria-labelledby="p-solo">
           <h3 id="p-solo">Solo</h3>
