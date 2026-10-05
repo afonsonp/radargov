@@ -806,6 +806,14 @@ O gestor de cada empresa vê a mesma actividade, só da empresa dele, em
 Configurações › Conta › Actividade da empresa. Ao lado de «Plataforma»,
 na barra, aparece o número dos pedidos de acesso por decidir.
 
+**As visitas ao site** vêem-se em Plataforma › Visitas ao site: quantas,
+de onde vieram (o LinkedIn, o Google, uma campanha com `utm_campaign`
+no endereço), quanto tempo ficaram, até onde desceram, quantas
+carregaram em «Pedir acesso», começaram e enviaram o formulário, e de
+onde veio cada pedido. Sem cookies e sem guardar o IP; tu (com sessão
+ou neste PC) e os robôs não contam. Para medir uma publicação, põe no
+endereço que partilhas `?utm_source=linkedin&utm_campaign=lancamento`.
+
 O tecto das leituras das peças por empresa é por dia
 (`leituras_por_empresa_por_dia`, 10) e pode ser também por mês
 (`leituras_por_empresa_por_mes` no `config.json`; 0 é sem tecto).

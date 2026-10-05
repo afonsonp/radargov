@@ -1251,9 +1251,22 @@ def iniciar_db():
         for nome, tipo in (("estado", "TEXT"), ("empresa_id", "INTEGER"),
                            ("motivo", "TEXT"), ("decidido_em", "TEXT"),
                            ("nif", "TEXT"), ("plano", "TEXT"),
-                           ("telefone", "TEXT")):
+                           ("telefone", "TEXT"), ("vista", "TEXT")):
             if nome not in cols_pa:
                 c.execute("ALTER TABLE pedidos_acesso ADD COLUMN %s %s" % (nome, tipo))
+        # As visitas ao site público (ANL, 4/10/2026): uma linha por página
+        # servida a quem não tem sessão, sem o IP -- o `visitante` é um
+        # resumo do IP e do navegador com um sal do dia que só vive em
+        # memória. O `vista` do pedido acima é o `id` daqui: de onde veio
+        # quem pediu. Guardam-se MESES_DAS_VISITAS meses.
+        c.execute("""CREATE TABLE IF NOT EXISTS visitas (
+            id TEXT PRIMARY KEY, quando TEXT, dia TEXT, caminho TEXT,
+            origem TEXT DEFAULT '', utm_fonte TEXT DEFAULT '',
+            utm_meio TEXT DEFAULT '', utm_campanha TEXT DEFAULT '',
+            visitante TEXT DEFAULT '', aparelho TEXT DEFAULT '',
+            segundos INTEGER DEFAULT 0, scroll INTEGER DEFAULT 0,
+            eventos TEXT DEFAULT '', com_js INTEGER DEFAULT 0)""")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_visitas_dia ON visitas(dia)")
         c.execute("""CREATE TABLE IF NOT EXISTS documentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, nome TEXT,
             ficheiro TEXT, tamanho INTEGER, origem TEXT, obtido_em TEXT)""")
@@ -14827,7 +14840,9 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
                  "/partilha.png", "/llms.txt", "/afonso-pinto.jpg",
-                 "/esqueci-me", "/pedido-recebido")
+                 "/esqueci-me", "/pedido-recebido",
+                 # o beacon das visitas (ANL): a guarda está na rota
+                 "/visita")
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -24432,6 +24447,9 @@ def administracao_da_plataforma():
         "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
         "<a class='mg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
         "<b>Pedidos de acesso</b><div class='nota'>%s por decidir</div></a>"
+        "<a class='mg-card conf-cx' href='/plataforma/visitas' style='display:block'>"
+        "<b>Visitas ao site</b><div class='nota'>de onde vêm, o que vêem e o que "
+        "fazem</div></a>"
         "<a class='mg-card conf-cx' href='/configuracoes/conta' style='display:block'>"
         "<b>A minha conta</b><div class='nota'>a palavra-passe e as sessões</div></a>"
         "</div><div style='margin-top:22px'>%s</div><div style='margin-top:22px'>%s</div>"
@@ -36747,6 +36765,231 @@ def datas_do_exemplo(texto, hoje=None):
     return texto
 
 
+# ------------------------------------------------------------------ visitas
+#
+# A medição das visitas ao site (ANL, pedido dele a 4/10/2026): sem
+# cookies, sem serviços de terceiros e sem guardar o IP. O servidor grava
+# a página quando a serve (`registar_visita()`, pelo `_do_site()`), e um
+# beacon pequeno junta o tempo, o scroll e o que se fez (`/visita`).
+
+MESES_DAS_VISITAS = 13
+DIAS_DAS_VISITAS = 365 + 31          # os 13 meses, contados por baixo
+# Os robôs pelo nome que dão a si próprios; os que mentem passam, mas
+# não mandam o beacon, e o painel separa as visitas com e sem JavaScript.
+RX_ROBO = re.compile(r"bot\b|bot/|crawl|spider|slurp|preview|facebookexternalhit|"
+                     r"headless|python|curl|wget|httpclient|okhttp|go-http|"
+                     r"monitor|lighthouse|uptime|scrapy|java/", re.I)
+EVENTOS_DA_VISITA = {"clique": "Clicaram em «Pedir acesso»",
+                     "form": "Começaram o formulário",
+                     "enviado": "Enviaram o pedido",
+                     "precos": "Chegaram aos preços"}
+RX_ID_DA_VISITA = re.compile(r"[0-9a-f]{16}")
+TECTO_DO_BEACON = 2048
+# O sal do dia, só em memória: com ele o mesmo visitante conta uma vez por
+# dia, e ninguém -- nem quem tiver a base -- volta do resumo ao IP. Ao
+# virar o dia faz-se outro, e as visitas de mais de MESES_DAS_VISITAS
+# meses saem. Ponytail: um reinício a meio do dia faz outro sal, e quem
+# voltar depois conta duas vezes nesse dia -- aceite.
+_SAL_DAS_VISITAS = {}
+
+
+def _sal_de_hoje():
+    hoje = date.today().isoformat()
+    if _SAL_DAS_VISITAS.get("dia") != hoje:
+        _SAL_DAS_VISITAS.update(dia=hoje, sal=os.urandom(16))
+        limite = (date.today() - timedelta(days=DIAS_DAS_VISITAS)).isoformat()
+        with liga() as c:
+            c.execute("DELETE FROM visitas WHERE dia < ?", (limite,))
+    return _SAL_DAS_VISITAS["sal"]
+
+
+def _de_onde_veio():
+    """Só o domínio de onde veio, sem o resto do endereço («linkedin.com»),
+    e vazio quando veio de dentro do site ou de lado nenhum."""
+    nome = (urlparse(request.headers.get("Referer") or "").hostname or "").lower()
+    if nome.startswith("www."):
+        nome = nome[4:]
+    if not nome or nome_de_anfitriao(nome) == nome_de_anfitriao(
+            (request.host or "").split(":")[0]) or nome in DOMINIOS_DO_PAINEL:
+        return ""
+    return nome[:80]
+
+
+def registar_visita():
+    """O `id` da visita desta página do site, ou "" quando não conta: um
+    robô, quem tem sessão (o dono e os clientes) ou o próprio PC."""
+    if not has_request_context():      # a página montada fora de um pedido
+        return ""
+    agente = request.headers.get("User-Agent") or ""
+    if (request.method != "GET" or not agente or RX_ROBO.search(agente)
+            or com_sessao() or pedido_e_local()):
+        return ""
+    try:
+        sal = _sal_de_hoje()
+        visitante = hmac.new(sal, ("%s|%s" % (ip_de_quem_pede(), agente)).encode(),
+                             hashlib.sha256).hexdigest()[:16]
+        id_ = os.urandom(8).hex()
+        agora = datetime.now()
+        a = request.args
+        with liga() as c:
+            c.execute("INSERT INTO visitas (id, quando, dia, caminho, origem, utm_fonte, "
+                      "utm_meio, utm_campanha, visitante, aparelho) "
+                      "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                      (id_, agora.strftime("%Y-%m-%d %H:%M:%S"), agora.date().isoformat(),
+                       request.path[:120], _de_onde_veio(),
+                       (a.get("utm_source") or "")[:60], (a.get("utm_medium") or "")[:60],
+                       (a.get("utm_campaign") or "")[:60], visitante,
+                       aparelho_do_agente(agente)))
+        return id_
+    except sqlite3.Error:
+        return ""        # a medição nunca tira o site do ar
+
+
+# O beacon: o tempo com a página à vista, o scroll mais fundo e os quatro
+# eventos. Manda ao esconder a página (e ao sair); o servidor fica com o
+# maior de cada um, por isso mandar duas vezes não estraga nada.
+BEACON_DA_VISITA = """<script>(function(){var V="%s",vis=0,ini=document.visibilityState=="visible"?Date.now():0,max=0,ev={};
+function sc(){var h=document.documentElement,p=Math.round(100*(window.scrollY+window.innerHeight)/Math.max(h.scrollHeight,1));if(p>max)max=Math.min(p,100)}
+addEventListener("scroll",sc,{passive:true});sc();
+document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest('a[href$="#acesso"]');if(a)ev.clique=1});
+var f=document.getElementById("form-acesso");if(f){f.addEventListener("focusin",function(){ev.form=1});var c=f.querySelector('input[name="vista"]');if(c)c.value=V}
+var pl=document.getElementById("planos");if(pl&&window.IntersectionObserver)new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting)ev.precos=1})}).observe(pl);
+function manda(){if(ini){vis+=Date.now()-ini;ini=0}if(navigator.sendBeacon)navigator.sendBeacon("/visita",JSON.stringify({v:V,s:Math.round(vis/1000),p:max,e:Object.keys(ev)}))}
+document.addEventListener("visibilitychange",function(){if(document.visibilityState=="hidden")manda();else ini=Date.now()});
+addEventListener("pagehide",manda)})();</script>"""
+
+
+def _com_o_beacon(texto):
+    id_ = registar_visita()
+    if not id_:
+        return texto
+    return texto.replace("</body>", BEACON_DA_VISITA % id_ + "</body>", 1)
+
+
+def marcar_evento_da_visita(id_, eventos, segundos=0, scroll=0, com_js=False):
+    """Junta à visita `id_` o que veio (o beacon, ou o pedido enviado): o
+    maior tempo e scroll, os eventos da lista branca. Uma visita de mais
+    de seis horas, ou que não existe, não muda."""
+    if not RX_ID_DA_VISITA.fullmatch(id_ or ""):
+        return
+    desde = (datetime.now() - timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S")
+    with liga() as c:
+        v = c.execute("SELECT eventos FROM visitas WHERE id=? AND quando >= ?",
+                      (id_, desde)).fetchone()
+        if not v:
+            return
+        juntos = set(filter(None, (v["eventos"] or "").split("|"))) | (
+            set(eventos) & set(EVENTOS_DA_VISITA))
+        c.execute("UPDATE visitas SET segundos=MAX(segundos, ?), scroll=MAX(scroll, ?), "
+                  "eventos=?, com_js=MAX(com_js, ?) WHERE id=?",
+                  (segundos, scroll, ("|%s|" % "|".join(
+                      k for k in EVENTOS_DA_VISITA if k in juntos)) if juntos else "",
+                   1 if com_js else 0, id_))
+
+
+@app.route("/visita", methods=["POST"])
+def visita():
+    """O beacon do site. Rota ABERTA (quem visita não tem conta), e a
+    guarda é esta: a origem (`origem_e_nossa()`), o tamanho do corpo, o
+    `id` da visita (16 hexadecimais, e só uma visita das últimas seis
+    horas muda) e os números cortados. Responde 204 sempre que não é
+    abuso, para não dizer que `id`s existem."""
+    if not origem_e_nossa():
+        return Response("", 403)
+    if (request.content_length or 0) > TECTO_DO_BEACON:
+        return Response("", 413)
+    try:
+        d = json.loads(request.get_data(as_text=True)[:TECTO_DO_BEACON] or "{}")
+        marcar_evento_da_visita(
+            str(d.get("v") or ""), [str(e) for e in (d.get("e") or [])][:10],
+            segundos=max(0, min(int(d.get("s") or 0), 3 * 3600)),
+            scroll=max(0, min(int(d.get("p") or 0), 100)), com_js=True)
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return Response("", 204)
+
+
+def _tabela_das_visitas(titulo, cabecalhos, linhas):
+    """Um cartão com uma tabela de contagens; vazio diz-se."""
+    if not linhas:
+        return cartao(titulo, "<p class='nota'>Nada neste período.</p>")
+    return cartao(titulo, "<table class='mg-table tab-plataforma'><thead><tr>%s</tr>"
+                  "</thead><tbody>%s</tbody></table>" % (
+                      "".join("<th>%s</th>" % h for h in cabecalhos),
+                      "".join("<tr>%s</tr>" % "".join(
+                          _celula_da_tabela(h, html.escape(str(v)),
+                                            "mg-num" if isinstance(v, int) else "")
+                          for h, v in zip(cabecalhos, l)) for l in linhas)))
+
+
+@app.route("/plataforma/visitas")
+def plataforma_visitas():
+    """As visitas ao site público, para o dono (ANL, 4/10/2026), com o
+    período do /situacao. Só o dono (ROTAS_SO_DONO, por prefixo)."""
+    periodo = request.args.get("periodo") or "mes"
+    if periodo not in dict(PERIODOS_DA_SITUACAO):
+        periodo = "mes"
+    janela, _, _ = janelas_do_periodo(periodo, date.today())
+    onde, args = ("WHERE dia BETWEEN ? AND ?", list(janela)) if janela else ("", [])
+    with liga() as c:
+        def um(sql, mais=()):
+            return c.execute(sql % onde, args + list(mais)).fetchall()
+        total, com_js, eventos = um(
+            "SELECT COUNT(*), SUM(com_js), GROUP_CONCAT(eventos, '') FROM visitas %s")[0]
+        visitantes = um("SELECT COUNT(*) FROM (SELECT DISTINCT dia, visitante "
+                        "FROM visitas %s)")[0][0]
+        tempos = sorted(r[0] for r in um("SELECT segundos FROM visitas %s"
+                                         + (" AND" if onde else " WHERE")
+                                         + " com_js=1 AND segundos > 0"))
+        scroll = um("SELECT AVG(scroll) FROM visitas %s" + (" AND" if onde else " WHERE")
+                    + " com_js=1")[0][0]
+        paginas = um("SELECT caminho, COUNT(*) n FROM visitas %s "
+                     "GROUP BY caminho ORDER BY n DESC LIMIT 20")
+        origens = um("SELECT CASE origem WHEN '' THEN 'directo, ou de dentro do site' "
+                     "ELSE origem END, COUNT(*) n FROM visitas %s "
+                     "GROUP BY origem ORDER BY n DESC LIMIT 20")
+        campanhas = um("SELECT utm_fonte, utm_meio, utm_campanha, COUNT(*) n FROM "
+                       "visitas %s" + (" AND" if onde else " WHERE")
+                       + " (utm_fonte != '' OR utm_campanha != '') "
+                       "GROUP BY 1, 2, 3 ORDER BY n DESC LIMIT 20")
+        pedidos = um("SELECT CASE v.origem WHEN '' THEN 'directo' ELSE v.origem END, "
+                     "v.utm_campanha, COUNT(*) n FROM pedidos_acesso p "
+                     # o `dia` só existe nas visitas
+                     "JOIN visitas v ON v.id = p.vista %s GROUP BY 1, 2 ORDER BY n DESC")
+    contados = Counter(e for e in (eventos or "").split("|") if e)
+    mediana = tempos[len(tempos) // 2] if tempos else 0
+    factos = "<div class='mg-stats'>%s%s%s%s</div>" % (
+        kpi("Visitas", mil_pt(total or 0), "%s com JavaScript" % mil_pt(com_js or 0)),
+        kpi("Visitantes", mil_pt(visitantes),
+            "únicos em cada dia, somados (de um dia para o outro não se reconhecem)"),
+        kpi("Tempo na página", "%d s" % mediana, "a mediana, das com JavaScript"),
+        kpi("Até onde desceram", "%d%%" % round(scroll or 0), "a média do scroll"))
+    funil = _tabela_das_visitas(
+        "O que fizeram", ("Passo", "Visitas"),
+        [("Visitas com JavaScript", com_js or 0)]
+        + [(rotulo, contados.get(k, 0)) for k, rotulo in EVENTOS_DA_VISITA.items()])
+    escolha = " · ".join(
+        "<a href='?periodo=%s'%s>%s</a>" % (k, " aria-current='page'" if k == periodo
+                                            else "", html.escape(v))
+        for k, v in PERIODOS_DA_SITUACAO)
+    corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
+             "<p class='nota'>Período: %s</p>%s%s%s%s%s%s</div>"
+             % (escolha, factos, funil,
+                _tabela_das_visitas("De onde vieram", ("Origem", "Visitas"), origens),
+                _tabela_das_visitas("Campanhas (utm)", ("Fonte", "Meio", "Campanha",
+                                                        "Visitas"), campanhas),
+                _tabela_das_visitas("Os pedidos, por origem", ("Origem", "Campanha",
+                                                              "Pedidos"), pedidos),
+                _tabela_das_visitas("Páginas", ("Página", "Visitas"), paginas)))
+    return envolver(
+        "configuracoes", "Visitas ao site", "", corpo, titulo_aba="Visitas · Plataforma",
+        cabeca=cabecalho_de_pagina(
+            "Visitas ao site",
+            "Sem cookies e sem guardar o IP: os robôs, quem tem sessão e este PC "
+            "não contam. Guardam-se %d meses." % MESES_DAS_VISITAS,
+            [("Plataforma", "/plataforma"), ("Visitas ao site", "")]))
+
+
 def _do_site(texto):
     """As marcas que o site e as páginas legais levam, preenchidas: a
     moldura (tokens, tema, letra), o topo e o rodapé, as ligações legais
@@ -36795,7 +37038,7 @@ def _do_site(texto):
             ler_config().get("horas_verificacao") or [])
         texto = texto.replace("{{RITMO}}", ritmo).replace(
             "{{RITMO_DETALHE}}", detalhe)
-    return texto
+    return _com_o_beacon(texto)
 
 
 def pagina_do_site():
@@ -37056,6 +37299,7 @@ def pedir_acesso():
                                "Confira-o.", 400)
     p["nif"] = nif_do_pedido(f.get("nif"))
     p["plano"] = f.get("plano") if f.get("plano") in PLANOS_DO_PEDIDO else ""
+    vista = f.get("vista") if RX_ID_DA_VISITA.fullmatch(f.get("vista") or "") else ""
     telefone_bom = telefone_valido(p["telefone"])
     if telefone_bom:
         p["telefone"] = telefone_arrumado(p["telefone"])
@@ -37092,11 +37336,13 @@ def pedir_acesso():
                                    "de novo mais tarde.", 429)
         id_ = c.execute(
             "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
-            "sector, mensagem, ip, nif, plano, telefone) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "sector, mensagem, ip, nif, plano, telefone, vista) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (agora.isoformat(" ", "seconds"), p["nome"], p["empresa"],
              p["email"], p["sector"], p["mensagem"], ip, p["nif"],
-             p["plano"], p["telefone"])).lastrowid
+             p["plano"], p["telefone"], vista)).lastrowid
+    # de onde veio quem pediu (ANL): a visita que o beacon pôs no formulário
+    marcar_evento_da_visita(vista, ["enviado"])
     threading.Thread(target=_avisar_do_pedido, args=(id_, p),
                      daemon=True).start()
     return resposta(True)

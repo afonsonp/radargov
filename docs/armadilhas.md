@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 49
+- [Contas e a porta](#contas-e-a-porta) &middot; 50
 - [A interface](#a-interface) &middot; 131
 - [Convenções](#convencoes) &middot; 8
 
-São **457** ao todo, contados a 4/10/2026. Contam-se por secção com
+São **458** ao todo, contados a 4/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3168,6 +3168,14 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   `nif_da_empresa` ao aceitar; o plano escolhe-o o dono no ecrã do
   aceitar (`_escolha_do_plano()`), e o do pedido, se houver, só vem
   pré-escolhido.
+- **A medição das visitas regista-se no `_do_site()`, e por isso
+  tem de aguentar correr fora de um pedido** (ANL, 4/10/2026). Os
+  testes e as ferramentas montam as páginas legais sem pedido, e o
+  `registar_visita()` rebentava com «Working outside of request
+  context». E o `/visita` é a sétima rota POST aberta: entra na lista
+  do `test_todas_as_rotas_post_recusam_sem_token`, com a razão. Nunca
+  guardes ali o IP: o `visitante` é um HMAC com o sal do dia, que só
+  vive em memória — é isso que a política de privacidade promete.
 - **A conta suspensa trava-se em três sítios, e não na rota do
   `/entrar`** (2R-§7 (8), 4/10/2026). O `contas.entrar()` (depois da
   palavra-passe certa: a quem não a sabe não se diz que a conta existe),

@@ -322,7 +322,9 @@ o `/sitemap.xml`, a `/partilha.png`, o `/llms.txt` (29/09/2026) e a
 `/afonso-pinto.jpg` (30/09/2026),
 abertos por igualdade — o robots é uma lista branca; as páginas
 do site passam todas pelo `_do_site()`, que lhes põe os tokens da
-aplicação e a moldura (`site/moldura.css`). O que isso quer dizer está no
+aplicação e a moldura (`site/moldura.css`) — e, desde 4/10/2026, o beacon
+das visitas (`registar_visita()`, `/visita`, aberta com a guarda dentro;
+o painel é o `/plataforma/visitas`). O que isso quer dizer está no
 `docs/FUNCIONAL.md` §4.9 e nas armadilhas, «Contas e a porta».
 
 **O endereço público é `https://miragov.pt`** desde 25/09/2026 (até aí
@@ -631,7 +633,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **457 pontos** (contados a 4/10/2026), cada um de um erro que
+São **458 pontos** (contados a 4/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
