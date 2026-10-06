@@ -39632,12 +39632,14 @@ def _fita_da_semana(hoje, dia_escolhido, tarefas, prazos, base):
         if d == dia_escolhido:
             classes.append("on")
         n, feitas = por_dia.get(d, 0), feitas_no_dia.get(d, 0)
+        # um dia vazio fica só com o nome e o número (front end novo,
+        # 6/10/2026): cinco «sem tarefas» em sete dias eram ruído
         notas = ["<span class='nota-dia'>%s%s</span>"
                  % ("%s tarefa%s" % (mil_pt(n), "" if n == 1 else "s")
-                    if n else "sem tarefas",
+                    if n else "",
                     " &middot; %s feita%s" % (mil_pt(feitas),
                                               "" if feitas == 1 else "s")
-                    if feitas else "")]
+                    if feitas else "")] if n or feitas else []
         # As entregas em duas (D12 da 3.ª ronda, decisão dele): o que
         # ainda está por entregar é trabalho, e o que já foi entregue só
         # espera. «7 entregas» com cinco já submetidas lia-se como sete
@@ -40430,8 +40432,10 @@ def inicio():
                 % (html.escape(alvo_esconder + "#fazer", quote=True),
                    "Mostrar as feitas" if esconder else "Esconder as feitas"))
                if todas or esconder else "",
+        # sem a faixa azul (front end novo, 6/10/2026): era o bloco mais
+        # pesado do ecrã, e a cor é para o que pede acção
         pe="<a href='/calendario'>calendário &rarr;</a>",
-        id_="fazer", banda=True)
+        id_="fazer")
 
     # O titulo continua a ser a DATA e nao uma saudacao (redesenho de
     # 17/09/2026, decisao dele), mesmo com o `EcraHoje` a cumprimentar:
