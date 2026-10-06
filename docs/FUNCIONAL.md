@@ -207,6 +207,8 @@ comparadas antes de apagar.
 | `data_adjudicacao` | 0 | A data da adjudicação (26/09/2026): é por ela que o `/situacao` conta o período |
 | `audiencia_em` | 0 | A data da notificação do relatório preliminar: abre a tarefa da audiência prévia (§3.5) |
 | `valor_adjudicado` | 0 | O que o «Ganho» soma; vazio, o proposto (26/09/2026). A Situação diz quantas ganhas somam cada um, e a tabela das decididas tem a coluna «Conta» |
+| `vencedor` | 0 | Numa perdida, quem ganhou (6/10/2026, decisão dele: só havia o «Os três primeiros», em texto livre) |
+| `preco_vencedor` | 0 | E por quanto; com o proposto, a ficha diz «Perdemos por X %» |
 | `notas` | 0 | **Vazia desde 26/09/2026**: as notas passaram à `notas_da_proposta`, e a coluna fica (largar uma coluna reescreve a tabela) |
 | `lugar`, `top3` | 34 | Em que posição ficámos, e quem ficou à frente |
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
