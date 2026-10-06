@@ -921,13 +921,16 @@ Eram cinco itens desde 24/09/2026
   «Em jogo» do Hoje)
 - **Mercado** → `/contratos` · aba **Entidades** `/entidades`, ao lado
   dos dois modos da tabela (26/09/2026; era vista na barra)
-- **Calendário** → `/calendario`, com três filtros (§4.3)
+- O **Calendário** (`/calendario`, com três filtros, §4.3) saiu da barra
+  a 6/10/2026: é a terceira vista das Propostas (Fases · Tabela ·
+  Calendário), e acende o item delas
 - **Configurações** → `/configuracoes` (9 secções)
 
 **No telemóvel (abaixo de 600 px) a navegação vai para baixo** (D9 da
 segunda ronda, 26/09/2026, decisão dele): uma barra fixa em baixo com
-**Concursos, Propostas, Situação, Calendário e «Mais»** — o «Mais» abre
-o Mercado, as Configurações, a Ajuda e o sair (a «conta» saiu a
+**Concursos, Propostas, Situação, Mercado e «Mais»** (o Mercado no lugar
+do Calendário desde 6/10/2026) — o «Mais» abre as Configurações, a Ajuda
+e o sair (a «conta» saiu a
 30/09/2026: as Configurações abrem-na) —, cada destino
 com ícone e nome, alvos de 60 px de altura, o `aria-current` no aceso (e
 o «Mais» aceso quando a página vive lá dentro), e a área segura do

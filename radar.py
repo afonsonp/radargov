@@ -18123,8 +18123,10 @@ NAV = (("anuncios", "Concursos", LISTA, ()),
        # mudava de largura, e em /entidades ficavam dois acesos. Sao uma
        # aba do Mercado, ao lado dos dois modos da tabela, e as migalhas
        # dizem «Mercado › Entidades» pelo PAGINAS_DE_UM_ITEM.
-       ("mercado", "Mercado", "/contratos", ()),
-       ("calendario", "Calendário", "/calendario", ()))
+       ("mercado", "Mercado", "/contratos", ()))
+# **O Calendário saiu da barra a 6/10/2026** (decisão dele, no front end
+# novo): é uma vista das Propostas, ao lado das Fases e da Tabela, e
+# acende o item delas (`ITEM_DA_PAGINA`, em baixo).
 # Alertas saiu do primeiro nivel a 8/09/2026 (docs/historico/ONLINE.md,
 # etapa 2): passou a seccao de Configuracoes, que vive em baixo, ao
 # lado da zona de estado, como os Indicadores -- e o sitio onde se vai
@@ -18146,11 +18148,13 @@ ITEM_DA_PAGINA = {pagina: chave for chave, _, _, vistas in NAV
 # "Radar". A barra e hierarquia por cima das paginas, nao um nome novo
 # para elas.
 ITEM_DA_PAGINA.update({"contratos": "mercado", "renovacoes": "mercado",
-                       "entidades": "mercado", "concorrentes": "mercado"})
+                       "entidades": "mercado", "concorrentes": "mercado",
+                       "calendario": "propostas"})
 # As paginas que vivem num item e tem nome proprio nas migalhas (o item
 # por cima, a pagina a seguir).
 PAGINAS_DE_UM_ITEM = {"entidades": ("Entidades", "/entidades"),
-                      "concorrentes": ("Concorrentes", "/concorrentes")}
+                      "concorrentes": ("Concorrentes", "/concorrentes"),
+                      "calendario": ("Calendário", "/calendario")}
 
 # As paginas que NAO vivem em item nenhum da barra, e o nome com que se
 # apresentam nas migalhas. Sao duas e sao as duas de propositio: o Hoje
@@ -18854,8 +18858,7 @@ def _iniciais(nome):
 # «Mais». Os quatro são os de todos os dias, por esta ordem; o que não
 # couber (o Mercado, as Configurações, a Ajuda, a conta) vai para o
 # «Mais». Em cima fica a marca, que é o Hoje, e quem está.
-DESTINOS_DE_BAIXO = ("anuncios", "propostas", "situacao", "calendario",
-                     "mercado")
+DESTINOS_DE_BAIXO = ("anuncios", "propostas", "situacao", "mercado")
 QUANTOS_EM_BAIXO = 4
 ICONES_DE_BAIXO = {"anuncios": "lista", "propostas": "documento",
                    "situacao": "euro", "calendario": "calendario",
@@ -21541,7 +21544,9 @@ def _vistas_das_propostas(actual):
                 for chave, href, rotulo in (
                     ("fases", PROPOSTAS, "Fases"),
                     ("tabela", "%s?estado=%s" % (PROPOSTAS, CHAVES_DA_EMPRESA[0]),
-                     "Tabela"))))
+                     "Tabela"),
+                    # o Calendário é a terceira vista desde 6/10/2026
+                    ("calendario", "/calendario", "Calendário"))))
 
 
 def _cartao_da_fase(p, prazo, etiquetas, urgente):
@@ -35549,7 +35554,8 @@ def calendario():
                       html.escape(rotulo), mil_pt(len(por_filtro[chave][0])))
                    for chave, rotulo in FILTROS_DO_CALENDARIO))
     return envolver("calendario", "Calendário", "",
-                    filtros + "<div class='larg'>%s%s%s%s</div>"
+                    "<div class='larg fs-topo'>" + _vistas_das_propostas("calendario")
+                    + "</div>" + filtros + "<div class='larg'>%s%s%s%s</div>"
                     % (faixa, legenda, "".join(grade), "".join(agenda)
                        + ("" if leve else CALENDARIO_JS)),
                     cabeca=cabecalho_de_pagina(

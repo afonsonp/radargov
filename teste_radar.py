@@ -5653,12 +5653,12 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         # Configuracoes sao o quinto, e desenham-se a seguir a estes.
         # A Situação entrou a 26/09/2026, a seguir às Propostas (D11 da
         # segunda ronda, decisão dele).
+        # O Calendário saiu a 6/10/2026 (decisão dele): é a terceira
+        # vista das Propostas, ao lado das Fases e da Tabela.
         self.assertEqual([n[0] for n in radar.NAV],
-                         ["anuncios", "propostas", "situacao", "mercado",
-                          "calendario"])
+                         ["anuncios", "propostas", "situacao", "mercado"])
         self.assertEqual([n[1] for n in radar.NAV],
-                         ["Concursos", "Propostas", "Situação", "Mercado",
-                          "Calendário"])
+                         ["Concursos", "Propostas", "Situação", "Mercado"])
         self.assertEqual(radar.NAV[0][2], radar.LISTA)
         self.assertEqual(radar.NAV[1][2], radar.PROPOSTAS)
         html_ = radar.app.test_client().get(radar.LISTA).get_data(as_text=True)
@@ -5702,10 +5702,10 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
         era o arrastar -- que só compensa quando se vê tudo ao mesmo
         tempo. Sobra o calendário, que é a única forma diferente de olhar
         para o mesmo: uma grelha de dias, para ver choques de datas."""
-        # Desde 24/09/2026 o Calendário é item próprio da barra (a do
-        # Mira Gov), e os Concursos deixaram de ter vistas.
+        # De 24/09 a 6/10/2026 o Calendário foi item próprio da barra;
+        # desde então é vista das Propostas. Os Concursos não têm vistas.
         self.assertEqual(radar.NAV[0][3], ())
-        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "calendario")
+        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "propostas")
         self.assertNotIn("quadro", radar.ITEM_DA_PAGINA)
 
     def test_contratos_e_renovacoes_vivem_sob_mercado(self):
@@ -5714,8 +5714,9 @@ class TestNavegacaoPorIntencoes(BaseTemporaria):
 
     def test_migalhas_das_vistas_agrupadas(self):
         # deixaram de ser separadores irmãos: são vistas de um item
-        # o Calendário é item desde 24/09/2026: as migalhas são só ele
-        self.assertEqual("<em>Calendário</em>", radar.migalhas_de("calendario"))
+        # o Calendário é vista das Propostas desde 6/10/2026
+        self.assertIn("Propostas", radar.migalhas_de("calendario"))
+        self.assertIn("<em>Calendário</em>", radar.migalhas_de("calendario"))
         self.assertIn("Mercado", radar.migalhas_de("contratos"))
         self.assertIn("<em>Entidades</em>", radar.migalhas_de("entidades"))
 
@@ -6003,8 +6004,9 @@ class TestModoFimDosContratos(unittest.TestCase):
         # deixar passar.
         self.assertNotIn("renovacoes", [v[0] for v in mercado[3]])
         self.assertNotIn("contratos", [v[0] for v in mercado[3]])
-        # o Calendário é item próprio da barra desde 24/09/2026
-        self.assertIn("calendario", [n[0] for n in radar.NAV])
+        # o Calendário foi item próprio da barra de 24/09 a 6/10/2026;
+        # desde então é vista das Propostas
+        self.assertEqual(radar.ITEM_DA_PAGINA["calendario"], "propostas")
         # e os dois modos continuam alcançáveis, pelas abas da página:
         # `TestOsModosDoMercadoEstaoNasAbas`, sobre um corpus temporário
 
@@ -22426,24 +22428,28 @@ class TestBarraDeBaixoNoTelemovel(BaseTemporaria):
         return corpo.split("<nav class='barra-baixo'")[1].split("</nav>")[0]
 
     def test_quatro_destinos_e_um_mais(self):
+        # desde 6/10/2026 o Calendário é vista das Propostas: o Mercado
+        # sobe a destino, e o Calendário acende as Propostas
         barra = self._barra("/calendario")
         principais = barra.split("<details")[0]
         self.assertEqual(re.findall(r"<span>([^<]+)</span></a>", principais),
-                         ["Concursos", "Propostas", "Situação", "Calendário"])
-        self.assertIn("href='/calendario' aria-current='page'", principais)
+                         ["Concursos", "Propostas", "Situação", "Mercado"])
+        self.assertIn("href='/propostas' aria-current='page'", principais)
         self.assertEqual(principais.count("aria-current"), 1)
         mais = barra.split("<details")[1]
         # as Configurações ligam já à Conta (3.ª ronda, G85): o
         # `/configuracoes` só redirecciona, e é uma viagem a mais
-        for destino in ("/contratos", "/configuracoes/conta", "/ajuda"):
+        for destino in ("/configuracoes/conta", "/ajuda"):
             self.assertIn("href='%s'" % destino, mais)
         self.assertIn("<span>Mais</span>", mais)
 
     def test_o_mais_acende_quando_a_pagina_vive_la(self):
-        barra = self._barra("/contratos")
+        # o Mercado é destino desde 6/10/2026; no «Mais» vivem as
+        # Configurações
+        barra = self._barra("/configuracoes/conta")
         self.assertIn("<summary class='bb-item aceso'>", barra)
-        self.assertIn("href='/contratos' aria-current='page'", barra)
         self.assertNotIn("bb-item aceso", self._barra("/propostas"))
+        self.assertNotIn("bb-item aceso", self._barra("/contratos"))
 
     def test_a_folha_tira_a_barra_de_cima_e_guarda_o_espaco(self):
         folha = TestODesenhoSegueOSistema._nosso_css()
