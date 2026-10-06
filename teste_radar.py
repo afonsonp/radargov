@@ -11502,6 +11502,21 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
         self.assertIn("mg-alert--success aviso-da-vez' role='status'", h)
         self.assertNotIn("mg-alert--danger", h)
 
+    def test_sexta_ronda_o_aviso_nao_tapa_o_mais_no_telemovel(self):
+        """6.ª ronda (5/10/2026, perfil 1): o aviso preso em baixo tapava o
+        «Sair» do «Mais», e com o «desfazer» ocupava um terço do ecrã.
+        Abrir o «Mais» fecha-o; o de sucesso sem «desfazer» sai ao fim de
+        8 s (o de erro e o do «desfazer» ficam); no telemóvel é uma linha.
+        Medido no iPhone simulado: 58 px de 664."""
+        h = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("mais.addEventListener('toggle', function () {\n"
+                      "  if (mais.open && t.isConnected) t.remove();", h)
+        self.assertIn("t.classList.contains('mg-alert--success') && "
+                      "h.indexOf('desfazer') < 0", h)
+        self.assertIn("}, 8000);", h)
+        movel = radar.CSS_TUDO.split(".com-js .aviso-da-vez{bottom:calc(var(--baixo-h) + 12px)}", 1)[1]
+        self.assertIn(".com-js .aviso-da-vez:not(.no-topo){flex-wrap:nowrap", movel[:200])
+
     def test_e14_o_historico_mostra_as_ultimas_e_da_as_outras(self):
         id_ = self._proposta()
         with radar.liga() as c:
@@ -21481,6 +21496,38 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         self.assertIn("nenhuma proposta em «Submetida» e «Relatório "
                       "preliminar»", corpo)
 
+    def test_sexta_ronda_as_tabelas_viram_cartoes_com_rotulo_no_telemovel(self):
+        """6.ª ronda (5/10/2026, perfil 1): no iPhone as tabelas da Situação
+        tinham 900 px num ecrã de 364, e só se via o título. Passam ao
+        cartão da `.tab-plataforma`, com o rótulo de cada número."""
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        decididas = corpo[corpo.index("id='decididas'"):]
+        self.assertIn("class='mg-table tab-contratos tab-plataforma'", decididas)
+        for rotulo in ("Resultado", "Preço base", "Proposto", "Adjudicado", "Conta"):
+            self.assertIn("data-r='%s'" % rotulo, decididas)
+        self.assertIn("class='mg-table tab-contratos tab-plataforma'",
+                      inspect.getsource(radar.tabela_em_jogo))
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        self.assertIn(".tab-plataforma tfoot td:empty{display:none}", folha)
+        # o total ficava com 3 px: a `.tab-contratos td.p{width:1%}` da
+        # tabela larga ganhava à regra do cartão, que leva o `td.p` para ganhar
+        self.assertIn(".tab-plataforma tfoot td,.tab-plataforma tfoot td.p{", folha)
+
+    def test_sexta_ronda_os_alvos_do_toque_ganham_as_regras_especificas(self):
+        """6.ª ronda (5/10/2026, perfil 9): a regra do toque dava 44 px ao
+        «adiar · quem», ao selector da fase e ao «Anúncio completo», e
+        perdia para o `main.mg summary{min-height:24px}` e o `main.mg td
+        select{min-height:30px}`, mais específicos: no Android ficavam com
+        24 e 30. Medido no browser, com o CSS verdadeiro."""
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        toque = folha.split("@media (pointer:coarse){", 1)[1]
+        self.assertIn("main.mg .hj-mexer>summary{min-height:44px", toque)
+        self.assertIn("main.mg td select,main.mg summary.mg-btn{min-height:44px}", toque)
+
 
 class TestOAlertaNaoGravaOQueNaoLe(BaseTemporaria):
     """E3, E4, E5, E6: as mensagens de sucesso sobre coisas que
@@ -21836,6 +21883,30 @@ class TestOClienteNaoDescarregaODesnecessario(BaseTemporaria):
         self.assertIn("width='1684' height='1190'", corpo)
         self.assertIn("height:auto",
                       radar.CSS_TUDO.split(".peca-pag{")[1][:80])
+
+    def test_sexta_ronda_a_peca_no_telemovel_corre_com_a_pagina(self):
+        """6.ª ronda (5/10/2026, perfil 9): no Android a folha tinha 254 px
+        numa caixa a rolar dentro da página. Abaixo de 600 px a caixa e as
+        margens saem, e dentro da ficha há a ligação para a peça inteira."""
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("sem pymupdf no Python dos testes")
+        caminho = os.path.join(self.pasta, "ensaio.pdf")
+        doc = pymupdf.open()
+        doc.new_page(width=595, height=842)
+        doc.save(caminho)
+        doc.close()
+        with radar.app.test_request_context("/"):
+            _, na_ficha = radar.visualizador_de_peca(
+                "1/2026", "ensaio.pdf", caminho, "/documento/x", "",
+                "/anuncio/1%2F2026", ocultos={"peca": "ensaio.pdf"})
+            _, na_propria = radar.visualizador_de_peca(
+                "1/2026", "ensaio.pdf", caminho, "/documento/x", "", "/peca/1/2026/x")
+        self.assertIn("<a class='peca-inteira' href='/peca/1/2026/ensaio.pdf'>", na_ficha)
+        self.assertNotIn("peca-inteira", na_propria)
+        movel = radar.CSS_TUDO.split(".peca-inteira{display:none}", 1)[1][:200]
+        self.assertIn(".leitor .peca-folhas{max-height:none;overflow:visible", movel)
 
 
 
@@ -26628,6 +26699,25 @@ class TestOCorpusAqueceEmFundo(BaseTemporaria):
                          "/contratos/resumo?interesse=nao",
                          "/contratos/resumo?interesse=nao&ver=fim"):
                 self.assertEqual(cliente.get(rota).status_code, 200, rota)
+        contas = [q for q in feitas
+                  if re.search(r"COUNT\(\*\) n, COALESCE\(SUM|CREATE TEMP "
+                               r"TABLE recorte|SUM\(c\.preco_contratual", q)]
+        self.assertEqual(contas, [])
+
+    def test_sexta_ronda_cada_divisao_de_cpv_fica_aquecida(self):
+        """6.ª ronda (5/10/2026, perfil 16): a primeira pesquisa por uma
+        divisão larga levava segundos (o CPV 45, só desde janeiro, 5,7 s
+        nos gráficos com o disco quente). Aquecidas sem o perfil, servem
+        todas as empresas; o número é o de uma pesquisa feita à mão."""
+        divisoes = radar.divisoes_do_corpus()
+        self.assertTrue(divisoes)
+        radar.aquecer_o_corpus()
+        cliente = radar.app.test_client()
+        with consultas_do_radar("corpus") as feitas:
+            for div in divisoes:
+                for rota in ("/contratos?cpv=%s000000&interesse=nao" % div,
+                             "/contratos/resumo?cpv=%s000000&interesse=nao" % div):
+                    self.assertEqual(cliente.get(rota).status_code, 200, rota)
         contas = [q for q in feitas
                   if re.search(r"COUNT\(\*\) n, COALESCE\(SUM|CREATE TEMP "
                                r"TABLE recorte|SUM\(c\.preco_contratual", q)]

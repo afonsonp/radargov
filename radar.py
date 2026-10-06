@@ -13888,6 +13888,12 @@ def relogio():
         time.sleep(60)
 
 
+def divisoes_do_corpus():
+    """As divisões de CPV (os dois primeiros algarismos) que o corpus tem,
+    das contagens da árvore -- que o aquecimento já guardou."""
+    return sorted({c8[:2] for c8 in _contagens_cpv_contratos()[1] if len(c8) == 8})
+
+
 def aquecer_o_corpus():
     """Faz, em fundo, as contas que a primeira visita ao Mercado e as
     Entidades pediria (lote 10, 29/09/2026: «a primeira visita ao Mercado
@@ -13909,6 +13915,15 @@ def aquecer_o_corpus():
     # sem clientes nada se aquecia além dos totais)
     cfg_da_plataforma = ler_config()
     for args in ({"interesse": "nao"}, {"interesse": "nao", "ver": "fim"}):
+        with liga_corpus() as c:
+            contas_do_mercado(c, args, cfg_da_plataforma)
+        resumo_contratos(args)
+    # E cada divisão de CPV, sem o perfil (6.ª ronda, 5/10/2026): eram as
+    # pesquisas largas e as mais lentas a primeira vez -- o CPV 45, só
+    # desde janeiro, 5,7 s nos gráficos com o disco quente. Sem o perfil
+    # a chave é a mesma para todas as empresas: uma vez por importação.
+    for divisao in divisoes_do_corpus():
+        args = {"cpv": divisao + "000000", "interesse": "nao"}
         with liga_corpus() as c:
             contas_do_mercado(c, args, cfg_da_plataforma)
         resumo_contratos(args)
@@ -16795,6 +16810,15 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
    nao ha rolo dentro de rolo. */
 .leitor .peca-folhas{padding:0 15px 15px;max-height:78vh;overflow-y:auto;
  background:var(--surface-sunken)}
+/* No telemóvel não há janela própria nem margens (6.ª ronda, perfil 9):
+   a folha ficava com 254 px numa caixa a rolar dentro da página, e o
+   dedo ora mexia uma ora outra. As folhas correm com a página, a toda a
+   largura, e a ligação leva à peça em ecrã inteiro. */
+.peca-inteira{display:none}
+@media (max-width:600px){
+ .leitor .peca-folhas{max-height:none;overflow:visible;padding:0 0 8px}
+ .leitor .peca-inteira{display:inline-flex;align-items:center;min-height:44px;
+  margin:0 15px 8px}}
 .peca-pag{display:block;width:100%;height:auto;max-width:960px;margin:14px auto 0;
  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);
  box-shadow:var(--shadow-sm)}
@@ -17783,6 +17807,21 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
   vivo.textContent = t.innerText.replace(/[\u26a0\ufe0e\u2713\u00d7]/g, '').replace(/desfazer/, '').trim();
   if (document.activeElement === document.body) t.focus({preventScroll: true});
  }, 150);
+ /* No telemóvel o aviso preso em baixo tapava o «Sair» do «Mais» (6.ª
+    ronda, perfil 1): abrir o «Mais» fecha-o. E o de sucesso sem
+    «desfazer» sai sozinho ao fim de 8 s -- o de erro, o do «desfazer» e
+    o do topo ficam, e quem entrou com o Tab no «×» também o segura. */
+ var mais = document.querySelector('details.bb-mais');
+ if (mais) mais.addEventListener('toggle', function () {
+  if (mais.open && t.isConnected) t.remove();
+ });
+ if (t.classList.contains('mg-alert--success') && h.indexOf('desfazer') < 0
+     && !t.classList.contains('no-topo')) {
+  setTimeout(function () {
+   var foco = document.activeElement;
+   if (t.isConnected && (!t.contains(foco) || foco === t)) t.remove();
+  }, 8000);
+ }
  t.addEventListener('click', function (e) {
   if (e.target.closest('.aviso-fechar')) t.remove();
  });
@@ -33242,6 +33281,12 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         # A zona das páginas rola por si: sem tabindex, quem só usa o
         # teclado não descia da página 1 (3.ª ronda, G68; WCAG 2.1.1)
         caixa + resultados
+        # Dentro da ficha, no telemóvel, a peça inteira na página dela,
+        # onde se amplia com os dedos (6.ª ronda: 254 px de folha numa
+        # caixa a rolar dentro da página). Os `ocultos` só vêm na ficha.
+        + ("<a class='peca-inteira' href='%s/%s'>Abrir a peça em ecrã inteiro</a>"
+           % (html.escape("/peca/" + ref, quote=True), quote(nome, safe=""))
+           if ocultos else "")
         + "<div class='peca-folhas' tabindex='0' role='region' "
           "aria-label='Páginas de %s'>%s</div>"
         % (html.escape(nome, quote=True), paginas_img))
@@ -35890,10 +35935,15 @@ def tabela_das_decididas(linhas, rotulo_periodo):
                 % html.escape(rotulo_periodo))
     ganhas = [l for l in linhas if l["estado"] == "ganho"]
     total = sum(valor_ganho(l) for l in ganhas)
+    # Em cartão no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela
+    # tinha 900 e só se via o título; o `data-r` é o rótulo de cada número
+    # no cartão, onde o cabeçalho não aparece.
     corpo = "".join(
-        "<tr><td class='mg-num'>%s</td><td><a href='%s'>%s</a></td>"
-        "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
-        "<td class='p'>%s</td><td class='p'>%s</td></tr>"
+        "<tr><td class='mg-num' data-r='Decidida em'>%s</td>"
+        "<td class='o'><a href='%s'>%s</a></td>"
+        "<td data-r='Resultado'>%s</td><td class='p' data-r='Preço base'>%s</td>"
+        "<td class='p' data-r='Proposto'>%s</td>"
+        "<td class='p' data-r='Adjudicado'>%s</td><td class='p' data-r='Conta'>%s</td></tr>"
         % (data_pt((l["decidida"] or "")[:10], "—")
            + ("" if l["data_adjudicacao"] else
               " <span class='nota' title='sem data da adjudicação: é o dia "
@@ -35911,7 +35961,7 @@ def tabela_das_decididas(linhas, rotulo_periodo):
     return ("<div class='mg-card tab-cx' id='decididas'>"
             "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
             "Decididas %s</h2>"
-            "<table class='mg-table tab-contratos'><thead><tr>"
+            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
             "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
             "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
             "<th class='p'>Adjudicado</th><th class='p'>Conta</th>"
@@ -35969,8 +36019,9 @@ def tabela_em_jogo(ancora, rotulo, estados):
                 "</div>" % (ancora, cabeca, " nem em ".join(
                     "«%s»" % estado_da_empresa(e) for e in estados)))
     corpo = "".join(
-        "<tr><td><a href='%s'>%s</a></td><td>%s</td>"
-        "<td class='p'>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
+        "<tr><td class='o'><a href='%s'>%s</a></td><td data-r='Fase'>%s</td>"
+        "<td class='p' data-r='Preço base'>%s</td><td class='p' data-r='Proposto'>%s</td>"
+        "<td class='p' data-r='Conta'>%s</td></tr>"
         % (("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
            else "/proposta/%d" % p["id"],
            html.escape(corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70)),
@@ -35979,7 +36030,7 @@ def tabela_em_jogo(ancora, rotulo, estados):
            euros(valor_em_jogo(p)))
         for p in linhas)
     return ("<div class='mg-card tab-cx' id='%s'>%s"
-            "<table class='mg-table tab-contratos'><thead><tr>"
+            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
             "<th>Concurso</th><th>Fase</th><th class='p'>Preço base</th>"
             "<th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead>"
             "<tbody>%s</tbody><tfoot><tr><td><b>%s</b></td><td></td><td></td>"

@@ -1574,7 +1574,11 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   qualquer processo), o dia e o perfil de cada empresa — e refaz as
   contas do Mercado, do resumo e das Entidades de cada empresa quando
   ele muda **e ficou igual uma volta inteira** (a meio de uma
-  importação o ficheiro muda a cada minuto). Uma conta nova que uma
+  importação o ficheiro muda a cada minuto). Desde a 6.ª ronda
+  (5/10/2026) aquece também **cada divisão de CPV sem o perfil**
+  (`divisoes_do_corpus()`): a primeira pesquisa pelo CPV 33 levava 19,8 s
+  na base verdadeira, e as 45 divisões juntas aquecem em 85 s; sem o
+  perfil, a chave serve todas as empresas. Uma conta nova que uma
   página faça no arranque tem de entrar lá **pela mesma função**
   (`contas_do_mercado()`, `resumo_contratos()`, `entidades_top()`): uma
   chave que difira num espaço é uma memória que ninguém lê. Medido: 31 s
