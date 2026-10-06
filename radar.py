@@ -21531,6 +21531,146 @@ def botao_da_fase_seguinte(p):
                html.escape(rotulo)))
 
 
+def _vistas_das_propostas(actual):
+    """O interruptor «Fases | Tabela» das Propostas (front end novo,
+    6/10/2026). A tabela abre na primeira ranhura, como sempre."""
+    return ("<nav class='vistas-propostas' aria-label='Vista'>%s</nav>"
+            % "".join(
+                "<a href='%s'%s>%s</a>"
+                % (href, " aria-current='page'" if chave == actual else "", rotulo)
+                for chave, href, rotulo in (
+                    ("fases", PROPOSTAS, "Fases"),
+                    ("tabela", "%s?estado=%s" % (PROPOSTAS, CHAVES_DA_EMPRESA[0]),
+                     "Tabela"))))
+
+
+def _cartao_da_fase(p, prazo, etiquetas, urgente):
+    """Um cartão da vista por fases: o título, a entidade, o preço e a
+    referência, e em baixo as etiquetas, o responsável e o prazo. O
+    resto vive na ficha, para onde o cartão leva."""
+    alvo = ("/anuncio/" + quote(p["ref"], safe="") if p["ref"]
+            else "/proposta/%d" % p["id"])
+    if p["estado"] in ESTADOS_COM_PROPOSTO and p["valor_proposta"]:
+        preco = html.escape(preco_pt(p["valor_proposta"]))
+    else:
+        base = euros_do_texto(p["preco_base"] or "")
+        preco = html.escape(euros(base)) if base else ""
+    if not prazo:
+        quando = ""
+    elif p["estado"] in ESTADOS_COM_PROPOSTO:
+        quando = "<span class='mg-tag'>entregue %s</span>" % data_pt(prazo)[:5]
+    else:
+        quando = pilula_do_prazo(*etiqueta_prazo(prazo, urgente))
+    resp = (p["responsavel"] or "").strip()
+    dono = ("<span class='mg-avatar' title='%s'>%s</span>"
+            % (html.escape(nome_da_pessoa(resp), quote=True),
+               _iniciais(nome_da_pessoa(resp))) if resp else "")
+    pe = "".join(("".join("<span class='mg-tag'>%s</span>" % html.escape(e)
+                          for e in etiquetas),
+                  dono, "<span class='fs-prazo'>%s</span>" % quando if quando else ""))
+    return ("<a class='fs-cartao' href='%s'><span class='fs-titulo'>%s</span>"
+            "<span class='fs-linha'>%s</span>"
+            "<span class='fs-linha'>%s%s</span>%s</a>"
+            % (alvo, html.escape(corta(p["titulo"] or p["ref"] or "(sem título)", 110)),
+               html.escape(p["entidade"] or "") or "&mdash;",
+               "<b class='mg-num'>%s</b>" % preco if preco else "",
+               (" &middot; " if preco else "")
+               + (html.escape(p["ref"]) if p["ref"] else "sem anúncio"),
+               "<span class='fs-pe'>%s</span>" % pe if pe else ""))
+
+
+def _fases_das_propostas():
+    """As Propostas por fases (front end novo, 6/10/2026, as maquetes que
+    ele aprovou): uma coluna por fase em curso, cada uma com quantas e
+    quanto, e as decididas resumidas numa coluna de ligações para a
+    tabela. É o quadro que saiu a 16/09/2026, com o cartão magro: o
+    trabalho de cada proposta continua na ficha.
+
+    Os números das colunas são os cartões que estão na coluna, e a soma
+    é a mesma do «Em jogo» (`_euros_da_ranhura()`); as ligações das
+    decididas levam a procura, para abrirem a lista que contaram."""
+    urgente = dias_urgente()
+    procura = " ".join((request.args.get("q") or "").split())
+    onde, valores = "", []
+    if procura:
+        # a mesma procura da tabela (ver `_lista_de_propostas()`)
+        onde = (" WHERE (simplifica(titulo) LIKE ? ESCAPE ? OR "
+                "simplifica(entidade) LIKE ? ESCAPE ?)")
+        como = "%" + para_like(simplifica(procura)) + "%"
+        valores = [como, ESCAPE_LIKE, como, ESCAPE_LIKE]
+    with liga() as c:
+        linhas = c.execute(
+            "SELECT * FROM propostas" + onde
+            + " ORDER BY COALESCE(fechada_em, criada_em) DESC, id DESC",
+            valores).fetchall()
+        refs = sorted({p["ref"] for p in linhas if p["ref"]})
+        prazos, etiquetas = {}, {}
+        if refs:
+            marcas = ",".join("?" * len(refs))
+            prazos = {r["ref"]: r["prazo"] for r in c.execute(
+                "SELECT ref, prazo FROM anuncios WHERE ref IN (%s)" % marcas, refs)}
+            for r in c.execute(
+                    "SELECT ae.ref, e.nome FROM etiquetas e JOIN anuncio_etiquetas ae "
+                    "ON ae.etiqueta_id = e.id WHERE ae.ref IN (%s) ORDER BY e.nome"
+                    % marcas, refs):
+                etiquetas.setdefault(r["ref"], []).append(r["nome"])
+    por_fase = {}
+    for p in linhas:
+        por_fase.setdefault(p["estado"], []).append(p)
+    colunas = []
+    for estado in ESTADOS_ABERTOS:
+        dela = por_fase.get(estado, [])
+        # o relatório preliminar só tem coluna quando tem alguém: é uma
+        # fase de passagem, e uma coluna vazia ocupava o lugar de 300 px
+        if not dela and estado == "relatorio":
+            continue
+        conta = plural(len(dela), "proposta", "propostas")
+        soma = _euros_da_ranhura(dela, estado)
+        colunas.append(
+            "<section class='fs-coluna' aria-label='%s'><header>"
+            "<h2><a href='%s?estado=%s'>%s</a></h2><span>%s%s</span></header>%s</section>"
+            % (html.escape(estado_da_empresa(estado), quote=True),
+               PROPOSTAS, estado, html.escape(estado_da_empresa(estado)), conta,
+               " &middot; <span class='mg-num'>%s</span>" % html.escape(euros(soma))
+               if soma else "",
+               "".join(_cartao_da_fase(p, prazos.get(p["ref"] or "")
+                                       or _valor(p, "prazo_entrega"),
+                                       etiquetas.get(p["ref"] or "", ()), urgente)
+                       for p in dela)
+               or "<p class='fs-vazio'>Nada nesta fase.</p>"))
+    mais_q = ("&q=" + quote(procura)) if procura else ""
+    decididas = "".join(
+        "<a class='fs-decidida%s' href='%s?estado=%s%s'><span>%s</span>"
+        "<b class='mg-num'>%s</b></a>"
+        % ("" if por_fase.get(estado) else " zero", PROPOSTAS, estado, mais_q,
+           html.escape(estado_da_empresa(estado)),
+           mil_pt(len(por_fase.get(estado, ()))))
+        for estado in ESTADOS_FECHADOS)
+    colunas.append(
+        "<section class='fs-coluna fs-decididas' aria-label='Decididas'><header>"
+        "<h2>Decididas</h2><span>abrem a tabela</span></header>%s</section>"
+        % decididas)
+    caixa = ("<form class='pf' method='get' action='%s'>"
+             "<input type='search' name='q' value='%s' "
+             "placeholder='No título ou na entidade' aria-label='Filtrar as propostas'>"
+             "%s</form>"
+             % (PROPOSTAS, html.escape(procura, quote=True),
+                botoes_de_filtro(PROPOSTAS if procura else "", primario=False)))
+    conteudo = ("<div class='larg'><div class='fs-topo'>"
+                + _vistas_das_propostas("fases") + caixa + "</div>"
+                "<div class='fs-quadro'>" + "".join(colunas) + "</div></div>")
+    return envolver(
+        "propostas", "Propostas", "", conteudo,
+        cabeca=cabecalho_de_pagina(
+            "Propostas",
+            "O que a empresa tem em curso, por fase &mdash; com as "
+            "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
+            "convite).", [],
+            "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
+            + icone("mais") + " Nova proposta</a>"),
+        titulo_aba="Propostas")
+
+
 def _lista_de_propostas():
     """As propostas de uma ranhura da empresa, em tabela.
 
@@ -21539,6 +21679,11 @@ def _lista_de_propostas():
     Sao as duas razoes de a tabela `propostas` existir; se esta vista as
     escondesse, a tabela nao servia para nada.
     """
+    # Sem fase pedida, as Propostas abrem por fases (front end novo,
+    # 6/10/2026); com uma (as ligações do Hoje, da ficha, da Situação),
+    # a tabela dessa fase, como sempre.
+    if request.args.get("estado") is None:
+        return _fases_das_propostas()
     rota = PROPOSTAS
     cfg = ler_config()
     estado_actual = aba_pedida()
@@ -21696,7 +21841,9 @@ def _lista_de_propostas():
                                  if procura else "", primario=False)))
     # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
     # corpo, a procura e a contagem, e a tabela.
-    conteudo = (barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)
+    conteudo = ("<div class='larg fs-topo'>" + _vistas_das_propostas("tabela")
+                + "</div>"
+                + barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)
                 + "<div class='larg'>" + caixa +
                 "<div class='linha-conta'>" + conta + "</div>"
                 + corpo + "</div>")
@@ -35587,16 +35734,22 @@ def pipeline_em_euros():
                                (estado,)).fetchall()
             coluna = ("valor_proposta" if estado in ESTADOS_COM_PROPOSTO
                       else "preco_base")
-            soma = _euros(linhas, coluna)
-            # sem proposto lido, o base serve de aproximação -- e diz-se
-            if estado in ESTADOS_COM_PROPOSTO:
-                faltam = [l for l in linhas if not l["valor_proposta"]]
-                soma += _euros(faltam, "preco_base")
-            else:
-                faltam = [l for l in linhas if not l["preco_base"]]
-            fora[estado] = {"quantas": len(linhas), "euros": soma,
+            faltam = [l for l in linhas if not l[coluna]]
+            fora[estado] = {"quantas": len(linhas),
+                            "euros": _euros_da_ranhura(linhas, estado),
                             "sem_preco": len(faltam)}
     return fora
+
+
+def _euros_da_ranhura(linhas, estado):
+    """O que uma ranhura tem em jogo: o preço base até ao Submetido, o
+    proposto daí para a frente -- e, sem proposto lido, o base serve de
+    aproximação. É a mesma conta no «Em jogo» do Hoje e no topo de cada
+    coluna das Propostas por fases."""
+    if estado not in ESTADOS_COM_PROPOSTO:
+        return _euros(linhas, "preco_base")
+    return (_euros(linhas, "valor_proposta")
+            + _euros([l for l in linhas if not l["valor_proposta"]], "preco_base"))
 
 
 # A data pela qual uma proposta decidida conta num periodo: a da
