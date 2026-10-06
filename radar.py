@@ -16233,7 +16233,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
    periodo (12 meses, 3 anos, 2026...) continuam a ser o caminho
    rapido, e `data_de_filtro()` le as duas escritas. */
 .filtros input.campo-data{padding:9px 12px;border:1px solid var(--line);
- border-radius:var(--radius-md);background:var(--surface-raised);font:500 var(--text-xs)/1.2 var(--font-mono);
+ border-radius:var(--radius-md);background:var(--surface-raised);font:500 var(--text-xs)/1.2 var(--font-num);
  color:var(--ink);width:110px;min-width:0;flex:none}
 .filtros input.campo-data:invalid{border-color:var(--danger)}
 .filtros select{padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
@@ -16332,7 +16332,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 /* ficha da entidade */
 .ent-cab{padding:20px 24px;margin-bottom:14px}
 .ent-cab .n{font:600 var(--text-xl)/1.25 var(--font-sans);color:var(--ink);letter-spacing:-.3px}
-.ent-cab .m{font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted);margin-top:7px}
+.ent-cab .m{font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-muted);margin-top:7px}
 /* Cliente ou concorrente. Eram duas cores (verde e laranja) ate
    30/09/2026: o laranja e o tom do aviso, e ser concorrente nao e um
    aviso -- 45 selos coloridos por pagina do Mercado (UX-7-LEIS, V4). O
@@ -16389,10 +16389,10 @@ details.porque-bloco > .nota{margin:6px 0 12px}
  text-overflow:ellipsis;white-space:nowrap}
 .bh .r{display:block;height:9px;border-radius:var(--radius-sm);background:var(--surface-sunken)}
 .bh .r i{display:block;height:100%;border-radius:var(--radius-sm);background:var(--brand)}
-.bh .v{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink);text-align:right}
+.bh .v{font:600 var(--text-xs)/1 var(--font-num);color:var(--ink);text-align:right}
 .bh .k{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:right}
 .graf .barras{height:150px}
-.graf .barras .v{font:600 var(--text-xs)/1 var(--font-mono)}
+.graf .barras .v{font:600 var(--text-xs)/1 var(--font-num)}
 .graf .barras .b{background:var(--brand)}
 .graf .barras .col.parcial .b{background:repeating-linear-gradient(135deg,
  var(--brand) 0 4px,color-mix(in srgb,var(--brand) 35%,transparent) 4px 8px)}
@@ -16400,7 +16400,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .graf .barras .col.destaque .b{background:var(--success)}
 .graf .barras .col.destaque .v{color:var(--success)}
 .graf .barras .col.destaque .l{color:var(--success);font-weight:600}
-.conc-n{font:600 var(--text-2xl)/1 var(--font-mono);color:var(--ink);letter-spacing:-1.5px;
+.conc-n{font:600 var(--text-2xl)/1 var(--font-num);color:var(--ink);letter-spacing:-1.5px;
  margin-bottom:12px}
 .conc-b{display:flex;height:22px;border-radius:var(--radius-sm);overflow:hidden;
  background:var(--surface-sunken)}
@@ -16449,7 +16449,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
  font:400 var(--text-sm)/1.45 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
 .tab-contratos tr:last-child td{border-bottom:0}
 .tab-contratos tr:hover td{background:var(--surface-raised)}
-.tab-contratos td.d{font-family:var(--font-mono);white-space:nowrap;color:var(--ink-muted)}
+.tab-contratos td.d{font-family:var(--font-num);white-space:nowrap;color:var(--ink-muted)}
 /* O objecto e a coluna que responde a pergunta e era a mais apagada da
    tabela: os nomes de entidade, sendo ligacoes azuis, puxavam o olho
    primeiro. Invertido pelo peso, sem tirar o azul -- sao ligacoes e tem
@@ -16458,7 +16458,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .tab-contratos td.g{color:var(--ink-secondary);max-width:220px}
 .tab-contratos td a{font-weight:400}
 .tab-contratos th.p,.tab-contratos td.p{text-align:right;white-space:nowrap;
- font-family:var(--font-mono);color:var(--ink)}
+ font-family:var(--font-num);color:var(--ink)}
 .vazio code,.larg>.nota code{font:500 var(--text-xs)/1 var(--font-mono);
  background:var(--surface-sunken);padding:2px 6px;border-radius:var(--radius-sm)}
 .vazio.comecar{display:flex;flex-direction:column;gap:10px;padding:48px 40px}
@@ -16474,10 +16474,10 @@ details.porque-bloco > .nota{margin:6px 0 12px}
  letter-spacing:.06em;white-space:nowrap}
 .tab-mercado td{padding:8px 10px;border-bottom:1px solid var(--surface-sunken);
  font:400 var(--text-xs)/1.35 var(--font-sans);color:var(--ink-secondary);vertical-align:top}
-.tab-mercado td.d{font-family:var(--font-mono);white-space:nowrap;color:var(--ink-muted)}
+.tab-mercado td.d{font-family:var(--font-num);white-space:nowrap;color:var(--ink-muted)}
 .tab-mercado td.g{color:var(--ink);font-weight:500}
 .tab-mercado th.p,.tab-mercado td.p{text-align:right;white-space:nowrap;
- font-family:var(--font-mono)}
+ font-family:var(--font-num)}
 .tab-mercado td.o{color:var(--ink);max-width:300px}
 .tab-mercado tr:last-child td{border-bottom:0}
 /* a coluna do objecto pode ser longa; a tabela rola dentro da caixa em
@@ -16486,7 +16486,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .escada span{flex:1;display:flex;flex-direction:column;gap:4px;padding:8px 6px;
  border-radius:var(--radius-sm);background:var(--surface-raised);border:1px solid var(--line);
  font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);text-align:center}
-.escada span b{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
+.escada span b{font:600 var(--text-xs)/1 var(--font-num);color:var(--ink)}
 .mercado-tab{overflow-x:auto}
 .mercado-tab .tab-mercado{min-width:720px}
 .mercado code{font:500 var(--text-xs)/1 var(--font-mono);background:var(--surface-sunken);
@@ -16530,7 +16530,7 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .cpv-activo{display:flex;align-items:center;gap:9px;padding:10px 14px;
  border:1px solid var(--brand-soft);background:var(--brand-soft);border-radius:var(--radius-md);margin-bottom:12px;
  font:500 var(--text-xs)/1.3 var(--font-sans);color:var(--brand)}
-.cpv-activo b{font:600 var(--text-xs)/1.3 var(--font-mono)}
+.cpv-activo b{font:600 var(--text-xs)/1.3 var(--font-num)}
 .cpv-activo a{text-decoration:underline}
 
 /* arvore de CPV */
@@ -16540,7 +16540,7 @@ details.arvore[open]{background:var(--surface-raised)}
 details.arvore>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  padding:11px 16px;background:var(--surface-raised);list-style:none}
 details.arvore>summary::-webkit-details-marker{display:none}
-details.arvore>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-secondary)}
+details.arvore>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-secondary)}
 details.arvore[open]>summary::before{content:'\25BE'}
 .arv-tit{font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink)}
 .arv-sub{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
@@ -16579,7 +16579,7 @@ details.arvore[open]>summary::before{content:'\25BE'}
 #arvore-corpo .no.excluido{background:var(--surface-sunken)}
 #arvore-corpo .no .fora{font:600 var(--text-xs)/1 var(--font-sans);color:var(--danger);
  letter-spacing:.04em;text-transform:uppercase;flex:none}
-#arvore-corpo .cod{font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted);flex:none}
+#arvore-corpo .cod{font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-muted);flex:none}
 #arvore-corpo .lbl{font:500 var(--text-xs)/1.35 var(--font-sans);color:var(--brand);min-width:0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #arvore-corpo .n{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);flex:none}
@@ -16610,7 +16610,7 @@ details.painel-filtros>summary{cursor:pointer;display:flex;align-items:center;ga
  border-radius:var(--radius-md);min-height:24px}
 details.painel-filtros[open]>summary{margin-bottom:8px}
 details.painel-filtros>summary::-webkit-details-marker{display:none}
-details.painel-filtros>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-secondary)}
+details.painel-filtros>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-secondary)}
 details.painel-filtros[open]>summary::before{content:'\25BE'}
 details.painel-filtros .pf-tit{font:700 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
  text-transform:uppercase;letter-spacing:.07em}
@@ -16685,7 +16685,7 @@ dialog.mg-dialog .escolhas .motivo-bt{justify-content:flex-start;text-align:left
 .rodape .e{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary)}
 .rodape .d{font:400 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted)}
 
-.chip-prazo{flex:none;font:700 var(--text-xs)/1 var(--font-mono);padding:6px 9px;border-radius:var(--radius-sm);
+.chip-prazo{flex:none;font:700 var(--text-xs)/1 var(--font-num);padding:6px 9px;border-radius:var(--radius-sm);
  background:var(--surface-sunken);color:var(--ink-secondary);white-space:nowrap}
 .chip-prazo.mau{background:var(--danger-soft);color:var(--danger)}
 .chip-prazo.avisa{background:var(--warning-soft);color:var(--warning)}
@@ -16708,7 +16708,7 @@ details.sec{overflow:hidden;background:var(--surface-raised);border:1px solid va
 details.sec>summary{cursor:pointer;display:flex;align-items:center;gap:10px;
  padding:15px 22px;list-style:none}
 details.sec>summary::-webkit-details-marker{display:none}
-details.sec>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted)}
+details.sec>summary::before{content:'\25B8';font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-muted)}
 details.sec[open]>summary::before{content:'\25BE'}
 details.sec .st{font:600 var(--text-xs)/1 var(--font-sans);color:var(--ink);
  text-transform:uppercase;letter-spacing:.07em}
@@ -16744,7 +16744,7 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
 .numerados{margin:2px 0 0;padding:0 0 0 20px;display:flex;
  flex-direction:column;gap:8px}
 .numerados li{font:400 var(--text-xs)/1.55 var(--font-sans);color:var(--ink-secondary)}
-.numerados li::marker{font-family:var(--font-mono);font-size:var(--text-xs);color:var(--ink-muted)}
+.numerados li::marker{font-family:var(--font-num);font-size:var(--text-xs);color:var(--ink-muted)}
 .numerados li b{display:block;font-weight:600;color:var(--ink)}
 .numerados li span{display:block;text-wrap:pretty;max-width:88ch}
 /* Configuracoes: o indice a esquerda, preso ao rolar como o da ficha,
@@ -16770,7 +16770,7 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
 .tab-ensaio td .mau{color:var(--danger);font-weight:500}
 .tab-ensaio td .aviso{color:var(--warning)}
 .tab-ensaio td .ok{color:var(--success);font-weight:600}
-.tab-ensaio td.n{font:500 var(--text-xs)/1.4 var(--font-mono);white-space:nowrap}
+.tab-ensaio td.n{font:500 var(--text-xs)/1.4 var(--font-num);white-space:nowrap}
 .conf-forn .saude{margin:6px 0 10px}
 @media (max-width:1100px){.conf{grid-template-columns:minmax(0,1fr)}.conf-indice{position:static}}
 .em-falta{font-weight:400;color:var(--ink-muted);font-style:italic}
@@ -16836,7 +16836,7 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
  border-top:1px solid var(--surface)}
 .hist .t{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-secondary);min-width:0}
 .hist .t b{font-weight:600;color:var(--ink)}
-.hist .q{margin-left:auto;flex:none;font:400 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted)}
+.hist .q{margin-left:auto;flex:none;font:400 var(--text-xs)/1 var(--font-num);color:var(--ink-muted)}
 
 /* As etiquetas: viviam no cartão do quadro e, com ele fora, vivem no
    bloco «A nossa proposta» da ficha. */
@@ -16859,7 +16859,7 @@ button.tirar:hover{color:var(--danger)}
 .prop-etq .rot{margin-bottom:8px}
 .prop-etq .etq{display:inline-flex;margin:0 5px 5px 0}
 /* a tabela dos lotes, na ficha */
-.tab-lotes td.n{font:600 var(--text-xs)/1.4 var(--font-mono);white-space:nowrap}
+.tab-lotes td.n{font:600 var(--text-xs)/1.4 var(--font-num);white-space:nowrap}
 .tab-lotes td.s{white-space:nowrap}
 .tab-lotes .lote-prop{font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
 
@@ -16936,7 +16936,7 @@ ul.tarefas li .t{flex:1}
 .lh .t{flex:0 0 180px;font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-secondary);
  text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lh .bh{height:12px;border-radius:var(--radius-sm);background:var(--brand);min-width:3px}
-.lh .n{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink-secondary)}
+.lh .n{font:600 var(--text-xs)/1 var(--font-num);color:var(--ink-secondary)}
 /* o subtítulo de um número do bloco do negócio: diz sobre o que é que
    ele conta, que é o que separa um facto de um número solto */
 .desfecho-som .sub{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
@@ -17002,7 +17002,7 @@ a.ct-l{color:var(--brand)}
    primeira semana ficava branco e os seguintes cinzentos) */
 .cal-dia.passou.fds{background:var(--surface-sunken)}
 .cal-dia.passou .cal-n{color:var(--ink-muted)}
-.cal-n{font:600 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary);
+.cal-n{font:600 var(--text-sm)/1 var(--font-num);color:var(--ink-secondary);
  display:flex;align-items:baseline;gap:5px;margin-bottom:2px}
 .cal-n span{font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-muted);
  text-transform:none;letter-spacing:0}
@@ -17046,10 +17046,10 @@ a.ct-l{color:var(--brand)}
 .hj-g:last-child{margin-bottom:0}
 .hj-t{display:flex;align-items:baseline;gap:7px;margin:0 0 6px;
  font:600 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
-.hj-t i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;color:var(--ink-muted)}
+.hj-t i{font:500 var(--text-xs)/1 var(--font-num);font-style:normal;color:var(--ink-muted)}
 .hj-g.mau .hj-t{color:var(--danger)}
 .hj-g.avisa .hj-t{color:var(--warning)}
-.hj-q{font:600 var(--text-xs)/1.4 var(--font-mono);color:var(--ink-secondary)}
+.hj-q{font:600 var(--text-xs)/1.4 var(--font-num);color:var(--ink-secondary)}
 .hj-q.vago{color:var(--ink-muted);font-weight:400}
 .hj-o{font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink);min-width:0}
 .hj-c{font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted);min-width:0;
@@ -17106,7 +17106,7 @@ details.perigo[open] > summary{color:var(--danger)}
 .barras{display:flex;align-items:stretch;gap:16px;height:180px}
 .barras .col{flex:1;display:grid;grid-template-rows:auto 1fr auto;gap:9px;
  justify-items:center;height:100%}
-.barras .v{font:600 var(--text-xs)/1 var(--font-mono);color:var(--ink)}
+.barras .v{font:600 var(--text-xs)/1 var(--font-num);color:var(--ink)}
 /* A cor tinha de vir de `.graf .barras .b`, e havia barras fora do
    `.graf` -- as do "Em jogo, por ranhura", que sairam para a abertura a
    16/09/2026 e ficaram transparentes: altura certa, cor nenhuma. */
@@ -17122,7 +17122,7 @@ details.perigo[open] > summary{color:var(--danger)}
 .saude .l{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .saude .t{font:400 var(--text-xs)/1.45 var(--font-sans);color:var(--ink-secondary);flex:1 1 auto;min-width:0}
 .saude .v{margin-left:auto;flex:0 1 auto;min-width:0;
- font:600 var(--text-xs)/1.5 var(--font-mono);color:var(--ink);text-align:right;
+ font:600 var(--text-xs)/1.5 var(--font-num);color:var(--ink);text-align:right;
  word-break:break-word;overflow-wrap:anywhere}
 /* legenda: diz sobre o que e que as linhas seguintes contam */
 .saude .legenda{margin-top:6px}
@@ -17333,7 +17333,7 @@ CSS_NOVO = r"""
  padding:8px 10px 10px;min-height:66px;background:var(--surface-raised);
  color:var(--ink-muted);font:400 var(--text-xs)/1.35 var(--font-sans)}
 [data-pele=novo] .fita a:hover{background:var(--surface-sunken)}
-[data-pele=novo] .fita .d{font:600 var(--text-sm)/1 var(--font-mono);color:var(--ink-secondary)}
+[data-pele=novo] .fita .d{font:600 var(--text-sm)/1 var(--font-num);color:var(--ink-secondary)}
 /* os dias que passaram vão a cinzento, e nao a meia-luz: o opacity:.7
    baixava o texto a 3,1:1, abaixo dos 4,5 que o texto pede (axe, 25/09/2026) */
 [data-pele=novo] .fita .passou .d{color:var(--ink-muted);font-weight:400}
@@ -17366,7 +17366,7 @@ CSS_NOVO = r"""
 /* Na pilula escolhida o circulo inverte: era branco a 28 % sobre o azul,
    ~4,3:1 para letra de 12 px (N10 da UX-AUDITORIA-1-10). */
 [data-pele=novo] .periodos a.on .av{background:var(--on-brand);color:var(--brand)}
-[data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-mono);font-style:normal;
+[data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-num);font-style:normal;
  margin-left:4px}
 
 /* Os baldes dobram com o <details> do browser -- nao ha JS nenhum a
@@ -17380,7 +17380,7 @@ CSS_NOVO = r"""
 [data-pele=novo] details.hj-g > summary .hj-t{cursor:pointer;
  padding:10px 8px 4px;margin:0}
 [data-pele=novo] details.hj-g > summary .seta::before{content:'\25b8';
- font:500 var(--text-xs)/1 var(--font-mono);color:var(--ink-muted)}
+ font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-muted)}
 [data-pele=novo] details.hj-g[open] > summary .seta::before{content:'\25be'}
 [data-pele=novo] .hj-t .direita{margin-left:auto;font-weight:400;
  font-size:var(--text-xs);color:var(--ink-muted)}
@@ -17435,7 +17435,7 @@ CSS_NOVO = r"""
 [data-pele=novo] .mudou-n{display:flex;gap:12px;margin:12px 0 10px}
 [data-pele=novo] .mudou-n a{flex:1;display:flex;flex-direction:column;gap:2px;
  color:inherit}
-[data-pele=novo] .mudou-n b{font:600 var(--text-xl)/1 var(--font-mono);color:var(--ink)}
+[data-pele=novo] .mudou-n b{font:600 var(--text-xl)/1 var(--font-num);color:var(--ink)}
 [data-pele=novo] .mudou-n b.azul{color:var(--brand)}
 [data-pele=novo] .feed{display:flex;flex-direction:column;
  border-top:1px solid var(--surface-sunken)}
@@ -19334,7 +19334,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
            html.escape(corta(a["titulo"], 120)),
            html.escape(a["entidade"] or ""),
            (" &middot; %s" % publicado) if publicado else "",
-           (" &middot; <span class='mg-mono'>%s</span>"
+           (" &middot; %s"
             % html.escape(a["cpv"])) if a["cpv"] else "",
            # Texto, e não uma etiqueta verde (30/09/2026, ele): o verde
            # dizia «as peças descarregam-se daqui», e isso vale para 99,6%
@@ -21403,7 +21403,7 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
                         (" <span class='mg-tag %s'>atrasada · %s</span>"
                          % (tom("mau"), data_curta(falta["quando"])))
                         if atrasada else
-                        " <span class='mg-mono'>%s</span>" % data_curta(falta["quando"])
+                        " %s" % data_curta(falta["quando"])
                         if falta["quando"] else ""))
     else:
         cel_falta = ""
@@ -21412,7 +21412,7 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
     # ainda há o que preparar; depois de entregue já não é trabalho.
     if docs and p["estado"] in ESTADOS_COM_TAREFAS:
         cel_falta = " ".join(x for x in (
-            cel_falta, "<span class='mg-mono'>docs %d/%d</span>" % docs) if x)
+            cel_falta, "docs %d/%d" % docs) if x)
     if p["estado"] == "ganho":
         cel_falta = ("<span class='mg-num'>%s</span> <span class='nota'>%s</span>"
                      % (html.escape(euros(valor_ganho(p))),
@@ -36802,8 +36802,10 @@ def proposta_apagar(id_):
 TIPOS = {
          # As quatro do sistema de desenho (fase 1 da migração,
          # 21/09/2026): Zilla Slab nos títulos, Source Sans no texto,
-         # Source Code Pro nos números. A Inter e as duas Plex sairam a
-         # 26/09/2026 (lote 4 da segunda ronda): o `@font-face` delas
+         # Source Code Pro no que é código (desde 6/10/2026 os números vão
+         # na Source Sans, com algarismos tabulares: `--font-num`). A Inter
+         # e as duas Plex sairam a 26/09/2026 (lote 4 da segunda ronda):
+         # o `@font-face` delas
          # ainda viajava na folha, e nada as usava. Os ficheiros das Plex
          # sairam de `tipo/` a 30/09/2026: o `ferramentas/ecrans.py`, que
          # as embutia, passou a embutir estas quatro.
