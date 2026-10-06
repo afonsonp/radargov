@@ -21481,6 +21481,25 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         self.assertIn("nenhuma proposta em «Submetida» e «Relatório "
                       "preliminar»", corpo)
 
+    def test_sexta_ronda_as_tabelas_viram_cartoes_com_rotulo_no_telemovel(self):
+        """6.ª ronda (5/10/2026, perfil 1): no iPhone as tabelas da Situação
+        tinham 900 px num ecrã de 364, e só se via o título. Passam ao
+        cartão da `.tab-plataforma`, com o rótulo de cada número."""
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        decididas = corpo[corpo.index("id='decididas'"):]
+        self.assertIn("class='mg-table tab-contratos tab-plataforma'", decididas)
+        for rotulo in ("Resultado", "Preço base", "Proposto", "Adjudicado", "Conta"):
+            self.assertIn("data-r='%s'" % rotulo, decididas)
+        self.assertIn("class='mg-table tab-contratos tab-plataforma'",
+                      inspect.getsource(radar.tabela_em_jogo))
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        self.assertIn(".tab-plataforma tfoot td:empty{display:none}", folha)
+        # o total ficava com 3 px: a `.tab-contratos td.p{width:1%}` da
+        # tabela larga ganhava à regra do cartão, que leva o `td.p` para ganhar
+        self.assertIn(".tab-plataforma tfoot td,.tab-plataforma tfoot td.p{", folha)
+
 
 class TestOAlertaNaoGravaOQueNaoLe(BaseTemporaria):
     """E3, E4, E5, E6: as mensagens de sucesso sobre coisas que

@@ -35890,10 +35890,15 @@ def tabela_das_decididas(linhas, rotulo_periodo):
                 % html.escape(rotulo_periodo))
     ganhas = [l for l in linhas if l["estado"] == "ganho"]
     total = sum(valor_ganho(l) for l in ganhas)
+    # Em cartão no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela
+    # tinha 900 e só se via o título; o `data-r` é o rótulo de cada número
+    # no cartão, onde o cabeçalho não aparece.
     corpo = "".join(
-        "<tr><td class='mg-num'>%s</td><td><a href='%s'>%s</a></td>"
-        "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
-        "<td class='p'>%s</td><td class='p'>%s</td></tr>"
+        "<tr><td class='mg-num' data-r='Decidida em'>%s</td>"
+        "<td class='o'><a href='%s'>%s</a></td>"
+        "<td data-r='Resultado'>%s</td><td class='p' data-r='Preço base'>%s</td>"
+        "<td class='p' data-r='Proposto'>%s</td>"
+        "<td class='p' data-r='Adjudicado'>%s</td><td class='p' data-r='Conta'>%s</td></tr>"
         % (data_pt((l["decidida"] or "")[:10], "—")
            + ("" if l["data_adjudicacao"] else
               " <span class='nota' title='sem data da adjudicação: é o dia "
@@ -35911,7 +35916,7 @@ def tabela_das_decididas(linhas, rotulo_periodo):
     return ("<div class='mg-card tab-cx' id='decididas'>"
             "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
             "Decididas %s</h2>"
-            "<table class='mg-table tab-contratos'><thead><tr>"
+            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
             "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
             "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
             "<th class='p'>Adjudicado</th><th class='p'>Conta</th>"
@@ -35969,8 +35974,9 @@ def tabela_em_jogo(ancora, rotulo, estados):
                 "</div>" % (ancora, cabeca, " nem em ".join(
                     "«%s»" % estado_da_empresa(e) for e in estados)))
     corpo = "".join(
-        "<tr><td><a href='%s'>%s</a></td><td>%s</td>"
-        "<td class='p'>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
+        "<tr><td class='o'><a href='%s'>%s</a></td><td data-r='Fase'>%s</td>"
+        "<td class='p' data-r='Preço base'>%s</td><td class='p' data-r='Proposto'>%s</td>"
+        "<td class='p' data-r='Conta'>%s</td></tr>"
         % (("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
            else "/proposta/%d" % p["id"],
            html.escape(corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70)),
@@ -35979,7 +35985,7 @@ def tabela_em_jogo(ancora, rotulo, estados):
            euros(valor_em_jogo(p)))
         for p in linhas)
     return ("<div class='mg-card tab-cx' id='%s'>%s"
-            "<table class='mg-table tab-contratos'><thead><tr>"
+            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
             "<th>Concurso</th><th>Fase</th><th class='p'>Preço base</th>"
             "<th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead>"
             "<tbody>%s</tbody><tfoot><tr><td><b>%s</b></td><td></td><td></td>"

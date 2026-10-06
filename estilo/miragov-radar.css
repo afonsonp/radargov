@@ -1022,8 +1022,16 @@ a.semaforo:hover{border-color:var(--line-strong)}
   text-align:left;overflow-wrap:anywhere}
  .mg-table.tab-plataforma tbody td.mg-num{text-align:left}
  .tab-plataforma tbody td[data-r]::before{content:attr(data-r) ": ";
-  color:var(--ink-secondary);font-size:var(--text-xs)}
- .tab-plataforma tbody td:empty{display:none}}
+  color:var(--ink-secondary);font-size:var(--text-xs);font-family:var(--font-sans)}
+ .tab-plataforma tbody td:empty{display:none}
+ /* e o rodapé dos totais (as tabelas da Situação, 6.ª ronda): uma linha
+    só, com as células vazias fora */
+ .tab-plataforma tfoot{display:block}
+ .tab-plataforma tfoot tr{display:flex;flex-wrap:wrap;justify-content:space-between;
+  gap:4px 12px;padding:var(--space-3)}
+ .tab-plataforma tfoot td,.tab-plataforma tfoot td.p{display:block;padding:0;border:0;
+  width:auto;flex:0 0 auto}
+ .tab-plataforma tfoot td:empty{display:none}}
 /* Um botão-ligação primário dentro de uma tabela: a cor das ligações da
    tabela ganhava-lhe, e o «aceitar» dos pedidos era um botão azul sem
    texto (visto no browser, 26/09/2026). */
