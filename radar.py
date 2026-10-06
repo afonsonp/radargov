@@ -33873,8 +33873,9 @@ def contactos_cx(a):
             # concursos da entidade, e não só neste
             # «não deste concurso» lia-se como um erro (E59): são os
             # contactos da ENTIDADE, e servem todos os concursos dela
-            meta=("Contactos de %s: servem todos os concursos dela"
-                  % html.escape(a["entidade"] or "esta entidade"))
+            # com o artigo e o «dela» no sítio (6.ª ronda, perfil 15)
+            meta=("Os contactos são da entidade (%s) e servem todos os "
+                  "concursos dela." % html.escape(a["entidade"] or "esta entidade"))
             if a["ref"] else "",
             id_="contactos")
 
@@ -35859,8 +35860,10 @@ def frase_do_ganho(linhas):
                   ("proposto", "com o proposto", "com o proposto"),
                   ("base", "com o preço base", "com o preço base"))
               if conta.get(k)]
+    # sem ganhas, a lista vinha vazia e a frase acabava em «): .» (6.ª
+    # ronda, perfil 10): aí acaba no parêntese
     return ("soma o adjudicado quando há, senão o proposto (e o preço "
-            "base, sem os dois): %s" % ", ".join(partes))
+            "base, sem os dois)" + (": %s" % ", ".join(partes) if partes else ""))
 
 
 def ganho_no_periodo(janela=None):

@@ -23705,6 +23705,11 @@ class TestLotePCBHojeEPropostas(BaseTemporaria):
         self.assertEqual(radar.frase_do_ganho(linhas),
                          "soma o adjudicado quando há, senão o proposto (e o preço "
                          "base, sem os dois): 1 com o adjudicado, 6 com o proposto")
+        # sem ganhas acabava em «): .» (6.ª ronda, perfil 10)
+        self.assertTrue(radar.frase_do_ganho([]).endswith("sem os dois)"))
+        # e os contactos com o artigo e o «dela» no sítio (perfil 15)
+        self.assertIn("Os contactos são da entidade (%s) e servem todos os ",
+                      inspect.getsource(radar))
 
     def test_e35_adiar_todas_so_com_atrasadas_por_fazer(self):
         ontem = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
