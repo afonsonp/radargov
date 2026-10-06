@@ -27822,6 +27822,15 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         # H2: o segundo caminho para criar uma conta fica recolhido
         self.assertIn("<summary class='nota'>Criar sem convite", conta)
 
+    def test_sexta_ronda_um_guardar_de_linha_nunca_e_principal(self):
+        """6.ª ronda (6/10/2026, inventário dos 24 «Guardar»): o «Guardar a
+        correcção» das notas era principal, e uma ficha com várias notas
+        tinha vários; o da proposta esticava na grelha."""
+        for funcao in (radar._mexer_na_nota, radar.mexer_na_tarefa):
+            self.assertNotIn("mg-btn--primary", inspect.getsource(funcao),
+                             funcao.__name__)
+        self.assertIn(".prop-campos>.mg-btn{justify-self:start}", radar.CSS_TUDO)
+
     def test_f2_trazer_pecas_nao_e_o_botao_cheio_da_ficha_por_ver(self):
         h = self._marcacao(self._ficha())
         self.assertIn("Trazer peças", h)

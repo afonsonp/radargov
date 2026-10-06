@@ -16886,6 +16886,9 @@ td.celula-ranhura{white-space:nowrap;width:1%}
 .prop-campos input,.prop-campos select{font:400 var(--text-xs)/1.3 var(--font-sans);
  padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius-sm);
  background:var(--surface-raised);color:var(--ink-secondary);text-transform:none;letter-spacing:0}
+/* o «Guardar» da proposta com a largura do texto, como os outros
+   principais: na grelha esticava até ao fim da célula (6.ª ronda) */
+.prop-campos>.mg-btn{justify-self:start}
 .prop-campos button:not(.mg-btn){cursor:pointer;font:600 var(--text-xs)/1 var(--font-sans);padding:7px 12px;
  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--ink-secondary);
  min-height:24px;box-sizing:border-box}
@@ -34290,7 +34293,9 @@ def _mexer_na_nota(n):
             "<form method='post' action='/nota/%d/corrigir'>"
             "<textarea name='texto' rows='3' maxlength='500' required "
             "aria-label='Corrigir a nota'>%s</textarea>"
-            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--primary'>"
+            # secundário, como os outros de uma linha (6.ª ronda): uma ficha
+            # com várias notas ficava com vários botões principais
+            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
             "Guardar a correcção</button></form></details>%s"
             % (n["id"], html.escape(n["texto"] or ""),
                accao("/nota/%d/apagar" % n["id"], "apagar", "mini",

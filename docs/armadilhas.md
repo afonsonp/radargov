@@ -4933,7 +4933,15 @@ botões ou no calendário.
   também (o primário é o do formulário). O
   `test_v2_e8_um_so_primario_por_ecra` conta-os em sete ecrãs, **tirado
   o `<dialog>` do motivo**, que é modal e tem o seu. Um botão novo nasce
-  secundário; primário só se for **o** gesto do ecrã.
+  secundário; primário só se for **o** gesto do ecrã. **E o «Guardar»
+  tem três aspectos por papel, não por acaso** (6.ª ronda, inventário de
+  6/10/2026, 24 botões): principal no formulário do ecrã (o perfil, a
+  proposta, as secções da plataforma, o convite), secundário num cartão
+  ao lado de outro principal (os alertas, a conta), secundário pequeno
+  numa linha (a tarefa, o documento, a nota). Um de linha nunca é
+  principal — o «Guardar a correcção» das notas era, e uma ficha com
+  várias notas tinha vários —, e um principal tem a largura do texto (o
+  da proposta esticava na grelha da `.prop-campos`).
 - **A razão de uma verificação falhada é do dono** (V6, 30/09/2026). O
   «O que mudou» do Hoje punha a hora a vermelho com «o DR não aceitou a
   pesquisa (apiVersion) … refaz a captura» na dica — para o gestor de
