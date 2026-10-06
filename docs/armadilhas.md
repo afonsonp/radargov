@@ -1194,7 +1194,11 @@ Uma árvore, duas fontes de contagem, dois campos.
 - **A árvore de CPV vem antes dos filtros guardados** e está em todas as
   páginas onde se procura por CPV — anúncios, contratos e ficha da
   entidade. Onde houver campo `cpv`, tem de haver árvore: a caixa de
-  texto solta só deixava escolher um código.
+  texto solta só deixava escolher um código. **E a procura aceita o
+  código como ele vem nos anúncios** (6.ª ronda, 5/10/2026): com o dígito
+  de controlo, «45233000-1» não achava nada na árvore nem nas sugestões
+  do Mercado (que tiravam o traço e procuravam «452330001»). As duas
+  procuras tiram agora o «-1» final de um código de 8 algarismos.
 
 - **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
   põe um `data-de` no `<details>` e o JS lê dali a rota

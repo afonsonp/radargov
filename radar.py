@@ -19920,7 +19920,10 @@ function arvoreLimpar() {
 // exacta com acentos não achava. Mostra-se o que bate e o caminho até
 // lá, com os ramos do caminho abertos.
 function arvoreFiltrar(texto) {
-  var palavras = arvoreSemAcentos(texto).split(/\\s+/).filter(Boolean);
+  // o dígito de controlo sai (6.ª ronda): «45233000-1», copiado de um
+  // anúncio, não achava nada, e «45233000» achava
+  var palavras = arvoreSemAcentos(texto).replace(/\\b(\\d{8})-\\d\\b/g, '$1')
+    .split(/\\s+/).filter(Boolean);
   var corpo = document.getElementById('arvore-corpo');
   if (!palavras.length) {
     corpo.querySelectorAll('.escondido').forEach(function(n) {
@@ -20108,7 +20111,9 @@ CPV_SUGERE_JS = r"""<script>
   }
   function sugerir() {
     var pedacos = campo.value.split('|');
-    var ultimo = simples(pedacos.pop()).trim();
+    // sem o dígito de controlo (6.ª ronda): «45233000-1» procurava
+    // «452330001», e não há código nenhum assim
+    var ultimo = simples(pedacos.pop()).trim().replace(/^(\d{8})-\d$/, '$1');
     var antes = pedacos.length ? pedacos.join('|') + '|' : '';
     lista.innerHTML = '';
     if (ultimo.length < 2) return;

@@ -2756,6 +2756,21 @@ class TestEurosCurto(unittest.TestCase):
         self.assertEqual(radar.euros_curto(None), "0 €")
 
 
+class TestOCpvComODigitoDeControlo(unittest.TestCase):
+    """6.ª ronda (5/10/2026, perfil 14): «45233000-1», como vem nos
+    anúncios e nas peças, não achava nada na árvore dos alertas nem nas
+    sugestões do Mercado; «45233000» achava. As duas procuras tiram o
+    dígito de controlo antes de procurar."""
+
+    def test_as_duas_procuras_tiram_o_digito_de_controlo(self):
+        self.assertIn(r".replace(/\b(\d{8})-\d\b/g, '$1')", radar.ARVORE_JS)
+        self.assertIn(r".replace(/^(\d{8})-\d$/, '$1')", radar.CPV_SUGERE_JS)
+        # a mesma expressão, em Python, faz o que se espera
+        self.assertEqual(re.sub(r"\b(\d{8})-\d\b", r"\1", "45233000-1 estradas"),
+                         "45233000 estradas")
+        self.assertEqual(re.sub(r"\b(\d{8})-\d\b", r"\1", "45233"), "45233")
+
+
 class TestArvoreNaoSubmeteAoCriar(unittest.TestCase):
     """A arvore de CPV serve dois sitios com necessidades opostas.
 
