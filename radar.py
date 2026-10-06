@@ -34587,7 +34587,7 @@ def proposta_nova():
     corpo = (
         "<div class='mg-card'><div class='mg-card__body'>"
         "<form method='post' class='form-nova'>"
-        "<p id='nova-regra' class='nota%s'%s>%sPreencha pelo menos o cliente "
+        "<p id='nova-regra' class='%s'%s>%sPreencha pelo menos o cliente "
         "ou o título: uma proposta sem nenhum dos dois não se encontra "
         "depois.</p>"
         "<div class='mg-field'><label class='mg-field__label' for='n-entidade'>"
@@ -34607,7 +34607,10 @@ def proposta_nova():
         "<datalist id='sem-ref'>%s</datalist>"
         "<div><button type='submit' class='mg-btn mg-btn--primary'>Criar proposta"
         "</button></div></form></div></div>"
-        % (" erro" if falhou else "", " role='alert'" if falhou else "",
+        # o erro na caixa de erro do sistema (6.ª ronda, perfis 8 e 11): a
+        # classe «nota erro» não tinha estilo, e saía cinzenta de 12 px
+        % ("mg-alert mg-alert--danger" if falhou else "nota",
+           " role='alert'" if falhou else "",
            "<span aria-hidden='true'>&#10005;</span> Nada foi criado. "
            if falhou else "", invalido, invalido,
            "".join("<option value='%s'>" % html.escape(v, quote=True)

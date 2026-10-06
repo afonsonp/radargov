@@ -1394,6 +1394,10 @@ main.mg h3:not([class]){font-size:var(--text-lg);font-weight:600}
 main.mg :is(b,strong){font-weight:600}
 .perfil-guardar{margin-top:var(--space-4)}
 input.campo-data[aria-invalid=true]{border-color:var(--danger);background:var(--danger-soft)}
+/* e qualquer campo que o servidor marque como errado (6.ª ronda): só as
+   datas mudavam de aspecto, e na «Nova proposta» os dois campos com
+   aria-invalid ficavam iguais aos outros */
+.mg-field__input[aria-invalid=true]{border-color:var(--danger)}
 /* As cores forçadas (o alto contraste do Windows; 3.ª ronda, G104): o
    browser apagava a máscara do olho e ficava só a pupila, no /entrar e no
    404. A cor é a do texto do sistema: sem o ajuste, o olho ficava com a

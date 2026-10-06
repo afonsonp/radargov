@@ -7409,6 +7409,14 @@ class TestEscadaNaLista(BaseTemporaria):
         self.assertIn("role='alert'", corpo)
         self.assertIn("Nada foi criado", corpo)
         self.assertEqual(corpo.count("aria-invalid='true'"), 2)
+        # e vê-se (6.ª ronda, perfis 8 e 11): a «nota erro» não tinha
+        # estilo e saía cinzenta; os campos marcados ficavam iguais
+        self.assertIn("<p id='nova-regra' class='mg-alert mg-alert--danger' "
+                      "role='alert'>", corpo)
+        self.assertIn(".mg-field__input[aria-invalid=true]{border-color:var(--danger)}",
+                      radar.CSS_TUDO)
+        sem_erro = self.cliente.get("/proposta/nova").get_data(as_text=True)
+        self.assertIn("<p id='nova-regra' class='nota'>", sem_erro)
         with radar.liga() as c:
             self.assertEqual(c.execute(
                 "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 0)
