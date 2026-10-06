@@ -21869,6 +21869,30 @@ class TestOClienteNaoDescarregaODesnecessario(BaseTemporaria):
         self.assertIn("height:auto",
                       radar.CSS_TUDO.split(".peca-pag{")[1][:80])
 
+    def test_sexta_ronda_a_peca_no_telemovel_corre_com_a_pagina(self):
+        """6.ª ronda (5/10/2026, perfil 9): no Android a folha tinha 254 px
+        numa caixa a rolar dentro da página. Abaixo de 600 px a caixa e as
+        margens saem, e dentro da ficha há a ligação para a peça inteira."""
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("sem pymupdf no Python dos testes")
+        caminho = os.path.join(self.pasta, "ensaio.pdf")
+        doc = pymupdf.open()
+        doc.new_page(width=595, height=842)
+        doc.save(caminho)
+        doc.close()
+        with radar.app.test_request_context("/"):
+            _, na_ficha = radar.visualizador_de_peca(
+                "1/2026", "ensaio.pdf", caminho, "/documento/x", "",
+                "/anuncio/1%2F2026", ocultos={"peca": "ensaio.pdf"})
+            _, na_propria = radar.visualizador_de_peca(
+                "1/2026", "ensaio.pdf", caminho, "/documento/x", "", "/peca/1/2026/x")
+        self.assertIn("<a class='peca-inteira' href='/peca/1/2026/ensaio.pdf'>", na_ficha)
+        self.assertNotIn("peca-inteira", na_propria)
+        movel = radar.CSS_TUDO.split(".peca-inteira{display:none}", 1)[1][:200]
+        self.assertIn(".leitor .peca-folhas{max-height:none;overflow:visible", movel)
+
 
 
 class TestAEmpresaActivaNaBarra(BaseTemporaria):

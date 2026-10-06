@@ -16795,6 +16795,15 @@ details.sec dd{margin:0;font:500 var(--text-xs)/1.5 var(--font-sans);color:var(-
    nao ha rolo dentro de rolo. */
 .leitor .peca-folhas{padding:0 15px 15px;max-height:78vh;overflow-y:auto;
  background:var(--surface-sunken)}
+/* No telemóvel não há janela própria nem margens (6.ª ronda, perfil 9):
+   a folha ficava com 254 px numa caixa a rolar dentro da página, e o
+   dedo ora mexia uma ora outra. As folhas correm com a página, a toda a
+   largura, e a ligação leva à peça em ecrã inteiro. */
+.peca-inteira{display:none}
+@media (max-width:600px){
+ .leitor .peca-folhas{max-height:none;overflow:visible;padding:0 0 8px}
+ .leitor .peca-inteira{display:inline-flex;align-items:center;min-height:44px;
+  margin:0 15px 8px}}
 .peca-pag{display:block;width:100%;height:auto;max-width:960px;margin:14px auto 0;
  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-raised);
  box-shadow:var(--shadow-sm)}
@@ -33242,6 +33251,12 @@ def visualizador_de_peca(ref, nome, caminho, origem, procurar, rota,
         # A zona das páginas rola por si: sem tabindex, quem só usa o
         # teclado não descia da página 1 (3.ª ronda, G68; WCAG 2.1.1)
         caixa + resultados
+        # Dentro da ficha, no telemóvel, a peça inteira na página dela,
+        # onde se amplia com os dedos (6.ª ronda: 254 px de folha numa
+        # caixa a rolar dentro da página). Os `ocultos` só vêm na ficha.
+        + ("<a class='peca-inteira' href='%s/%s'>Abrir a peça em ecrã inteiro</a>"
+           % (html.escape("/peca/" + ref, quote=True), quote(nome, safe=""))
+           if ocultos else "")
         + "<div class='peca-folhas' tabindex='0' role='region' "
           "aria-label='Páginas de %s'>%s</div>"
         % (html.escape(nome, quote=True), paginas_img))
