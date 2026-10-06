@@ -2207,6 +2207,13 @@ pelo Afonso e nenhuma se reabre de passagem.
   decisão nossa** — a mesma do `contar_a_escada()`. Depois de corrigido,
   a abertura passou de 0,29 s a 0,115 s. Há teste que procura as duas
   palavras no código da função (`TestOFunilContaPropostasENaoOEstadoDoAnuncio`).
+  **E as barras do funil dividem o mesmo conjunto** (6.ª ronda,
+  5/10/2026): «Entrados» contava as republicações (`alteracao`, 342 em
+  2 391), que passam os dados ao original e não se triam, e «Triados»
+  contava as propostas pela data delas — 2 037 + 21 não davam o total.
+  Agora as três contam os anúncios da janela sem as republicações, os
+  triados pela data do anúncio, e **Entrados = Sem decisão + Triados** é
+  um teste da mesma classe.
 
 - **A escada é livre; o que trava é o campo em falta.** D4 do
   `docs/historico/CICLOS.md`, palavra dele: «eu não posso passar um por
