@@ -349,12 +349,18 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
    direita e o prazo grande. Duas colunas (`minmax(300px,360px)` a
    direita); abaixo de 1100px volta a uma so, com o anuncio primeiro. */
 .corpo>.mg-pagehead{padding-top:var(--space-2)}
-.ficha-escada{margin:var(--space-1) 0 var(--space-5)}
-.ficha-indice ul{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0;padding:0;
- list-style:none;font:500 var(--text-sm)/18px var(--font-sans)}
-.ficha-indice a{color:var(--ink-secondary);text-decoration:none;padding:4px 12px;
- border-radius:var(--radius-full);background:var(--surface-sunken);display:inline-block}
-.ficha-indice a:hover{color:var(--link)}
+/* A escada vive no topo da coluna da direita desde 6/10/2026 (front end
+   novo): quatro passos em ~340px, com os nomes em letra pequena e a
+   poderem dobrar. O indice em pilulas saiu no mesmo dia. */
+.ficha-escada{margin:0 0 var(--space-1)}
+.ficha-lado .ficha-escada .mg-step__label{font-size:var(--text-xs);overflow:visible;
+ white-space:normal;text-overflow:clip;word-break:normal}
+/* a nota do passo repetia o cartao da proposta, logo por baixo */
+.ficha-lado .ficha-escada .mg-step__note{display:none}
+/* o «+ Adicionar contacto» abre o formulario no sitio */
+.ct-mais>summary{list-style:none;cursor:pointer;margin-top:var(--space-2)}
+.ct-mais>summary::-webkit-details-marker{display:none}
+.ct-mais[open]>summary{margin-bottom:var(--space-2)}
 .ficha-duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);
  gap:var(--space-5);align-items:start;margin-top:var(--space-5)}
 .ficha-principal,.ficha-lado,#mercado{display:flex;flex-direction:column;

@@ -3917,13 +3917,13 @@ botões ou no calendário.
   base» que vem antes, e esse fica: era a definição que estava a mais,
   não o denominador.
 
-- **O índice da ficha tem de cobrir a página, e só ela.** Prometia seis
-  destinos quando havia oito blocos com âncora — faltava o
-  `#proposta`, que é o bloco onde o trabalho vive. A regra vale nos
-  dois sentidos e há teste para ambos: toda a âncora da página está no
-  índice, **e** o índice não oferece nenhuma que não exista (o
-  «Desfecho» e os «Lotes» só entram quando há bloco). Um bloco novo na
-  ficha entra nas duas listas.
+- **O índice da ficha saiu a 6/10/2026 (front end novo); as âncoras
+  ficam.** Enquanto existiu tinha de cobrir a página, e só ela: prometia
+  seis destinos quando havia oito blocos com âncora — faltava o
+  `#proposta`, o bloco onde o trabalho vive. Se voltar, volta com a
+  regra dos dois sentidos. As âncoras (`#proposta`, `#pecas`,
+  `#contactos`…) não se tiram: as ligações de fora, como o «abrir a
+  proposta» das tarefas, saltam para elas.
 
 - **Dentro da ficha, o «?» é por bloco (`rot_com_porque()`).** Mesmo
   critério da §9 do `docs/design.md`: **fica no ecrã** o que diz de

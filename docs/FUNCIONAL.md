@@ -1245,9 +1245,15 @@ vigor; a ficha de qualquer anúncio da cadeia mostra o em vigor, quantas
 vezes foi prorrogado, e de que anúncio vem. Sem leitura das peças no
 próprio anúncio, a ficha mostra a mais recente da cadeia e diz de onde
 veio; sem peças, aponta para o anúncio da cadeia que as tem. Desde 24/09/2026 abre com o **cabeçalho da página** (migalhas,
-o título inteiro com as acções à direita, a entidade por baixo), a
-**escada em quatro passos** (Interessa · Em preparação · Submetida ·
-Decidida) e o **índice em pílulas**; nada disto fica preso ao rolar. Tem:
+o título inteiro com as acções à direita, a entidade e a data das
+propostas por baixo, e uma etiqueta com os dias que faltam). Desde
+6/10/2026 (front end novo) a **escada em quatro passos** (Interessa · Em
+preparação · Submetida · Decidida) está no topo da coluna da direita,
+por cima de «A nossa proposta»; o índice em pílulas saiu; o cartão do
+**prazo** só aparece quando o prazo tem história (prorrogado, alterado);
+os contactos novos escrevem-se num «+ Adicionar contacto» que abre o
+formulário; e a explicação de como se lê «O que as peças pedem» está
+atrás do «?». Tem:
 
 - Os factos do DR (entidade, CPV, preço base, prazo, plataforma, lotes),
   com a **habilitação** (o alvará, §12 do anúncio) e a **caução** (§14),
