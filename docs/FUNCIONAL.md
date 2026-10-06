@@ -1141,7 +1141,10 @@ fila de **botões de filtro** — Entidade, Plataforma, Publicação,
 Distrito, Preço base (6/10/2026, front end novo; era o «Mais filtros»
 da H1, de 1/10/2026). Cada botão abre uma caixa com os seus campos e o
 «Aplicar»; um filtro posto acende o botão e diz o valor («Plataforma:
-acinGov»). Na lista, os botões da triagem («Interessa», «Abandonar»)
+acinGov»). O perfil da empresa, quando recorta a lista, é o primeiro
+botão da fila, aceso, com o «ver tudo». A referência de cada concurso vai
+por baixo do título, junto à entidade (a coluna «Ref.ª» saiu). Na lista,
+os botões da triagem («Interessa», «Abandonar»)
 só aparecem na linha por onde se passa ou que tem o foco; sem rato
 estão sempre à vista. As datas são texto `dd/mm/aaaa` com um botão ao lado que abre o
 **calendário do browser** e escreve nele (J6). O CPV escolhe-se na

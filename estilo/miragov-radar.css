@@ -253,12 +253,13 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
    accoes tem sempre o seu lugar. Abaixo de 1100px a tabela rola dentro
    de si (regra do ecra estreito, em cima). */
 .lista.mg-table table{table-layout:fixed;width:100%}
-.lista.mg-table th:nth-child(1){width:124px}
-.lista.mg-table th:nth-child(3){width:96px}
-.lista.mg-table th:nth-child(4){width:128px}
-.lista.mg-table th:nth-child(5){width:96px}
-.lista.mg-table th:nth-child(6){width:128px}
-.lista.mg-table th:nth-child(7){width:196px}
+/* a 1.a coluna e o objecto desde 6/10/2026: a da referencia saiu, e a
+   referencia vai por baixo do titulo */
+.lista.mg-table th:nth-child(2){width:96px}
+.lista.mg-table th:nth-child(3){width:128px}
+.lista.mg-table th:nth-child(4){width:96px}
+.lista.mg-table th:nth-child(5){width:128px}
+.lista.mg-table th:nth-child(6){width:196px}
 .lista .col-obj .item-titulo,.lista .col-obj small{max-width:100%}
 .lista .col-acc{white-space:nowrap;text-align:right}
 .lista .mg-code a{display:block;overflow:hidden;text-overflow:ellipsis}
@@ -839,7 +840,7 @@ a.nota.abrir{display:inline-flex;align-items:center;min-height:24px}
 main.mg span.p a{text-decoration:underline;text-underline-offset:2px}
 /* Com o ✓ e o ✕ nos botões da triagem, a coluna das acções precisa de
    mais 32 px, senão o «Abandonar» fica cortado à direita a 1280. */
-.lista.mg-table th:nth-child(7){width:256px}
+.lista.mg-table th:nth-child(6){width:256px}
 /* Uma etiqueta que já traz o ponto do sistema não leva um segundo sinal. */
 .mg-tag:has(.mg-tag__dot)::before{content:none}
 /* O selector de ranhura com o «Mudar» sempre à vista: a 320 px, na
@@ -1327,6 +1328,10 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
  border:var(--border-hairline) solid var(--line-strong);border-radius:var(--radius-lg);font-size:var(--text-md)}
 .f-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
 .f-chips>.f-accoes{margin-left:auto}
+/* o perfil da empresa, o primeiro filtro aceso */
+.f-chips>.cpv-activo{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 6px;
+ min-height:36px;box-sizing:border-box;margin:0;padding:4px 14px;border-radius:var(--radius-full);
+ font-size:var(--text-sm)}
 #filtros-lista .f-chips .f-accoes .mg-btn{height:36px}
 .f-chip{position:relative}
 .f-chip>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;

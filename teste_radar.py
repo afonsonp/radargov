@@ -11795,6 +11795,18 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("@media (hover:hover) and (pointer:fine){\n .lista tr",
                       folha)
 
+    def test_a_referencia_vai_por_baixo_do_titulo(self):
+        """Front end novo (6/10/2026): a coluna «Ref.ª» saiu, e a
+        referência vai na linha da entidade. As larguras das colunas são
+        por posição (`th:nth-child`), e por isso mudaram todas com ela:
+        com as antigas, o objecto ficava com 124 px."""
+        h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertNotIn("<th>Ref.ª</th>", h)
+        self.assertIn("IPL &middot; <span class='mg-code'>60/2026</span>", h)
+        folha = radar.ler_estilo("miragov-radar.css")
+        self.assertNotIn(".lista.mg-table th:nth-child(1){width", folha)
+        self.assertNotIn(".lista.mg-table th:nth-child(7)", folha)
+
     def test_ha_um_salto_para_o_conteudo(self):
         h = self.cliente.get("/concursos").get_data(as_text=True)
         self.assertIn("<a class=\"saltar\" href=\"#conteudo\">", h)
