@@ -900,9 +900,15 @@ contar como por decidir. Marca «avisar por e-mail» se quiseres que a
 pessoa saiba (o e-mail é um texto fixo, sem o motivo). O **«pôr em
 espera»** é a lista de espera das vagas: a pessoa recebe um e-mail a
 dizê-lo, e o pedido continua a poder aceitar-se ou recusar-se. Ao
-aceitar podes escrever uma **nota**, que vai no e-mail do convite. As
+aceitar escolhes se nasce **uma empresa nova** ou se a pessoa **se junta
+a uma que já existe** (a colega de um cliente): juntar não mexe no
+perfil, o convite é de utilizador, e o plano da empresa tem de ter
+lugar. Podes escrever uma **nota**, que vai no e-mail do convite — e,
+se o e-mail não sair, aparece ao lado da ligação, para a mandares. As
 etiquetas amarelas avisam de repetidos: o mesmo e-mail, o mesmo
-telemóvel noutra empresa, a mesma mensagem.
+telemóvel (noutra empresa ou na mesma), a mesma empresa noutro pedido,
+a mesma mensagem — e de quem **já tem conta** ou **já foi recusado ou
+posto em espera** antes, pelo e-mail ou pelo telemóvel.
 
 **Neste computador não vês o login.** Um pedido vindo daqui entra
 como tu, sem palavra-passe — é o `"acesso_livre_local": true` do

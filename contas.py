@@ -288,7 +288,13 @@ lisboa coimbra braga amor amoreterno saudade cristiano ronaldo
 bemvindo benvindo entrar mudar mudar123 alterar teste teste123
 teste1234 testes utilizador utilizador1 mira miragov radar radargov
 concursos concurso empresa empresa1 geral contabilidade
+contratos contratospublicos
 """.split())
+# Uma palavra solta, só de letras, adivinha-se num ataque de dicionário
+# nos primeiros minutos -- «santarem» entrava numa conta de gestor (6.ª
+# ronda, 5/10/2026). Uma frase de várias palavras, ou uma palavra com
+# algarismos e maiúsculas no meio, passa: o comprimento vale mais.
+LETRAS_DE_UMA_PALAVRA_FRACA = 11
 
 # O que se escreve correndo os dedos: as filas do teclado e o alfabeto,
 # nos dois sentidos. Uma palavra-passe que caiba inteira dentro de uma
@@ -338,6 +344,11 @@ def problema_da_senha(senha, utilizador=""):
     if padrao or not miolo:
         return ("a palavra-passe %s, e adivinha-se depressa; escolha outra"
                 % (padrao or "é só números e sinais"))
+    if (miolo.isalpha() and len(miolo) <= LETRAS_DE_UMA_PALAVRA_FRACA
+            and len(senha.strip()) <= LETRAS_DE_UMA_PALAVRA_FRACA + 2):
+        return ("a palavra-passe é uma palavra só, e adivinha-se depressa; use "
+                "várias palavras (uma frase) ou junte algarismos e maiúsculas "
+                "no meio")
     utilizador = email_limpo(utilizador)
     partes = {utilizador, utilizador.split("@")[0]}
     if any(len(p) >= 3 and p in minusculas for p in partes):
@@ -1421,6 +1432,14 @@ def marcar_ver_como(c, token, empresa_id):
 
 def sair(c, token):
     c.execute("DELETE FROM sessoes WHERE token=?", (token or "",))
+
+
+def fechar_as_outras_sessoes(c, utilizador_id, token):
+    """Fecha as sessões da conta menos a deste pedido, e devolve quantas.
+    É o que muda a palavra-passe faz (6.ª ronda, 5/10/2026): quem a muda
+    por suspeitar de alguém deixava essa pessoa entrada."""
+    return c.execute("DELETE FROM sessoes WHERE utilizador_id=? AND token != ?",
+                     (utilizador_id, token or "")).rowcount
 
 
 def sair_de_todos(c, utilizador_id):

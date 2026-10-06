@@ -40,7 +40,8 @@ body{display:flex;flex-direction:column;overflow:hidden}
 .vg-fim h2{font-size:26px;margin:0 0 10px}
 .vg-fim p{color:var(--ink-secondary);margin:0 0 22px}
 .vg-fim .accoes{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-.vg-fim .recomecar{display:inline-block;margin-top:16px;font-size:14px;background:none;border:0;color:var(--link);cursor:pointer;text-decoration:underline}
+.vg-fim .mais{margin:16px 0 0;font-size:14px}
+.vg-fim .recomecar{display:inline-block;margin-top:16px;font:inherit;font-size:14px;background:none;border:0;color:var(--link);cursor:pointer;text-decoration:underline}
 @media (max-width:700px){
   .vg-passo{display:none}
   .vg-balao{left:8px!important;right:8px;top:auto!important;bottom:8px;max-width:none}
@@ -55,7 +56,7 @@ body{display:flex;flex-direction:column;overflow:hidden}
   <strong class="vg-nome">Visita guiada</strong>
   <span class="vg-passo" id="vg-passo" aria-live="polite"></span>
   <span class="vg-progresso" aria-hidden="true"><i id="vg-progresso"></i></span>
-  <a class="sair" href="/">Sair da visita</a>
+  <a class="sair" href="/#fundador">Sair da visita</a>
 </header>
 <main class="vg-palco" id="conteudo">
   <iframe id="vg-ecra" title="O Mira Gov, com uma empresa de exemplo" src="/demo/1"></iframe>
@@ -71,11 +72,11 @@ body{display:flex;flex-direction:column;overflow:hidden}
   <div class="vg-fim" id="vg-fim" hidden>
     <div class="cartao" role="dialog" aria-labelledby="vg-fim-titulo">
       <h2 id="vg-fim-titulo">E com os concursos da sua área?</h2>
-      <p>Isto foi uma empresa de exemplo. Numa demonstração de 20 minutos mostramos-lhe o Mira Gov com o perfil da sua empresa — ou peça já um dos dez lugares de fundador.</p>
+      <p>Isto foi uma empresa de exemplo. Peça um dos dez lugares de fundador e veja-o com os concursos da sua área. Se preferir, mostramos-lho numa demonstração de 20 minutos.</p>
       <div class="accoes">
-        <a class="btn btn-primario" href="mailto:contacto@miragov.pt?subject=Pedido%20de%20demonstra%C3%A7%C3%A3o">Pedir uma demonstração</a>
-        <a class="btn" href="/#acesso">Pedir um lugar de fundador</a>
+        <a class="btn btn-primario" href="/#acesso">Pedir um lugar de fundador</a>
       </div>
+      <p class="mais">Prefere ver com alguém? <a href="mailto:contacto@miragov.pt?subject=Pedido%20de%20demonstra%C3%A7%C3%A3o">Marque uma demonstração por e-mail</a></p>
       <button type="button" class="recomecar" id="vg-recomecar">Ver outra vez</button>
     </div>
   </div>
@@ -86,7 +87,7 @@ body{display:flex;flex-direction:column;overflow:hidden}
   // se carrega para avançar. `alvo` é [selector, texto que tem de conter].
   var PASSOS = [
     { ecra: 1, alvo: [".mg-topbar__link, .barra-baixo a", "Concursos"], titulo: "O dia da equipa",
-      texto: "Este é o Hoje da Ana, gestora da Climatérmica: os prazos da semana e o que cada pessoa tem para fazer. Vamos ver o que entrou.",
+      texto: "Este é o Hoje da Ana, gestora da Climatérmica: os prazos da semana e as tarefas da equipa. Vamos ver o que entrou.",
       dica: "Carregue em Concursos" },
     { ecra: 2, alvo: ["tr#a-9104-2026"], titulo: "Os concursos da sua área",
       texto: "Tudo o que o Diário da República publicou, recortado pelo perfil da empresa, numa lista só. Entrou um de bombas de calor, em Pombal.",

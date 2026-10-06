@@ -1194,7 +1194,11 @@ Uma árvore, duas fontes de contagem, dois campos.
 - **A árvore de CPV vem antes dos filtros guardados** e está em todas as
   páginas onde se procura por CPV — anúncios, contratos e ficha da
   entidade. Onde houver campo `cpv`, tem de haver árvore: a caixa de
-  texto solta só deixava escolher um código.
+  texto solta só deixava escolher um código. **E a procura aceita o
+  código como ele vem nos anúncios** (6.ª ronda, 5/10/2026): com o dígito
+  de controlo, «45233000-1» não achava nada na árvore nem nas sugestões
+  do Mercado (que tiravam o traço e procuravam «452330001»). As duas
+  procuras tiram agora o «-1» final de um código de 8 algarismos.
 
 - **A árvore de CPV é uma só, com duas fontes de contagem.** `arvore_html()`
   põe um `data-de` no `<details>` e o JS lê dali a rota
@@ -1382,7 +1386,14 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   devolve **HTML e não JSON** — desenhar continua em Python, com
   `<div>`s dimensionados, sem biblioteca. No "quem ganha", o valor
   reparte-se pelos adjudicatários (`contratos.n_adj`): um agrupamento de
-  três não vale três vezes o mercado. O trimestre a decorrer vai às
+  três não vale três vezes o mercado. **E então o «ganha» de uma entidade
+  não é a soma dos contratos que ela ganhou** (6.ª ronda, 5/10/2026): a
+  IP tinha «Ganha · sempre 718,7 k€» nas Entidades e a lista «ver os 76
+  que ganhou» somava 1 566 223 € inteiros — as duas certas, com o mesmo
+  nome. A lista filtrada por `vencid` diz agora as duas («no total» e «a
+  parte desta entidade»), e a nota das Entidades diz que é a parte. Um
+  número de quem ganha que apareça noutro ecrã tem de dizer qual das
+  duas é. O trimestre a decorrer vai às
   riscas, senão parece uma queda a pique. São sete: quem ganha, quem
   compra, como se compra, concentração, tamanho dos contratos, desconto
   sobre o preço base, evolução. **O desconto agrega por `n_anuncio` e
@@ -2200,6 +2211,13 @@ pelo Afonso e nenhuma se reabre de passagem.
   decisão nossa** — a mesma do `contar_a_escada()`. Depois de corrigido,
   a abertura passou de 0,29 s a 0,115 s. Há teste que procura as duas
   palavras no código da função (`TestOFunilContaPropostasENaoOEstadoDoAnuncio`).
+  **E as barras do funil dividem o mesmo conjunto** (6.ª ronda,
+  5/10/2026): «Entrados» contava as republicações (`alteracao`, 342 em
+  2 391), que passam os dados ao original e não se triam, e «Triados»
+  contava as propostas pela data delas — 2 037 + 21 não davam o total.
+  Agora as três contam os anúncios da janela sem as republicações, os
+  triados pela data do anúncio, e **Entrados = Sem decisão + Triados** é
+  um teste da mesma classe.
 
 - **A escada é livre; o que trava é o campo em falta.** D4 do
   `docs/historico/CICLOS.md`, palavra dele: «eu não posso passar um por
@@ -3276,7 +3294,11 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   compara por igualdade ou por prefixo com barra, para os `POST` de
   uma secção entrarem com o `GET` dela. Uma rota nova do sistema entra
   nessa lista — esconder a ligação no índice (`seccoes_visiveis()`)
-  não é guarda nenhuma, é só o índice. E o `sou_admin()` responde
+  não é guarda nenhuma, é só o índice. **E uma secção da empresa que
+  mexe no que é de todos também** (6.ª ronda, 5/10/2026): o Importar
+  ficou de fora quando os alertas e os documentos entraram, e o
+  utilizador importava e desfazia as propostas da empresa inteira; o
+  índice mostrava-lho, porque lê a mesma lista. E o `sou_admin()` responde
   **sim** no acesso livre local sem conta: é o computador do Afonso
   antes de haver contas, e sem isto nem se chegava à Conta para as
   criar. **Com mais do que uma conta, o acesso livre é o primeiro

@@ -57,7 +57,12 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    muda com a palavra-passe actual, e com duas contas no mesmo endereço
    não manda nada) e, desde
    28/09/2026, o `/entrar/codigo` do segundo factor (o pendente, só em
-   resumo, cinco minutos e cinco tentativas, o trinco e a origem).
+   resumo, cinco minutos e cinco tentativas, o trinco e a origem). E,
+   desde 5/10/2026, o `/pedido/<código>`, a página de estado do pedido
+   de acesso: só GET, o código de 18 bytes vai só para quem pediu e na
+   base fica o resumo, um código errado dá 404 sem mais nada, a página
+   diz o estado e o e-mail do próprio pedido e nada da plataforma, e
+   leva `Cache-Control: no-store` para a borda não a guardar.
    **Uma porta que abra sessões passa pelo `contas.entrar()`**, que é
    onde está a guarda do segundo factor: a ligação de repor da conta do
    dono leva ao ecrã do código, e não a uma sessão. Uma rota

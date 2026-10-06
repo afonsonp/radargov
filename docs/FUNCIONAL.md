@@ -897,7 +897,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**153 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**154 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1482,6 +1482,13 @@ validados e cortados — o telemóvel por `telefone_valido()` —, e tectos de `
 `PEDIDOS_POR_DIA` — este último a 1000, só de reserva, desde 4/10/2026: a 200, um robô fechava o formulário ao site inteiro), e por prefixo as fontes `/tipo/<nome>` (lista branca `TIPOS`)
 e a folha `/estilo/<etiqueta>.css`. Sem estes dois últimos o próprio
 ecrã de entrar aparecia sem letra e sem cor. Nenhum tem dados lá dentro.
+Desde 5/10/2026 também, por prefixo, a **página de estado do pedido**,
+`/pedido/<código>` (`estado_do_pedido()`): o envio do formulário devolve
+o caminho, a confirmação mostra-o, e sem JavaScript o 303 vai lá; diz
+recebido, em espera, aceite (com o e-mail para onde foi o convite) ou
+recusado (sem o motivo). O código só existe para quem pediu; na base, a
+coluna `pedidos_acesso.codigo` guarda o resumo. Os pedidos de antes não
+têm página.
 A **`/acessibilidade`** (D15, 26/09/2026): a declaração de
 acessibilidade, com a estrutura do modelo do DL 83/2018 — o estado
 (parcialmente conforme com a WCAG 2.1 AA), o que não está conforme, a
@@ -1547,7 +1554,7 @@ diz **quem está por trás** (o nome dele e a fotografia, a
 iniciais, `rosto_do_site()`), e nunca o nome da empresa onde trabalhou; e
 o site está **no Acordo Ortográfico** («objeto», «setor», os meses em
 minúscula), ao contrário da aplicação.
-E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site (desde 30/09/2026 com o texto dos planos pagos, o `docs/historico/TERMOS-2026-10.md`: os planos, os preços sem IVA, a fatura, o pré-pago, a renovação e o preço de fundador), que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
+E, desde a F8 (23/09/2026), o **`/termos`** e a **`/privacidade`**: páginas do site (desde 30/09/2026 com o texto dos planos pagos, o `docs/historico/TERMOS-2026-10.md`: os planos, os preços sem IVA e o preço de fundador; desde 5/10/2026 sem as condições de pagamento, que se publicam antes de qualquer cobrança — na fase beta não há cobranças), que só se servem com o `operador` preenchido (`operador_completo()`) — até lá dão 404 e o site não as mostra, porque uma política de privacidade sem responsável não se publica. O fim de cada verificação bate no vigia externo (`vigia_url`, `avisar_o_vigia()`), com o sufixo «fail» quando corre mal; quem avisa que o radar parou é o vigia, pela falta das batidas. E o próprio `/saude` dá 503 quando a recolha parou (`recolha_atrasada()`: a última hora marcada passou há mais de `FOLGA_DA_RECOLHA` sem verificação), para um só monitor de fora apanhar as duas avarias.
 E, por prefixo, o **`/convite/<código>`** (F5, 23/09/2026): quem o abre
 ainda não tem conta, e a guarda está na própria rota — o código (32
 bytes aleatórios, que na base só existe em resumo), a origem do POST e
@@ -1689,8 +1696,12 @@ e não «espera 674 s». O **dono levanta o trinco** na página dos erros
 **A palavra-passe** (D16, 26/09/2026) tem oito caracteres ou mais, além
 dos espaços; não pode ser das mais usadas (`SENHAS_COMUNS`, também com
 números ou sinais à volta), um só carácter repetido, um pedaço repetido
-ou uma sequência do teclado ou do alfabeto; nem ter lá dentro o nome de
-utilizador ou o e-mail. Vale em todas as portas — a conta, o convite, a
+ou uma sequência do teclado ou do alfabeto; nem ser **uma palavra solta**,
+só de letras e até 11 («santarem», mesmo com um algarismo ou um sinal no
+fim — 6.ª ronda, 5/10/2026; uma frase passa); nem ter lá dentro o nome de
+utilizador ou o e-mail. Mudar a palavra-passe na Conta fecha as outras
+sessões da conta e deixa a de quem a mudou
+(`contas.fechar_as_outras_sessoes()`). Vale em todas as portas — a conta, o convite, a
 consola e a ligação de repor —, porque todas passam pelo
 `contas.criar_utilizador()`; a recusa diz qual das regras falhou
 (`contas.problema_da_senha()`).
@@ -1969,7 +1980,7 @@ mesma rota sem sair da página (§4.3).
 | Criar / ligar / apagar alerta · enviar resumo | Configurações |
 | Criar o alerta a partir do perfil (`/alertas/do-perfil`) | Configurações › Alertas |
 | Dispensar o cartão «Pôr a empresa a trabalhar» | Hoje (admin) |
-| Aceitar um pedido de acesso, com o perfil da empresa nova | `/pedidos-de-acesso` (dono) |
+| Aceitar um pedido de acesso, com o perfil da empresa nova — ou juntar quem pediu a uma empresa que já existe, como utilizador, dentro do plano dela (desde 5/10/2026) | `/pedidos-de-acesso` (dono) |
 | Verificar agora · actualizar contratos | Configurações |
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |
@@ -1985,7 +1996,7 @@ mesma rota sem sair da página (§4.3).
 | Exportar os dados de uma empresa (RGPD) | consola, `--exportar-empresa N` (dono) |
 | Entrar e sair do «ver como a empresa, só leitura» | página da empresa, faixa (dono) |
 | Gravar o correio da plataforma · mandar um e-mail de teste | `/plataforma` › Correio (dono) |
-| Importar o modelo · desfazer uma importação | Configurações › Importar |
+| Importar o modelo · desfazer uma importação | Configurações › Importar (gestor) |
 | Fechar as tarefas de uma proposta fechada | ficha |
 
 ---

@@ -296,18 +296,11 @@ section{padding-block:88px}
 /* Os planos (30/09/2026): três cartões, o do meio com a régua da marca.
    Desde 1/10/2026 têm todos o mesmo: os cartões dizem só as pessoas e o
    preço, e o que o Mira Gov faz é uma lista só, por baixo */
-/* Indisponíveis (5/10/2026, decisão dele): enquanto os pagamentos não
-   estão prontos, os cartões ficam desfocados por trás de um painel só.
-   O painel é pegajoso: no telemóvel os cartões empilham-se, e acompanha
-   quem desce. O selo na diagonal de cada cartão, a primeira versão do
-   mesmo dia, era «muito stock» */
-.planos.indisponiveis{position:relative}
-.planos.indisponiveis .plano{filter:blur(4px);opacity:.55;user-select:none;pointer-events:none}
-.planos-vidro{position:absolute;inset:-8px;display:flex;justify-content:center;align-items:flex-start;padding:40px 16px}
-.planos-vidro>div{position:sticky;top:120px;max-width:380px;text-align:center;background:color-mix(in srgb,var(--surface-raised) 82%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-md);padding:24px 28px}
-.planos-vidro h3{font-family:var(--font-serif);font-size:1.35rem;margin:0 0 8px}
-.planos-vidro p{margin:0 0 16px;color:var(--ink-secondary)}
-@media (min-width:901px){.planos-vidro{align-items:center}.planos-vidro>div{position:static}}
+/* Os planos à vista (5/10/2026, decisão dele, depois da 6.ª ronda): o
+   vidro fosco escondia os preços que o «Quanto custa?» dizia em claro, e
+   o leitor de ecrã lia o desfocado. Até os pagamentos abrirem, uma linha
+   por baixo dos cartões leva à oferta de fundador */
+.planos-nota{margin:16px 0 0;text-align:center;color:var(--ink-secondary)}
 .planos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .plano{display:flex;flex-direction:column;gap:14px;background:var(--surface-raised);border:1px solid var(--line);border-radius:16px;padding:28px}
 .plano.destaque{border-color:var(--brand);box-shadow:var(--shadow-sm)}
@@ -653,7 +646,7 @@ form .btn{justify-self:start}
         <h2 id="t-planos">Três planos.</h2>
         <p>Mesmo serviço em todos os planos; muda só o número de pessoas.</p>
       </div>
-      <div class="planos indisponiveis">
+      <div class="planos">
         <article class="plano" aria-labelledby="p-solo">
           <h3 id="p-solo">Solo</h3>
           <p class="preco num">39 € <small>/mês + IVA</small></p>
@@ -669,12 +662,8 @@ form .btn{justify-self:start}
           <p class="preco">Sob consulta</p>
           <p class="quem">Mais de 2 pessoas, com o preço pelo número de pessoas e as condições acordadas por escrito</p>
         </article>
-        <div class="planos-vidro"><div>
-          <h3>Os planos abrem em breve.</h3>
-          <p>Até lá, há a oferta de fundador.</p>
-          <a class="btn btn-primario" href="#fundador">Ver a oferta de fundador</a>
-        </div></div>
       </div>
+      <p class="planos-nota">Os planos pagos abrem em breve. Até lá, há a <a href="#fundador">oferta de fundador</a>.</p>
       <div class="em-todos">
         <h3>Em todos os planos</h3>
         <ul>
@@ -750,7 +739,7 @@ form .btn{justify-self:start}
         </details>
         <details>
           <summary>Posso sair quando quiser?</summary>
-          <p>Sim. As dez empresas fundadoras não pagam nada até 31 de dezembro de 2026, e podem sair quando quiserem. Depois, e para todas as outras desde o primeiro dia, o serviço é pré-pago, ao mês ou ao ano, e basta não renovar. Se nos pedir, entregamos o trabalho da empresa num ficheiro e apagamos os dados.</p>
+          <p>Sim. As dez empresas fundadoras não pagam nada até 31 de dezembro de 2026, e podem sair quando quiserem. Depois, o serviço passa a ser pago, ao mês ou ao ano, nas condições que publicamos antes de qualquer cobrança, e basta não continuar. Se nos pedir, entregamos o trabalho da empresa num ficheiro e apagamos os dados.</p>
         </details>
         <details>
           <summary>Quanto custa?</summary>
@@ -784,7 +773,7 @@ form .btn{justify-self:start}
           <div class="campo"><label for="empresa">Empresa</label><input id="empresa" name="empresa" autocomplete="organization" required maxlength="160"></div>
         </div>
         <div class="duas">
-          <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200"></div>
+          <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200" pattern="[^@\s]+@[^@\s]+\.[^@\s]+"></div>
           <div class="campo"><label for="telefone">Telemóvel</label><input id="telefone" name="telefone" type="tel" autocomplete="tel" required maxlength="30" pattern="[0-9 .\(\)\+\-]{9,30}"></div>
         </div>
         <div class="campo">
@@ -793,9 +782,12 @@ form .btn{justify-self:start}
             <option value="">Escolher a área</option>
             <option>Obras públicas e construção</option>
             <option>Engenharia e projetos</option>
+            <option>Limpeza, segurança e manutenção</option>
+            <option>Espaços verdes e ambiente</option>
+            <option>Software e informática</option>
+            <option>Consultoria</option>
             <option>Fornecimento de bens</option>
             <option>Prestação de serviços</option>
-            <option>Software e informática</option>
             <option>Outro</option>
           </select>
         </div>
@@ -803,7 +795,8 @@ form .btn{justify-self:start}
              nova se pré-preenche; os obrigatórios continuam cinco -->
         <div class="campo">
           <label for="mensagem">O que vende, e onde (opcional)</label>
-          <textarea id="mensagem" name="mensagem" maxlength="500" placeholder="Ex.: manutenção de elevadores, no Porto e em Braga"></textarea>
+          <textarea id="mensagem" name="mensagem" maxlength="500" aria-describedby="mensagem-conta" placeholder="Ex.: manutenção de elevadores, no Porto e em Braga"></textarea>
+          <small id="mensagem-conta">0 de 500</small>
         </div>
         <input type="hidden" name="plano" id="plano" value="">
         <!-- a visita de onde vem o pedido (ANL): o beacon põe-lhe o número -->
@@ -815,6 +808,7 @@ form .btn{justify-self:start}
           <h3>Pedido recebido</h3>
           <p>Recebemos o pedido<span id="ob-empresa"></span>. Respondemos para <strong id="ob-email"></strong>, normalmente no próprio dia útil. Quando o pedido for aceite, recebe nesse endereço um convite para criar a conta.</p>
           <p>Se não chegar, veja a pasta de spam ou escreva para <a href="mailto:contacto@miragov.pt">contacto@miragov.pt</a>.</p>
+          <p id="ob-estado" hidden>Guarde <a id="ob-estado-a" href="#">esta ligação</a>: diz-lhe em que ponto está o pedido, sem precisar de pedir outra vez.</p>
         </div>
       </form>
     </div>
@@ -840,8 +834,15 @@ form .btn{justify-self:start}
   // A confirmação TROCA o formulário e recebe o foco (G98): aparecia por
   // baixo do botão, fora do ecrã, e o foco ia para o body.
   function confirma(p, focar) {
-    document.getElementById("ob-empresa").textContent = p.empresa ? " de " + p.empresa : "";
+    // a frase acaba em ponto: «Lda.» e «S.A.» davam «Lda..» (6.ª ronda)
+    document.getElementById("ob-empresa").textContent = p.empresa ? " de " + p.empresa.replace(/\.$/, "") : "";
     document.getElementById("ob-email").textContent = p.email;
+    // a página de estado do pedido (6.ª ronda): quem voltava não tinha
+    // onde ver se fora aceite, e pedia outra vez
+    if (p.estado && /^\/pedido\/[\w-]+$/.test(p.estado)) {
+      document.getElementById("ob-estado-a").href = p.estado;
+      document.getElementById("ob-estado").hidden = false;
+    }
     Array.prototype.forEach.call(form.children, function (el) {
       if (el !== obrigado) el.hidden = true;
     });
@@ -871,6 +872,14 @@ form .btn{justify-self:start}
   var NOMES = { nome: "o nome", empresa: "a empresa", email: "o e-mail",
                 telefone: "o telemóvel", sector: "a área" };
 
+  // o campo opcional corta aos 500 sem dizer nada a quem cola um texto
+  // maior (6.ª ronda, perfil 19): o contador torna o corte visível
+  var mensagem = document.getElementById("mensagem");
+  var conta = document.getElementById("mensagem-conta");
+  if (mensagem && conta) mensagem.addEventListener("input", function () {
+    conta.textContent = mensagem.value.length + " de " + mensagem.maxLength;
+  });
+
   try {
     var guardado = JSON.parse(sessionStorage.getItem(CHAVE) || "null");
     if (guardado && guardado.email) confirma(guardado, false);
@@ -891,15 +900,30 @@ form .btn{justify-self:start}
       // formulário vazio mandava preencher o que já estava preenchido
       var email = document.getElementById("email");
       var telefone = document.getElementById("telefone");
+      // o que está vazio falta; o que está escrito mas mal não falta (6.ª
+      // ronda: «Falta o telemóvel» com o telemóvel preenchido)
+      var vazios = invalidos.filter(function (el) { return !el.value.trim(); });
+      var mal = invalidos.filter(function (el) { return el.value.trim(); });
+      function lista(els) {
+        return els.map(function (el) { return NOMES[el.id]; })
+          .join(", ").replace(/, ([^,]*)$/, " e $1");
+      }
+      var frases = [];
+      if (vazios.length) frases.push("Falta " + lista(vazios));
+      if (mal.length) frases.push(lista(mal) + (mal.length > 1 ? " não parecem válidos"
+                                                                : " não parece válido"));
+      var junta = frases.join("; ");
       mostraErro(invalidos.length === 1 && invalidos[0] === email && email.value.trim()
         ? "O e-mail não parece válido. Confira-o: é para lá que respondemos."
         : invalidos.length === 1 && invalidos[0] === telefone && telefone.value.trim()
         ? "O telemóvel não parece válido: são nove algarismos, ou o indicativo e o número."
-        : invalidos.length < 5
-        ? "Falta " + invalidos.map(function (el) { return NOMES[el.id]; })
-            .join(", ").replace(/, ([^,]*)$/, " e $1") + "."
+        : vazios.length < 5
+        ? junta.charAt(0).toUpperCase() + junta.slice(1) + "."
         : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e a área, para podermos responder.");
-      invalidos[0].focus();
+      // a frase do erro fica por cima dos campos, e o foco no campo
+      // deixava-a debaixo da barra fixa (6.ª ronda, perfil 19)
+      erro.scrollIntoView({ block: "center" });
+      invalidos[0].focus({ preventScroll: true });
       return;
     }
     enviar.disabled = true;
@@ -908,7 +932,8 @@ form .btn{justify-self:start}
       .then(function (d) {
         if (d && d.ok) {
           var p = { empresa: document.getElementById("empresa").value.trim(),
-                    email: document.getElementById("email").value.trim() };
+                    email: document.getElementById("email").value.trim(),
+                    estado: d.estado || "" };
           try { sessionStorage.setItem(CHAVE, JSON.stringify(p)); } catch (e) {}
           confirma(p, true);
         } else {

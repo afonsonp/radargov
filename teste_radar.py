@@ -2756,6 +2756,21 @@ class TestEurosCurto(unittest.TestCase):
         self.assertEqual(radar.euros_curto(None), "0 €")
 
 
+class TestOCpvComODigitoDeControlo(unittest.TestCase):
+    """6.ª ronda (5/10/2026, perfil 14): «45233000-1», como vem nos
+    anúncios e nas peças, não achava nada na árvore dos alertas nem nas
+    sugestões do Mercado; «45233000» achava. As duas procuras tiram o
+    dígito de controlo antes de procurar."""
+
+    def test_as_duas_procuras_tiram_o_digito_de_controlo(self):
+        self.assertIn(r".replace(/\b(\d{8})-\d\b/g, '$1')", radar.ARVORE_JS)
+        self.assertIn(r".replace(/^(\d{8})-\d$/, '$1')", radar.CPV_SUGERE_JS)
+        # a mesma expressão, em Python, faz o que se espera
+        self.assertEqual(re.sub(r"\b(\d{8})-\d\b", r"\1", "45233000-1 estradas"),
+                         "45233000 estradas")
+        self.assertEqual(re.sub(r"\b(\d{8})-\d\b", r"\1", "45233"), "45233")
+
+
 class TestArvoreNaoSubmeteAoCriar(unittest.TestCase):
     """A arvore de CPV serve dois sitios com necessidades opostas.
 
@@ -12625,7 +12640,20 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
         um «0» não diz nada. Diz de onde nascem as tarefas e tem saída."""
         corpo = self.cliente.get("/").get_data(as_text=True)
         self.assertIn("Nada por fazer", corpo)
-        self.assertIn(radar.LISTA + "?estado=porver", corpo)
+        # sem nada aberto, o botão «ver os 0 por decidir» levava a uma
+        # lista vazia (6.ª ronda, 5/10/2026): diz-se e manda-se a «Todos»
+        self.assertNotIn("ver os 0 por decidir", corpo)
+        self.assertIn("Hoje não há concursos abertos dentro do perfil", corpo)
+        self.assertIn(radar.LISTA + "?estado='>Ver os que já fecharam", corpo)
+        # com um aberto por decidir, o botão volta
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, "
+                      "data_pub, prazo) VALUES ('61/2026','Software','CML',"
+                      "'novo',?,?)", (datetime.date.today().isoformat(),
+                                     (datetime.date.today()
+                                      + datetime.timedelta(days=20)).isoformat()))
+        corpo = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("ver os 1 por decidir", corpo)
 
     def test_a_mensagem_da_verificacao_nao_leva_entidades_html(self):
         """A `ultima_mensagem` é uma marca na base, e quem a mostra
@@ -13644,6 +13672,40 @@ class TestGanhadoresDaLinha(unittest.TestCase):
             radar.ganhadores_da_linha({"ganhou": None, "ganhou_ch": None}), [])
 
 
+class TestAParteDeQuemGanhaEmConsorcio(BaseTemporaria):
+    """6.ª ronda (5/10/2026, perfil 3): a lista das Entidades dizia «Ganha ·
+    sempre 718,7 k€» da IP e a lista que a ficha abre somava 1 566 223 € --
+    a primeira reparte cada contrato pelos vencedores (`n_adj`), a segunda
+    somava-os inteiros. As duas ficam, e a lista diz a parte."""
+
+    def setUp(self):
+        BaseTemporaria.setUp(self)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "ensaio-contratos.db")))
+        radar.iniciar_corpus()
+
+    def test_a_lista_filtrada_pelo_vencedor_diz_a_parte_dele(self):
+        with radar.liga_corpus() as c:
+            for cid, valor, n_adj in ((1, 100000.0, 1), (2, 60000.0, 2)):
+                c.execute("INSERT INTO contratos (id, ano, objecto, tipo_procedimento, "
+                          "data_celebracao, preco_contratual, n_adj) "
+                          "VALUES (?, 2026, 'Obra', 'Concurso público', "
+                          "'2026-02-10', ?, ?)", (cid, valor, n_adj))
+                c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, "
+                          "nome, chave) VALUES (?, '503933813', 'IP', '503933813')",
+                          (cid,))
+        cliente = radar.app.test_client()
+        h = cliente.get("/contratos?vencid=503933813").get_data(as_text=True)
+        self.assertIn("<b>%s</b> no total" % radar.euros(160000), h)
+        self.assertIn("a parte desta entidade: <b>%s</b>" % radar.euros(130000), h)
+        # sem consórcios as duas contas são a mesma, e não se repete (a
+        # memória do corpus é pela pergunta: a data faz outra)
+        with radar.liga_corpus() as c:
+            c.execute("UPDATE contratos SET n_adj=1")
+        h = cliente.get("/contratos?vencid=503933813&de=2026-01-01").get_data(as_text=True)
+        self.assertNotIn("a parte desta entidade", h)
+
+
 class TestDesfechoNaFicha(BaseTemporaria):
     """A ligação anúncio → contrato é por CHAVE (`n_anuncio` do dump do
     IMPIC = `ref` do radar), ao contrário dos homólogos, que são um
@@ -13972,19 +14034,52 @@ class TestSitePublico(BaseTemporaria):
     def test_um_pedido_bom_grava_e_avisa(self):
         r = self.pedir()
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.get_json(), {"ok": True, "erro": ""})
+        resposta = r.get_json()
+        self.assertEqual((resposta["ok"], resposta["erro"]), (True, ""))
+        # e a página de estado do pedido (6.ª ronda)
+        self.assertRegex(resposta["estado"], r"^/pedido/[\w-]{20,}$")
         (p,) = self.pedidos()
         self.assertEqual((p["nome"], p["email"], p["ip"]),
                          ("Ana Silva", "ana@obras.pt", "203.0.113.7"))
         self.assertEqual(len(self.avisos), 1)
 
     def test_sem_javascript_responde_uma_pagina(self):
-        # Post/Redirect/Get desde a 5.ª ronda: o F5 reenviava o pedido
+        # Post/Redirect/Get desde a 5.ª ronda: o F5 reenviava o pedido.
+        # Desde a 6.ª, o Get é a página de estado do pedido
         r = self.pedir(Accept="text/html")
-        self.assertEqual((r.status_code, r.headers["Location"]), (303, "/pedido-recebido"))
-        r = self.cliente.get("/pedido-recebido", environ_base=self.FORA)
+        self.assertEqual(r.status_code, 303)
+        self.assertRegex(r.headers["Location"], r"^/pedido/[\w-]{20,}$")
+        r = self.cliente.get(r.headers["Location"], environ_base=self.FORA)
         self.assertEqual(r.status_code, 200)
+        self.assertIn("Recebemos o seu pedido", r.get_data(as_text=True))
+        # a página antiga continua, para quem a tenha guardada
+        r = self.cliente.get("/pedido-recebido", environ_base=self.FORA)
         self.assertIn("Pedido recebido", r.get_data(as_text=True))
+
+    def test_sexta_ronda_a_pagina_de_estado_do_pedido(self):
+        """6.ª ronda (5/10/2026, perfil 19): quem pedia não tinha onde ver
+        se fora aceite, recusado ou posto em espera, e pedia outra vez. A
+        página abre-se só com o código, que fica na base em resumo."""
+        caminho = self.pedir().get_json()["estado"]
+        codigo = caminho.rsplit("/", 1)[1]
+        with radar.liga() as c:
+            guardado = c.execute("SELECT codigo FROM pedidos_acesso").fetchone()[0]
+        self.assertNotEqual(guardado, codigo)
+        self.assertEqual(guardado, radar.hashlib.sha256(codigo.encode()).hexdigest())
+        for estado, frase in (("", "Recebemos o seu pedido"),
+                              ("espera", "lista de espera"),
+                              ("aceite", "Enviámos o convite para criar a conta para "
+                                         "<b>ana@obras.pt</b>"),
+                              ("recusado", "Não pudemos aceitar o pedido")):
+            with radar.liga() as c:
+                c.execute("UPDATE pedidos_acesso SET estado=?", (estado or None,))
+            r = self.cliente.get(caminho, environ_base=self.FORA)
+            self.assertEqual(r.status_code, 200, estado)
+            self.assertIn(frase, r.get_data(as_text=True), estado)
+            self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(self.cliente.get("/pedido/nao-existe-este",
+                                          environ_base=self.FORA).status_code, 404)
+        self.assertEqual(self.cliente.post(caminho, environ_base=self.FORA).status_code, 405)
 
     def test_o_robo_que_preenche_a_armadilha_nao_grava_nada(self):
         r = self.pedir(dict(self.BOM, website="http://spam"))
@@ -14107,6 +14202,36 @@ class TestAVisitaGuiada(BaseTemporaria):
             self.assertNotIn("<form", texto.lower(), nome)
             self.assertNotIn("type='hidden'", texto, nome)
             self.assertIn('content="noindex"', texto, nome)
+
+    def test_os_baloes_dizem_o_que_o_ecra_mostra(self):
+        """6.ª ronda (5/10/2026, perfis 4 e 15): o balão do passo 3 dava as
+        peças por descarregadas e lidas, e a ficha ao lado dizia «Ainda não
+        foram trazidas» -- o gerador punha os PDF no disco e não na base.
+        E o do passo 1 prometia «o que cada pessoa tem para fazer» a um
+        Hoje com as tarefas todas sem dono."""
+        with open(os.path.join(self.PASTA, "3.html"), encoding="utf-8") as f:
+            ficha = f.read()
+        self.assertNotIn("Ainda não foram trazidas", ficha)
+        self.assertIn("Caderno de Encargos", ficha)
+        with open(os.path.join(self.RAIZ, "site", "demo.html"), encoding="utf-8") as f:
+            pagina = f.read()
+        self.assertNotIn("o que cada pessoa tem para fazer", pagina)
+
+    def test_o_fim_da_visita_leva_ao_lugar_de_fundador(self):
+        """6.ª ronda (5/10/2026, perfis 9, 12 e 14): o botão principal do
+        fim era um mailto, que tirava a pessoa do browser no momento em que
+        mais queria avançar; o «Sair da visita» voltava ao topo do site; e
+        o «Ver outra vez» saía na letra do browser."""
+        with open(os.path.join(self.RAIZ, "site", "demo.html"), encoding="utf-8") as f:
+            pagina = f.read()
+        fim = pagina.split('id="vg-fim"', 1)[1]
+        self.assertIn('<a class="btn btn-primario" href="/#acesso">'
+                      'Pedir um lugar de fundador</a>', fim)
+        self.assertNotIn('btn-primario" href="mailto:', fim)
+        self.assertIn('href="mailto:contacto@miragov.pt', fim)
+        self.assertIn('<a class="sair" href="/#fundador">', pagina)
+        self.assertIn(".vg-fim .recomecar{display:inline-block;margin-top:16px;"
+                      "font:inherit", pagina)
 
 
 class TestOSiteDaTerceiraRonda(BaseTemporaria):
@@ -16225,10 +16350,13 @@ class TestMudancasDeSetembro(BaseTemporaria):
                 self.assertEqual(r.mimetype, "text/plain")
         # e o que e dele continua a abrir
         for rota in ("/", "/calendario", "/contratos", "/configuracoes/conta",
-                     "/configuracoes/interesse", "/configuracoes/alertas",
-                     "/configuracoes/importar"):
+                     "/configuracoes/interesse", "/configuracoes/alertas"):
             with self.subTest(rota=rota):
                 self.assertEqual(tester.get(rota, environ_base=self.FORA).status_code, 200)
+        # o Importar é do gestor desde a 6.ª ronda (5/10/2026): mexe nas
+        # propostas da empresa toda
+        self.assertEqual(tester.get("/configuracoes/importar",
+                                    environ_base=self.FORA).status_code, 403)
 
     def test_o_indice_e_o_verificar_agora_seguem_o_papel(self):
         tester = self.entrar("teste")
@@ -16245,8 +16373,10 @@ class TestMudancasDeSetembro(BaseTemporaria):
         self.assertIn("href='/plataforma'", html_a)
         self.assertNotIn("href='/plataforma'", html_t)
         self.assertEqual(tester.get("/plataforma", environ_base=self.FORA).status_code, 403)
-        for seccao in ("conta", "interesse", "alertas", "importar"):
+        for seccao in ("conta", "interesse", "alertas"):
             self.assertIn("href='/configuracoes/%s'" % seccao, html_t)
+        self.assertNotIn("href='/configuracoes/importar'", html_t)
+        self.assertIn("href='/configuracoes/importar'", html_a)
         # o bloco dos utilizadores so ao admin
         self.assertIn("Criar utilizador", html_a)
         self.assertNotIn("Criar utilizador", html_t)
@@ -18989,6 +19119,18 @@ class TestPoliticaDasPalavrasPasse(unittest.TestCase):
             with self.subTest(senha=senha):
                 self.assertTrue(self.contas.criar_utilizador(self.c, "maria", senha))
 
+    def test_sexta_ronda_uma_palavra_solta_nao_serve(self):
+        """6.ª ronda (5/10/2026, perfis 7 e 17): «santarem» entrou numa
+        conta de gestor -- uma palavra de dicionário, das primeiras que um
+        ataque tenta. Uma frase, ou letras com algarismos no meio, passam."""
+        for senha in ("santarem", "Santarem!", "santarem1", "concurso"):
+            with self.subTest(senha=senha):
+                self.assertIn("palavra", self.recusa(senha))
+        self.assertIn("mais usadas", self.recusa("contratos2026"))
+        for senha in ("SantaremLeiria", "cadeira azul no telhado", "Lisboa2026Mar!"):
+            with self.subTest(senha=senha):
+                self.assertTrue(self.contas.criar_utilizador(self.c, "maria", senha))
+
     def test_vale_tambem_para_trocar(self):
         self.contas.criar_utilizador(self.c, "maria", "senha-comprida")
         self.recusa("11111111")
@@ -20692,6 +20834,29 @@ class TestOFunilContaPropostasENaoOEstadoDoAnuncio(BaseTemporaria):
         self.assertEqual(f["triados"], 3)          # 60, 61 e 62
         self.assertEqual(f["entrados"], 4)         # o DR publicou quatro
         self.assertEqual(f["porver_30"], 1)        # só o 63 ficou por ver
+
+    def test_as_barras_somam_com_republicacoes_e_propostas_de_anuncios_antigos(self):
+        """6.ª ronda (5/10/2026, perfil 3): 2 037 + 21 não davam os 2 391
+        entrados. «Entrados» contava as republicações, que passam os dados
+        ao original e saem das listas, e «Triados» contava as propostas
+        pela data delas, também as de anúncios antigos. As barras dividem
+        agora o mesmo conjunto -- e é isto que não pode voltar."""
+        hoje = datetime.date.today()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, data_pub, "
+                      "prazo, cpv) VALUES ('70/2026','Software','CML','alteracao',?,?,"
+                      "'72000000')", (hoje.isoformat(),
+                                      (hoje + datetime.timedelta(days=30)).isoformat()))
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, data_pub, "
+                      "prazo, cpv) VALUES ('71/2026','Software','CML','novo',?,?,"
+                      "'72000000')", ((hoje - datetime.timedelta(days=60)).isoformat(),
+                                      (hoje + datetime.timedelta(days=30)).isoformat()))
+        radar.criar_proposta("71/2026")            # hoje, a um anúncio antigo
+        f = self._funil()
+        self.assertEqual(f["entrados"], 4)         # a republicação não entra
+        self.assertEqual(f["triados_30"], 3)       # o 71 entrou há 60 dias
+        self.assertEqual(f["entrados"], f["porver_30"] + f["triados_30"])
+        self.assertLessEqual(f["interessa_30"], f["triados_30"])
 
     def test_interessa_e_estar_numa_ranhura_aberta(self):
         f = self._funil()
@@ -23217,6 +23382,37 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         r = self.post(chefe, "/alertas/criar", {"nome": "do chefe", "q": "escola"},
                       "/configuracoes/alertas")
         self.assertEqual(r.status_code, 302)
+
+    def test_sexta_ronda_mudar_a_palavra_passe_fecha_as_outras_sessoes(self):
+        """6.ª ronda (5/10/2026, perfil 17): quem mudava a palavra-passe por
+        suspeitar de alguém deixava essa pessoa entrada. As outras sessões
+        fecham-se; a deste pedido fica."""
+        aqui, ali = self.entrar("chefe"), self.entrar("chefe")
+        nova = "Cadeira-Azul-2026!x"
+        r = self.post(aqui, "/configuracoes/conta",
+                      {"actual": "senha-comprida", "nova": nova, "outra": nova},
+                      "/configuracoes/conta")
+        self.assertNotIn("tom=erro", r.headers["Location"])
+        self.assertEqual(self.ver(aqui, "/configuracoes/conta").status_code, 200)
+        r = self.ver(ali, "/configuracoes/conta")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/entrar", r.headers["Location"])
+
+    def test_sexta_ronda_so_o_gestor_importa_e_desfaz(self):
+        """6.ª ronda (5/10/2026): o utilizador abria o Importar e chegava ao
+        confirmar e ao desfazer, que mexem nas propostas da empresa toda; o
+        índice também lho mostrava."""
+        rita = self.entrar("rita")
+        r = self.ver(rita, "/configuracoes/importar")
+        self.assertEqual(r.status_code, 403)
+        for rota in ("/configuracoes/importar", "/configuracoes/importar/confirmar",
+                     "/configuracoes/importar/desfazer"):
+            r = self.post(rita, rota, {}, "/configuracoes/importar")
+            self.assertEqual(r.status_code, 403, rota)
+        h = self.ver(rita, "/configuracoes").get_data(as_text=True)
+        self.assertNotIn("/configuracoes/importar", h)
+        chefe = self.entrar("chefe")
+        self.assertEqual(self.ver(chefe, "/configuracoes/importar").status_code, 200)
 
     def test_segunda_leva_o_documento_vazio_e_o_nome_vazio_recusam_se(self):
         """5.ª ronda: um «Alvará» sem número nem validade gravava-se, e a
@@ -26943,15 +27139,19 @@ class TestAQuintaRondaDeTestes(BaseTemporaria):
         self.assertEqual(radar.corta("a\x93b\x94", 80), "a“b”")
         self.assertEqual(radar.celula_csv("x\x85"), "x…")
 
-    def test_os_termos_dizem_quando_sai_a_fatura_no_mensal_e_no_anual(self):
-        """A frase dizia «no início do período, ou trinta dias antes», sem
-        dizer quando era cada um; e trinta dias antes não serve no mensal."""
+    def test_os_termos_deixam_o_pagamento_para_depois(self):
+        """5/10/2026 (decisão dele, depois da 6.ª ronda): os termos
+        prometiam um pré-pago com corte no próprio dia, que o financeiro da
+        ronda leu como incompatível com um pagamento a 30 dias, e não havia
+        ainda maneira de cobrar. Até as condições se definirem, não há
+        cobranças, e nenhuma empresa paga sem as ter aceitado."""
         with open(os.path.join(os.path.dirname(radar.SITE), "termos.html"),
                   encoding="utf-8") as f:
             termos = f.read()
-        self.assertIn("sete dias antes no plano mensal", termos)
-        self.assertIn("trinta dias antes no plano anual", termos)
-        self.assertNotIn("ou trinta dias antes da renovação", termos)
+        self.assertIn("Durante a fase beta não há cobranças.", termos)
+        self.assertIn("Nenhuma empresa passa a pagar sem as ter aceitado.", termos)
+        self.assertNotIn("o acesso ao serviço pára nesse dia", termos)
+        self.assertNotIn("sete dias antes no plano mensal", termos)
 
     def test_uma_data_de_1900_ou_9999_nao_se_le(self):
         for mau in ("01/01/1900", "31/12/9999", "1900-01-01"):
@@ -27135,18 +27335,19 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         # opcional (LANC-F, 4/10/2026)
         self.assertNotIn("required", re.search(r"<textarea[^>]*>", formulario).group(0))
 
-    def test_os_planos_estao_indisponiveis_por_tras_de_um_vidro(self):
+    def test_os_planos_estao_a_vista_com_a_nota_do_fundador(self):
         """5/10/2026 (decisão dele): enquanto os pagamentos não estão
-        prontos, os três cartões ficam desfocados por trás de um painel
-        só, com a frase e a ligação para a oferta de fundador, e os botões
-        de pedir saem dos cartões. Um selo na diagonal em cada cartão foi a
-        primeira versão, no mesmo dia: «muito stock»."""
+        prontos, os botões de pedir saem dos cartões. O selo na diagonal
+        era «muito stock»; o vidro fosco que se lhe seguiu escondia os
+        preços que o «Quanto custa?» dizia em claro, e o leitor de ecrã lia
+        o desfocado (6.ª ronda). Ficam à vista, com uma linha por baixo."""
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
         planos = site.split('<div class="planos', 1)[1].split('<div class="em-todos"', 1)[0]
-        self.assertIn('class="planos indisponiveis"', site)
-        self.assertEqual(planos.count('class="planos-vidro"'), 1)
-        self.assertIn("Os planos abrem em breve.", planos)
+        self.assertNotIn("indisponiveis", site)
+        self.assertNotIn("planos-vidro", site)
+        self.assertNotIn("filter:blur", site)
+        self.assertIn("Os planos pagos abrem em breve.", planos)
         self.assertIn('href="#fundador"', planos)
         self.assertIn('id="fundador"', site)
         self.assertNotIn("plano-selo", site)
@@ -27599,7 +27800,10 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         """J8: a ligação do pedido aceite estava num `<code>`, sem
         «Copiar». M5: os pendentes misturados com os decididos. V8: um
         «aceitar…» cheio por pedido, e «activa» verde."""
-        self.assertIn("caixa_de_copiar(ligacao", inspect.getsource(radar.aceitar_pedido))
+        # o ecrã do aceite é o `_pedido_aceite()` desde 5/10/2026: o mesmo
+        # para a empresa nova e para o «juntar»
+        self.assertIn("_pedido_aceite(", inspect.getsource(radar.aceitar_pedido))
+        self.assertIn("caixa_de_copiar(ligacao", inspect.getsource(radar._pedido_aceite))
         with radar.liga() as c:
             for estado in ("recusado", ""):
                 c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
@@ -27701,6 +27905,30 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
 
     def test_c2_11_o_sobre_do_site_a_600(self):
         self.assertNotIn(".sobre{font-weight:700", self._ficheiro("site", "index.html"))
+
+    def test_sexta_ronda_a_confirmacao_nao_dobra_o_ponto(self):
+        """6.ª ronda (5/10/2026, dez perfis): «Recebemos o pedido de
+        Mobiliário Central, Lda..» -- a frase acaba em ponto e quase todos
+        os nomes de empresa também."""
+        site = self._ficheiro("site", "index.html")
+        self.assertIn('" de " + p.empresa.replace(/\\.$/, "")', site)
+
+    def test_sexta_ronda_o_formulario_diz_o_que_esta_mal(self):
+        """6.ª ronda (5/10/2026, perfis 8, 15 e 19): o e-mail sem domínio de
+        topo passava no browser e o servidor recusava-o depois; «Falta o
+        telemóvel» com o telemóvel escrito; o campo opcional cortava aos
+        500 sem dizer nada; e a frase do erro ficava debaixo da barra."""
+        site = self._ficheiro("site", "index.html")
+        # o mesmo que o RX_EMAIL do servidor: um ponto depois da @
+        self.assertIn('type="email" autocomplete="email" required maxlength="200" '
+                      'pattern="[^@\\s]+@[^@\\s]+\\.[^@\\s]+"', site)
+        self.assertTrue(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", "ana@obras.pt"))
+        self.assertFalse(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", "ana@obras"))
+        self.assertIn('" não parece válido"', site)
+        self.assertIn('frases.push("Falta " + lista(vazios))', site)
+        self.assertIn('<small id="mensagem-conta">0 de 500</small>', site)
+        self.assertIn('erro.scrollIntoView({ block: "center" });', site)
+        self.assertIn("invalidos[0].focus({ preventScroll: true });", site)
 
     # -- UX-ECRAS-EM-FALTA-E-ESCURO.md ---------------------------------
 
@@ -28954,6 +29182,31 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
                          "Região Autónoma dos Açores|Região Autónoma da Madeira")
         # «centro» sozinho é quase sempre outra coisa
         self.assertEqual(distritos("obras no centro de saúde do Porto"), "Porto")
+        # colado a outra região é a região (6.ª ronda: marcava só o Norte)
+        centro = "Aveiro|Castelo Branco|Coimbra|Guarda|Leiria|Viseu"
+        norte = "Braga|Bragança|Porto|Viana do Castelo|Vila Real"
+        self.assertEqual(set(distritos("Norte e Centro").split("|")),
+                         set((norte + "|" + centro).split("|")))
+        self.assertEqual(set(distritos("Centro, Alentejo").split("|")),
+                         set((centro + "|Beja|Évora|Portalegre").split("|")))
+        self.assertEqual(distritos("no centro escolar"), "")
+
+    def test_as_areas_que_dizem_de_que_dao_cpv(self):
+        """6.ª ronda (5/10/2026): 7 de 17 pedidos chegavam ao dono sem CPV
+        -- a limpeza, a vigilância, os jardins e a consultoria escolhiam
+        «Prestação de serviços» ou «Outro»."""
+        def cpv(sector):
+            return radar.perfil_do_pedido({"sector": sector, "mensagem": ""})[0]
+        self.assertEqual(cpv("Limpeza, segurança e manutenção"),
+                         "90910000|79710000|50700000")
+        self.assertEqual(cpv("Espaços verdes e ambiente"), "77300000|90600000")
+        self.assertEqual(cpv("Consultoria"), "79400000")
+        self.assertEqual(cpv("Prestação de serviços"), "")
+        with open(radar.SITE, encoding="utf-8") as f:
+            site = f.read()
+        for sector in radar.SECTORES_DO_PEDIDO:
+            self.assertIn("<option>%s</option>" % sector, site)
+        self.assertTrue(self.pedir(sector="Consultoria").get_json()["ok"])
 
     def test_o_sector_ja_nao_engana(self):
         self.assertIn("Engenharia e projetos", radar.SECTORES_DO_PEDIDO)
@@ -28979,6 +29232,90 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
         lista = self.ver(self.entrar("dono"), "/pedidos-de-acesso").get_data(as_text=True)
         self.assertIn("mesmo telemóvel noutra empresa", lista)
         self.assertIn("mesma mensagem noutro pedido", lista)
+
+    def test_sexta_ronda_os_repetidos_que_passavam_sem_etiqueta(self):
+        """6.ª ronda (5/10/2026, perfis 18 e 19): a colega da mesma empresa,
+        com o mesmo telemóvel, não levava etiqueta (só «noutra empresa»);
+        quem já tinha conta pedia outra vez sem aviso; e o recusado voltava
+        a pedir e parecia novo."""
+        with radar.liga() as c:
+            radar.contas.criar_utilizador(c, "sofia@obras.pt", "Cadeira-Azul-2026!x",
+                                    nome="Sofia", papel="tester")
+            for empresa, email, tel, estado, quando in (
+                    ("Obras Rápidas, Lda.", "rui@obras.pt", "910000019", "aceite",
+                     "2026-10-05 10:00"),
+                    ("Obras Rapidas", "sofia@obras.pt", "910 000 019", "",
+                     "2026-10-05 11:00"),
+                    ("Café Central", "cafe@central.pt", "910000119", "recusado",
+                     "2026-10-05 09:00"),
+                    ("Café Central", "cafe@central.pt", "910000119", "",
+                     "2026-10-05 12:00")):
+                c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, "
+                          "email, telefone, sector, mensagem, estado, decidido_em) "
+                          "VALUES (?, 'X', ?, ?, ?, 'Outro', '', ?, ?)",
+                          (quando, empresa, email, tel, estado,
+                           quando if estado else None))
+        lista = self.ver(self.entrar("dono"), "/pedidos-de-acesso").get_data(as_text=True)
+        self.assertIn("mesmo telemóvel de outro pedido", lista)
+        self.assertIn("mesma empresa noutro pedido", lista)
+        self.assertIn("já tem conta", lista)
+        self.assertIn("recusado a 05/10/2026", lista)
+
+    def _pedido_da_beta(self):
+        with radar.liga() as c:
+            c.execute("INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
+                      "sector, mensagem) VALUES ('2026-10-05 11:00', 'Sofia', "
+                      "'Beta, Lda.', 'sofia@beta.pt', 'Outro', '')")
+            return c.execute("SELECT MAX(id) FROM pedidos_acesso").fetchone()[0]
+
+    def test_sexta_ronda_aceitar_junta_a_uma_empresa_que_ja_existe(self):
+        """6.ª ronda (5/10/2026, perfis 18 e 19): a colega da mesma empresa
+        só podia ser aceite como uma empresa nova. Juntar não cria empresa
+        nem mexe no perfil, e o convite é de utilizador."""
+        pedido = self._pedido_da_beta()
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % pedido
+        # a do mesmo nome vem escolhida
+        h = self.ver(dono, url).get_data(as_text=True)
+        self.assertIn("value='juntar' checked", h)
+        self.assertIn("<option value='%d' selected>Beta" % self.beta, h)
+        antes = radar.empresas_existentes()
+        r = self.post(dono, url, {"destino": "juntar", "empresa_id": str(self.beta),
+                                  "nota": "Bem-vinda"}, url)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("Junta-se à empresa n.º %d" % self.beta, r.get_data(as_text=True))
+        self.assertEqual(radar.empresas_existentes(), antes)
+        with radar.liga() as c:
+            self.assertEqual(tuple(c.execute(
+                "SELECT empresa_id, papel FROM convites WHERE email='sofia@beta.pt'"
+            ).fetchone()), (self.beta, "tester"))
+            self.assertEqual(tuple(c.execute(
+                "SELECT estado, empresa_id FROM pedidos_acesso WHERE id=?", (pedido,)
+            ).fetchone()), ("aceite", self.beta))
+
+    def test_sexta_ronda_juntar_respeita_o_plano(self):
+        pedido = self._pedido_da_beta()
+        with radar.liga() as c:
+            radar.contas.gravar_plano(c, self.beta, "solo")
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % pedido
+        r = self.post(dono, url, {"destino": "juntar", "empresa_id": str(self.beta)}, url)
+        self.assertIn("já estão todos ocupados", r.get_data(as_text=True))
+        with radar.liga() as c:
+            self.assertIsNone(c.execute(
+                "SELECT 1 FROM convites WHERE email='sofia@beta.pt'").fetchone())
+
+    def test_sexta_ronda_com_o_correio_em_baixo_a_nota_fica_no_ecra(self):
+        """Perfil 18: a nota ia só no e-mail, e com o correio em baixo
+        perdia-se -- o ecrã mostrava a ligação e não a nota."""
+        pedido = self._pedido_da_beta()
+        dono = self.entrar("dono")
+        url = "/pedidos-de-acesso/%d/aceitar" % pedido
+        with unittest.mock.patch.object(radar, "enviar_convite",
+                                        lambda *a, **k: (False, "sem servidor")):
+            r = self.post(dono, url, {"destino": "nova", "cpv": "", "pbmin": "",
+                                      "plano": "solo", "nota": "Ligo amanhã"}, url)
+        self.assertIn("com a nota que escreveu: «Ligo amanhã»", r.get_data(as_text=True))
 
     def test_o_convite_leva_a_nota(self):
         dono = self.entrar("dono")

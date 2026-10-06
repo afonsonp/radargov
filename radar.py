@@ -38,6 +38,7 @@ import mimetypes
 import os
 import re
 import queue
+import secrets
 import shlex
 import shutil
 import smtplib
@@ -1248,10 +1249,14 @@ def iniciar_db():
         # O telemóvel (4/10/2026): o formulário passou a pedir só o nome,
         # a empresa, o e-mail, o telemóvel e a área -- o NIF e o plano
         # assustavam quem só queria experimentar (decisão dele).
+        # O `codigo` (6.ª ronda, 5/10/2026): o resumo SHA-256 do código da
+        # página de estado do pedido, `/pedido/<código>` -- como o dos
+        # convites, só o resumo fica na base. Os de antes ficam sem página.
         for nome, tipo in (("estado", "TEXT"), ("empresa_id", "INTEGER"),
                            ("motivo", "TEXT"), ("decidido_em", "TEXT"),
                            ("nif", "TEXT"), ("plano", "TEXT"),
-                           ("telefone", "TEXT"), ("vista", "TEXT")):
+                           ("telefone", "TEXT"), ("vista", "TEXT"),
+                           ("codigo", "TEXT")):
             if nome not in cols_pa:
                 c.execute("ALTER TABLE pedidos_acesso ADD COLUMN %s %s" % (nome, tipo))
         # As visitas ao site público (ANL, 4/10/2026): uma linha por página
@@ -14868,7 +14873,10 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
 # E os ecrãs da visita guiada (`/demo/<n>`, 5/10/2026): o conversor
 # `int` da rota e a existência do ficheiro são a lista branca, e o que lá
 # está é uma empresa inventada (`ferramentas/demo.py`).
-PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/", "/demo/")
+# E a página de estado do pedido (`/pedido/<código>`, 6.ª ronda): a
+# guarda é o código, que só quem pediu tem, como no convite.
+PREFIXOS_ABERTOS = ("/tipo/", "/estilo/", "/convite/", "/repor/", "/demo/",
+                    "/pedido/")
 LOOPBACK = ("127.0.0.1", "::1")
 
 # O que so o DONO da plataforma abre (F4, 23/09/2026): o sistema -- as
@@ -14894,6 +14902,9 @@ ROTAS_SO_DONO = ("/plataforma", "/indicadores", "/configuracoes/indicadores",
 ROTAS_SO_ADMIN = ("/configuracoes/conta/utilizadores",
                   "/configuracoes/conta/empresa", "/arranque",
                   "/configuracoes/documentos",
+                  # importar e desfazer mexem nas propostas da empresa
+                  # toda (6.ª ronda, 5/10/2026: o utilizador fazia-o)
+                  "/configuracoes/importar",
                   "/alertas/interesse", "/configuracoes/propostas",
                   # Os alertas e a janela do urgente são da empresa, como o
                   # perfil (decisão dele, 4/10/2026: «só o gestor»); a
@@ -19909,7 +19920,10 @@ function arvoreLimpar() {
 // exacta com acentos não achava. Mostra-se o que bate e o caminho até
 // lá, com os ramos do caminho abertos.
 function arvoreFiltrar(texto) {
-  var palavras = arvoreSemAcentos(texto).split(/\\s+/).filter(Boolean);
+  // o dígito de controlo sai (6.ª ronda): «45233000-1», copiado de um
+  // anúncio, não achava nada, e «45233000» achava
+  var palavras = arvoreSemAcentos(texto).replace(/\\b(\\d{8})-\\d\\b/g, '$1')
+    .split(/\\s+/).filter(Boolean);
   var corpo = document.getElementById('arvore-corpo');
   if (!palavras.length) {
     corpo.querySelectorAll('.escondido').forEach(function(n) {
@@ -20097,7 +20111,9 @@ CPV_SUGERE_JS = r"""<script>
   }
   function sugerir() {
     var pedacos = campo.value.split('|');
-    var ultimo = simples(pedacos.pop()).trim();
+    // sem o dígito de controlo (6.ª ronda): «45233000-1» procurava
+    // «452330001», e não há código nenhum assim
+    var ultimo = simples(pedacos.pop()).trim().replace(/^(\d{8})-\d$/, '$1');
     var antes = pedacos.length ? pedacos.join('|') + '|' : '';
     lista.innerHTML = '';
     if (ultimo.length < 2) return;
@@ -21035,15 +21051,21 @@ def _lista_de_anuncios():
         # Sem filtro nenhum, mas com o interesse a tapar: dizer "o que
         # entrou esta triado" com 1290 anuncios escondidos era uma
         # afirmacao falsa por cima da faixa que diz o contrario.
+        # Em «Por ver», os do perfil que já fecharam estão em «Todos»:
+        # uma empresa acabada de chegar via 0 e achava que estava
+        # avariado (6.ª ronda, 5/10/2026)
+        fechados = (" Os do perfil que já fecharam estão em "
+                    "<a href='%s?estado='>Todos</a>." % LISTA
+                    if estado_actual == ENTRADA_DA_ESCADA[0] else "")
         corpo_lista = ("<div class='mg-empty'>Nada aqui <b>dentro do "
                        "perfil da empresa</b> &mdash; há %s de fora dele. "
                        "<a href='%s'>ver tudo</a> ou "
-                       "<a href='/configuracoes/interesse'>mudar o perfil</a>."
+                       "<a href='/configuracoes/interesse'>mudar o perfil</a>.%s"
                        "</div>"
                        % (mil(escondidos_interesse),
                           html.escape(sem_pagina(request.args, rota,
                                                  interesse="nao"),
-                                      quote=True)))
+                                      quote=True), fechados))
     elif (estado_actual == ENTRADA_DA_ESCADA[0]
           and filtro_em_uso == "estado=" + ENTRADA_DA_ESCADA[0]):
         # O vazio proprio da entrada sem filtro: nada por decidir e
@@ -26001,6 +26023,9 @@ def config_conta():
                     contas.criar_utilizador(c, utilizador["email"], nova)
                 except ValueError as erro:
                     return volta_config("conta", erro=True, contacto=contacto or "", aviso="Não gravei: %s." % erro)
+                # e as outras sessões fecham-se, esta fica (6.ª ronda)
+                contas.fechar_as_outras_sessoes(c, utilizador["id"],
+                                                request.cookies.get("sessao"))
             if muda_contacto:
                 contas.gravar_contacto(c, utilizador["id"], contacto)
         recado = {(True, False): "Palavra-passe mudada.",
@@ -28650,7 +28675,9 @@ def entidades():
             "<tbody>%s</tbody></table>"
             "<div class='tab-pe'>%s<span class='nota'>Marque duas. "
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
-            "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
+            "«Ganha» é a <b>parte dela</b>: num consórcio, o contrato "
+            "reparte-se pelos vencedores (6.ª ronda). "
+            "O «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
             "a partir de %d decididas. %s</span></div></div></form>"
             % (html.escape(aba, quote=True),
@@ -29347,12 +29374,21 @@ def contratos():
     ordem_p = (" ORDER BY p.fim_estimado, p.id" if fim
                else " ORDER BY p.data_celebracao DESC, p.id DESC")
     correspondem = valor = 0
+    parte = None
     paginas = pagina = 1
     linhas = []
     with liga_corpus() as c:
         if ha_pergunta:
             correspondem, valor, escondidos_interesse = contas_do_mercado(
                 c, request.args, cfg)
+            # Filtrado por quem ganhou, a parte dele: num consórcio o
+            # contrato reparte-se pelos vencedores (`n_adj`), que é o que
+            # a lista das Entidades soma -- 718,7 k€ da IP contra os
+            # 1 566 223 € dos contratos inteiros (6.ª ronda, 5/10/2026)
+            if (request.args.get("vencid") or "").strip():
+                parte = conta_no_corpus(
+                    c, "SELECT COALESCE(SUM(c.preco_contratual / c.n_adj), 0) v "
+                       "FROM contratos c" + onde, valores)["v"]
             paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
             desvio = (pagina - 1) * POR_PAGINA_LISTA
@@ -29622,6 +29658,10 @@ def contratos():
         # O somatorio e do filtro todo, nao da pagina: e o numero que diz
         # quanto vale este mercado, e por pagina nao queria dizer nada.
         conta += " &middot; <b>%s</b> no total" % euros(valor)
+        if parte is not None and round(parte) != round(valor or 0):
+            conta += (" &middot; a parte desta entidade: <b>%s</b> (nos "
+                      "consórcios, o contrato reparte-se pelos vencedores)"
+                      % euros(parte))
         # a ligacao diz quantas linhas e que saem: encostada ao "1-20"
         # exportava as dezenas de milhares sem avisar. Leva ver/meses,
         # por isso o CSV exporta o mesmo modo que a lista mostra.
@@ -35182,9 +35222,15 @@ def funil_anuncios():
         # Os anúncios respondem ao que é do DR (quantos entraram, quantos
         # ainda ninguém tocou); as propostas respondem ao que é decisão
         # nossa. É a mesma divisão do `contar_a_escada()`.
+        # As republicações (`alteracao`) não entram: passam os dados ao
+        # original e saem das listas, e «Entrados» contava-as como
+        # concursos novos -- 342 em 2 391, e as barras não somavam (6.ª
+        # ronda, 5/10/2026). As três barras dividem o MESMO conjunto, os
+        # anúncios da janela sem as republicações: Entrados = Sem decisão
+        # + Triados, e o teste guarda-o.
         d = dict(c.execute(
             "SELECT COUNT(*) total, "
-            " SUM(data_pub >= :d) entrados "
+            " SUM(data_pub >= :d AND estado != 'alteracao') entrados "
             "FROM anuncios", {"d": desde}).fetchone())
         # Os urgentes por ver contam-se como a lista que a ligacao abre
         # os conta -- a aba «por ver» (sem proposta, prazo vivo), o
@@ -35203,15 +35249,24 @@ def funil_anuncios():
         p = dict(c.execute(
             "SELECT COUNT(*) triados, "
             " SUM(estado IN (%s)) interessa, "
-            " SUM(estado = 'nao_fomos') descartados, "
-            " SUM(criada_em >= :d) triados_30, "
-            " SUM(criada_em >= :d AND estado IN (%s)) interessa_30 "
-            "FROM propostas" % (abertos, abertos), {"d": desde}).fetchone())
+            " SUM(estado = 'nao_fomos') descartados "
+            "FROM propostas" % abertos).fetchone())
         d.update(p)
-        # «Por ver» na janela: os que entraram e ainda não têm proposta.
+        # Na janela, pelos ANÚNCIOS que entraram e não pela data da
+        # proposta: uma proposta de hoje a um anúncio de há dois meses
+        # contava como triada sem ter entrado. Um anúncio com dois lotes
+        # conta uma vez.
+        d.update(dict(c.execute(
+            "SELECT COUNT(DISTINCT a.ref) triados_30, "
+            " COUNT(DISTINCT CASE WHEN p.estado IN (%s) THEN a.ref END) "
+            " interessa_30 "
+            "FROM anuncios a JOIN propostas p ON p.ref = a.ref "
+            "WHERE a.data_pub >= :d AND a.estado != 'alteracao'" % abertos,
+            {"d": desde}).fetchone()))
+        # «Sem decisão» na janela: os que entraram e ainda não têm proposta.
         d["porver_30"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios a WHERE a.data_pub >= :d "
-            "AND a.estado = 'novo' AND NOT EXISTS "
+            "AND a.estado != 'alteracao' AND NOT EXISTS "
             "(SELECT 1 FROM propostas p WHERE p.ref = a.ref)",
             {"d": desde}).fetchone()["n"]
         # (numa base vazia o SUM da NULL; as barras querem 0)
@@ -36575,9 +36630,13 @@ SITE = os.path.join(BASE_DIR, "site", "index.html")
 # LANC-F (4/10/2026): três engenharias escolheram «Tecnologias de
 # informação» no ensaio do lançamento. Entrou a engenharia, e a de TI
 # mudou de nome; o nome antigo ainda passa, de uma página em cache.
+# E três que dão CPV (6.ª ronda, 5/10/2026): a limpeza, a vigilância, os
+# jardins e a consultoria escolhiam «Prestação de serviços» ou «Outro», e
+# o perfil chegava ao dono sem CPV em 7 pedidos de 17.
 SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Engenharia e projetos",
-                      "Fornecimento de bens", "Prestação de serviços",
-                      "Software e informática", "Outro")
+                      "Limpeza, segurança e manutenção", "Espaços verdes e ambiente",
+                      "Software e informática", "Consultoria",
+                      "Fornecimento de bens", "Prestação de serviços", "Outro")
 SECTORES_ANTIGOS = ("Tecnologias de informação",)
 # O que o formulario do site deixa escolher (30/09/2026): o valor e como
 # se diz. A oferta de fundador e o Duo a preco de fundador. Os planos
@@ -37410,14 +37469,16 @@ def pedir_acesso():
     nao tem JavaScript."""
     quer_json = pede_json()
 
-    def resposta(ok, erro="", codigo=200):
+    def resposta(ok, erro="", codigo=200, estado=""):
         if quer_json:
-            return Response(json.dumps({"ok": ok, "erro": erro}), codigo,
-                            mimetype="application/json")
+            return Response(json.dumps(dict({"ok": ok, "erro": erro},
+                                            **({"estado": estado} if estado else {}))),
+                            codigo, mimetype="application/json")
         if ok:
             # Post/Redirect/Get (5.ª ronda): o 200 ao POST fazia o F5 voltar
-            # a mandar o pedido, e foi assim que nasceu um terceiro
-            return redirect("/pedido-recebido", 303)
+            # a mandar o pedido, e foi assim que nasceu um terceiro. Desde a
+            # 6.ª ronda vai para a página de estado do pedido.
+            return redirect(estado or "/pedido-recebido", 303)
         # quem pede não tem conta: o botão volta ao formulário (4.ª ronda:
         # dizia «Voltar ao Hoje»)
         # e o formulário volta ali mesmo, com o que se escreveu (5.ª
@@ -37485,18 +37546,66 @@ def pedir_acesso():
                 or do_email >= PEDIDOS_POR_EMAIL_POR_DIA):
             return resposta(False, "Recebemos muitos pedidos agora. Tente "
                                    "de novo mais tarde.", 429)
+        # a página de estado do pedido (6.ª ronda): o código só vai para
+        # quem pediu; na base fica o resumo
+        codigo_do_pedido = secrets.token_urlsafe(18)
         id_ = c.execute(
             "INSERT INTO pedidos_acesso (criado_em, nome, empresa, email, "
-            "sector, mensagem, ip, nif, plano, telefone, vista) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "sector, mensagem, ip, nif, plano, telefone, vista, codigo) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (agora.isoformat(" ", "seconds"), p["nome"], p["empresa"],
              p["email"], p["sector"], p["mensagem"], ip, p["nif"],
-             p["plano"], p["telefone"], vista)).lastrowid
+             p["plano"], p["telefone"], vista,
+             _resumo_do_codigo(codigo_do_pedido))).lastrowid
     # de onde veio quem pediu (ANL): a visita que o beacon pôs no formulário
     marcar_evento_da_visita(vista, ["enviado"])
     threading.Thread(target=_avisar_do_pedido, args=(id_, p),
                      daemon=True).start()
-    return resposta(True)
+    return resposta(True, estado="/pedido/" + codigo_do_pedido)
+
+
+def _resumo_do_codigo(codigo):
+    return hashlib.sha256((codigo or "").encode("utf-8")).hexdigest()
+
+
+# O que a página de estado diz em cada estado do pedido (6.ª ronda,
+# 5/10/2026): quem pedia não tinha onde ver se fora aceite, e pedia outra
+# vez. O recusado não leva o motivo, como o e-mail da recusa.
+ESTADO_DO_PEDIDO = {
+    "": ("Recebemos o seu pedido",
+         "Estamos a vê-lo. Respondemos para o e-mail que indicou, normalmente "
+         "no próprio dia útil."),
+    "espera": ("O seu pedido está em lista de espera",
+               "Os lugares de fundador estão ocupados por agora. Avisamos por "
+               "e-mail quando abrir um, e não precisa de pedir outra vez."),
+    "aceite": ("O seu pedido foi aceite",
+               "Enviámos o convite para criar a conta para %s. Se não o "
+               "encontrar, veja também no correio indesejado, ou escreva para "
+               "<a href='mailto:contacto@miragov.pt'>contacto@miragov.pt</a>."),
+    "recusado": ("Não pudemos aceitar o pedido",
+                 "Obrigado pelo interesse. Se achar que foi engano, escreva para "
+                 "<a href='mailto:contacto@miragov.pt'>contacto@miragov.pt</a>."),
+}
+
+
+@app.route("/pedido/<codigo>")
+def estado_do_pedido(codigo):
+    """A página de estado do pedido (rota aberta: a guarda é o código, que
+    só quem pediu tem, como no convite). Um código que não existe dá 404,
+    sem dizer mais nada."""
+    with liga() as c:
+        p = c.execute("SELECT estado, email FROM pedidos_acesso WHERE codigo=?",
+                      (_resumo_do_codigo(codigo),)).fetchone() if codigo else None
+    if not p:
+        abort(404)
+    titulo, texto = ESTADO_DO_PEDIDO.get(p["estado"] or "", ESTADO_DO_PEDIDO[""])
+    if "%s" in texto:
+        texto = texto % "<b>%s</b>" % html.escape(p["email"] or "o seu e-mail")
+    return Response((PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": html.escape(titulo),
+                                    "texto": texto, "logo": logotipo(tamanho=24)}).replace(
+                        ACCAO_DA_PAGINA_DE_ERRO,
+                        '<a class="mg-btn mg-btn--primary" href="/">Voltar ao site</a>'),
+                    mimetype="text/html", headers={"Cache-Control": "no-store"})
 
 
 def _formulario_do_pedido_outra_vez():
@@ -37576,24 +37685,53 @@ def pedidos_de_acesso():
 
     def chave_msg(l):
         return " ".join(simplifica(l["mensagem"]).split())
-    empresas_do_tel, ids_da_msg = {}, {}
+    def chave_empresa(l):
+        return chave_do_nome_da_empresa(l["empresa"])
+    empresas_do_tel, ids_do_tel, ids_da_msg, ids_da_empresa = {}, {}, {}, {}
     for l in linhas:
         if chave_tel(l):
-            empresas_do_tel.setdefault(chave_tel(l), set()).add(
-                simplifica(l["empresa"]).strip())
+            empresas_do_tel.setdefault(chave_tel(l), set()).add(chave_empresa(l))
+            ids_do_tel.setdefault(chave_tel(l), set()).add(l["id"])
         if chave_msg(l):
             ids_da_msg.setdefault(chave_msg(l), set()).add(l["id"])
+        if chave_empresa(l):
+            ids_da_empresa.setdefault(chave_empresa(l), set()).add(l["id"])
+    # quem já tem conta, e o que já se decidiu à mesma pessoa (6.ª ronda,
+    # 5/10/2026: a colega entrou pelo convite e pediu outra vez; o recusado
+    # pediu outra vez e parecia novo)
+    with liga() as c:
+        conta_do_email = {(r["email"] or "").strip().lower(): r["empresa_id"]
+                          for r in c.execute("SELECT email, empresa_id FROM utilizadores")}
 
     def repetido(l):
-        ids = por_email.get((l["email"] or "").strip().lower(), [])
+        email = (l["email"] or "").strip().lower()
+        ids = por_email.get(email, [])
         etiquetas = []
         if len(ids) >= 2:
             etiquetas.append("%d.º de %d pedidos deste e-mail"
                              % (ids.index(l["id"]) + 1, len(ids)))
         if len(empresas_do_tel.get(chave_tel(l), ())) >= 2:
             etiquetas.append("mesmo telemóvel noutra empresa")
+        elif ids_do_tel.get(chave_tel(l), set()) - set(ids):
+            etiquetas.append("mesmo telemóvel de outro pedido")
+        if (len(ids_da_empresa.get(chave_empresa(l), ())) >= 2
+                and len(ids_da_empresa[chave_empresa(l)] - set(ids)) >= 1):
+            etiquetas.append("mesma empresa noutro pedido")
         if len(ids_da_msg.get(chave_msg(l), ())) >= 2:
             etiquetas.append("mesma mensagem noutro pedido")
+        if email in conta_do_email:
+            id_ = conta_do_email[email] or 0
+            etiquetas.append("já tem conta" + (
+                " (<a href='/plataforma/empresa/%d'>empresa %d</a>)" % (id_, id_)
+                if id_ else ""))
+        for o in linhas:
+            if (o["id"] < l["id"] and o["estado"] in ("recusado", "espera")
+                    and ((o["email"] or "").strip().lower() == email
+                         or (chave_tel(o) and chave_tel(o) == chave_tel(l)))):
+                dia_ = data_pt((o["decidido_em"] or o["criado_em"] or "")[:10])
+                etiquetas.append("recusado a %s" % dia_ if o["estado"] == "recusado"
+                                 else "em espera desde %s" % dia_)
+                break
         return "".join(" <span class='mg-tag %s'>%s</span>" % (tom("avisa"), e)
                        for e in etiquetas)
     desde, nomes = {}, {}
@@ -37968,13 +38106,20 @@ def _repor_por_email(email):
 CPV_DO_SECTOR = {"Obras públicas e construção": "45000000",
                  "Engenharia e projetos": "71000000",
                  "Software e informática": "72000000|48000000",
-                 "Tecnologias de informação": "72000000|48000000"}
+                 "Tecnologias de informação": "72000000|48000000",
+                 "Limpeza, segurança e manutenção": "90910000|79710000|50700000",
+                 "Espaços verdes e ambiente": "77300000|90600000",
+                 "Consultoria": "79400000"}
 # As regiões que quem pede escreve em vez dos distritos (LANC-F,
 # 4/10/2026), pelo `DISTRITOS_POR_REGIAO`. «Centro» sozinho é quase
 # sempre outra coisa («centro de saúde», «centro escolar»): só conta
-# com «região» ou «zona» antes.
+# com «região» ou «zona» antes -- ou colado a outra região, «Norte e
+# Centro», que marcava só o Norte (6.ª ronda, 5/10/2026).
+_OUTRAS_REGIOES = r"(?:norte|lisboa|vale do tejo|alentejo|algarve)"
 RX_REGIAO_NA_MENSAGEM = {
-    regiao: re.compile(r"\b(?:regiao|zona) centro\b" if regiao == "Centro"
+    regiao: re.compile(r"\b(?:regiao|zona) centro\b|\b%s\s*(?:,|e)\s*centro\b"
+                       r"|\bcentro\s*(?:,|e)\s*%s\b" % (_OUTRAS_REGIOES, _OUTRAS_REGIOES)
+                       if regiao == "Centro"
                        else r"\b%s\b" % re.escape(simplifica(regiao)))
     for regiao, _ in DISTRITOS_POR_REGIAO}
 RX_CPV_NA_MENSAGEM = re.compile(r"\b(\d{8})(?:-\d)?\b")
@@ -38045,9 +38190,9 @@ def _formulario_do_aceitar(p, aviso=""):
         "<div class='larg'>%s<div class='mg-card conf-cx'>"
         "<p><b>%s</b>, de %s &middot; <a href='mailto:%s'>%s</a>%s<br>"
         "Área: %s</p>%s</div>"
-        "<form method='post' class='mg-card conf-cx conf-form'>"
+        "<form method='post' class='mg-card conf-cx conf-form'>%s"
         "<div class='mg-field__label' style='flex:1 1 100%%'>O perfil da "
-        "empresa nova</div>"
+        "empresa nova <span class='nota'>(só para uma empresa nova)</span></div>"
         "<p class='nota' style='flex:1 1 100%%'>O site promete «configuramos o "
         "perfil consigo». %s; afine-o antes "
         "de aceitar, ou deixe-o vazio e a empresa define-o depois.</p>"
@@ -38073,6 +38218,7 @@ def _formulario_do_aceitar(p, aviso=""):
            html.escape(p["sector"] or "—"),
            ("<p class='nota'>«%s»</p>" % html.escape(p["mensagem"]))
            if p["mensagem"] else "",
+           _escolha_da_empresa(p),
            "Vem do sector e do que a mensagem diz" if (cpv or distritos)
            else "O sector e a mensagem não chegaram para o sugerir: escreva-o",
            _campo("CPV", "cpv", cpv, nota="códigos separados por «|», ex. "
@@ -38102,6 +38248,104 @@ def _escolha_do_plano(escolhido):
                 for k, v in PLANOS_DO_PEDIDO.items()))
 
 
+def chave_do_nome_da_empresa(nome):
+    """O nome sem a forma jurídica nem a pontuação: «Obras Rápidas, Lda.»
+    e «Obras Rapidas» são a mesma empresa (6.ª ronda, 5/10/2026)."""
+    nome = re.sub(r"[^a-z0-9]+", " ", simplifica(nome or "").lower())
+    return " ".join(re.sub(r"\b(?:lda|limitada|unipessoal|s a|sa)\b", " ",
+                           nome).split())
+
+
+def _empresas_para_juntar():
+    """[(id, nome)] das empresas que existem, para o «juntar» do aceitar."""
+    nomes = []
+    for id_ in empresas_existentes():
+        with com_empresa(id_):
+            nomes.append((id_, ler_config().get("nome_da_empresa") or "empresa %d" % id_))
+    return nomes
+
+
+def _escolha_da_empresa(p):
+    """Criar uma empresa nova ou juntar a pessoa a uma que já existe (6.ª
+    ronda: a colega da mesma empresa só podia nascer noutra empresa). A
+    que tem o mesmo nome vem escolhida."""
+    juntar = request.method == "POST" and request.form.get("destino") == "juntar"
+    escolhida = request.form.get("empresa_id", "") if juntar else ""
+    opcoes = []
+    for id_, nome in _empresas_para_juntar():
+        if not escolhida and chave_do_nome_da_empresa(nome) == \
+                chave_do_nome_da_empresa(p["empresa"]):
+            escolhida, juntar = str(id_), juntar or request.method == "GET"
+        opcoes.append("<option value='%d'%s>%s (empresa %d)</option>"
+                      % (id_, " selected" if str(id_) == escolhida else "",
+                         html.escape(nome), id_))
+    if not opcoes:
+        return ""
+    return ("<fieldset style='flex:1 1 100%%'><legend class='mg-field__label'>"
+            "Para onde vai quem pediu</legend>"
+            "<label><input type='radio' name='destino' value='nova'%s> uma "
+            "empresa nova, com o perfil e o plano de baixo</label><br>"
+            "<label><input type='radio' name='destino' value='juntar'%s> juntar "
+            "a uma empresa que já existe, como utilizador:</label> "
+            "<select class='mg-field__input' name='empresa_id' "
+            "aria-label='A empresa'>%s</select></fieldset>"
+            % ("" if juntar else " checked", " checked" if juntar else "",
+               "".join(opcoes)))
+
+
+def _juntar_pedido(p):
+    """O «aceitar» que junta a pessoa a uma empresa que já existe: não
+    cria empresa nem mexe no perfil (é o dela), e o convite é de
+    utilizador -- quem é gestor decide-o o gestor. O plano conta."""
+    try:
+        empresa_id = int(request.form.get("empresa_id") or "")
+    except ValueError:
+        empresa_id = 0
+    if empresa_id not in empresas_existentes():
+        return _formulario_do_aceitar(p, "Escolha a empresa da lista.")
+    with liga() as c:
+        if contas.lugares_livres(c, empresa_id) == 0:
+            return _formulario_do_aceitar(p, contas.frase_do_limite(c, empresa_id))
+        codigo = contas.criar_convite(c, empresa_id, p["email"], "tester", p["id"])
+        c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=?, "
+                  "decidido_em=? WHERE id=?",
+                  (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), p["id"]))
+    with com_empresa(empresa_id):
+        nome = ler_config().get("nome_da_empresa") or p["empresa"]
+    registar_evento("", "pedido aceite", "%s (junta à empresa %d)"
+                    % (p["empresa"], empresa_id))
+    return _pedido_aceite(p, empresa_id, nome, codigo, "tester",
+                          "Juntou-se à empresa %d, %s." % (empresa_id, html.escape(nome)),
+                          "Junta-se à empresa n.º %d" % empresa_id,
+                          "<p>O perfil e o plano são os da empresa: não mudaram.</p>")
+
+
+def _pedido_aceite(p, empresa_id, nome, codigo, papel, titulo, destaque, sobre):
+    """O ecrã depois de aceitar: manda o convite e mostra a ligação, que
+    serve se o e-mail não sair -- e a nota com ela, que de outro modo ia
+    só no e-mail (6.ª ronda, 5/10/2026)."""
+    ligacao = endereco_do_painel() + "/convite/" + codigo
+    nota = (request.form.get("nota") or "").strip()[:TECTO_DA_NOTA_DO_CONVITE]
+    bem, porque = enviar_convite(p["email"], ligacao, nome, papel, p["nome"],
+                                 pedido=True, nota=nota)
+    envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])
+             if bem else "<b>O e-mail não saiu</b> (%s). Mande-lhe a "
+             "ligação%s." % (html.escape(porque or "sem razão"),
+                             ", com a nota que escreveu: «%s»" % html.escape(nota)
+                             if nota else ""))
+    return envolver(
+        "configuracoes", "Pedido aceite", titulo,
+        # o número e a ligação no corpo (G56 da 3.ª ronda): o subtítulo
+        # passava despercebido, e confirmar a empresa era voltar à lista
+        "<div class='larg'><div class='mg-card conf-cx'><p><b>%s</b> &mdash; "
+        "<a href='/plataforma/empresa/%d'>abrir a página dela</a>.</p><p>%s</p>%s"
+        "<p>A ligação, que serve uma vez e dura %d dias:</p>"
+        "%s<p><a href='/pedidos-de-acesso'>voltar aos "
+        "pedidos</a></p></div></div>"
+        % (destaque, empresa_id, envio, sobre, contas.DIAS_DE_CONVITE,
+           caixa_de_copiar(ligacao, "Ligação do convite")))
+
+
 @app.route("/pedidos-de-acesso/<int:id_>/aceitar", methods=["GET", "POST"])
 def aceitar_pedido(id_):
     """F5: do pedido do site a empresa a trabalhar. Cria a empresa, com o
@@ -38123,6 +38367,8 @@ def aceitar_pedido(id_):
                         "aos pedidos</a></div>")
     if request.method == "GET":
         return _formulario_do_aceitar(p)
+    if request.form.get("destino") == "juntar":
+        return _juntar_pedido(p)
     try:
         perfil = _perfil_do_formulario(request.form)
     except ValueError as erro:
@@ -38147,32 +38393,15 @@ def aceitar_pedido(id_):
         c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=?, "
                   "decidido_em=? WHERE id=?",
                   (empresa_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), id_))
-    ligacao = endereco_do_painel() + "/convite/" + codigo
-    bem, porque = enviar_convite(
-        p["email"], ligacao, p["empresa"], "admin", p["nome"], pedido=True,
-        nota=(request.form.get("nota") or "").strip()[:TECTO_DA_NOTA_DO_CONVITE])
     registar_evento("", "pedido aceite", "%s (empresa %d)"
                     % (p["empresa"], empresa_id))
-    envio = ("O convite foi enviado para <b>%s</b>." % html.escape(p["email"])
-             if bem else "<b>O e-mail não saiu</b> (%s). Mande-lhe a "
-             "ligação." % html.escape(porque or "sem razão"))
-    return envolver(
-        "configuracoes", "Pedido aceite",
+    return _pedido_aceite(
+        p, empresa_id, p["empresa"], codigo, "admin",
         "A empresa %d, %s, foi criada." % (empresa_id, html.escape(p["empresa"])),
-        # o número e a ligação no corpo (G56 da 3.ª ronda): o subtítulo
-        # passava despercebido, e confirmar a empresa era voltar à lista
-        "<div class='larg'><div class='mg-card conf-cx'><p><b>Empresa n.º %d "
-        "criada</b> &mdash; <a href='/plataforma/empresa/%d'>abrir a página "
-        "dela</a>.</p><p>%s</p><p>%s</p>"
-        "<p>A ligação, que serve uma vez e dura %d dias:</p>"
-        "%s<p><a href='/pedidos-de-acesso'>voltar aos "
-        "pedidos</a></p></div></div>"
-        % (empresa_id, empresa_id, envio,
-           ("Perfil da empresa: %s." % descricao_do_interesse(perfil))
-           if perfil["interesse_activo"] else
-           "Sem perfil: a empresa define-o no primeiro dia.",
-           contas.DIAS_DE_CONVITE,
-           caixa_de_copiar(ligacao, "Ligação do convite")))
+        "Empresa n.º %d criada" % empresa_id,
+        "<p>%s</p>" % (("Perfil da empresa: %s." % descricao_do_interesse(perfil))
+                       if perfil["interesse_activo"] else
+                       "Sem perfil: a empresa define-o no primeiro dia."))
 
 
 PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
@@ -39781,13 +40010,23 @@ def inicio():
                     html.escape(base_sem("quem", "dia") or "/", quote=True)))
     else:
         # O estado vazio diz o que fazer a seguir e por onde -- nao "0".
+        # Nem um botão «ver os 0 por decidir», que levava a uma lista
+        # vazia: com nada aberto no perfil diz-se isso (6.ª ronda, 5/10/2026)
+        if por_ver:
+            seguir = ("<a class='mg-btn mg-btn--primary' href='%s'>ver os %s "
+                      "por decidir</a> " % (LISTA + "?estado=porver", mil_pt(por_ver)))
+        else:
+            seguir = ("Hoje não há concursos abertos dentro do perfil da "
+                      "empresa. <a class='mg-btn mg-btn--primary' href='%s'>"
+                      "Ver os que já fecharam</a> "
+                      "<a href='/configuracoes/interesse'>rever o perfil</a> · "
+                      % (LISTA + "?estado="))
         fazer = ("<div class='mg-empty'>Nada por fazer ainda. As tarefas nascem "
                  "sozinhas quando um concurso ganha proposta — os prazos "
                  "de esclarecimentos e de entrega vêm do anúncio.<br><br>"
-                 "<a class='mg-btn mg-btn--primary' href='%s'>ver os %s por decidir</a> "
+                 + seguir +
                  "<a href='/proposta/nova'>ou crie uma proposta sem "
-                 "anúncio</a></div>"
-                 % (LISTA + "?estado=porver", mil_pt(por_ver)))
+                 "anúncio</a></div>")
 
     sem_feitas = base_sem("feitas")
     alvo_esconder = sem_feitas if esconder else (

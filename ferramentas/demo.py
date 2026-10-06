@@ -103,7 +103,15 @@ with radar.liga() as c:
         for peca in PECAS:
             doc = fitz.open()
             doc.new_page().insert_text((72, 72), "%s (exemplo)" % peca)
-            doc.save(os.path.join(pasta, peca + ".pdf"))
+            ficheiro = os.path.join(pasta, peca + ".pdf")
+            doc.save(ficheiro)
+            # e na base, como o radar as grava: a ficha conta por aqui, e
+            # sem a linha dizia «Ainda não foram trazidas» ao lado do balão
+            # que as dava por lidas (6.ª ronda, 5/10/2026)
+            c.execute("INSERT INTO documentos (ref,nome,ficheiro,tamanho,"
+                      "origem,obtido_em) VALUES (?,?,?,?,?,?)",
+                      (ref, peca + ".pdf", peca + ".pdf",
+                       os.path.getsize(ficheiro), plat, dia(0) + " 09:02:00"))
     # uma verificação de hoje, para o Hoje não dizer «ainda não houve»
     c.execute("INSERT OR REPLACE INTO slots VALUES (?,?,?,?)",
               (dia(0), "09:00", dia(0) + " 09:02", len(ANUNCIOS)))
