@@ -409,16 +409,21 @@ def _contacto_em_uso(c, email, menos_id):
         (menos_id, email, email)).fetchone())
 
 
+def e_email(texto):
+    """Se o texto tem forma de e-mail: nome@dominio.pt, sem espacos."""
+    local, arroba, dominio = texto.partition("@")
+    return bool(arroba and local and "." in dominio.strip(".")
+                and "@" not in dominio and len(texto) <= 200
+                and not any(ch.isspace() for ch in texto))
+
+
 def problema_do_contacto(c, utilizador_id, contacto):
     """Porque e que este contacto nao serve, ou '' se serve. Vazio serve:
     e tirar o contacto."""
     contacto = email_limpo(contacto)
     if not contacto:
         return ""
-    local, arroba, dominio = contacto.partition("@")
-    if (not arroba or not local or "." not in dominio.strip(".")
-            or "@" in dominio or len(contacto) > 200
-            or any(ch.isspace() for ch in contacto)):
+    if not e_email(contacto):
         return "o e-mail de contacto não é um e-mail, como nome@empresa.pt"
     if _contacto_em_uso(c, contacto, utilizador_id):
         return "esse e-mail já é de outra conta"
@@ -515,6 +520,26 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None,
                      empresa_id or 1,
                      1 if sem_dono and (papel or "admin") == "admin" else 0))
     return cur.lastrowid
+
+
+def criar_conta(c, email, senha, nome="", papel=None, empresa_id=None,
+                pela_consola=False):
+    """O `criar_utilizador()` com a regra das contas novas: entram pelo
+    e-mail (6/10/2026, decisao dele). Sem ele o «esqueci-me» nao as
+    encontra, e dois «bruno» obrigavam o segundo a inventar um nome. E
+    por aqui que passam o convite, o painel e a consola; as contas que ja
+    existiam com um nome ficam como estao, e trocar-lhes a palavra-passe
+    nao pede nada."""
+    email = email_limpo(email)
+    if not c.execute("SELECT 1 FROM utilizadores WHERE email=?",
+                     (email,)).fetchone():
+        if not e_email(email):
+            raise ValueError("o nome de entrada tem de ser o e-mail, como "
+                             "nome@empresa.pt")
+        if _contacto_em_uso(c, email, 0):
+            raise ValueError("esse e-mail já é de outra conta")
+    return criar_utilizador(c, email, senha, nome, papel, empresa_id,
+                            pela_consola)
 
 
 def utilizadores(c, empresa_id=None):
@@ -867,7 +892,7 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
     # o plano pode ter descido depois do convite: so as contas contam aqui
     if lugares_livres(c, convite["empresa_id"], agora, contar_convites=False) == 0:
         return None, frase_do_limite(c, convite["empresa_id"])
-    uid = criar_utilizador(c, utilizador, senha, papel=convite["papel"],
+    uid = criar_conta(c, utilizador, senha, papel=convite["papel"],
                            empresa_id=convite["empresa_id"])
     # o e-mail do convite fica na conta (1/10/2026), seja qual for o
     # utilizador escolhido -- sem ele o «esqueci-me» nao a encontra. Se

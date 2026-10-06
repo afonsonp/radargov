@@ -15726,7 +15726,7 @@ PAGINA_ENTRAR = """<!doctype html><html lang="pt" data-pele="novo" data-theme="s
  %(aviso)s
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="%(para)s">
-  <div class="mg-field"><label class="mg-field__label" for="e-utilizador">Utilizador</label>
+  <div class="mg-field"><label class="mg-field__label" for="e-utilizador">E-mail</label>
    <input class="mg-field__input" id="e-utilizador" type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="e-senha">Palavra-passe</label>
    <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
@@ -26748,7 +26748,8 @@ def _bloco_utilizadores(todos, eu):
         "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button>"
         "</form></details>"
         % (linhas, contas.DIAS_DE_CONVITE,
-           _campo("Utilizador", "email", "", extra="autocomplete='off'"),
+           _campo("E-mail", "email", "", tipo="email",
+                  extra="autocomplete='off' placeholder='nome@empresa.pt' required"),
            _campo("Palavra-passe", "senha", "", tipo="password",
                   nota="8 caracteres ou mais",
                   extra="autocomplete='new-password'")))
@@ -26821,7 +26822,7 @@ def conta_criar_utilizador():
             return volta_config_erro("conta", "O utilizador não foi criado: %s"
                                      % contas.frase_do_limite(c, empresa_activa()))
         try:
-            contas.criar_utilizador(c, email, request.form.get("senha") or "",
+            contas.criar_conta(c, email, request.form.get("senha") or "",
                                     papel=papel, empresa_id=empresa_activa())
         except ValueError as erro:
             return volta_config_erro("conta", "O utilizador não foi criado: %s." % erro)
@@ -38607,8 +38608,8 @@ PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="
 </main></body></html>"""
 
 FORMULARIO_DO_CONVITE = """<form method="post">
-  <div class="mg-field"><label class="mg-field__label" for="c-utilizador">Utilizador</label>
-   <input class="mg-field__input" id="c-utilizador" type="text" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
+  <div class="mg-field"><label class="mg-field__label" for="c-utilizador">E-mail</label>
+   <input class="mg-field__input" id="c-utilizador" type="email" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
    <input class="mg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
   <div class="mg-field"><label class="mg-field__label" for="c-outra">Repetir a palavra-passe</label>
@@ -38664,7 +38665,7 @@ def convite(codigo):
                                   ". Peça outro a quem o mandou."),
                               codigo=404 if "não existe" in porque else 410)
     if request.method == "GET":
-        return pagina_convite("Escolha o nome de utilizador e a palavra-passe "
+        return pagina_convite("Confirme o e-mail com que vai entrar e escolha a palavra-passe "
                               "(8 caracteres ou mais).",
                               utilizador=convite_["email"], erro=False,
                               convite_=convite_)
@@ -40915,7 +40916,9 @@ def main():
             i = sys.argv.index(bandeira)
             email = sys.argv[i + 1] if len(sys.argv) > i + 1 else ""
             if not email or email.startswith("--"):
-                print("Uso: python radar.py %s UTILIZADOR" % bandeira)
+                print("Uso: python radar.py %s %s" % (
+                    bandeira, "E-MAIL" if bandeira == "--criar-utilizador"
+                    else "UTILIZADOR"))
                 return
             nome, papel, empresa_id = "", None, None
             if "--empresa" in sys.argv:
@@ -40937,7 +40940,8 @@ def main():
                 return
             try:
                 with liga() as c:
-                    contas.criar_utilizador(
+                    (contas.criar_conta if bandeira == "--criar-utilizador"
+                     else contas.criar_utilizador)(
                         c, email, senha, nome, papel, empresa_id,
                         pela_consola=bandeira == "--criar-utilizador")
             except ValueError as erro:

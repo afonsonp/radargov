@@ -737,11 +737,13 @@ Desde 8/09/2026 o painel tem login. A conta cria-se uma vez, num
 terminal aberto na pasta:
 
 ```bash
-.venv/bin/python radar.py --criar-utilizador admin
+.venv/bin/python radar.py --criar-utilizador nome@empresa.pt
 ```
 
-O nome de utilizador é o que quiseres, sem espaços — `admin` serve,
-não precisa de ser um e-mail. Pergunta o tipo (admin ou tester; Enter
+Desde 6/10/2026 **uma conta nova entra pelo e-mail** — na consola, no
+painel e no convite —, para o «esqueci-me» a encontrar e para dois
+«Bruno» não terem de inventar nomes. As contas que já tinham um nome
+(como `admin`) ficam como estão. Pergunta o tipo (admin ou tester; Enter
 é admin) e a palavra-passe (8 caracteres ou mais, escrita duas vezes,
 sem aparecer no ecrã). Desde 26/09/2026 recusa as fáceis — as mais
 usadas, `aaaaaaaa`, `12345678`, sequências do teclado, e as que têm o
@@ -760,13 +762,13 @@ seguir:
 
 ```bash
 .venv/bin/python radar.py --criar-empresa "NOME DA EMPRESA"
-.venv/bin/python radar.py --criar-utilizador NOME --empresa 2
+.venv/bin/python radar.py --criar-utilizador nome@empresa.pt --empresa 2
 ```
 
 Dentro de uma empresa, o admin dela convida os colegas sem ti: em
 Configurações › Conta, **Criar convite** dá uma ligação que ele manda
 ao colega — ou que segue sozinha por e-mail, se ele escrever o endereço
-do colega —, e é o colega que escolhe o nome e a palavra-passe. O
+do colega —, e é o colega que confirma o e-mail com que entra e escolhe a palavra-passe. O
 convite que crias na página da empresa com o endereço preenchido
 também segue por e-mail.
 
