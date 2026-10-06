@@ -17792,6 +17792,21 @@ BASE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s">
   vivo.textContent = t.innerText.replace(/[\u26a0\ufe0e\u2713\u00d7]/g, '').replace(/desfazer/, '').trim();
   if (document.activeElement === document.body) t.focus({preventScroll: true});
  }, 150);
+ /* No telemóvel o aviso preso em baixo tapava o «Sair» do «Mais» (6.ª
+    ronda, perfil 1): abrir o «Mais» fecha-o. E o de sucesso sem
+    «desfazer» sai sozinho ao fim de 8 s -- o de erro, o do «desfazer» e
+    o do topo ficam, e quem entrou com o Tab no «×» também o segura. */
+ var mais = document.querySelector('details.bb-mais');
+ if (mais) mais.addEventListener('toggle', function () {
+  if (mais.open && t.isConnected) t.remove();
+ });
+ if (t.classList.contains('mg-alert--success') && h.indexOf('desfazer') < 0
+     && !t.classList.contains('no-topo')) {
+  setTimeout(function () {
+   var foco = document.activeElement;
+   if (t.isConnected && (!t.contains(foco) || foco === t)) t.remove();
+  }, 8000);
+ }
  t.addEventListener('click', function (e) {
   if (e.target.closest('.aviso-fechar')) t.remove();
  });

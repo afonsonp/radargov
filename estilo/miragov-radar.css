@@ -949,7 +949,12 @@ ul.notas li>form.accao{display:inline-block}
  body{padding-bottom:var(--baixo-h)}
  html{scroll-padding-bottom:calc(var(--baixo-h) + 16px)}
  html:has(.aviso-da-vez){scroll-padding-bottom:calc(var(--baixo-h) + 112px)}
- .com-js .aviso-da-vez{bottom:calc(var(--baixo-h) + 12px)}}
+ .com-js .aviso-da-vez{bottom:calc(var(--baixo-h) + 12px)}
+ /* compacto (6.ª ronda, perfil 1): com o «desfazer» e o «×» em linhas
+    suas, ocupava um terço do ecrã -- uma linha só, letra menor */
+ .com-js .aviso-da-vez:not(.no-topo){flex-wrap:nowrap;padding:6px 8px 6px 12px;
+  gap:6px;font-size:var(--text-sm)}
+ .com-js .aviso-da-vez:not(.no-topo)>.aviso-texto{min-width:0}}
 
 /* O CALENDÁRIO (D12, 26/09/2026): os três filtros por cima, as tarefas
    no dia delas, e no telemóvel uma agenda em lista em vez da grelha —

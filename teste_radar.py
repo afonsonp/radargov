@@ -11502,6 +11502,21 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
         self.assertIn("mg-alert--success aviso-da-vez' role='status'", h)
         self.assertNotIn("mg-alert--danger", h)
 
+    def test_sexta_ronda_o_aviso_nao_tapa_o_mais_no_telemovel(self):
+        """6.ª ronda (5/10/2026, perfil 1): o aviso preso em baixo tapava o
+        «Sair» do «Mais», e com o «desfazer» ocupava um terço do ecrã.
+        Abrir o «Mais» fecha-o; o de sucesso sem «desfazer» sai ao fim de
+        8 s (o de erro e o do «desfazer» ficam); no telemóvel é uma linha.
+        Medido no iPhone simulado: 58 px de 664."""
+        h = self.cliente.get("/").get_data(as_text=True)
+        self.assertIn("mais.addEventListener('toggle', function () {\n"
+                      "  if (mais.open && t.isConnected) t.remove();", h)
+        self.assertIn("t.classList.contains('mg-alert--success') && "
+                      "h.indexOf('desfazer') < 0", h)
+        self.assertIn("}, 8000);", h)
+        movel = radar.CSS_TUDO.split(".com-js .aviso-da-vez{bottom:calc(var(--baixo-h) + 12px)}", 1)[1]
+        self.assertIn(".com-js .aviso-da-vez:not(.no-topo){flex-wrap:nowrap", movel[:200])
+
     def test_e14_o_historico_mostra_as_ultimas_e_da_as_outras(self):
         id_ = self._proposta()
         with radar.liga() as c:
