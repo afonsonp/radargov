@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 50
+- [Contas e a porta](#contas-e-a-porta) &middot; 51
 - [A interface](#a-interface) &middot; 131
 - [Convenções](#convencoes) &middot; 8
 
-São **458** ao todo, contados a 4/10/2026. Contam-se por secção com
+São **459** ao todo, contados a 6/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -3588,6 +3588,14 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   de escrever o «saiu» no histórico da empresa — senão a escrita cai no
   ficheiro só de leitura. As rotas abertas (o `/entrar`, o convite)
   saem da porta antes disto, e isso está certo: não escrevem na empresa.
+- **Uma conta nova entra pelo e-mail, e a regra está no
+  `contas.criar_conta()`, não no `criar_utilizador()`** (6/10/2026,
+  decisão dele). O convite, o formulário da Conta e o
+  `--criar-utilizador` passam pelo `criar_conta()`; o
+  `criar_utilizador()` é também o que troca a palavra-passe e o que os
+  testes usam para montar contas com nome, como as duas que já
+  existiam e ficam como estão. Um caminho novo que crie contas chama o
+  `criar_conta()` — chamar o outro deixa nascer uma conta sem e-mail.
 - **Só a consola cria um dono** (F2 da segunda ronda, 26/09/2026). O
   `criar_utilizador()` fazia dono o primeiro admin de uma base sem dono,
   viesse do painel, de um convite ou de uma reposição; agora só com

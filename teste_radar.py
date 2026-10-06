@@ -16493,22 +16493,28 @@ class TestMudancasDeSetembro(BaseTemporaria):
     def test_o_admin_cria_e_tira_contas_pelo_painel(self):
         admin = self.entrar("admin")
         r = admin.post("/configuracoes/conta/utilizadores",
-                       data={"csrf": self.token(admin), "email": "novo",
+                       data={"csrf": self.token(admin), "email": "novo@empresa.pt",
                              "senha": "chave-do-colega", "papel": "tester"},
                        environ_base=self.FORA)
         self.assertIn("criado", unquote_plus(r.headers["Location"]))
         with radar.liga() as c:
-            novo = [u for u in self.contas.utilizadores(c) if u["email"] == "novo"][0]
+            novo = [u for u in self.contas.utilizadores(c) if u["email"] == "novo@empresa.pt"][0]
             self.assertEqual(novo["papel"], "tester")
             eu = [u for u in self.contas.utilizadores(c) if u["email"] == "admin"][0]
+        # sem e-mail: recusa (6/10/2026, uma conta nova entra pelo e-mail)
+        r = admin.post("/configuracoes/conta/utilizadores",
+                       data={"csrf": self.token(admin), "email": "bruno",
+                             "senha": "chave-do-colega", "papel": "tester"},
+                       environ_base=self.FORA)
+        self.assertIn("tem de ser o e-mail", unquote_plus(r.headers["Location"]))
         # repetido: recusa; curta: recusa
         r = admin.post("/configuracoes/conta/utilizadores",
-                       data={"csrf": self.token(admin), "email": "novo",
+                       data={"csrf": self.token(admin), "email": "novo@empresa.pt",
                              "senha": "chave-do-colega", "papel": "tester"},
                        environ_base=self.FORA)
         self.assertIn("existe", unquote_plus(r.headers["Location"]))
         r = admin.post("/configuracoes/conta/utilizadores",
-                       data={"csrf": self.token(admin), "email": "outro",
+                       data={"csrf": self.token(admin), "email": "outro@empresa.pt",
                              "senha": "curta", "papel": "admin"},
                        environ_base=self.FORA)
         self.assertIn("8 caracteres", unquote_plus(r.headers["Location"]))
@@ -16520,7 +16526,7 @@ class TestMudancasDeSetembro(BaseTemporaria):
                        data={"csrf": self.token(admin)}, environ_base=self.FORA)
         self.assertIn("tirada", unquote_plus(r.headers["Location"]))
         with radar.liga() as c:
-            self.assertNotIn("novo", [u["email"] for u in self.contas.utilizadores(c)])
+            self.assertNotIn("novo@empresa.pt", [u["email"] for u in self.contas.utilizadores(c)])
 
     def test_as_sessoes_dizem_o_aparelho_e_nao_o_agente(self):
         self.assertEqual(radar.aparelho_do_agente(
@@ -18006,11 +18012,11 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
             return c.execute("SELECT COUNT(*) FROM reposicoes").fetchone()[0]
 
     def test_a_conta_do_convite_guarda_o_email_mesmo_com_outro_utilizador(self):
-        self._pelo_convite("teste.claude")
-        self.assertEqual(self._contacto("teste.claude"), self.EMAIL)
+        self._pelo_convite("teste.claude@gmail.com")
+        self.assertEqual(self._contacto("teste.claude@gmail.com"), self.EMAIL)
 
     def test_o_esqueci_me_pelo_email_do_convite_cria_a_ligacao(self):
-        self._pelo_convite("teste.claude")
+        self._pelo_convite("teste.claude@gmail.com")
         self.assertEqual(self.esqueci("X+Teste@gmail.com").status_code, 200)
         self.assertEqual(self._reposicoes(), 1)
         # vai para o e-mail, e não para «teste.claude», que não é endereço
@@ -18022,10 +18028,10 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
         with radar.liga() as c:
             radar.contas.criar_utilizador(c, self.EMAIL, "senha-comprida-boa",
                                           papel="tester")
-        self._pelo_convite("outro.nome")
-        self.assertEqual(self._contacto("outro.nome"), "")
+        self._pelo_convite("outro.nome@gmail.com")
+        self.assertEqual(self._contacto("outro.nome@gmail.com"), "")
         with radar.liga() as c:
-            c.execute("UPDATE utilizadores SET contacto=? WHERE email='outro.nome'",
+            c.execute("UPDATE utilizadores SET contacto=? WHERE email='outro.nome@gmail.com'",
                       (self.EMAIL,))
         self.assertEqual(self.esqueci(self.EMAIL).status_code, 200)
         self.assertEqual((self._reposicoes(), self.mandados), (0, []))
@@ -18059,9 +18065,9 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
                          {"teste.claude": self.EMAIL, "antiga": ""})
 
     def test_muda_o_contacto_na_conta_so_com_a_palavra_passe_actual(self):
-        self._pelo_convite("teste.claude")
+        self._pelo_convite("teste.claude@gmail.com")
         cliente = radar.app.test_client()
-        cliente.post("/entrar", data={"email": "teste.claude",
+        cliente.post("/entrar", data={"email": "teste.claude@gmail.com",
                                       "senha": "senha-comprida-boa"},
                      environ_base=self.FORA)
         self.assertIn(self.EMAIL, cliente.get(
@@ -18074,10 +18080,10 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
             cliente.post("/configuracoes/conta", data={
                 "csrf": token, "actual": actual, "contacto": "novo@empresa.pt"},
                 environ_base=self.FORA)
-            self.assertEqual(self._contacto("teste.claude"), esperado)
+            self.assertEqual(self._contacto("teste.claude@gmail.com"), esperado)
         # e a palavra-passe ficou a mesma
         with radar.liga() as c:
-            self.assertTrue(radar.contas.entrar(c, "teste.claude",
+            self.assertTrue(radar.contas.entrar(c, "teste.claude@gmail.com",
                                                 "senha-comprida-boa")[0])
 
     def test_apagar_a_empresa_tira_o_plano_e_o_arranque_os_orfaos(self):
@@ -19129,13 +19135,20 @@ class TestConvites(BaseTemporaria):
         r = cliente.get(ligacao, environ_base=self.FORA)
         self.assertEqual(r.status_code, 200)
         self.assertIn("ana@exemplo.pt", r.get_data(as_text=True))
+        # sem e-mail não cria (6/10/2026), e o convite não se gasta
         r = cliente.post(ligacao, data={"utilizador": "ana", "senha": "chave-da-obra",
+                                        "outra": "chave-da-obra"},
+                         environ_base=self.FORA)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("tem de ser o e-mail", r.get_data(as_text=True))
+        r = cliente.post(ligacao, data={"utilizador": "ana@exemplo.pt",
+                                        "senha": "chave-da-obra",
                                         "outra": "chave-da-obra"},
                          environ_base=self.FORA)
         self.assertEqual(r.status_code, 302)
         with radar.liga() as c:
             u = c.execute("SELECT papel, empresa_id, dono FROM utilizadores "
-                          "WHERE email='ana'").fetchone()
+                          "WHERE email='ana@exemplo.pt'").fetchone()
         self.assertEqual(tuple(u), ("admin", 2, 0))
         # entrou: a página da conta é a da empresa dela
         corpo = cliente.get("/configuracoes/conta", environ_base=self.FORA).get_data(as_text=True)
@@ -22572,8 +22585,8 @@ class TestSoAConsolaCriaUmDono(BaseTemporaria):
         with radar.liga() as c:
             radar.contas.criar_utilizador(c, "primeiro", "senha-comprida")
             codigo = radar.contas.criar_convite(c, 1, "", "admin")
-            radar.contas.usar_convite(c, codigo, "convidado", "senha-comprida")
-        self.assertEqual((self._dono("primeiro"), self._dono("convidado")), (0, 0))
+            radar.contas.usar_convite(c, codigo, "convidado@alfa.pt", "senha-comprida")
+        self.assertEqual((self._dono("primeiro"), self._dono("convidado@alfa.pt")), (0, 0))
 
     def test_a_consola_cria_o_dono_uma_vez(self):
         with radar.liga() as c:
@@ -22595,15 +22608,20 @@ class TestSoAConsolaCriaUmDono(BaseTemporaria):
             radar.contas.criar_utilizador(c, "admin-da-1", "senha-comprida")
         self._consola("--palavra-passe", "admin-da-1")
         self.assertEqual(self._dono("admin-da-1"), 0)
+        # sem e-mail a consola recusa (6/10/2026), e com ele cria o dono
         self._consola("--criar-utilizador", "afonso")
-        self.assertEqual(self._dono("afonso"), 1)
+        with radar.liga() as c:
+            self.assertIsNone(c.execute("SELECT 1 FROM utilizadores "
+                                        "WHERE email='afonso'").fetchone())
+        self._consola("--criar-utilizador", "afonso@miragov.pt")
+        self.assertEqual(self._dono("afonso@miragov.pt"), 1)
 
     def test_o_formulario_da_conta_nao_cria_um_dono(self):
         cliente = radar.app.test_client()        # o acesso livre, sem contas
         r = cliente.post("/configuracoes/conta/utilizadores", data={
-            "email": "novo-admin", "senha": "senha-comprida", "papel": "admin"})
+            "email": "novo-admin@alfa.pt", "senha": "senha-comprida", "papel": "admin"})
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(self._dono("novo-admin"), 0)
+        self.assertEqual(self._dono("novo-admin@alfa.pt"), 0)
 
 
 class _PlataformaComDuasEmpresas(BaseTemporaria):

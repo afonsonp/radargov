@@ -176,7 +176,7 @@ python radar.py --empresa-desfazer COPIA # repõe a triagem tal como está numa 
                                    # (a da EMPRESA: copias/empresa-1-….db)
 python radar.py --ensaiar-copia [F]   # prova que a última cópia (ou F) se restaura: integrity_check e contagens; sai com 1 se não servir
 python radar.py --estado-zero [--sim]  # a aplicação como acabada de instalar, sem perder o acervo; faz cópia antes
-python radar.py --criar-utilizador NOME [--empresa N]  # a conta do painel ("admin" serve); pergunta o tipo (admin/tester) e a palavra-passe por getpass; sem --empresa é da 1
+python radar.py --criar-utilizador E-MAIL [--empresa N]  # a conta do painel (o nome de entrada é o e-mail, desde 6/10/2026); pergunta o tipo (admin/tester) e a palavra-passe por getpass; sem --empresa é da 1
 python radar.py --criar-empresa "NOME"   # F4: uma empresa nova, com o ficheiro dela vazio; diz o número
 python radar.py --apagar-empresa N [--sim] # tira a empresa inteira (a pasta vai para copias/, com as linhas da plataforma em plataforma.json); o dono fica sem empresa
 python radar.py --exportar-empresa N  # os dados de uma empresa num zip em copias/ (RGPD): a base dela, os ficheiros da pasta e plataforma.json sem as palavras-passe
@@ -643,7 +643,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **458 pontos** (contados a 4/10/2026), cada um de um erro que
+São **459 pontos** (contados a 6/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
