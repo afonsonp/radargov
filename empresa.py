@@ -162,6 +162,8 @@ def estado_pretendido(linha):
     campos["lugar"] = (int(linha["lugar"]) if linha.get("lugar")
                        else (1 if st == "ganho" else None))
     campos["top3"] = _texto_top3(linha.get("concorrentes")) or None
+    if st == "perdido" and linha.get("motivo_perda"):
+        campos["motivo"] = linha["motivo_perda"]
     return (st, campos)
 
 
@@ -479,6 +481,10 @@ COLUNAS_MODELO = (
     # A data em que se decidiu (segunda ronda, 26/09/2026): sem ela, tudo
     # o que se importava contava como decidido no dia da importacao.
     ("Data da decisão", "data_decisao"),
+    # E o motivo de uma perdida (6.ª ronda, perfil 10): as perdidas
+    # importadas ficavam todas «(por dizer)» no «Porque se perde». No fim,
+    # para os ficheiros já preenchidos continuarem a ler-se.
+    ("Motivo da perda", "motivo_perda"),
 )
 ESTADOS_MODELO = ("Não fomos", "Submetido", "Ganho", "Perdido")
 FOLHA_MODELO = "Registo"
@@ -502,7 +508,7 @@ def escrever_modelo(caminho):
     wb = Workbook()
     ws = wb.active
     ws.title = FOLHA_MODELO
-    larguras = (22, 8, 14, 28, 20, 8, 44, 18, 40, 14)
+    larguras = (22, 8, 14, 28, 20, 8, 44, 18, 40, 14, 26)
     for i, ((titulo, _), largura) in enumerate(zip(COLUNAS_MODELO, larguras), 1):
         c = ws.cell(row=1, column=i, value=titulo)
         c.font = Font(bold=True, color="FFFFFF")
@@ -521,6 +527,11 @@ def escrever_modelo(caminho):
     ws.add_data_validation(dv_razao)
     dv_estado.add("C2:C500")
     dv_razao.add("D2:D500")
+    dv_perda = DataValidation(type="list",
+                              formula1='"%s"' % ",".join(radar.MOTIVOS_PERDA),
+                              allow_blank=True, showErrorMessage=False)
+    ws.add_data_validation(dv_perda)
+    dv_perda.add("K2:K500")
     inst = wb.create_sheet("Instruções")
     inst.column_dimensions["A"].width = 110
     linhas = [
@@ -536,6 +547,7 @@ def escrever_modelo(caminho):
         "Responsável: quem da empresa acompanha este concurso (nome).",
         "Notas: entram como uma nota da proposta, com o seu nome e a data da importação; as que a proposta já tinha ficam.",
         "Data da decisão: quando se decidiu (dd/mm/aaaa) — a entrega da proposta, a adjudicação ou o «não vamos». Em «Ganho» e «Perdido» é a data da adjudicação, e fica gravada como tal. Conta para o período do Ponto de situação; vazia, conta o prazo do anúncio.",
+        "Motivo da perda: só quando o estado é «Perdido» — uma da lista: %s." % ", ".join(radar.MOTIVOS_PERDA),
         "",
         "Exemplo:  1947/2026 | 2 | Ganho |  | 169344 | 1 | Nós; Empresa B; Empresa C | Afonso | contrato de 24 meses | 15/03/2026",
         "",
@@ -662,6 +674,15 @@ def ler_modelo(caminho):
             avisos.append("a razão «%s» não é uma da lista: entra, mas a ficha "
                           "e o «Porque não se vai» só conhecem as da lista (%s)"
                           % (linha["razao"][:60], ", ".join(radar.MOTIVOS_ABANDONO)))
+        perda = _celula(bruto["motivo_perda"])
+        linha["motivo_perda"] = perda
+        if perda and linha["status"] and _norma(linha["status"]) != "perdido":
+            avisos.append("o motivo da perda só conta em «Perdido»; nesta linha "
+                          "fica de fora")
+        elif perda and perda not in radar.MOTIVOS_PERDA:
+            avisos.append("o motivo «%s» não é um da lista: entra, mas o «Porque "
+                          "se perde» só conhece os da lista (%s)"
+                          % (perda[:60], ", ".join(radar.MOTIVOS_PERDA)))
         linha["valor_proposta"] = _num(bruto["valor_proposta"])
         valor_txt = _celula(bruto["valor_proposta"])
         if valor_txt and linha["valor_proposta"] is None \

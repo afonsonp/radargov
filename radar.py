@@ -24461,6 +24461,45 @@ def _bloco_do_correio(cfg):
              "e só se grava se escrever uma nova.", id_="correio")
 
 
+def _contas_encontradas(termo, empresas):
+    """A procura de uma conta pelo e-mail ou pelo nome (6.ª ronda,
+    5/10/2026, perfil do suporte: «alguém liga e só sabe o e-mail, e eu
+    tenho de abrir empresa a empresa»). Devolve o HTML do resultado."""
+    termo = (termo or "").strip()[:120]
+    if not termo:
+        return ""
+    padrao = "%" + para_like(termo) + "%"
+    with liga() as c:
+        contas = c.execute(
+            "SELECT nome, email, papel, empresa_id, dono, ultimo_acesso FROM utilizadores "
+            "WHERE email LIKE ? ESCAPE '%s' OR nome LIKE ? ESCAPE '%s' "
+            "ORDER BY email LIMIT 20" % (ESCAPE_LIKE, ESCAPE_LIKE),
+            (padrao, padrao)).fetchall()
+    if not contas:
+        return ("<div class='mg-empty'>Nenhuma conta com «%s» no e-mail ou no nome.</div>"
+                % html.escape(termo))
+    nomes = {e["id"]: e["nome"] for e in empresas}
+
+    def empresa(r):
+        if r["dono"]:
+            return "a plataforma (dono)"
+        if r["empresa_id"] not in nomes:
+            return "sem empresa"
+        return "<a href='/plataforma/empresa/%d'>%s</a>" % (
+            r["empresa_id"], html.escape(nomes[r["empresa_id"]]))
+    linhas = "".join(
+        "<tr>%s%s%s%s%s</tr>" % (
+            _celula_da_tabela("Nome", html.escape(r["nome"] or "")),
+            _celula_da_tabela("E-mail", html.escape(r["email"])),
+            _celula_da_tabela("Empresa", empresa(r)),
+            _celula_da_tabela("Papel", html.escape(PAPEL_NO_ECRA.get(r["papel"], r["papel"]))),
+            _celula_da_tabela("Última entrada", html.escape(ha_quanto(r["ultimo_acesso"]))))
+        for r in contas)
+    return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
+            "<thead><tr><th>Nome</th><th>E-mail</th><th>Empresa</th><th>Papel</th>"
+            "<th>Última entrada</th></tr></thead><tbody>%s</tbody></table></div>" % linhas)
+
+
 @app.route("/plataforma")
 def administracao_da_plataforma():
     """A administracao da plataforma, so do dono (23/09/2026; refeita a
@@ -24507,6 +24546,14 @@ def administracao_da_plataforma():
                "maxlength='120' autocomplete='off' placeholder='nome da empresa'></label>"
                "<button type='submit' class='mg-btn mg-btn--secondary'>Criar a empresa"
                "</button></form>")
+    termo = request.args.get("conta", "")
+    procura = ("<form class='form-email' method='get' action='/plataforma' "
+               "style='margin-bottom:12px'><label>Procurar uma conta"
+               "<input class='mg-field__input' type='search' name='conta' "
+               "maxlength='120' autocomplete='off' placeholder='e-mail ou nome' "
+               "value='%s'></label><button type='submit' class='mg-btn "
+               "mg-btn--secondary'>Procurar</button></form>%s"
+               % (html.escape(termo, quote=True), _contas_encontradas(termo, empresas)))
     seccoes = "".join(
         "<a class='mg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
         "<b>%s</b><div class='nota'>%s</div></a>" % (c_, html.escape(t_), html.escape(d_))
@@ -24532,7 +24579,7 @@ def administracao_da_plataforma():
     # no fim a Recolha e o Correio, que se usam uma vez e estavam a meio.
     corpo = (
         "<div class='larg'>%s%s"
-        "<h2 class='mg-field__label' style='margin:22px 0 6px'>Empresas</h2>%s"
+        "<h2 class='mg-field__label' style='margin:22px 0 6px'>Empresas</h2>%s%s"
         "<h2 class='mg-field__label' style='margin:22px 0 6px'>O sistema</h2>"
         "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
         "<a class='mg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
@@ -24544,7 +24591,7 @@ def administracao_da_plataforma():
         "<b>A minha conta</b><div class='nota'>a palavra-passe e as sessões</div></a>"
         "</div><div style='margin-top:22px'>%s</div><div style='margin-top:22px'>%s</div>"
         "</div>"
-        % (_html_dos_semaforos(semaforos_da_plataforma()), tratar_html, tabela,
+        % (_html_dos_semaforos(semaforos_da_plataforma()), tratar_html, procura, tabela,
            seccoes, pendentes, recolha, _bloco_do_correio(cfg)))
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que está mal, o que há para "
@@ -24665,8 +24712,10 @@ def _gestos_do_suporte(u):
 # (11), 4/10/2026): as mudanças de configuração, as triagens e o que se
 # fez às contas. As entradas vêm da tabela `entradas` da plataforma, com o
 # IP e o aparelho -- e por isso o «entrou» do histórico fica de fora.
+# e apagar uma proposta (6.ª ronda, perfil 2): o evento gravava-se e não
+# aparecia -- o gesto que mais se quer ver num registo de actividade
 ACCOES_DA_ACTIVIDADE = ("configuração", "estado", "conta", "suporte", "importação",
-                        "saiu de todos os aparelhos")
+                        "saiu de todos os aparelhos", "proposta apagada")
 # Cada falha diz o que falhou (revisão de segurança de 4/10/2026): um
 # código do segundo factor errado é de quem já tem a palavra-passe, e
 # não pode parecer um lapso ao escrevê-la.
@@ -26820,6 +26869,20 @@ GLOSSARIO = (
          "da empresa, os documentos e as contas da equipa (convida, tira, "
          "gera a ligação de repor a palavra-passe). O membro trabalha "
          "os concursos e as propostas."),
+        # os termos de base que faltavam (6.ª ronda, 5/10/2026; conferidos
+        # no docs/ccp.md, sem limiares, que mudaram a 1/10/2026)
+        ("Preço base", "O máximo que a entidade aceita pagar, quando o "
+         "fixa: uma proposta acima dele é excluída (art. 70.º do CCP). "
+         "Desde 1/10/2026 fixá-lo é facultativo, e há anúncios sem preço "
+         "base."),
+        ("CCP", "O Código dos Contratos Públicos, a lei da contratação "
+         "pública. Mudou a 1/10/2026 (DL 177/2026); os procedimentos "
+         "abertos antes seguem a versão anterior."),
+        ("Ajuste directo", "O procedimento em que a entidade convida "
+         "directamente uma ou mais empresas, sem anúncio aberto a todos. "
+         "Só se pode usar abaixo de certos valores ou nos casos que a lei "
+         "prevê. Não tem anúncio no Diário da República; vê-se no Portal "
+         "BASE, depois de celebrado."),
         ("Pôr a empresa a trabalhar", "O cartão do Hoje com os primeiros "
          "passos, que o gestor vê enquanto faltam. «Dispensar» tira-o para "
          "toda a empresa e não volta; os passos continuam nas Configurações."),
@@ -26846,6 +26909,14 @@ GLOSSARIO = (
         ("Unidade de negócio", "A parte da empresa a que a proposta fica "
          "entregue. A lista, e o nome que se lhe dá, escrevem-se no Perfil "
          "da empresa."),
+        ("Adjudicação", "A decisão da entidade que escolhe a proposta "
+         "vencedora. A data dela é a que conta no Ponto de situação, "
+         "quando a proposta passa a Ganha ou Perdida."),
+        ("Caução", "A garantia que a empresa vencedora presta antes de "
+         "assinar o contrato, normalmente uma percentagem do preço: "
+         "garantia bancária, seguro-caução ou depósito. O Programa do "
+         "Concurso diz se é exigida e quanto vale; desde 1/10/2026 a "
+         "entidade pode dispensá-la abaixo de 1 000 000 €."),
         ("Documentos da proposta", "Os documentos que o Programa do "
          "Concurso pede, lidos das peças. Na proposta, marcam-se os que já "
          "estão prontos."),
@@ -26878,6 +26949,8 @@ GLOSSARIO = (
          "concurso, com quem ganhou e por quanto."),
         ("Fecha a", "Quanto abaixo do preço base a entidade costuma "
          "adjudicar, em média, nos contratos que têm os dois preços."),
+        ("k€", "Milhares de euros, nas tabelas e nos gráficos: «250 k€» "
+         "são 250 000 €."),
         ("A acabar", "Contratos cujo fim estimado (a data da celebração mais "
          "o prazo declarado) cai nos próximos meses: o que pode voltar a "
          "concurso. É estimado: prorrogações não constam do Portal BASE."),
