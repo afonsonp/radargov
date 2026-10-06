@@ -66,7 +66,7 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Tabelas em `radar.db` | 23, as da plataforma (com as `entradas`, as `visitas` e o `uso`, 4/10, as `sugestoes`, 4/10, os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
 | Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB). E o índice da **pesquisa geral** (1/10/2026): `pesquisa_fts` + `pesquisa_refs` no `radar.db`, ~115 MB, 30 a 60 s **em fundo** no primeiro arranque com esse código, numa cópia |
 | Testes | **2 037**, em ~240 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 41 005 linhas · `teste_radar.py` 29 954 · `empresa.py` 881 · `contas.py` 1 492 · `icones.py` 62 |
+| Código | `radar.py` 41 009 linhas · `teste_radar.py` 29 972 · `empresa.py` 881 · `contas.py` 1 517 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em
@@ -183,8 +183,10 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.62`**, de
-  6/10/2026 — **as correcções da 6.ª ronda: os vinte perfis a chegar
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.63`**, de
+  6/10/2026 — **uma conta nova entra pelo e-mail** (o convite, a
+  Conta e a consola recusam um nome sem @; as contas antigas ficam).
+  Antes dela, a `v2.0.62`, do mesmo dia — **as correcções da 6.ª ronda: os vinte perfis a chegar
   pelo anúncio** (o papel «Membro», o vencedor e o preço vencedor na
   perdida, o motivo da perda no modelo, a procura de contas na Plataforma,
   o glossário com os termos de base, o Mercado aquecido por divisões de
