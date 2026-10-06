@@ -11509,6 +11509,21 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
                                  data=dict(campos, estado=estado),
                                  headers=self.VOLTA)
 
+    def test_sexta_ronda_a_perdida_diz_quem_ganhou_e_por_quanto(self):
+        """6.ª ronda (perfil 2; decisão dele a 6/10/2026): numa perdida só
+        havia o «Os três primeiros», em texto livre."""
+        id_ = self._proposta()
+        self.mover("perdido", valor_proposta="100 000,00", motivo="Preço")
+        self.cliente.post("/proposta/%d/ficha" % id_, headers=self.VOLTA,
+                          data={"vencedor": "Concorrente, Lda.",
+                                "preco_vencedor": "90 000,00"})
+        p = radar.proposta(id_)
+        self.assertEqual(p["vencedor"], "Concorrente, Lda.")
+        self.assertEqual(radar.euros_do_texto(p["preco_vencedor"]), 90000.0)
+        h = self.cliente.get("/anuncio/60%2F2026").get_data(as_text=True)
+        self.assertIn("name='vencedor'", h)
+        self.assertIn("Perdemos por 11,1", h)
+
     def test_e12_um_preco_que_nao_se_le_diz_se_e_nao_falta(self):
         self._proposta()
         texto, erro = self.aviso(self.mover("submetido", valor_proposta="abc"))

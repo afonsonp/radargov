@@ -631,7 +631,10 @@ def exigidos_da_ranhura(estado):
 
 # As colunas do desfecho (D3 e D10 da segunda ronda, 26/09/2026): datas
 # em ISO, o valor no formato do preço («118.500,00 EUR»).
-COLUNAS_DO_DESFECHO = ("data_adjudicacao", "audiencia_em", "valor_adjudicado")
+# E quem ganhou, e por quanto, numa perdida (6.ª ronda, decisão dele a
+# 6/10/2026): só havia o «Os três primeiros», em texto livre.
+COLUNAS_DO_DESFECHO = ("data_adjudicacao", "audiencia_em", "valor_adjudicado",
+                       "vencedor", "preco_vencedor")
 
 # O que a ranhura PEDE no gesto de a escolher sem o EXIGIR: opcional mas
 # sugerido (decisão dele). A data da adjudicação é a do período da
@@ -10657,8 +10660,9 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
                        "notas", "criada_em", "fechada_em",
                        "data_adjudicacao", "audiencia_em", "valor_adjudicado",
-                       "documentos_prontos", "prazo_entrega")
-COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
+                       "documentos_prontos", "prazo_entrega",
+                       "vencedor", "preco_vencedor")
+COLUNAS_DA_TAREFA =("id", "proposta_id", "ref", "o_que", "quando", "quem",
                      "feita_em", "origem", "criada_em", "documento_id")
 COLUNAS_DA_NOTA = ("id", "proposta_id", "texto", "quem", "quando")
 COLUNAS_DO_DOCUMENTO = ("id", "tipo", "descricao", "validade", "criado_em")
@@ -21807,6 +21811,7 @@ _NOMES_ACCAO = {"análise": "leitura",
                 "valor_proposta": "preço proposto", "preco_base": "preço base",
                 "lugar": "lugar", "top3": "os três primeiros", "coe": "unidade de negócio",
                 "documentos_prontos": "documentos prontos",
+                "vencedor": "quem ganhou", "preco_vencedor": "preço vencedor",
                 "notas": "notas", "responsavel": "responsável",
                 "tipologia": "tipologia", "cv": "CV",
                 "proposta_tecnica": "proposta técnica", "motivo": "motivo",
@@ -34091,6 +34096,24 @@ def _campos_que_a_ranhura_pede(p):
             "<label>Valor adjudicado<input type='text' name='valor_adjudicado' "
             "value='%s' inputmode='decimal' placeholder='vazio: o proposto'></label>"
             % html.escape(preco_do_campo(_valor(p, "valor_adjudicado")), quote=True))
+    # Quem ganhou e por quanto, numa perdida (6.ª ronda): e, com os dois
+    # preços, por quanto se perdeu
+    if estado == "perdido" or _valor(p, "vencedor") or _valor(p, "preco_vencedor"):
+        pecas.append(
+            "<label>Quem ganhou<input type='text' name='vencedor' maxlength='160' "
+            "value='%s' placeholder='a empresa que ficou com o contrato'></label>"
+            % html.escape(_valor(p, "vencedor") or "", quote=True))
+        pecas.append(
+            "<label>Preço vencedor<input type='text' name='preco_vencedor' "
+            "value='%s' inputmode='decimal' placeholder='ex. 98 000,00'></label>"
+            % html.escape(preco_do_campo(_valor(p, "preco_vencedor")), quote=True))
+        nosso = euros_do_texto(p["valor_proposta"] or "")
+        deles = euros_do_texto(_valor(p, "preco_vencedor") or "")
+        if nosso and deles and nosso > deles:
+            pecas.append("<p class='nota largo'>Perdemos por %s: a nossa "
+                         "proposta ficou %s acima da vencedora.</p>"
+                         % (pct_pt((nosso - deles) / deles, 1),
+                            html.escape(euros(nosso - deles))))
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos:
         pecas.append(
@@ -34360,7 +34383,10 @@ def _desfecho_do_pedido(form, vazio_apaga=True):
             if vazio_apaga:
                 campos[nome] = None
             continue
-        if nome == "valor_adjudicado":
+        if nome == "vencedor":
+            campos[nome] = texto_de_campo(bruto, 160) or None
+            continue
+        if nome in ("valor_adjudicado", "preco_vencedor"):
             valor = preco_escrito(bruto)
             if not valor:
                 return {}, ("«%s» não se lê como preço. Escreva-o assim: "
