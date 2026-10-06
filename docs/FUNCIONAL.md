@@ -1313,7 +1313,10 @@ ranhura não muda sozinha. Sem a lista lida, a faixa fica como era.
 ### 4.6 Mercado — `/contratos`
 
 O corpus do Portal BASE. Lista com filtros (objecto, CPV, entidade que
-comprou, quem ganhou, procedimento, datas, preço), CSV, e **modo «por
+comprou, quem ganhou, procedimento, datas, preço) — desde 6/10/2026 (front
+end novo) **em botões, como nos Concursos**: a pesquisa pelo objecto à
+largura toda, e por baixo o perfil da empresa aceso e um botão por
+filtro, sem o cartão «Filtrar os contratos» à volta —, CSV, e **modo «por
 fim estimado»** — o que está a acabar, que é o que volta a concurso.
 **O CPV é um campo à vista** (26/09/2026): um ou mais códigos, com
 sugestões pelo número ou pelo nome, e é o mesmo que a árvore enche —
