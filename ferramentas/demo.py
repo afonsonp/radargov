@@ -15,8 +15,10 @@ Não vão para o git: o `actualizar.sh` (e o `instalar.sh`) gera-os de
 cada vez, e assim a visita mostra sempre os ecrãs do código instalado.
 A PASTA é para os testes; por omissão é `site/demo/`.
 """
+import atexit
 import os
 import re
+import shutil
 import sys
 import tempfile
 from datetime import date, timedelta
@@ -31,6 +33,10 @@ import radar  # noqa: E402
 # Tudo aponta para uma pasta temporária ANTES de qualquer ligação: é o que
 # a `BaseTemporaria` dos testes faz, pela mesma razão.
 PASTA = tempfile.mkdtemp(prefix="miragov-demo-")
+# e sai no fim (6/10/2026): ficava no /tmp, que aqui é memória, uma por
+# cada vez que o actualizar.sh ou a bateria geravam a visita -- eram 156,
+# e a bateria chegou a falhar por falta de espaço
+atexit.register(shutil.rmtree, PASTA, ignore_errors=True)
 for nome, ficheiro in (("DB", "radar.db"), ("CORPUS", "contratos.db"),
                        ("CONFIG", "config.json"), ("DOCS", "documentos"),
                        ("COPIAS", "copias")):

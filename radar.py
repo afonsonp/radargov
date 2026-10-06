@@ -29750,68 +29750,83 @@ def contratos():
     # que a ficha da entidade ja usava. O que vier na URL passa escondido.
     # Os campos do `EcraMercado` (24/09/2026): rotulo por cima, o `Field`
     # do sistema, numa grelha -- a mesma forma dos filtros dos Concursos.
+    # Os filtros em botões, como nos Concursos (front end novo, 6/10/2026):
+    # a pesquisa à largura toda, e por baixo um botão por filtro, que
+    # abre o seu campo e, posto, acende e diz o valor (`chip_de_filtro()`).
+    # Os campos são os mesmos, com os mesmos nomes: o motor, os alertas
+    # e o JS das sugestões não dão pela diferença.
     campo = campo_de_filtro
-    filtros = ((
-        "<form class='filtros sem-vazios' id='filtros-mercado' method='get' action='/contratos'>"
-        "%s"
-        + campo("Objecto", "<input class='mg-field__input' type='text' name='q' "
-                "value='%s' placeholder='Objecto do contrato'>", " f-q")
-        + campo("Entidade que comprou",
-                "<input class='mg-field__input' type='text' name='adj' value='%s' "
-                "placeholder='Nome ou NIF' list='entidades-contratos' "
-                "autocomplete='off' data-sugere='contratos' data-chave-em='entid'>")
-        + "<input type='hidden' name='entid' value='%s'>"
-        + campo("%s", "<input class='mg-field__input' type='text' name='ganhou' "
-                "value='%s' placeholder='Nome ou NIF' list='entidades-contratos' "
-                "autocomplete='off' data-sugere='contratos' data-chave-em='vencid'>")
-        + "<input type='hidden' name='vencid' value='%s'>"
-        # O CPV à vista (V2 da ronda em PC, 26/09/2026): era um campo
-        # escondido, e com o perfil definido a árvore sai -- o CPV, que é
-        # a primeira coisa que se filtra num estudo de mercado, só se
-        # punha escrevendo `?cpv=` no endereço. O campo é o mesmo que a
+    arg = lambda k: (request.args.get(k) or "").strip()
+    data_campo = lambda nome, rot: campo(
+        rot, "<input class='mg-field__input campo-data' type='text' "
+        "name='%s' value='%s'%s inputmode='numeric' placeholder='dd/mm/aaaa' "
+        "maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
+        % (nome, "" if fim else html.escape(data_para_campo(arg(nome)), quote=True),
+           trava_datas))
+    de_, ate_ = data_para_campo(arg("de")), data_para_campo(arg("ate"))
+    celebrado = " ".join(x for x in (("de %s" % de_) if de_ else "",
+                                     ("até %s" % ate_) if ate_ else "") if x)
+    quem_ganhou = "Quem tem o contrato" if fim else "Quem ganhou"
+    chips = "".join((
+        chip_de_filtro("Entidade", "entidade", arg("adj"), campo(
+            "Entidade que comprou",
+            "<input class='mg-field__input' type='text' name='adj' value='%s' "
+            "placeholder='Nome ou NIF' list='entidades-contratos' "
+            "autocomplete='off' data-sugere='contratos' data-chave-em='entid'>"
+            % v("adj"))),
+        chip_de_filtro(quem_ganhou, "equipa", arg("ganhou"), campo(
+            quem_ganhou,
+            "<input class='mg-field__input' type='text' name='ganhou' "
+            "value='%s' placeholder='Nome ou NIF' list='entidades-contratos' "
+            "autocomplete='off' data-sugere='contratos' data-chave-em='vencid'>"
+            % v("ganhou"))),
+        # O CPV à vista (V2 da ronda em PC, 26/09/2026): é a primeira coisa
+        # que se filtra num estudo de mercado. O campo é o mesmo que a
         # árvore enche (`filtro-cpv`), e sugere códigos pelo número ou
         # pelo nome, do `/cpv.json` dos contratos (`CPV_SUGERE_JS`).
-        + campo("CPV", "<input class='mg-field__input' type='text' "
-                "id='filtro-cpv' name='cpv' value='%s' "
-                "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
-                "autocomplete='off' data-cpv-sugere='contratos' "
-                "aria-describedby='sintaxe-cpv'>")
-        + "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+        chip_de_filtro("CPV", "lista", arg("cpv"), campo(
+            "CPV", "<input class='mg-field__input' type='text' "
+            "id='filtro-cpv' name='cpv' value='%s' "
+            "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
+            "autocomplete='off' data-cpv-sugere='contratos' "
+            "aria-describedby='sintaxe-cpv'>" % v("cpv"))),
+        chip_de_filtro("Procedimento", "documento", arg("proc"), campo(
+            "Procedimento", selector_procedimento(procs, arg("proc"))
+            .replace("<select ", "<select class='mg-field__input' ", 1))),
+        (chip_de_filtro("Termina em", "calendario",
+                        "%d meses" % meses if request.args.get("meses") else "",
+                        campo("Termina em", opcoes_meses)) if fim else
+         chip_de_filtro("Celebrado", "calendario", celebrado,
+                        data_campo("de", "Celebrado de")
+                        + data_campo("ate", "Celebrado até"))),
+        chip_de_filtro("Preço mínimo", "euro",
+                       ("%s €" % arg("min")) if arg("min") else "", campo(
+            "Preço mínimo", "<input class='mg-field__input' type='text' "
+            "name='min' value='%s' placeholder='€' inputmode='decimal'>"
+            % v("min")))))
+    # o `<!--perfil-->` marca onde entra o perfil da empresa, que se
+    # calcula mais abaixo (`faixa_interesse`)
+    filtros = (
+        "<form class='mg-card filtros sem-vazios' id='filtros-mercado' "
+        "method='get' action='/contratos'>%s"
+        "<label class='f-q'><span class='so-leitor'>Objecto</span>%s"
+        "<input class='mg-field__input' type='text' name='q' value='%s' "
+        "placeholder='Procurar contratos pelo objecto'></label>"
+        "<div class='f-chips'><!--perfil-->%s%s</div>"
+        "<input type='hidden' name='entid' value='%s'>"
+        "<input type='hidden' name='vencid' value='%s'>"
+        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        + campo("Procedimento", "%s")
-        + "%s"
-        + campo("Celebrado de", "<input class='mg-field__input campo-data' "
-                "type='text' name='de' value='%s'%s inputmode='numeric' "
-                "placeholder='dd/mm/aaaa' maxlength='10' "
-                "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
-        + campo("Celebrado até", "<input class='mg-field__input campo-data' type='text' "
-                "name='ate' value='%s'%s inputmode='numeric' "
-                "placeholder='dd/mm/aaaa' maxlength='10' "
-                "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
-        + campo("Preço mínimo", "<input class='mg-field__input' type='text' "
-                "name='min' value='%s' placeholder='€' inputmode='decimal'>")
-        + botoes_de_filtro("%s") +
         # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
         "<p class='mg-field__hint f-sintaxe' id='sintaxe-cpv'>CPV: um ou "
         "mais códigos, separados por |; os zeros à direita alargam ao "
         "grupo (45000000 é toda a construção).</p>"
         "</form><datalist id='entidades-contratos'></datalist>"
-        "<datalist id='cpv-sugestoes'></datalist>")
-        % (escondidos_modo, v("q"), v("adj"), v("entid"),
-           "Quem tem o contrato" if fim else "Quem ganhou", v("ganhou"),
-           v("vencid"), v("cpv"), v("cpv_excl"),
-           campos_escondidos(request.args, ("q_excl", "op", "interesse")),
-           selector_procedimento(procs,
-                                 (request.args.get("proc") or "").strip())
-           .replace("<select ", "<select class='mg-field__input' ", 1),
-           campo("Termina em", opcoes_meses) if fim else "",
-           "" if fim else html.escape(
-               data_para_campo(request.args.get("de")), quote=True),
-           trava_datas,
-           "" if fim else html.escape(
-               data_para_campo(request.args.get("ate")), quote=True),
-           trava_datas,
-           v("min"), html.escape(modo_limpo, quote=True)))
+        "<datalist id='cpv-sugestoes'></datalist>"
+        % (escondidos_modo, icone("pesquisar", 18), v("q"), chips,
+           botoes_de_filtro(html.escape(modo_limpo, quote=True)),
+           v("entid"), v("vencid"), v("cpv_excl"),
+           campos_escondidos(request.args, ("q_excl", "op", "interesse"))))
 
     hoje = datetime.now().date()
     if linhas:
@@ -30069,13 +30084,12 @@ def contratos():
     # corpus» sem pergunta, «Perguntar outra coisa» com ela, e o resumo
     # do filtro na meta. Esteve dobrada com pergunta feita (16/09/2026):
     # a referencia tem-na aberta, e os campos sao agora uma grelha curta.
-    pergunta = cartao(
-        "Filtrar os contratos",
-        ("" if fim else faixa_de_avisos_de_datas(request.args))
-        + faixa_interesse + filtros,
-        meta=html.escape(resumo_filtro(filtro_actual(request.args, vista), vista))
-        if ha_pergunta else "",
-        id_="pergunta")
+    # Sem cartão à volta desde 6/10/2026 (front end novo): a pesquisa e
+    # os botões, como nos Concursos, com o perfil da empresa como
+    # primeiro botão aceso. O `id='pergunta'` fica, para as ligações.
+    pergunta = ("<div id='pergunta'>"
+                + ("" if fim else faixa_de_avisos_de_datas(request.args))
+                + filtros.replace("<!--perfil-->", faixa_interesse, 1) + "</div>")
 
     # O `EcraMercado`: a pergunta, a arvore, a linha do resumo (o filtro
     # activo e a contagem a esquerda, os dois modos a direita), e por

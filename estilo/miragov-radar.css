@@ -1319,20 +1319,21 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
    «Mais filtros» da H1 da UX-7-LEIS): a pesquisa a largura toda, sem
    caixa a volta, e por baixo a fila dos botoes. Cada botao e um
    `<details>` cuja caixa flutua por baixo dele. */
-#filtros-lista{grid-template-columns:minmax(0,1fr);gap:var(--space-3);position:relative;
- padding:0;background:none;border:0;box-shadow:none}
-#filtros-lista .f-q{position:relative;display:block}
-#filtros-lista .f-q>svg{position:absolute;left:var(--space-4);top:50%;
+#filtros-lista,#filtros-mercado{grid-template-columns:minmax(0,1fr);gap:var(--space-3);
+ position:relative;padding:0;background:none;border:0;box-shadow:none}
+#filtros-lista .f-q,#filtros-mercado .f-q{position:relative;display:block;grid-column:1/-1}
+#filtros-lista .f-q>svg,#filtros-mercado .f-q>svg{position:absolute;left:var(--space-4);top:50%;
  transform:translateY(-50%);color:var(--ink-muted);pointer-events:none}
-#filtros-lista .f-q>.mg-field__input{min-height:48px;padding-left:44px;
- border:var(--border-hairline) solid var(--line-strong);border-radius:var(--radius-lg);font-size:var(--text-md)}
+#filtros-lista .f-q>.mg-field__input,#filtros-mercado .f-q>.mg-field__input{min-height:48px;
+ padding-left:44px;border:var(--border-hairline) solid var(--line-strong);
+ border-radius:var(--radius-lg);font-size:var(--text-md)}
 .f-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
 .f-chips>.f-accoes{margin-left:auto}
 /* o perfil da empresa, o primeiro filtro aceso */
 .f-chips>.cpv-activo{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 6px;
  min-height:36px;box-sizing:border-box;margin:0;padding:4px 14px;border-radius:var(--radius-full);
  font-size:var(--text-sm)}
-#filtros-lista .f-chips .f-accoes .mg-btn{height:36px}
+#filtros-lista .f-chips .f-accoes .mg-btn,#filtros-mercado .f-chips .f-accoes .mg-btn{height:36px}
 .f-chip{position:relative}
 .f-chip>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;
  gap:var(--space-2);height:36px;padding:0 var(--space-3) 0 14px;box-sizing:border-box;
