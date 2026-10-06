@@ -26869,6 +26869,20 @@ GLOSSARIO = (
          "da empresa, os documentos e as contas da equipa (convida, tira, "
          "gera a ligação de repor a palavra-passe). O membro trabalha "
          "os concursos e as propostas."),
+        # os termos de base que faltavam (6.ª ronda, 5/10/2026; conferidos
+        # no docs/ccp.md, sem limiares, que mudaram a 1/10/2026)
+        ("Preço base", "O máximo que a entidade aceita pagar, quando o "
+         "fixa: uma proposta acima dele é excluída (art. 70.º do CCP). "
+         "Desde 1/10/2026 fixá-lo é facultativo, e há anúncios sem preço "
+         "base."),
+        ("CCP", "O Código dos Contratos Públicos, a lei da contratação "
+         "pública. Mudou a 1/10/2026 (DL 177/2026); os procedimentos "
+         "abertos antes seguem a versão anterior."),
+        ("Ajuste directo", "O procedimento em que a entidade convida "
+         "directamente uma ou mais empresas, sem anúncio aberto a todos. "
+         "Só se pode usar abaixo de certos valores ou nos casos que a lei "
+         "prevê. Não tem anúncio no Diário da República; vê-se no Portal "
+         "BASE, depois de celebrado."),
         ("Pôr a empresa a trabalhar", "O cartão do Hoje com os primeiros "
          "passos, que o gestor vê enquanto faltam. «Dispensar» tira-o para "
          "toda a empresa e não volta; os passos continuam nas Configurações."),
@@ -26895,6 +26909,14 @@ GLOSSARIO = (
         ("Unidade de negócio", "A parte da empresa a que a proposta fica "
          "entregue. A lista, e o nome que se lhe dá, escrevem-se no Perfil "
          "da empresa."),
+        ("Adjudicação", "A decisão da entidade que escolhe a proposta "
+         "vencedora. A data dela é a que conta no Ponto de situação, "
+         "quando a proposta passa a Ganha ou Perdida."),
+        ("Caução", "A garantia que a empresa vencedora presta antes de "
+         "assinar o contrato, normalmente uma percentagem do preço: "
+         "garantia bancária, seguro-caução ou depósito. O Programa do "
+         "Concurso diz se é exigida e quanto vale; desde 1/10/2026 a "
+         "entidade pode dispensá-la abaixo de 1 000 000 €."),
         ("Documentos da proposta", "Os documentos que o Programa do "
          "Concurso pede, lidos das peças. Na proposta, marcam-se os que já "
          "estão prontos."),
@@ -26927,6 +26949,8 @@ GLOSSARIO = (
          "concurso, com quem ganhou e por quanto."),
         ("Fecha a", "Quanto abaixo do preço base a entidade costuma "
          "adjudicar, em média, nos contratos que têm os dois preços."),
+        ("k€", "Milhares de euros, nas tabelas e nos gráficos: «250 k€» "
+         "são 250 000 €."),
         ("A acabar", "Contratos cujo fim estimado (a data da celebração mais "
          "o prazo declarado) cai nos próximos meses: o que pode voltar a "
          "concurso. É estimado: prorrogações não constam do Portal BASE."),
