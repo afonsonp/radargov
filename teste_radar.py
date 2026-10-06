@@ -7409,6 +7409,14 @@ class TestEscadaNaLista(BaseTemporaria):
         self.assertIn("role='alert'", corpo)
         self.assertIn("Nada foi criado", corpo)
         self.assertEqual(corpo.count("aria-invalid='true'"), 2)
+        # e vê-se (6.ª ronda, perfis 8 e 11): a «nota erro» não tinha
+        # estilo e saía cinzenta; os campos marcados ficavam iguais
+        self.assertIn("<p id='nova-regra' class='mg-alert mg-alert--danger' "
+                      "role='alert'>", corpo)
+        self.assertIn(".mg-field__input[aria-invalid=true]{border-color:var(--danger)}",
+                      radar.CSS_TUDO)
+        sem_erro = self.cliente.get("/proposta/nova").get_data(as_text=True)
+        self.assertIn("<p id='nova-regra' class='nota'>", sem_erro)
         with radar.liga() as c:
             self.assertEqual(c.execute(
                 "SELECT COUNT(*) n FROM propostas").fetchone()["n"], 0)
@@ -21528,6 +21536,16 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         self.assertIn("main.mg .hj-mexer>summary{min-height:44px", toque)
         self.assertIn("main.mg td select,main.mg summary.mg-btn{min-height:44px}", toque)
 
+    def test_interessa_e_abandonar_tem_a_mesma_largura(self):
+        """6/10/2026 (ele): cada um tinha a largura do seu texto, 117 e 129
+        px na ficha. Medido no browser depois: 132 e 132, na ficha e na
+        lista, no computador e no iPhone."""
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        self.assertIn('form.accao[action$="/analisar"]>button,form.abandonar-js>button{\n'
+                      ' min-width:9.4em;justify-content:center}', folha)
+
 
 class TestOAlertaNaoGravaOQueNaoLe(BaseTemporaria):
     """E3, E4, E5, E6: as mensagens de sucesso sobre coisas que
@@ -27803,6 +27821,15 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         self.assertIn("class='mg-btn mg-btn--primary'>Criar convite", conta)
         # H2: o segundo caminho para criar uma conta fica recolhido
         self.assertIn("<summary class='nota'>Criar sem convite", conta)
+
+    def test_sexta_ronda_um_guardar_de_linha_nunca_e_principal(self):
+        """6.ª ronda (6/10/2026, inventário dos 24 «Guardar»): o «Guardar a
+        correcção» das notas era principal, e uma ficha com várias notas
+        tinha vários; o da proposta esticava na grelha."""
+        for funcao in (radar._mexer_na_nota, radar.mexer_na_tarefa):
+            self.assertNotIn("mg-btn--primary", inspect.getsource(funcao),
+                             funcao.__name__)
+        self.assertIn(".prop-campos>.mg-btn{justify-self:start}", radar.CSS_TUDO)
 
     def test_f2_trazer_pecas_nao_e_o_botao_cheio_da_ficha_por_ver(self):
         h = self._marcacao(self._ficha())
