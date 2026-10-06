@@ -1131,16 +1131,19 @@ A caixa **Pesquisar** procura **todas as palavras**, por qualquer ordem
 (26/09/2026: «limpeza manutenção» dava 0, porque se procurava a frase);
 a vírgula ou a barra separam alternativas, e entre aspas procura-se a
 frase exacta. Vale igual para os alertas, que usam o mesmo motor. **A
-regra está escrita por baixo dos filtros** desde 1/10/2026 (fora do
-«Mais filtros»: vê-se com ele fechado), e a do CPV por baixo dos do Mercado: estavam
+regra está escrita por baixo dos filtros** desde 1/10/2026 (fora dos
+botões de filtro: vê-se com eles fechados), e a do CPV por baixo dos do Mercado: estavam
 só no `title` do campo, que não aparece no toque nem ao focar. Sem
 resultados dentro do perfil da empresa, a lista diz quantos há fora dele.
 
-Filtros: à vista só a **Pesquisa**, a **Entidade** e o **«Mais
-filtros»**, que recolhe a plataforma, as datas, o distrito e os preços
-(1/10/2026, H1; até aí só no telemóvel). O botão diz quantos desses
-estão postos («Mais filtros · 2») e o bloco abre sozinho quando há
-algum. As datas são texto `dd/mm/aaaa` com um botão ao lado que abre o
+Filtros: à vista só a **Pesquisa**, à largura toda, e por baixo uma
+fila de **botões de filtro** — Entidade, Plataforma, Publicação,
+Distrito, Preço base (6/10/2026, front end novo; era o «Mais filtros»
+da H1, de 1/10/2026). Cada botão abre uma caixa com os seus campos e o
+«Aplicar»; um filtro posto acende o botão e diz o valor («Plataforma:
+acinGov»). Na lista, os botões da triagem («Interessa», «Abandonar»)
+só aparecem na linha por onde se passa ou que tem o foco; sem rato
+estão sempre à vista. As datas são texto `dd/mm/aaaa` com um botão ao lado que abre o
 **calendário do browser** e escreve nele (J6). O CPV escolhe-se na
 árvore de 9 454 códigos, por baixo; o motor entende ainda o E/OU, as
 exclusões e o prazo vindos no endereço. O filtro compõe-se com o perfil

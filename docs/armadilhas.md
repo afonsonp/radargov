@@ -4289,10 +4289,13 @@ botões ou no calendário.
   class='painel-filtros arvore-cpv'>`, recolhido por omissão**; os
   campos estão fora dele desde 24/09/2026 (o `EcraConcursos`; de 8/09 a
   24/09 estava tudo recolhido, os P2/P3 da UX-Auditoria) — e desde
-  1/10/2026 (H1 da UX-7-LEIS) só a Pesquisa e a Entidade estão à vista:
-  o resto vive no `#filtros-mais`, atrás do «Mais filtros», que conta
-  os que estão postos e abre sozinho com eles (a classe `aberto` vem do
-  servidor, sem memória, pela razão do ponto anterior). Abre
+  1/10/2026 (H1 da UX-7-LEIS) o resto está recolhido. Desde 6/10/2026
+  (front end novo) só a Pesquisa está à vista, e cada outro filtro é um
+  botão (`chip_de_filtro()`): um `<details class='f-chip'>` com a caixa
+  dos campos, todos com o mesmo `name='filtros'` para abrir um fechar o
+  outro. **Um filtro posto não abre o seu botão — acende-o e escreve o
+  valor**; se o abrisse, a caixa flutuante tapava a lista a quem só
+  quer ver o resultado. A árvore dos CPV abre
   sozinho com um CPV escolhido e o JS lembra o estado em
   `localStorage`. O JS da árvore continua a procurar
   `details.arvore` no documento inteiro, por isso aninhá-la não a

@@ -184,6 +184,12 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 .lista .col-acc{width:1%;white-space:nowrap}
 .lista .col-acc form{display:inline-flex;margin:0 0 0 4px}
 .lista .col-acc .ranhura{display:inline-flex;gap:4px;align-items:center}
+/* A triagem só aparece na linha por onde se passa, ou que tem o foco
+   (front end novo, 6/10/2026). Fica no sítio, invisível, para a linha
+   não mudar de altura nem o Tab perder o botão; sem rato fino (telemóvel,
+   tablet) está sempre à vista. */
+@media (hover:hover) and (pointer:fine){
+ .lista tr:not(:hover):not(:focus-within) .col-acc.ao-passar>*{opacity:0}}
 @media (max-width:1100px){
  /* A tabela rola dentro de si, como manda a regra do ecrã estreito --
     não é a página que rola para o lado. */
@@ -1302,20 +1308,39 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .ct-novo,.tarefa-nova,.novo-filtro form.filtros,.hj-mexer>form{align-items:end}
 /* o texto so para o leitor precisa de um antepassado posicionado */
 .ent-papel,.cal-mais>summary,.mg-avatar,.av{position:relative}
-/* O «Mais filtros» dos Concursos (3.a ronda, G75, no telemovel; em todas
-   as larguras desde 1/10/2026, H1 da UX-7-LEIS): so com JS; fechado,
-   ficam a pesquisa, a entidade, o botao e o «Filtrar». Os outros campos
-   vivem num bloco que, aberto, ocupa a sua linha inteira -- o `order`
-   deixa o «Filtrar» na primeira. */
-#filtros-lista{grid-template-columns:minmax(0,2fr) minmax(0,1.5fr) auto auto}
-#filtros-lista .f-mais{display:none}
-.com-js #filtros-lista .f-mais{display:inline-flex;align-self:end;height:40px}
-.com-js #filtros-lista:not(.aberto) .f-mais-campos{display:none}
-#filtros-lista .f-mais-campos{grid-column:1/-1;order:1;display:grid;
- grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:var(--space-3);align-items:end}
-@media (max-width:900px){
- #filtros-lista{grid-template-columns:1fr 1fr}
- .com-js #filtros-lista .f-mais{justify-self:start}}
+/* Os filtros em botoes dos Concursos (front end novo, 6/10/2026; eram o
+   «Mais filtros» da H1 da UX-7-LEIS): a pesquisa a largura toda, sem
+   caixa a volta, e por baixo a fila dos botoes. Cada botao e um
+   `<details>` cuja caixa flutua por baixo dele. */
+#filtros-lista{grid-template-columns:minmax(0,1fr);gap:var(--space-3);position:relative;
+ padding:0;background:none;border:0;box-shadow:none}
+#filtros-lista .f-q{position:relative;display:block}
+#filtros-lista .f-q>svg{position:absolute;left:var(--space-4);top:50%;
+ transform:translateY(-50%);color:var(--ink-muted);pointer-events:none}
+#filtros-lista .f-q>.mg-field__input{min-height:48px;padding-left:44px;
+ border:var(--border-hairline) solid var(--line-strong);border-radius:var(--radius-lg);font-size:var(--text-md)}
+.f-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.f-chips>.f-accoes{margin-left:auto}
+#filtros-lista .f-chips .f-accoes .mg-btn{height:36px}
+.f-chip{position:relative}
+.f-chip>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;
+ gap:var(--space-2);height:36px;padding:0 var(--space-3) 0 14px;box-sizing:border-box;
+ border:var(--border-hairline) solid var(--line-strong);border-radius:var(--radius-full);
+ background:var(--surface-raised);font:500 var(--text-sm)/20px var(--font-sans);color:var(--ink);
+ white-space:nowrap;transition:background-color 120ms,border-color 120ms}
+.f-chip>summary::-webkit-details-marker{display:none}
+.f-chip>summary:hover{border-color:var(--brand)}
+.f-chip>summary b{font-weight:600}
+.f-chip--on>summary{background:var(--brand-soft);border-color:var(--brand-soft);color:var(--brand)}
+.f-chip[open]>summary{border-color:var(--brand)}
+.f-chip__caixa{position:absolute;z-index:30;top:calc(100% + 6px);left:0;display:grid;
+ gap:var(--space-3);width:max-content;min-width:240px;max-width:min(360px,calc(100vw - 32px));
+ padding:var(--space-4);background:var(--surface-raised);border:var(--border-hairline) solid var(--line);
+ border-radius:var(--radius-lg);box-shadow:var(--shadow-md)}
+.f-chip__caixa>.mg-btn{justify-self:start}
+@media (max-width:600px){
+ .f-chip{position:static}
+ .f-chip__caixa{left:16px;right:16px;width:auto;max-width:none}}
 /* A fase seguinte, por baixo do selector da linha das Propostas (H4). */
 .celula-ranhura .fase-seguinte{display:block;margin-top:var(--space-1)}
 /* O calendario do browser ao lado das datas dos filtros (J6 da
