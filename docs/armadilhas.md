@@ -4092,8 +4092,9 @@ botões ou no calendário.
   (1/10/2026, J3 da UX-7-LEIS). De 16/09 a 1/10/2026 (fase 2 do
   `docs/design.md`) o texto que explica a página vivia num «?», com o
   `<h1>` dentro do `<summary>`: carregar no título abria um texto, e
-  havia dois moldes de cabeçalho no mesmo painel. Hoje o `TOPO` do
-  `envolver()` desenha o que o `cabecalho_de_pagina()` desenha — o
+  havia dois moldes de cabeçalho no mesmo painel. Desde 6/10/2026
+  (uniformizar) há um só: uma página sem `cabeca=` recebe do
+  `envolver()` o mesmo `.mg-pagehead` do `cabecalho_de_pagina()` — o
   `<h1>` e o subtítulo à vista em `.mg-pagehead__sub` —, e o «?» ficou
   só nos blocos da ficha (`rot_com_porque()`). Para quem escreve
   testes continua a valer: **há `</summary>` na página antes do dos
@@ -4564,11 +4565,12 @@ botões ou no calendário.
   o prazo por cima do índice. E o Hoje punha os factos na ranhura das
   abas, que a grelha mandou para cima do título. Antes de dar por feita
   uma regra que toque no `.topo` (ou no `BASE`), tira a fotografia de
-  todos os ecrãs, não só do que se estava a mudar. Desde 24/09/2026 a
-  faixa do topo é o `TOPO`, fora do `BASE`, e uma página que passe
-  `cabeca=` ao `envolver()` (a Ficha) não a desenha: as migalhas dela
-  vêm do `cabecalho_de_pagina()` e não do `migalhas_de()`, e o
-  «Verificar agora» não aparece lá.
+  todos os ecrãs, não só do que se estava a mudar. Desde 6/10/2026
+  (uniformizar) **o `TOPO` já não se desenha**: o `envolver()` monta o
+  cabeçalho do sistema para quem não passa `cabeca=` — com as migalhas
+  do `migalhas_de()`, o título, o subtítulo e o «Verificar agora» — e
+  põe as `abas=` no início do corpo. Quem passa `cabeca=` escreve as
+  suas migalhas no `cabecalho_de_pagina()`.
 
 - **Numa fila flex, o que não pode encolher empurra a página inteira
   para o lado** (varredura de 25/09/2026). Com os cinco itens do Mira
@@ -4989,10 +4991,11 @@ botões ou no calendário.
   `h3` com a classe do rótulo, que fica com o aspecto de antes.
 - **No `.topo`, duas barras de abas iam para a mesma linha da grelha**
   (1/10/2026, J2). As Entidades levam as três vistas do Mercado por cima
-  das cinco delas, e o `.topo>.mg-tabs` põe todas na linha 3: a segunda
-  desenhava-se por cima da primeira, sem erro. A segunda desce para a
-  linha 4 (`.topo>.abas-mercado+.mg-tabs`). Uma página do `TOPO` que
-  passe mais de uma barra em `abas=` precisa da sua linha.
+  das cinco delas, e o `.topo>.mg-tabs` punha todas na linha 3: a segunda
+  desenhava-se por cima da primeira, sem erro. Desde 6/10/2026 o `.topo`
+  não se desenha (as `abas=` vão para o corpo, uma por baixo da outra);
+  se voltar, uma página que passe mais de uma barra precisa da sua linha
+  (`.topo>.abas-mercado+.mg-tabs`).
 - **A caixa da pesquisa ouve o Ctrl+K em todo o lado, e o «/» só fora de
   um campo** (1/10/2026). O teclado da lista (`j k i a`) sai quando há
   Ctrl, Cmd ou Alt, por isso não se pisam; o «/» dentro de um campo é
