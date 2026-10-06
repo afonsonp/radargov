@@ -21528,6 +21528,16 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         self.assertIn("main.mg .hj-mexer>summary{min-height:44px", toque)
         self.assertIn("main.mg td select,main.mg summary.mg-btn{min-height:44px}", toque)
 
+    def test_interessa_e_abandonar_tem_a_mesma_largura(self):
+        """6/10/2026 (ele): cada um tinha a largura do seu texto, 117 e 129
+        px na ficha. Medido no browser depois: 132 e 132, na ficha e na
+        lista, no computador e no iPhone."""
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        self.assertIn('form.accao[action$="/analisar"]>button,form.abandonar-js>button{\n'
+                      ' min-width:9.4em;justify-content:center}', folha)
+
 
 class TestOAlertaNaoGravaOQueNaoLe(BaseTemporaria):
     """E3, E4, E5, E6: as mensagens de sucesso sobre coisas que
