@@ -20808,6 +20808,29 @@ class TestOFunilContaPropostasENaoOEstadoDoAnuncio(BaseTemporaria):
         self.assertEqual(f["entrados"], 4)         # o DR publicou quatro
         self.assertEqual(f["porver_30"], 1)        # só o 63 ficou por ver
 
+    def test_as_barras_somam_com_republicacoes_e_propostas_de_anuncios_antigos(self):
+        """6.ª ronda (5/10/2026, perfil 3): 2 037 + 21 não davam os 2 391
+        entrados. «Entrados» contava as republicações, que passam os dados
+        ao original e saem das listas, e «Triados» contava as propostas
+        pela data delas, também as de anúncios antigos. As barras dividem
+        agora o mesmo conjunto -- e é isto que não pode voltar."""
+        hoje = datetime.date.today()
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, data_pub, "
+                      "prazo, cpv) VALUES ('70/2026','Software','CML','alteracao',?,?,"
+                      "'72000000')", (hoje.isoformat(),
+                                      (hoje + datetime.timedelta(days=30)).isoformat()))
+            c.execute("INSERT INTO anuncios (ref, titulo, entidade, estado, data_pub, "
+                      "prazo, cpv) VALUES ('71/2026','Software','CML','novo',?,?,"
+                      "'72000000')", ((hoje - datetime.timedelta(days=60)).isoformat(),
+                                      (hoje + datetime.timedelta(days=30)).isoformat()))
+        radar.criar_proposta("71/2026")            # hoje, a um anúncio antigo
+        f = self._funil()
+        self.assertEqual(f["entrados"], 4)         # a republicação não entra
+        self.assertEqual(f["triados_30"], 3)       # o 71 entrou há 60 dias
+        self.assertEqual(f["entrados"], f["porver_30"] + f["triados_30"])
+        self.assertLessEqual(f["interessa_30"], f["triados_30"])
+
     def test_interessa_e_estar_numa_ranhura_aberta(self):
         f = self._funil()
         self.assertEqual(f["interessa"], 2)        # submetido e por analisar

@@ -35214,9 +35214,15 @@ def funil_anuncios():
         # Os anúncios respondem ao que é do DR (quantos entraram, quantos
         # ainda ninguém tocou); as propostas respondem ao que é decisão
         # nossa. É a mesma divisão do `contar_a_escada()`.
+        # As republicações (`alteracao`) não entram: passam os dados ao
+        # original e saem das listas, e «Entrados» contava-as como
+        # concursos novos -- 342 em 2 391, e as barras não somavam (6.ª
+        # ronda, 5/10/2026). As três barras dividem o MESMO conjunto, os
+        # anúncios da janela sem as republicações: Entrados = Sem decisão
+        # + Triados, e o teste guarda-o.
         d = dict(c.execute(
             "SELECT COUNT(*) total, "
-            " SUM(data_pub >= :d) entrados "
+            " SUM(data_pub >= :d AND estado != 'alteracao') entrados "
             "FROM anuncios", {"d": desde}).fetchone())
         # Os urgentes por ver contam-se como a lista que a ligacao abre
         # os conta -- a aba «por ver» (sem proposta, prazo vivo), o
@@ -35235,15 +35241,24 @@ def funil_anuncios():
         p = dict(c.execute(
             "SELECT COUNT(*) triados, "
             " SUM(estado IN (%s)) interessa, "
-            " SUM(estado = 'nao_fomos') descartados, "
-            " SUM(criada_em >= :d) triados_30, "
-            " SUM(criada_em >= :d AND estado IN (%s)) interessa_30 "
-            "FROM propostas" % (abertos, abertos), {"d": desde}).fetchone())
+            " SUM(estado = 'nao_fomos') descartados "
+            "FROM propostas" % abertos).fetchone())
         d.update(p)
-        # «Por ver» na janela: os que entraram e ainda não têm proposta.
+        # Na janela, pelos ANÚNCIOS que entraram e não pela data da
+        # proposta: uma proposta de hoje a um anúncio de há dois meses
+        # contava como triada sem ter entrado. Um anúncio com dois lotes
+        # conta uma vez.
+        d.update(dict(c.execute(
+            "SELECT COUNT(DISTINCT a.ref) triados_30, "
+            " COUNT(DISTINCT CASE WHEN p.estado IN (%s) THEN a.ref END) "
+            " interessa_30 "
+            "FROM anuncios a JOIN propostas p ON p.ref = a.ref "
+            "WHERE a.data_pub >= :d AND a.estado != 'alteracao'" % abertos,
+            {"d": desde}).fetchone()))
+        # «Sem decisão» na janela: os que entraram e ainda não têm proposta.
         d["porver_30"] = c.execute(
             "SELECT COUNT(*) n FROM anuncios a WHERE a.data_pub >= :d "
-            "AND a.estado = 'novo' AND NOT EXISTS "
+            "AND a.estado != 'alteracao' AND NOT EXISTS "
             "(SELECT 1 FROM propostas p WHERE p.ref = a.ref)",
             {"d": desde}).fetchone()["n"]
         # (numa base vazia o SUM da NULL; as barras querem 0)
