@@ -778,14 +778,22 @@ a.nota.abrir{display:inline-flex;align-items:center;min-height:24px}
     sem anúncio ficavam a 32; as pílulas de pessoa a 27-30; o «adiar ·
     quem» a 24. Um a um falhava sempre o próximo. */
  .mg-btn--sm{min-height:44px}
- .periodos a,.hj-mexer>summary{min-height:44px;display:inline-flex;align-items:center;
-  box-sizing:border-box}
+ /* o `main.mg` à frente do summary (6.ª ronda): o `main.mg summary
+    {min-height:24px}` de cima era mais específico e ganhava, e o «adiar ·
+    quem» ficava com 24 px no telemóvel desde que esta regra nasceu */
+ .periodos a,main.mg .hj-mexer>summary{min-height:44px;display:inline-flex;
+  align-items:center;box-sizing:border-box}
  /* os alvos de todos os dias chegam aos 44 (UX-7-LEIS F1 e E10, 30/09/2026):
     a triagem da linha, o «Mudar» e o selector da fase, as abas, a
     paginação e o × do aviso. A caixa ✓ fica com o desenho de 24 e o
     alvo cresce por um ::before invisível. */
  .col-acc .mg-btn--sm,.celula-ranhura .mg-btn--sm,main.mg select,
  .mg-tab,.com-js .aviso-fechar{min-height:44px}
+ /* e os que perdiam para regras mais específicas (6.ª ronda, medidos no
+    Android): o selector da fase na lista (o `main.mg td select` dava 30)
+    e o «Anúncio completo» da ficha (um summary com ar de botão, que o
+    `main.mg summary` deixava a 24) */
+ main.mg td select,main.mg summary.mg-btn{min-height:44px}
  .mg-pager>a,.mg-pager>b,.mg-pager>span,.com-js .aviso-fechar{min-width:44px;min-height:44px}
  [data-pele=novo] .chk::before{content:'';position:absolute;inset:-11px}
  .mg-topbar .sou-menu a,.mg-topbar .sou-menu button{min-height:44px;

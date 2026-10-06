@@ -21500,6 +21500,19 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         # tabela larga ganhava à regra do cartão, que leva o `td.p` para ganhar
         self.assertIn(".tab-plataforma tfoot td,.tab-plataforma tfoot td.p{", folha)
 
+    def test_sexta_ronda_os_alvos_do_toque_ganham_as_regras_especificas(self):
+        """6.ª ronda (5/10/2026, perfil 9): a regra do toque dava 44 px ao
+        «adiar · quem», ao selector da fase e ao «Anúncio completo», e
+        perdia para o `main.mg summary{min-height:24px}` e o `main.mg td
+        select{min-height:30px}`, mais específicos: no Android ficavam com
+        24 e 30. Medido no browser, com o CSS verdadeiro."""
+        with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
+                               "miragov-radar.css"), encoding="utf-8") as f:
+            folha = f.read()
+        toque = folha.split("@media (pointer:coarse){", 1)[1]
+        self.assertIn("main.mg .hj-mexer>summary{min-height:44px", toque)
+        self.assertIn("main.mg td select,main.mg summary.mg-btn{min-height:44px}", toque)
+
 
 class TestOAlertaNaoGravaOQueNaoLe(BaseTemporaria):
     """E3, E4, E5, E6: as mensagens de sucesso sobre coisas que
