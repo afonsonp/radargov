@@ -1566,3 +1566,41 @@ fieldset:disabled input,fieldset:disabled select,fieldset:disabled textarea{curs
    `em`, para servir os pequenos da lista e os grandes da ficha. */
 form.accao[action$="/analisar"]>button,form.abandonar-js>button{
  min-width:9.4em;justify-content:center}
+
+/* As Propostas por fases (front end novo, 6/10/2026): uma coluna por
+   fase em curso, cartoes magros, e as decididas resumidas. As colunas
+   rolam de lado dentro de si; a pagina nunca. */
+.fs-topo{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center;margin-bottom:var(--space-4)}
+.fs-topo .pf{margin:0 0 0 auto}
+.vistas-propostas{display:inline-flex;gap:4px;padding:4px;background:var(--surface-sunken);
+ border-radius:var(--radius-md)}
+.vistas-propostas a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
+ border-radius:var(--radius-sm);font:500 var(--text-sm)/20px var(--font-sans);color:var(--ink-secondary);text-decoration:none}
+.vistas-propostas a[aria-current]{background:var(--surface-raised);color:var(--brand);font-weight:600;
+ box-shadow:var(--shadow-sm)}
+.fs-quadro{display:flex;gap:var(--space-4);overflow-x:auto;padding-bottom:var(--space-3);align-items:flex-start}
+.fs-coluna{flex:0 0 300px;display:flex;flex-direction:column;gap:10px;padding:12px;box-sizing:border-box;
+ background:var(--surface-sunken);border-radius:var(--radius-lg)}
+.fs-coluna>header{padding:4px 6px 6px}
+.fs-coluna>header h2{margin:0;font:600 var(--text-md)/22px var(--font-sans)}
+.fs-coluna>header h2 a{color:var(--ink);text-decoration:none}
+.fs-coluna>header h2 a:hover{color:var(--link);text-decoration:underline}
+.fs-coluna>header span{font-size:var(--text-sm);color:var(--ink-secondary)}
+.fs-cartao{display:flex;flex-direction:column;gap:6px;padding:14px 16px;background:var(--surface-raised);
+ border:var(--border-hairline) solid var(--line);border-radius:var(--radius-md);color:var(--ink);text-decoration:none;
+ box-shadow:var(--shadow-sm)}
+.fs-cartao:hover{border-color:var(--line-strong)}
+.fs-titulo{font:600 var(--text-sm)/20px var(--font-sans)}
+.fs-linha{font-size:var(--text-xs);line-height:18px;color:var(--ink-secondary)}
+.fs-linha b{color:var(--ink)}
+.fs-pe{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;padding-top:10px;
+ border-top:var(--border-hairline) solid var(--line)}
+.fs-pe .mg-avatar{width:24px;height:24px;font-size:var(--text-xs)}
+.fs-prazo{margin-left:auto}
+.fs-vazio{margin:4px 6px;font-size:var(--text-sm);color:var(--ink-muted)}
+.fs-decididas{flex-basis:240px}
+.fs-decidida{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;
+ background:var(--surface-raised);border-radius:var(--radius-md);color:var(--ink);text-decoration:none;
+ font:600 var(--text-sm)/20px var(--font-sans)}
+.fs-decidida.zero{color:var(--ink-muted);font-weight:500}
+.fs-decidida:hover{color:var(--link)}

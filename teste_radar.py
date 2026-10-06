@@ -7332,7 +7332,10 @@ class TestEscadaNaLista(BaseTemporaria):
         # Desde 24/09/2026 as dez repartem-se por dois itens da barra: os
         # Concursos tem as pontas e o «Todos», as Propostas as oito da
         # empresa. Nenhuma se perdeu, e cada uma leva o seu numero.
-        concursos, propostas = self._html(), self._html(radar.PROPOSTAS)
+        # (as abas das oito estão na vista em tabela desde 6/10/2026: sem
+        # fase pedida, as Propostas abrem por fases)
+        concursos = self._html()
+        propostas = self._html(radar.PROPOSTAS + "?estado=analisar")
         for chave, rotulo in radar.ESCADA:
             html_ = propostas if chave in radar.CHAVES_DA_EMPRESA else concursos
             # o numero passou de `<i>` a `.mg-tab__count` na fase 3
@@ -28361,17 +28364,45 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
             c.execute("UPDATE propostas SET estado='relatorio' WHERE id=?", (id_,))
         self.assertNotIn("fase-seguinte'", self._ver(radar.PROPOSTAS + "?estado=relatorio"))
 
+    def test_as_propostas_abrem_por_fases_e_a_coluna_soma_o_que_mostra(self):
+        """Front end novo (6/10/2026): sem fase pedida, as Propostas são
+        colunas por fase em curso, com quantas e quanto no topo; as
+        decididas são ligações para a tabela. O número de cada coluna é o
+        dos cartões que ela tem."""
+        h = self._ver(radar.PROPOSTAS)
+        quadro = h.split("class='fs-quadro'", 1)[1]
+        self.assertNotIn("<table", quadro)
+        for estado in ("analisar", "proposta", "submetido"):
+            nome = radar.estado_da_empresa(estado)
+            col = quadro.split("aria-label='%s'><header>" % nome, 1)[1]
+            col = col.split("</section>", 1)[0]
+            n = col.count("class='fs-cartao'")
+            self.assertIn(radar.plural(n, "proposta", "propostas"), col, estado)
+        # o relatório preliminar vazio não tem coluna; as decididas, sim
+        self.assertNotIn("aria-label='Relatório preliminar'><header>", h)
+        self.assertIn("aria-label='Decididas'", h)
+        self.assertIn("href='/propostas?estado=ganho'", h)
+        # o interruptor leva à tabela, que continua com as abas, e volta
+        self.assertIn("href='/propostas?estado=analisar'>", h)
+        t = self._ver(radar.PROPOSTAS + "?estado=analisar")
+        self.assertIn(">Por analisar <span class='mg-tab__count'>", t)
+        self.assertIn("<a href='/propostas'>", t)
+
     def test_z2_o_titulo_da_aba_conta_as_tarefas_atrasadas(self):
         """Z2: fora do Hoje nada lembrava as tarefas atrasadas."""
-        self.assertIn("<title>Por analisar · Propostas — Mira Gov</title>",
+        # sem fase pedida são as fases (6/10/2026), e o título diz só
+        # «Propostas»; com fase, diz qual
+        self.assertIn("<title>Propostas — Mira Gov</title>",
                       self._ver(radar.PROPOSTAS))
+        self.assertIn("<title>Por analisar · Propostas — Mira Gov</title>",
+                      self._ver(radar.PROPOSTAS + "?estado=analisar"))
         ontem = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
         with radar.liga() as c:
             c.execute("INSERT INTO tarefas (o_que, quando) VALUES ('ligar', ?)",
                       (ontem,))
             c.execute("INSERT INTO tarefas (o_que, quando, feita_em) "
                       "VALUES ('feita', ?, ?)", (ontem, ontem))
-        self.assertIn("<title>(1) Por analisar · Propostas — Mira Gov</title>",
+        self.assertIn("<title>(1) Propostas — Mira Gov</title>",
                       self._ver(radar.PROPOSTAS))
         # o número é o mesmo do Hoje
         self.assertIn("1 atrasada", self._ver("/"))

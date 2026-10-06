@@ -908,8 +908,15 @@ Eram cinco itens desde 24/09/2026
 - **Mira Gov** (o logótipo) = **Hoje**, `/` — a marca é a abertura
 - **Concursos** → `/concursos`: as pontas da escada (Por ver, Expirou
   sem ver, Todos), que são anúncios
-- **Propostas** → `/propostas`: as oito ranhuras da empresa. O endereço
-  antigo, `/concursos?estado=<ranhura da empresa>`, serve a mesma página
+- **Propostas** → `/propostas`: as oito ranhuras da empresa. Sem fase
+  pedida abre **por fases** (6/10/2026, front end novo): uma coluna por
+  fase em curso, com quantas e a soma em euros (a conta do «Em jogo»),
+  cartões com o título, a entidade, o preço, a referência, as etiquetas,
+  o responsável e o prazo, e as decididas numa coluna de ligações; o
+  Relatório preliminar só tem coluna quando tem alguém. Com `?estado=`
+  é a **tabela** dessa ranhura, com as abas; um interruptor «Fases |
+  Tabela» passa de uma à outra. O endereço antigo,
+  `/concursos?estado=<ranhura da empresa>`, serve a tabela
 - **Situação** → `/situacao` (26/09/2026; até aí só se chegava pelo
   «Em jogo» do Hoje)
 - **Mercado** → `/contratos` · aba **Entidades** `/entidades`, ao lado

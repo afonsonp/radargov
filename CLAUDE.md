@@ -528,7 +528,9 @@ A ordem do ficheiro é a ordem do fluxo:
    `/renovacoes` redirecciona). Por baixo das abas há
    **duas listas**: as pontas mostram anúncios, as oito ranhuras da
    empresa mostram propostas. **O quadro saiu no mesmo dia**, por decisão
-   dele: a ranhura muda-se no selector de cada linha (`/escada/<ref>`),
+   dele, e **voltou magro a 6/10/2026** (front end novo:
+   `_fases_das_propostas()`, a vista sem `?estado=`; o cartão só leva à
+   ficha, não muda a fase): a ranhura muda-se no selector de cada linha (`/escada/<ref>`),
    e tudo o que o cartão fazia vive no bloco «A nossa proposta» da
    ficha (`proposta_cx()`) — os campos que a ranhura pede, o que a empresa
    decide, as etiquetas e o que falta fazer. A barra é **horizontal, em cima**
