@@ -19326,7 +19326,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
         "<td class='mg-num'>%s</td>"
         "<td class='mg-num'>%s</td>"
         "<td class='col-falta'><span class='falta'>%s%s</span></td>"
-        "<td class='col-acc'>%s</td></tr>"
+        "<td class='col-acc%s'>%s</td></tr>"
         % (html.escape(a["ref"].replace("/", "-"), quote=True),
            a["ref"], html.escape(a["ref"]),
            # o `title` leva o objecto inteiro: o CSS corta-o a duas linhas
@@ -19343,6 +19343,10 @@ def linha(a, vista="", urgente=None, na_escada=None):
            html.escape(preco_do_anuncio(a)),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
+           # a triagem só aparece na linha por onde se passa (6/10/2026,
+           # as maquetes do front end novo); o selector da escada fica
+           # sempre à vista, porque diz em que fase a proposta está
+           " ao-passar" if botoes and not aqui else "",
            "".join(botoes)))
 
 
@@ -19552,18 +19556,6 @@ LISTA_JS = """<script>
 // UX-Auditoria pediu, que existia precisamente porque a lista abria com
 // 60% do ecra em filtros. E a mesma razao por que o "?" do titulo
 // tambem nao tem memoria (fase 2).
-// O «Mais filtros» (3.a ronda, G75, no telemovel; em todas as larguras
-// desde 1/10/2026, H1 da UX-7-LEIS): abre e fecha os campos recolhidos.
-// Sem JS nada se recolhe (a regra do CSS pede o .com-js).
-(function () {
-  var b = document.querySelector('#filtros-lista .f-mais');
-  if (!b) return;
-  b.addEventListener('click', function () {
-    var f = document.getElementById('filtros-lista');
-    var aberto = f.classList.toggle('aberto');
-    b.setAttribute('aria-expanded', aberto ? 'true' : 'false');
-  });
-})();
 // Teclado na lista (UX-Auditoria, Parkinson): j/k linha seguinte e
 // anterior, i interessa, a abandonar (abre a caixa do motivo). Triar
 // vinte cartoes era vinte vezes levar o rato a dois botoes de 25px no
@@ -20051,7 +20043,8 @@ def args_da_lista(args, **muda):
 
 def campos_do_local_e_valor(valores, com_rotulo=True):
     """O distrito e o preco base num formulario de filtro: o da lista
-    (com rotulo, os campos do sistema) e o do alerta (sem)."""
+    (com rotulo, os campos do sistema, em dois blocos -- o distrito e o
+    preco -- para os dois botoes de filtro) e o do alerta (sem)."""
     v = lambda k: html.escape((valores.get(k) or "").strip(), quote=True)
     escolhido = (valores.get("dist") or "").strip()
     opcoes = "<option value=''>%s</option>%s" % (
@@ -20081,15 +20074,32 @@ def campos_do_local_e_valor(valores, com_rotulo=True):
                    html.escape(", ".join(d for d in DISTRITOS if d in marcados))
                    or "qualquer um (nenhum marcado)",
                    caixas, v("pbmin"), v("pbmax")))
+    # com rótulo, o distrito e o preço vão cada um no seu botão de filtro
     return ("<label class='mg-field'><span class='mg-field__label'>Distrito</span>"
             "<select class='mg-field__input' name='dist'>%s</select></label>"
+            % opcoes,
             "<label class='mg-field'><span class='mg-field__label'>Preço base de</span>"
             "<input class='mg-field__input' type='text' name='pbmin' value='%s' "
             "inputmode='decimal' placeholder='€'></label>"
             "<label class='mg-field'><span class='mg-field__label'>Preço base até</span>"
             "<input class='mg-field__input' type='text' name='pbmax' value='%s' "
             "inputmode='decimal' placeholder='€'></label>"
-            % (opcoes, v("pbmin"), v("pbmax")))
+            % (v("pbmin"), v("pbmax")))
+
+
+def chip_de_filtro(rotulo, nome_do_icone, valor, campos):
+    """Um filtro em botão (front end novo, 6/10/2026): o botão diz o
+    nome do filtro e, quando está posto, o valor, e acende-se; abre uma
+    caixa com os campos e o «Aplicar». Um `<details>` nativo, e todos com
+    o mesmo `name`, para abrir um fechar o outro -- sem JS nenhum."""
+    return ("<details class='f-chip%s' name='filtros'><summary>%s%s%s</summary>"
+            "<div class='f-chip__caixa'>%s<button type='submit' "
+            "class='mg-btn mg-btn--primary mg-btn--sm'>Aplicar</button></div>"
+            "</details>"
+            % (" f-chip--on" if valor else "", icone(nome_do_icone, 16),
+               html.escape(rotulo) + (": <b>%s</b>" % html.escape(corta(valor, 40))
+                                      if valor else ""),
+               icone("baixo", 14), campos))
 
 
 def campos_escondidos(args, nomes):
@@ -20993,64 +21003,73 @@ def _lista_de_anuncios():
     # URL (um alerta antigo, a ligacao do cartao dos urgentes), e o que
     # vier por la passa em campos escondidos para nao se perder ao
     # voltar a filtrar.
-    # os campos que o «Mais filtros» recolhe e estão em uso
-    em_uso_escondidos = sum(1 for c in ("plat", "de", "ate", "dist",
-                                        "pbmin", "pbmax")
-                            if (request.args.get(c) or "").strip())
+    # Os filtros em botões (front end novo, 6/10/2026, as maquetes que
+    # ele aprovou): a pesquisa à largura toda, e por baixo uma fila de
+    # botões -- Entidade, Plataforma, Publicação, Distrito, Preço base --
+    # que abrem cada um o seu campo. Substituem o «Mais filtros» (H1 da
+    # UX-7-LEIS): o que fica recolhido continua recolhido, e o botão de
+    # um filtro posto diz o valor e acende-se, em vez de um contador.
+    # São `<details>` nativos com o mesmo `name`: abrir um fecha o outro,
+    # e sem JS funcionam na mesma.
+    arg = lambda k: (request.args.get(k) or "").strip()
+    v = lambda k: html.escape(arg(k), quote=True)
+    rot_plat = dict(opcoes_plat).get(plat_actual, plat_actual)
+    rot_plat = re.sub(r"\s*\([\d\s.]+\)$", "", rot_plat)
+    de_, ate_ = data_para_campo(arg("de")), data_para_campo(arg("ate"))
+    publicacao = " ".join(x for x in (
+        ("de %s" % de_) if de_ else "", ("até %s" % ate_) if ate_ else "") if x)
+    preco = " ".join(x for x in (
+        ("de %s €" % arg("pbmin")) if arg("pbmin") else "",
+        ("até %s €" % arg("pbmax")) if arg("pbmax") else "") if x)
+    campo_dist, campos_preco = campos_do_local_e_valor(request.args)
+    data_campo = lambda nome, rot: (
+        "<label class='mg-field'><span class='mg-field__label'>%s</span>"
+        "<input type='text' name='%s' value='%s' inputmode='numeric' "
+        "placeholder='dd/mm/aaaa' maxlength='10' "
+        "pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'>"
+        "</label>" % (rot, nome, html.escape(data_para_campo(arg(nome)), quote=True)))
+    chips = "".join((
+        chip_de_filtro("Entidade", "entidade", arg("ent"),
+            "<label class='mg-field'><span class='mg-field__label'>Entidade</span>"
+            "<input class='mg-field__input' type='text' name='ent' value='%s' "
+            "placeholder='Quem publica' list='entidades' autocomplete='off' "
+            "data-sugere='anuncios' data-chave-em='nif'></label>" % v("ent")),
+        chip_de_filtro("Plataforma", "lista", rot_plat if plat_actual else "",
+            "<label class='mg-field'><span class='mg-field__label'>Plataforma</span>"
+            "<select class='mg-field__input' name='plat'>%s</select></label>"
+            % opcoes_html(opcoes_plat, plat_actual)),
+        chip_de_filtro("Publicação", "calendario", publicacao,
+            data_campo("de", "Publicado de") + data_campo("ate", "Publicado até")),
+        chip_de_filtro("Distrito", "local", arg("dist"), campo_dist),
+        chip_de_filtro("Preço base", "euro", preco, campos_preco)))
     filtros = (
-        # Os campos do `EcraConcursos`: rotulo por cima, 40px, borda de
-        # 2px (o `Field` do sistema), numa grelha de uma linha.
-        "<form class='mg-card filtros%s' id='filtros-lista' method='get' action='%s'>"
-        "<label class='mg-field f-q'><span class='mg-field__label'>Pesquisar</span>"
-        "<input class='mg-field__input' type='text' name='q' value='%s' placeholder='Objecto ou referência' "
+        "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
+        "<label class='f-q'><span class='so-leitor'>Pesquisar</span>%s"
+        "<input class='mg-field__input' type='text' name='q' value='%s' "
+        "placeholder='Procurar por objecto ou referência' "
         "aria-describedby='sintaxe-q'></label>"
-        "<label class='mg-field f-ent'><span class='mg-field__label'>Entidade</span>"
-        "<input class='mg-field__input' type='text' name='ent' value='%s' placeholder='Quem publica' "
-        "list='entidades' autocomplete='off' data-sugere='anuncios' data-chave-em='nif'></label>"
-        # Os outros campos recolhem-se atrás deste botão, que diz quantos
-        # estão em uso: no telemóvel desde a 3.ª ronda (G75: a 390 px os
-        # filtros ocupavam a primeira dobra inteira), e em todas as
-        # larguras desde 1/10/2026 (H1 da UX-7-LEIS, decisão dele: a
-        # triagem tinha oito campos por cima da primeira linha). Abre
-        # sozinho quando um deles está posto.
-        "<button type='button' class='mg-btn mg-btn--sm mg-btn--secondary f-mais' "
-        "aria-expanded='%s' aria-controls='filtros-mais'>Mais filtros%s</button>"
+        "<div class='f-chips'>%s%s</div>"
         "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "<div class='f-mais-campos' id='filtros-mais'>"
-        "<label class='mg-field'><span class='mg-field__label'>Plataforma</span>"
-        "<select class='mg-field__input' name='plat'>%s</select></label>"
-        "<label class='mg-field'><span class='mg-field__label'>Publicado de</span>"
-        "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
-        "<label class='mg-field'><span class='mg-field__label'>Publicado até</span>"
-        "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='mg-field__input campo-data'></label>"
-        "%s</div>"
         "<input type='hidden' name='estado' value='%s'>"
-        "%s"
         # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
         "<p class='mg-field__hint f-sintaxe' id='sintaxe-q'>Pesquisar: as "
         "palavras soltas têm de estar todas; separe com vírgula para "
         "qualquer uma; entre aspas, a frase exacta.</p>"
         "</form><datalist id='entidades'></datalist>"
-        % (" aberto" if em_uso_escondidos else "",
-           html.escape(rota, quote=True),
-           html.escape(request.args.get("q", ""), quote=True),
-           html.escape(request.args.get("ent", ""), quote=True),
-           "true" if em_uso_escondidos else "false",
-           (" &middot; %d" % em_uso_escondidos) if em_uso_escondidos else "",
+        % (html.escape(rota, quote=True),
+           icone("pesquisar", 18),
+           v("q"),
+           chips,
+           botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
+                                        quote=True)),
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
            html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo", "interesse")),
-           opcoes_html(opcoes_plat, plat_actual),
-           html.escape(data_para_campo(request.args.get("de")), quote=True),
-           html.escape(data_para_campo(request.args.get("ate")), quote=True),
-           campos_do_local_e_valor(request.args),
-           html.escape(estado_actual, quote=True),
-           botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
-                                        quote=True))))
+           html.escape(estado_actual, quote=True)))
 
     # Com interesse definido a lista fica so com o filtro de texto (e os
     # selectores): a arvore e o "excluir CPV" saem, porque o CPV ja esta

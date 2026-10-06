@@ -11782,6 +11782,19 @@ class TestAcessibilidadeDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         self.assertIn("aria-label='Interessa: Aquisição de software'", h)
         self.assertIn("aria-label='Abandonar: Aquisição de software'", h)
 
+    def test_a_triagem_aparece_ao_passar_mas_o_teclado_chega_la(self):
+        """Front end novo (6/10/2026): os botões da triagem escondem-se
+        até se passar na linha. Escondem-se com `opacity`, nunca com
+        `display` ou `visibility` -- assim o Tab continua a chegar-lhes,
+        e o `:focus-within` mostra-os quando chega."""
+        h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
+        self.assertIn("<td class='col-acc ao-passar'>", h)
+        folha = radar.CSS_TUDO
+        self.assertIn(":not(:hover):not(:focus-within) .col-acc.ao-passar>*"
+                      "{opacity:0}", folha)
+        self.assertIn("@media (hover:hover) and (pointer:fine){\n .lista tr",
+                      folha)
+
     def test_ha_um_salto_para_o_conteudo(self):
         h = self.cliente.get("/concursos").get_data(as_text=True)
         self.assertIn("<a class=\"saltar\" href=\"#conteudo\">", h)
@@ -14267,6 +14280,10 @@ class TestAVisitaGuiada(BaseTemporaria):
             self.assertNotIn("<form", texto.lower(), nome)
             self.assertNotIn("type='hidden'", texto, nome)
             self.assertIn('content="noindex"', texto, nome)
+            # mas com o aspecto de quando há JS (6/10/2026): sem o
+            # `.com-js` o «Mais filtros» não recolhia nada, e a visita
+            # mostrava os Concursos com os nove campos abertos
+            self.assertRegex(texto, r'<html class="com-js"', nome)
 
     def test_os_baloes_dizem_o_que_o_ecra_mostra(self):
         """6.ª ronda (5/10/2026, perfis 4 e 15): o balão do passo 3 dava as
@@ -26125,7 +26142,8 @@ class TestAcessibilidadeETelemovelDaTerceiraRonda(BaseTemporaria):
         # a entidade ficou à vista com o H1 (1/10/2026), e por isso o
         # filtro que o botão conta é a plataforma, que ele recolhe
         html_ = self.cliente.get(radar.LISTA + "?estado=porver&plat=acingov").get_data(as_text=True)
-        self.assertIn("aria-controls='filtros-mais'>Mais filtros &middot; 1</button>", html_)
+        # desde 6/10/2026 o filtro posto acende o seu botão e diz o valor
+        self.assertIn("<details class='f-chip f-chip--on' name='filtros'>", html_)
         self.assertIn("A tabela continua para o lado", radar.BASE)
 
     def test_g77_a_validacao_fala_portugues(self):
@@ -28253,30 +28271,27 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
 
     def test_h1_os_filtros_recolhem_se_e_o_botao_diz_quantos_estao_postos(self):
         """H1: a triagem tinha por cima um formulário de oito campos; o
-        «Mais filtros» só existia abaixo de 600 px."""
+        «Mais filtros» só existia abaixo de 600 px.
+
+        Desde 6/10/2026 (front end novo) o recolhido são botões de filtro:
+        à vista fica só a pesquisa, e cada outro campo vive dentro do seu
+        `<details>`, fechado. Um filtro posto não abre nada: acende o
+        botão e diz o valor."""
         h = self._ver(radar.LISTA)
         form = h.split("id='filtros-lista'", 1)[1].split("</form>", 1)[0]
-        mais = form.split("<div class='f-mais-campos' id='filtros-mais'>", 1)
-        self.assertEqual(len(mais), 2, "os campos recolhíveis têm o seu bloco")
-        # à vista ficam a pesquisa e a entidade; o resto vai no bloco
-        self.assertIn("name='q'", mais[0])
-        self.assertIn("name='ent'", mais[0])
-        self.assertIn("name='plat'", mais[1])
-        self.assertIn("name='de'", mais[1])
-        self.assertIn("aria-expanded='false' aria-controls='filtros-mais'>"
-                      "Mais filtros</button>", form)
-        # a regra que recolhe vale em todas as larguras, e não só no telemóvel
-        folha = self._folha()
-        regra = ".com-js #filtros-lista:not(.aberto) .f-mais-campos{display:none}"
-        self.assertIn(regra, folha)
-        antes = folha.split(regra, 1)[0]
-        self.assertGreater(antes.rfind("}"), antes.rfind("@media"),
-                           "a regra não pode estar dentro de um @media")
-        # com filtro escondido posto, abre sozinho e diz quantos
+        antes, chips = form.split("<div class='f-chips'>", 1)
+        self.assertIn("name='q'", antes)
+        for campo in ("ent", "plat", "de", "ate", "dist", "pbmin", "pbmax"):
+            self.assertNotIn("name='%s'" % campo, antes, campo)
+            self.assertIn("name='%s'" % campo, chips, campo)
+        # fechados, todos, e exclusivos entre si
+        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 5)
+        self.assertNotIn(" open", chips.split("</div>")[0])
+        # com dois filtros postos, dois botões acesos, com o valor
         h = self._ver(radar.LISTA + "?plat=acingov&de=01/09/2026")
-        self.assertIn("class='mg-card filtros aberto' id='filtros-lista'", h)
-        self.assertIn("aria-expanded='true' aria-controls='filtros-mais'>"
-                      "Mais filtros &middot; 2</button>", h)
+        self.assertEqual(h.count("<details class='f-chip f-chip--on' name='filtros'>"), 2)
+        self.assertIn("Publicação: <b>de 01/09/2026</b>", h)
+        self.assertNotIn("f-mais", h)
 
     def test_v1_o_prazo_folgado_e_neutro_e_o_urgente_nao(self):
         """V1, a segunda parte: as etiquetas verdes do prazo folgado
@@ -28665,14 +28680,13 @@ class TestUXFichasDe1Outubro(_CicloDoTesteComUtilizadores):
         dica = form.split("id='sintaxe-cpv'>", 1)[1].split("</p>", 1)[0]
         self.assertIn("separados por |", dica)
         self.assertNotIn("title='Um ou mais códigos CPV", form)
-        # fora do «Mais filtros» recolhido: à vista com ele fechado, em
-        # todas as larguras, e nenhuma regra a esconde
+        # fora dos botões de filtro (6/10/2026; era o «Mais filtros»):
+        # à vista com eles fechados, em todas as larguras, e nenhuma
+        # regra a esconde
         h = self.cliente.get(radar.LISTA).get_data(as_text=True)
-        # o bloco recolhido fecha antes do campo escondido do estado
-        self.assertLess(h.index("id='filtros-mais'"),
-                        h.index("<input type='hidden' name='estado'"))
-        self.assertGreater(h.index("id='sintaxe-q'"),
-                           h.index("<input type='hidden' name='estado'"))
+        form = h.split("id='filtros-lista'", 1)[1].split("</form>", 1)[0]
+        self.assertGreater(form.index("id='sintaxe-q'"),
+                           form.rindex("</details>"))
         self.assertIn(".f-sintaxe{grid-column:1/-1;order:2;margin:0}", self._folha())
         self.assertNotRegex(self._folha(), r"\.f-sintaxe[^{]*\{[^}]*display:none")
 

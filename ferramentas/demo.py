@@ -245,6 +245,9 @@ def ecra(caminho):
     if r.status_code != 200:
         sys.exit("%s deu %d" % (caminho, r.status_code))
     texto = SCRIPTS.sub("", r.get_data(as_text=True))
+    # o aspecto de quando há JS: é o que o cliente vê, e sem o `.com-js`
+    # o que se recolhe (o «Mais filtros» dos Concursos) ficava aberto
+    texto = texto.replace("<html ", '<html class="com-js" ', 1)
     # o que a página pede por fetch ao abrir (os gráficos do Mercado) vem
     # já dentro, que os scripts saíram
     if "id='graf-corpo'" in texto:
