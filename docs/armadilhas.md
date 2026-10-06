@@ -1382,7 +1382,14 @@ O corpus do Portal BASE — 1,99 milhões de linhas (2015 a 2026, desde
   devolve **HTML e não JSON** — desenhar continua em Python, com
   `<div>`s dimensionados, sem biblioteca. No "quem ganha", o valor
   reparte-se pelos adjudicatários (`contratos.n_adj`): um agrupamento de
-  três não vale três vezes o mercado. O trimestre a decorrer vai às
+  três não vale três vezes o mercado. **E então o «ganha» de uma entidade
+  não é a soma dos contratos que ela ganhou** (6.ª ronda, 5/10/2026): a
+  IP tinha «Ganha · sempre 718,7 k€» nas Entidades e a lista «ver os 76
+  que ganhou» somava 1 566 223 € inteiros — as duas certas, com o mesmo
+  nome. A lista filtrada por `vencid` diz agora as duas («no total» e «a
+  parte desta entidade»), e a nota das Entidades diz que é a parte. Um
+  número de quem ganha que apareça noutro ecrã tem de dizer qual das
+  duas é. O trimestre a decorrer vai às
   riscas, senão parece uma queda a pique. São sete: quem ganha, quem
   compra, como se compra, concentração, tamanho dos contratos, desconto
   sobre o preço base, evolução. **O desconto agrega por `n_anuncio` e
