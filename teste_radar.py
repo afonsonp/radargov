@@ -26704,6 +26704,25 @@ class TestOCorpusAqueceEmFundo(BaseTemporaria):
                                r"TABLE recorte|SUM\(c\.preco_contratual", q)]
         self.assertEqual(contas, [])
 
+    def test_sexta_ronda_cada_divisao_de_cpv_fica_aquecida(self):
+        """6.ª ronda (5/10/2026, perfil 16): a primeira pesquisa por uma
+        divisão larga levava segundos (o CPV 45, só desde janeiro, 5,7 s
+        nos gráficos com o disco quente). Aquecidas sem o perfil, servem
+        todas as empresas; o número é o de uma pesquisa feita à mão."""
+        divisoes = radar.divisoes_do_corpus()
+        self.assertTrue(divisoes)
+        radar.aquecer_o_corpus()
+        cliente = radar.app.test_client()
+        with consultas_do_radar("corpus") as feitas:
+            for div in divisoes:
+                for rota in ("/contratos?cpv=%s000000&interesse=nao" % div,
+                             "/contratos/resumo?cpv=%s000000&interesse=nao" % div):
+                    self.assertEqual(cliente.get(rota).status_code, 200, rota)
+        contas = [q for q in feitas
+                  if re.search(r"COUNT\(\*\) n, COALESCE\(SUM|CREATE TEMP "
+                               r"TABLE recorte|SUM\(c\.preco_contratual", q)]
+        self.assertEqual(contas, [])
+
     def test_a_vigia_aquece_ao_arrancar_e_so_quando_algo_muda(self):
         aquecidas, estados = [], [("a",), ("a",), ("b",), ("b",), ("b",)]
         with unittest.mock.patch.object(radar, "estado_para_aquecer",

@@ -13888,6 +13888,12 @@ def relogio():
         time.sleep(60)
 
 
+def divisoes_do_corpus():
+    """As divisões de CPV (os dois primeiros algarismos) que o corpus tem,
+    das contagens da árvore -- que o aquecimento já guardou."""
+    return sorted({c8[:2] for c8 in _contagens_cpv_contratos()[1] if len(c8) == 8})
+
+
 def aquecer_o_corpus():
     """Faz, em fundo, as contas que a primeira visita ao Mercado e as
     Entidades pediria (lote 10, 29/09/2026: «a primeira visita ao Mercado
@@ -13909,6 +13915,15 @@ def aquecer_o_corpus():
     # sem clientes nada se aquecia além dos totais)
     cfg_da_plataforma = ler_config()
     for args in ({"interesse": "nao"}, {"interesse": "nao", "ver": "fim"}):
+        with liga_corpus() as c:
+            contas_do_mercado(c, args, cfg_da_plataforma)
+        resumo_contratos(args)
+    # E cada divisão de CPV, sem o perfil (6.ª ronda, 5/10/2026): eram as
+    # pesquisas largas e as mais lentas a primeira vez -- o CPV 45, só
+    # desde janeiro, 5,7 s nos gráficos com o disco quente. Sem o perfil
+    # a chave é a mesma para todas as empresas: uma vez por importação.
+    for divisao in divisoes_do_corpus():
+        args = {"cpv": divisao + "000000", "interesse": "nao"}
         with liga_corpus() as c:
             contas_do_mercado(c, args, cfg_da_plataforma)
         resumo_contratos(args)
