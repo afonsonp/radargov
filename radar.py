@@ -28886,11 +28886,16 @@ def entidades():
            mil_pt(contas.get(chave, 0)))
         for chave, rotulo in ABAS_DAS_ENTIDADES)
 
-    procura = ("<form class='mg-card filtros' method='get' "
+    # a procura larga, como a pesquisa dos Concursos (uniformizar,
+    # 6/10/2026): era uma caixa pequena centrada num cartão
+    procura = ("<form class='procura-larga' id='procura-entidade' method='get' "
                "action='/entidade/procurar'>"
-               "<label>Nome ou NIF<input type='text' name='q' "
-               "placeholder='ex. 506000000, ou Politécnico de Leiria'></label>"
-               "<button type='submit' class='mg-btn mg-btn--primary'>Abrir a ficha</button></form>")
+               "<label><span class='so-leitor'>Nome ou NIF</span>%s"
+               "<input type='text' name='q' "
+               "placeholder='Abrir a ficha de uma entidade: nome ou NIF, ex. "
+               "Politécnico de Leiria'></label>"
+               "<button type='submit' class='mg-btn mg-btn--primary'>Abrir a ficha</button></form>"
+               % icone("pesquisar", 18))
 
     # Sem corpus, três das cinco abas não têm o que mostrar e as colunas
     # do BASE dizem «sem BASE». O aviso diz o caminho em vez de deixar a

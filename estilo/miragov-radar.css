@@ -174,7 +174,8 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 /* A faixa do perfil e uma frase, e corre como uma (3.a ronda, G64): em
    flex, cada pedaco de texto era uma coluna -- «Limitado / ao» a 1440, e
    16 linhas de CPV numa coluna estreita a 390. */
-.cpv-activo{display:block;overflow-wrap:anywhere}
+.cpv-activo{display:block;overflow-wrap:anywhere;width:fit-content;max-width:100%;
+ box-sizing:border-box;border-radius:var(--radius-lg)}
 .linha-conta.resumo .cpv-activo{display:inline;
  margin:0;padding:2px var(--space-3);border:0;border-radius:var(--radius-full);
  background:var(--brand-soft);color:var(--brand);font:500 var(--text-xs)/18px var(--font-sans)}
@@ -215,6 +216,9 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
    UX-7-LEIS, 1/10/2026: vivia dentro de um «?» com o titulo no summary) */
 .topo>.mg-pagehead__sub{grid-column:1/-1;grid-row:3;margin:var(--space-1) 0 var(--space-3)}
 .topo>.mg-tabs,.topo>.vazio-topo{grid-column:1/-1;grid-row:4}
+/* as abas do topo antigo do tamanho delas, como no cabecalho novo
+   (uniformizar, 6/10/2026): esticavam a largura toda numa faixa cinzenta */
+.topo>.mg-tabs{justify-self:start}
 
 /* Os botoes dos filtros com a altura dos campos, e nao da grelha. */
 #filtros-lista .f-accoes{align-self:end}
@@ -1605,3 +1609,17 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
  font:600 var(--text-sm)/20px var(--font-sans)}
 .fs-decidida.zero{color:var(--ink-muted);font-weight:500}
 .fs-decidida:hover{color:var(--link)}
+
+/* A procura larga fora dos filtros (uniformizar, 6/10/2026): a mesma
+   barra com a lupa da pesquisa dos Concursos e do Mercado, com o botao
+   a direita. Serve a procura de uma entidade. Pelo `id`, porque as
+   regras gerais dos campos (`main.mg input:not(...)`) ganhavam a classe. */
+#procura-entidade{display:flex;gap:var(--space-2);align-items:stretch;margin:0 0 var(--space-4)}
+#procura-entidade>label{position:relative;flex:1 1 auto;min-width:0;display:block}
+#procura-entidade>label>svg{position:absolute;left:var(--space-4);top:50%;transform:translateY(-50%);
+ color:var(--ink-muted);pointer-events:none}
+#procura-entidade>label>input{width:100%;box-sizing:border-box;min-height:48px;margin:0;
+ padding:0 var(--space-3) 0 44px;border:var(--border-hairline) solid var(--line-strong);
+ border-radius:var(--radius-lg);background:var(--surface-raised);
+ font:400 var(--text-md)/22px var(--font-sans);color:var(--ink)}
+#procura-entidade>.mg-btn{min-height:48px}
