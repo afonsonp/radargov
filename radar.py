@@ -24665,8 +24665,10 @@ def _gestos_do_suporte(u):
 # (11), 4/10/2026): as mudanças de configuração, as triagens e o que se
 # fez às contas. As entradas vêm da tabela `entradas` da plataforma, com o
 # IP e o aparelho -- e por isso o «entrou» do histórico fica de fora.
+# e apagar uma proposta (6.ª ronda, perfil 2): o evento gravava-se e não
+# aparecia -- o gesto que mais se quer ver num registo de actividade
 ACCOES_DA_ACTIVIDADE = ("configuração", "estado", "conta", "suporte", "importação",
-                        "saiu de todos os aparelhos")
+                        "saiu de todos os aparelhos", "proposta apagada")
 # Cada falha diz o que falhou (revisão de segurança de 4/10/2026): um
 # código do segundo factor errado é de quem já tem a palavra-passe, e
 # não pode parecer um lapso ao escrevê-la.

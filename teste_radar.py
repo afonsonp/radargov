@@ -29610,11 +29610,13 @@ class TestORestoDaPaginaDoDono(_PlataformaComDuasEmpresas):
         with radar.com_empresa(1):
             radar.registar("", "configuração", "alertas: x -> y", quem="chefe")
             radar.registar("1/2026", "estado", "novo -> interessa", quem="rita")
+            # 6.ª ronda (perfil 2): o apagar gravava-se e não aparecia
+            radar.registar("", "proposta apagada", "Consulta da junta", quem="chefe")
         with radar.com_empresa(self.beta):
             radar.registar("", "configuração", "SEGREDO-DA-BETA", quem="beto")
         corpo = self.ver(self.entrar("chefe"), "/actividade").get_data(as_text=True)
         for frase in ("palavra-passe errada ao entrar", "entrou", "203.0.113.7", "iPhone",
-                      "alertas: x -&gt; y", "novo -&gt; interessa"):
+                      "alertas: x -&gt; y", "novo -&gt; interessa", "Consulta da junta"):
             self.assertIn(frase, corpo)
         self.assertNotIn("SEGREDO-DA-BETA", corpo)
         self.assertNotIn("beto", corpo)
