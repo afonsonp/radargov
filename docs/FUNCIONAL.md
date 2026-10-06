@@ -1696,8 +1696,12 @@ e não «espera 674 s». O **dono levanta o trinco** na página dos erros
 **A palavra-passe** (D16, 26/09/2026) tem oito caracteres ou mais, além
 dos espaços; não pode ser das mais usadas (`SENHAS_COMUNS`, também com
 números ou sinais à volta), um só carácter repetido, um pedaço repetido
-ou uma sequência do teclado ou do alfabeto; nem ter lá dentro o nome de
-utilizador ou o e-mail. Vale em todas as portas — a conta, o convite, a
+ou uma sequência do teclado ou do alfabeto; nem ser **uma palavra solta**,
+só de letras e até 11 («santarem», mesmo com um algarismo ou um sinal no
+fim — 6.ª ronda, 5/10/2026; uma frase passa); nem ter lá dentro o nome de
+utilizador ou o e-mail. Mudar a palavra-passe na Conta fecha as outras
+sessões da conta e deixa a de quem a mudou
+(`contas.fechar_as_outras_sessoes()`). Vale em todas as portas — a conta, o convite, a
 consola e a ligação de repor —, porque todas passam pelo
 `contas.criar_utilizador()`; a recusa diz qual das regras falhou
 (`contas.problema_da_senha()`).
