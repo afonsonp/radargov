@@ -19319,20 +19319,21 @@ def linha(a, vista="", urgente=None, na_escada=None):
     # e e por isso que os numeros vao alinhados a direita, em `mg-num`.
     return (
         "<tr id='a-%s'>"
-        "<td class='mg-code'><a href='/anuncio/%s'>%s</a></td>"
+        # a referência vai por baixo do título, junto à entidade (front
+        # end novo, 6/10/2026): uma coluna só para ela era a mais larga
+        # depois do objecto
         "<td class='col-obj'><a href='/anuncio/%s' class='item-titulo' title='%s'>%s</a>"
-        "<small>%s%s%s</small></td>"
+        "<small>%s &middot; <span class='mg-code'>%s</span>%s%s</small></td>"
         "<td class='col-plat'>%s</td>"
         "<td class='mg-num'>%s</td>"
         "<td class='mg-num'>%s</td>"
         "<td class='col-falta'><span class='falta'>%s%s</span></td>"
         "<td class='col-acc%s'>%s</td></tr>"
         % (html.escape(a["ref"].replace("/", "-"), quote=True),
-           a["ref"], html.escape(a["ref"]),
            # o `title` leva o objecto inteiro: o CSS corta-o a duas linhas
            a["ref"], html.escape(a["titulo"] or "", quote=True),
            html.escape(corta(a["titulo"], 120)),
-           html.escape(a["entidade"] or ""),
+           html.escape(a["entidade"] or ""), html.escape(a["ref"]),
            (" &middot; %s" % publicado) if publicado else "",
            (" &middot; %s"
             % html.escape(a["cpv"])) if a["cpv"] else "",
@@ -21048,7 +21049,7 @@ def _lista_de_anuncios():
         "<input class='mg-field__input' type='text' name='q' value='%s' "
         "placeholder='Procurar por objecto ou referência' "
         "aria-describedby='sintaxe-q'></label>"
-        "<div class='f-chips'>%s%s</div>"
+        "<div class='f-chips'>%s%s%s</div>"
         "<input type='hidden' name='nif' value='%s'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
@@ -21062,6 +21063,9 @@ def _lista_de_anuncios():
         % (html.escape(rota, quote=True),
            icone("pesquisar", 18),
            v("q"),
+           # o perfil da empresa, que recorta a lista, é o primeiro filtro
+           # aceso (6/10/2026; vivia na linha da contagem)
+           faixa_interesse,
            chips,
            botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
                                         quote=True)),
@@ -21111,7 +21115,7 @@ def _lista_de_anuncios():
             % (" data-triagem='1'" if estado_actual == ENTRADA_DA_ESCADA[0]
                else "") +
             "<thead><tr>"
-            "<th>Ref.ª</th><th>Objecto</th><th>Plataforma</th>"
+            "<th>Objecto</th><th>Plataforma</th>"
             + th_do_preco + th_do_prazo +
             "<th>Faltam</th><th><span class='so-leitor'>Acções</span></th>"
             "</tr></thead><tbody>"
@@ -21254,7 +21258,7 @@ def _lista_de_anuncios():
                 # a uma etiqueta na mesma linha -- continua a dizer quanto
                 # tapa e a ter o "ver tudo".
                 "<div class='linha-conta resumo'><span class='conta'>" + conta
-                + "</span>" + faixa_interesse +
+                + "</span>" +
                 # A explicacao a vista, num <details>: estava no `title`,
                 # que nao aparece com o foco -- e quem usa o teclado e ve e
                 # a unica pessoa que precisa disto (UX-ICONES-DICAS-PESOS,
