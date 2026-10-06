@@ -28667,7 +28667,9 @@ def entidades():
             "<tbody>%s</tbody></table>"
             "<div class='tab-pe'>%s<span class='nota'>Marque duas. "
             "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
-            "o «a acabar» é o <b>fim estimado</b> — celebração mais o "
+            "«Ganha» é a <b>parte dela</b>: num consórcio, o contrato "
+            "reparte-se pelos vencedores (6.ª ronda). "
+            "O «a acabar» é o <b>fim estimado</b> — celebração mais o "
             "prazo declarado, sem prorrogações. A taxa connosco só se diz "
             "a partir de %d decididas. %s</span></div></div></form>"
             % (html.escape(aba, quote=True),
@@ -29364,12 +29366,21 @@ def contratos():
     ordem_p = (" ORDER BY p.fim_estimado, p.id" if fim
                else " ORDER BY p.data_celebracao DESC, p.id DESC")
     correspondem = valor = 0
+    parte = None
     paginas = pagina = 1
     linhas = []
     with liga_corpus() as c:
         if ha_pergunta:
             correspondem, valor, escondidos_interesse = contas_do_mercado(
                 c, request.args, cfg)
+            # Filtrado por quem ganhou, a parte dele: num consórcio o
+            # contrato reparte-se pelos vencedores (`n_adj`), que é o que
+            # a lista das Entidades soma -- 718,7 k€ da IP contra os
+            # 1 566 223 € dos contratos inteiros (6.ª ronda, 5/10/2026)
+            if (request.args.get("vencid") or "").strip():
+                parte = conta_no_corpus(
+                    c, "SELECT COALESCE(SUM(c.preco_contratual / c.n_adj), 0) v "
+                       "FROM contratos c" + onde, valores)["v"]
             paginas = max(1, -(-correspondem // POR_PAGINA_LISTA))
             pagina = min(max(1, pagina_pedida(request.args)), paginas)
             desvio = (pagina - 1) * POR_PAGINA_LISTA
@@ -29639,6 +29650,10 @@ def contratos():
         # O somatorio e do filtro todo, nao da pagina: e o numero que diz
         # quanto vale este mercado, e por pagina nao queria dizer nada.
         conta += " &middot; <b>%s</b> no total" % euros(valor)
+        if parte is not None and round(parte) != round(valor or 0):
+            conta += (" &middot; a parte desta entidade: <b>%s</b> (nos "
+                      "consórcios, o contrato reparte-se pelos vencedores)"
+                      % euros(parte))
         # a ligacao diz quantas linhas e que saem: encostada ao "1-20"
         # exportava as dezenas de milhares sem avisar. Leva ver/meses,
         # por isso o CSV exporta o mesmo modo que a lista mostra.

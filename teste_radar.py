@@ -13657,6 +13657,40 @@ class TestGanhadoresDaLinha(unittest.TestCase):
             radar.ganhadores_da_linha({"ganhou": None, "ganhou_ch": None}), [])
 
 
+class TestAParteDeQuemGanhaEmConsorcio(BaseTemporaria):
+    """6.ª ronda (5/10/2026, perfil 3): a lista das Entidades dizia «Ganha ·
+    sempre 718,7 k€» da IP e a lista que a ficha abre somava 1 566 223 € --
+    a primeira reparte cada contrato pelos vencedores (`n_adj`), a segunda
+    somava-os inteiros. As duas ficam, e a lista diz a parte."""
+
+    def setUp(self):
+        BaseTemporaria.setUp(self)
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "ensaio-contratos.db")))
+        radar.iniciar_corpus()
+
+    def test_a_lista_filtrada_pelo_vencedor_diz_a_parte_dele(self):
+        with radar.liga_corpus() as c:
+            for cid, valor, n_adj in ((1, 100000.0, 1), (2, 60000.0, 2)):
+                c.execute("INSERT INTO contratos (id, ano, objecto, tipo_procedimento, "
+                          "data_celebracao, preco_contratual, n_adj) "
+                          "VALUES (?, 2026, 'Obra', 'Concurso público', "
+                          "'2026-02-10', ?, ?)", (cid, valor, n_adj))
+                c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, "
+                          "nome, chave) VALUES (?, '503933813', 'IP', '503933813')",
+                          (cid,))
+        cliente = radar.app.test_client()
+        h = cliente.get("/contratos?vencid=503933813").get_data(as_text=True)
+        self.assertIn("<b>%s</b> no total" % radar.euros(160000), h)
+        self.assertIn("a parte desta entidade: <b>%s</b>" % radar.euros(130000), h)
+        # sem consórcios as duas contas são a mesma, e não se repete (a
+        # memória do corpus é pela pergunta: a data faz outra)
+        with radar.liga_corpus() as c:
+            c.execute("UPDATE contratos SET n_adj=1")
+        h = cliente.get("/contratos?vencid=503933813&de=2026-01-01").get_data(as_text=True)
+        self.assertNotIn("a parte desta entidade", h)
+
+
 class TestDesfechoNaFicha(BaseTemporaria):
     """A ligação anúncio → contrato é por CHAVE (`n_anuncio` do dump do
     IMPIC = `ref` do radar), ao contrário dos homólogos, que são um
