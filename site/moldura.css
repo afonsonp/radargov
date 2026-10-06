@@ -22,7 +22,7 @@ body{margin:0;background:var(--surface);color:var(--ink);font:400 17px/1.55 var(
 a{color:var(--link);text-underline-offset:2px}
 a:hover{color:var(--brand-hover)}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
 .wrap{max-width:1180px;margin:0 auto;padding-inline:24px}
 @media (max-width:600px){.wrap{padding-inline:16px}}
 

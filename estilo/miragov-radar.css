@@ -170,7 +170,7 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 .linha-conta.resumo{display:flex;flex-wrap:wrap;align-items:center;
  gap:var(--space-1) var(--space-4);margin:var(--space-3) 0 var(--space-4);
  font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
-.linha-conta.resumo b{font:600 var(--text-sm)/20px var(--font-mono);color:var(--ink)}
+.linha-conta.resumo b{font:600 var(--text-sm)/20px var(--font-num);color:var(--ink)}
 /* A faixa do perfil e uma frase, e corre como uma (3.a ronda, G64): em
    flex, cada pedaco de texto era uma coluna -- «Limitado / ao» a 1440, e
    16 linhas de CPV numa coluna estreita a 390. */
@@ -178,7 +178,7 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 .linha-conta.resumo .cpv-activo{display:inline;
  margin:0;padding:2px var(--space-3);border:0;border-radius:var(--radius-full);
  background:var(--brand-soft);color:var(--brand);font:500 var(--text-xs)/18px var(--font-sans)}
-.linha-conta.resumo .cpv-activo b{font:600 var(--text-xs)/18px var(--font-mono);color:var(--brand)}
+.linha-conta.resumo .cpv-activo b{font:600 var(--text-xs)/18px var(--font-num);color:var(--brand)}
 .linha-conta.resumo .teclas{margin-left:auto;position:relative}
 .linha-conta.resumo>a{margin-left:0;color:var(--link)}
 .lista .col-acc{width:1%;white-space:nowrap}
@@ -361,7 +361,7 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-factos dt{font:600 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
 .ficha-factos dd{margin:0 0 var(--space-2);font:400 var(--text-md)/22px var(--font-sans);
  min-width:0;overflow-wrap:anywhere}
-.ficha-factos dd.n{font:400 var(--text-sm)/22px var(--font-mono)}
+.ficha-factos dd.n{font:400 var(--text-sm)/22px var(--font-num)}
 /* um valor com degraus (perfis, enumeracoes: `desenha_valor()`) nao cabe
    numa das quatro colunas: ocupa a linha inteira por baixo do rotulo */
 .ficha-factos dd:has(.perfis,.pontos,.numerados){grid-column:2/-1}
@@ -381,11 +381,11 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .ficha-lista li a{color:var(--link);text-decoration:none;font-weight:500;
  flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
 .ficha-lista li .t{flex:1 1 auto;min-width:0}
-.ficha-lista li .n{font-family:var(--font-mono);font-size:var(--text-sm);
+.ficha-lista li .n{font-family:var(--font-num);font-size:var(--text-sm);
  color:var(--ink-secondary);flex:none}
 .ficha-lista li.aberta a{color:var(--ink);font-weight:600}
 .ficha-prazo{display:flex;align-items:baseline;gap:var(--space-3);flex-wrap:wrap}
-.ficha-prazo b{font:600 var(--text-2xl)/32px var(--font-mono);letter-spacing:-.02em;color:var(--success)}
+.ficha-prazo b{font:600 var(--text-2xl)/32px var(--font-num);letter-spacing:-.02em;color:var(--success)}
 .ficha-prazo.avisa b{color:var(--warning)}
 .ficha-prazo.mau b{color:var(--danger)}
 .ficha-prazo span{color:var(--ink-secondary)}
@@ -457,7 +457,7 @@ main.mg form.filtros[action='/entidade/procurar'] input{min-width:360px}
 .graf-numeros th{text-align:left;font-weight:600;color:var(--ink-muted);
  border-bottom:1px solid var(--line);padding:4px 6px}
 .graf-numeros td{padding:4px 6px;border-bottom:1px solid var(--surface-sunken)}
-.graf-numeros .p{text-align:right;font-family:var(--font-mono);white-space:nowrap}
+.graf-numeros .p{text-align:right;font-family:var(--font-num);white-space:nowrap}
 /* Os títulos dos gráficos e dos cartões da Situação são `h2` (15 e
    E12): o `mg-card__title` traz o peso e o tamanho. Fora da cabeça do
    cartão não cresce -- o `flex:1 1 auto` do sistema, num cartão em
@@ -525,7 +525,7 @@ main.entrar-duas{min-height:100vh;display:grid;grid-template-columns:minmax(0,5f
  max-width:36ch;margin:0}
 .entrar-lado .kv{display:flex;flex-wrap:wrap;gap:var(--space-6);
  font:400 var(--text-sm)/18px var(--font-sans);color:var(--on-header-muted)}
-.entrar-lado .kv b{display:block;font:600 var(--text-xl)/28px var(--font-mono);color:var(--on-header)}
+.entrar-lado .kv b{display:block;font:600 var(--text-xl)/28px var(--font-num);color:var(--on-header)}
 .entrar-form{display:flex;align-items:center;justify-content:center;padding:var(--space-7)}
 .entrar-cx{width:min(380px,100%);display:flex;flex-direction:column;gap:var(--space-4)}
 .entrar-cx h1{margin:0;font:600 var(--text-xl)/28px var(--font-serif);color:var(--ink)}
@@ -1149,7 +1149,7 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
 .factos-grelha .k{font:600 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
 .factos-grelha .v{font:600 var(--text-md)/22px var(--font-sans);color:var(--ink);
  overflow-wrap:anywhere}
-.factos-grelha .v.n{font:600 var(--text-lg)/26px var(--font-mono)}
+.factos-grelha .v.n{font:600 var(--text-lg)/26px var(--font-num)}
 .factos-grelha .v small{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
 .factos-grelha .d{font:400 var(--text-sm)/18px var(--font-sans);color:var(--ink-muted)}
 .factos-grelha .apagado .v{font-weight:400;font-size:var(--text-sm);color:var(--ink-muted)}
@@ -1201,7 +1201,7 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
  border-bottom:var(--border-hairline) solid var(--line)}
 .eq-cab{background:var(--surface-sunken);border-radius:var(--radius-sm);border-bottom:0;
  font:600 var(--text-xs)/16px var(--font-sans);color:var(--ink-muted)}
-.eq-linha .n{text-align:right;font-family:var(--font-mono)}
+.eq-linha .n{text-align:right;font-family:var(--font-num)}
 .eq-perfil>summary{cursor:pointer;list-style:none}
 .eq-perfil>summary::-webkit-details-marker{display:none}
 .eq-perfil>summary:hover{background:var(--surface-sunken)}
