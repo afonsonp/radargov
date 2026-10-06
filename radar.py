@@ -34067,6 +34067,13 @@ def _campos_que_a_ranhura_pede(p):
         pecas.insert(0, data(
             "prazo_entrega", "Prazo de entrega",
             "Dá o passo «até …» e a tarefa «entregar a proposta»"))
+        # E o preço base (6.ª ronda, decisão dele a 6/10/2026): sem anúncio
+        # contava 0 € no «Por submeter» e escapava à guarda do art. 70.º --
+        # a coluna e a gravação já existiam, faltava o campo
+        pecas.insert(1,
+            "<label>Preço base<input type='text' name='preco_base' value='%s' "
+            "inputmode='decimal' placeholder='ex. 125 000,00'></label>"
+            % html.escape(preco_do_campo(p["preco_base"]), quote=True))
     if estado in ("relatorio", "ganho", "perdido") or _valor(p, "audiencia_em"):
         pecas.append(data(
             "audiencia_em", "Notificação do relatório preliminar",
@@ -34437,6 +34444,15 @@ def proposta_da_ficha(id_):
             return recusa("«%s» não é uma data (dd/mm/aaaa)." % corta(bruto, 20))
         campos.append("prazo_entrega")
         valores.append(prazo)
+    # E o preço base, também só sem anúncio (6.ª ronda): com anúncio é o do
+    # DR. Passa pela guarda do art. 70.º do gravar_campos_da_proposta()
+    if "preco_base" in request.form and not p["ref"]:
+        bruto = (request.form.get("preco_base") or "").strip()
+        base = preco_escrito(bruto)
+        if bruto and not base:
+            return recusa("«%s» não é um preço." % corta(bruto, 20))
+        campos.append("preco_base")
+        valores.append(base or None)
     # As listas da empresa mandam quando existem; o valor que a proposta
     # já tinha continua a valer (a lista pode ter mudado depois). Sem
     # lista, o ecrã não mostra o campo e aceita-se o texto, como antes.

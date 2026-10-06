@@ -7408,6 +7408,22 @@ class TestEscadaNaLista(BaseTemporaria):
         self.assertIn("Formação", html_)
         self.assertIn("consulta prévia", html_)
 
+    def test_sexta_ronda_a_proposta_sem_anuncio_tem_preco_base(self):
+        """6.ª ronda (perfil 2; decisão dele a 6/10/2026): sem anúncio, a
+        proposta contava 0 € no «Por submeter» e escapava à guarda do art.
+        70.º. A coluna e a gravação existiam; faltava o campo."""
+        r = self.cliente.post("/proposta/nova",
+                              data={"entidade": "IPL", "titulo": "Formação",
+                                    "porque_sem_ref": "consulta prévia"})
+        local = r.headers["Location"].split("?")[0]
+        id_ = int(local.rsplit("/", 1)[1])
+        self.assertIn("name='preco_base'", self.cliente.get(local).get_data(as_text=True))
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"preco_base": "125 000,00"})
+        self.assertEqual(radar.euros_do_texto(radar.proposta(id_)["preco_base"]), 125000.0)
+        # e a guarda do art. 70.º passa a valer: acima da base recusa
+        r = self.cliente.post("/proposta/%d/ficha" % id_, data={"valor_proposta": "130 000,00"})
+        self.assertIn("tom=erro", r.headers["Location"])
+
     def test_uma_proposta_sem_cliente_nem_titulo_recusa_se(self):
         """Uma linha sem nenhum dos dois não se encontra depois."""
         r = self.cliente.post("/proposta/nova", data={"entidade": "", "titulo": ""})
