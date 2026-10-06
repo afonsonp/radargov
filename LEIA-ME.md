@@ -1620,6 +1620,11 @@ escolhes o plano no próprio ecrã do aceitar (desde 4/10/2026 o
 formulário do site já não o pede) — a oferta de fundador, que vem
 escolhida, fica Duo, marcada como fundador.
 
+**Procurar uma conta** (desde 6/10/2026) — quem liga e só sabe o
+e-mail: na **Plataforma**, por cima da lista das empresas, escreve um
+pedaço do e-mail ou do nome em «Procurar uma conta». Aparece a conta,
+o papel, a última entrada e a empresa, que abre a página dela.
+
 **Uma empresa sem pedido** (desde 4/10/2026) — a que chega por telefone
 ou numa reunião: na **Plataforma**, por baixo da lista das empresas,
 escreve o nome em «Nova empresa» e carrega em «Criar a empresa». Vais

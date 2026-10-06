@@ -15542,6 +15542,25 @@ class TestModeloDaEmpresa(BaseTemporaria):
         # sem linhas de dados: o modelo importado em branco nao entra nada
         self.assertEqual(empresa.ler_modelo(caminho), [])
 
+    def test_o_motivo_da_perda_entra_na_perdida(self):
+        # 6.ª ronda (5/10/2026), perfil 10: as perdidas importadas ficavam
+        # todas «(por dizer)» no «Porque se perde», porque o modelo não
+        # tinha onde dizer o motivo. A coluna é a última, para os ficheiros
+        # antigos continuarem a ler-se pela posição.
+        self.assertEqual(empresa.COLUNAS_MODELO[-1], ("Motivo da perda", "motivo_perda"))
+        vazio = [None] * (len(empresa.COLUNAS_MODELO) - 4)
+        caminho = self.preenchido([
+            ["1947-2026", 2, "Perdido", None] + vazio[:-1] + ["Preço"],
+            ["22285/2026", None, "Ganho", None] + vazio[:-1] + ["Prazo"],
+        ])
+        a, b = empresa.ler_modelo(caminho)
+        self.assertEqual(empresa.estado_pretendido(a)[1]["motivo"], "Preço")
+        self.assertNotIn("motivo", empresa.estado_pretendido(b)[1])
+        self.assertTrue(any("só conta em «Perdido»" in x for x in b["avisos"]))
+        # um ficheiro de antes, sem a coluna, lê-se na mesma
+        velho = self.preenchido([["1947-2026", 2, "Perdido", None, "1000", 2]])
+        self.assertEqual(empresa.ler_modelo(velho)[0]["motivo_perda"], "")
+
     def test_ler_normaliza_e_aponta_erros_de_forma(self):
         caminho = self.preenchido([
             ["1947-2026", 2, "ganho", None, "169.344,00", 1, "Nós; Empresa B ; Empresa C", "Afonso", "ok"],
@@ -15743,7 +15762,8 @@ class TestSegundaRondaAImportacao(BaseTemporaria):
         if extra_cabecalho:
             from openpyxl import load_workbook
             wb = load_workbook(caminho)
-            wb[empresa.FOLHA_MODELO].cell(row=1, column=11, value=extra_cabecalho)
+            wb[empresa.FOLHA_MODELO].cell(row=1, column=len(empresa.COLUNAS_MODELO) + 1,
+                                          value=extra_cabecalho)
             wb.save(caminho)
         with open(caminho, "rb") as f:
             r = self.cliente.post("/configuracoes/importar",
@@ -15766,7 +15786,7 @@ class TestSegundaRondaAImportacao(BaseTemporaria):
              None, None, None],
         ], extra_cabecalho="Data de submissão")
         self.assertIn("valor «cento e vinte mil» não é um número", h)
-        self.assertIn("A coluna K «Data de submissão» não é do modelo e é ignorada", h)
+        self.assertIn("A coluna L «Data de submissão» não é do modelo e é ignorada", h)
         self.assertIn("não é uma da lista", h)
         self.confirmar(h)
         # uma nota datada desde 26/09/2026 (D3), e não a coluna
@@ -16422,6 +16442,17 @@ class TestMudancasDeSetembro(BaseTemporaria):
         # propostas da empresa toda
         self.assertEqual(tester.get("/configuracoes/importar",
                                     environ_base=self.FORA).status_code, 403)
+
+    def test_o_dono_procura_uma_conta_pelo_email(self):
+        # 6.ª ronda (5/10/2026), o suporte: quem liga só sabe o e-mail, e
+        # o dono abria empresa a empresa para o encontrar.
+        admin = self.entrar("admin")
+        html_ = admin.get("/plataforma?conta=tes", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("<td data-r='E-mail'>teste</td>", html_.replace('"', "'"))
+        self.assertIn("Membro", html_)
+        # o % não é coringa, e o que não existe diz que não há
+        nada = admin.get("/plataforma?conta=%25", environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("Nenhuma conta com «%»", nada)
 
     def test_o_indice_e_o_verificar_agora_seguem_o_papel(self):
         tester = self.entrar("teste")

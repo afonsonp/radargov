@@ -24461,6 +24461,45 @@ def _bloco_do_correio(cfg):
              "e só se grava se escrever uma nova.", id_="correio")
 
 
+def _contas_encontradas(termo, empresas):
+    """A procura de uma conta pelo e-mail ou pelo nome (6.ª ronda,
+    5/10/2026, perfil do suporte: «alguém liga e só sabe o e-mail, e eu
+    tenho de abrir empresa a empresa»). Devolve o HTML do resultado."""
+    termo = (termo or "").strip()[:120]
+    if not termo:
+        return ""
+    padrao = "%" + para_like(termo) + "%"
+    with liga() as c:
+        contas = c.execute(
+            "SELECT nome, email, papel, empresa_id, dono, ultimo_acesso FROM utilizadores "
+            "WHERE email LIKE ? ESCAPE '%s' OR nome LIKE ? ESCAPE '%s' "
+            "ORDER BY email LIMIT 20" % (ESCAPE_LIKE, ESCAPE_LIKE),
+            (padrao, padrao)).fetchall()
+    if not contas:
+        return ("<div class='mg-empty'>Nenhuma conta com «%s» no e-mail ou no nome.</div>"
+                % html.escape(termo))
+    nomes = {e["id"]: e["nome"] for e in empresas}
+
+    def empresa(r):
+        if r["dono"]:
+            return "a plataforma (dono)"
+        if r["empresa_id"] not in nomes:
+            return "sem empresa"
+        return "<a href='/plataforma/empresa/%d'>%s</a>" % (
+            r["empresa_id"], html.escape(nomes[r["empresa_id"]]))
+    linhas = "".join(
+        "<tr>%s%s%s%s%s</tr>" % (
+            _celula_da_tabela("Nome", html.escape(r["nome"] or "")),
+            _celula_da_tabela("E-mail", html.escape(r["email"])),
+            _celula_da_tabela("Empresa", empresa(r)),
+            _celula_da_tabela("Papel", html.escape(PAPEL_NO_ECRA.get(r["papel"], r["papel"]))),
+            _celula_da_tabela("Última entrada", html.escape(ha_quanto(r["ultimo_acesso"]))))
+        for r in contas)
+    return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
+            "<thead><tr><th>Nome</th><th>E-mail</th><th>Empresa</th><th>Papel</th>"
+            "<th>Última entrada</th></tr></thead><tbody>%s</tbody></table></div>" % linhas)
+
+
 @app.route("/plataforma")
 def administracao_da_plataforma():
     """A administracao da plataforma, so do dono (23/09/2026; refeita a
@@ -24507,6 +24546,14 @@ def administracao_da_plataforma():
                "maxlength='120' autocomplete='off' placeholder='nome da empresa'></label>"
                "<button type='submit' class='mg-btn mg-btn--secondary'>Criar a empresa"
                "</button></form>")
+    termo = request.args.get("conta", "")
+    procura = ("<form class='form-email' method='get' action='/plataforma' "
+               "style='margin-bottom:12px'><label>Procurar uma conta"
+               "<input class='mg-field__input' type='search' name='conta' "
+               "maxlength='120' autocomplete='off' placeholder='e-mail ou nome' "
+               "value='%s'></label><button type='submit' class='mg-btn "
+               "mg-btn--secondary'>Procurar</button></form>%s"
+               % (html.escape(termo, quote=True), _contas_encontradas(termo, empresas)))
     seccoes = "".join(
         "<a class='mg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
         "<b>%s</b><div class='nota'>%s</div></a>" % (c_, html.escape(t_), html.escape(d_))
@@ -24532,7 +24579,7 @@ def administracao_da_plataforma():
     # no fim a Recolha e o Correio, que se usam uma vez e estavam a meio.
     corpo = (
         "<div class='larg'>%s%s"
-        "<h2 class='mg-field__label' style='margin:22px 0 6px'>Empresas</h2>%s"
+        "<h2 class='mg-field__label' style='margin:22px 0 6px'>Empresas</h2>%s%s"
         "<h2 class='mg-field__label' style='margin:22px 0 6px'>O sistema</h2>"
         "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
         "<a class='mg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
@@ -24544,7 +24591,7 @@ def administracao_da_plataforma():
         "<b>A minha conta</b><div class='nota'>a palavra-passe e as sessões</div></a>"
         "</div><div style='margin-top:22px'>%s</div><div style='margin-top:22px'>%s</div>"
         "</div>"
-        % (_html_dos_semaforos(semaforos_da_plataforma()), tratar_html, tabela,
+        % (_html_dos_semaforos(semaforos_da_plataforma()), tratar_html, procura, tabela,
            seccoes, pendentes, recolha, _bloco_do_correio(cfg)))
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que está mal, o que há para "
