@@ -2744,6 +2744,12 @@ def plural(n, singular, plural_=None):
                       else (plural_ or singular + "s"))
 
 
+def ver_as(n):
+    """«ver a proposta» com uma, «ver as N» com mais (6.ª ronda: o
+    gráfico da Situação dizia «ver as 1»)."""
+    return "ver a proposta" if n == 1 else "ver as %s" % mil_pt(n)
+
+
 def para_like(termo):
     """Escapa os caracteres especiais do LIKE. Sem isto, procurar "50%"
     devolvia tudo o que tem "50", e "CP_2026" tratava o _ como coringa."""
@@ -28898,15 +28904,17 @@ def factos_da_entidade(chave, nosso, meses=24, args=None):
          if compra_k else ("sem BASE" if not ha_corpus()
                            else "nada celebrado nesta janela")),
         ("No nosso CPV" + no_filtro, mil_pt(no_cpv) if no_cpv else None,
-         "dos %s contratos da janela" % mil_pt(compra_k) if no_cpv else
+         # «dos 1 contratos» (6.ª ronda, perfil 15): pelo plural()
+         ("do " if compra_k == 1 else "dos ") + plural(compra_k, "contrato")
+         + " da janela" if no_cpv else
          ("sem BASE" if not ha_corpus()
           else "nada da janela cai no perfil da empresa")),
         # «Fecha a −4,8 % abaixo» era uma negação dupla (segunda ronda,
         # perfil 15): o sinal diz-se pela palavra, e o número vai sem ele.
         ("Fecha a" + no_filtro,
          pct_pt(abs(desconto[0])) if desconto else None,
-         "%s do preço base (média), em %s contratos"
-         % ("abaixo" if desconto[0] >= 0 else "acima", mil_pt(desconto[1]))
+         "%s do preço base (média), em %s"
+         % ("abaixo" if desconto[0] >= 0 else "acima", plural(desconto[1], "contrato"))
          if desconto else ("sem BASE" if not ha_corpus()
                            else "nenhum contrato tem os dois preços")),
         ("Connosco", mil_pt(propostas) if propostas else None,
@@ -29011,8 +29019,10 @@ def entidade(chave):
 
     ligacoes = []
     if compra["k"]:
-        ligacoes.append("<a href='%s'>ver os %s contratos que adjudicou</a>"
-                        % (para_lista("entid"), mil_pt(compra["k"])))
+        ligacoes.append("<a href='%s'>%s</a>"
+                        % (para_lista("entid"),
+                           "ver o contrato que adjudicou" if compra["k"] == 1 else
+                           "ver os %s contratos que adjudicou" % mil_pt(compra["k"])))
         # "o que desta entidade esta a acabar" e a pergunta comercial da
         # ficha (atalho da §5 do ESQUELETO): o modo fim com a mesma chave
         ligacoes.append("<a href='%s&amp;ver=fim&amp;meses=%d'>o que está a "
@@ -29020,8 +29030,10 @@ def entidade(chave):
                         % (html.escape(para_lista("entid"), quote=True),
                            MESES_A_ACABAR, MESES_A_ACABAR))
     if ganha["k"]:
-        ligacoes.append("<a href='%s'>ver os %s que ganhou</a>"
-                        % (para_lista("vencid"), mil_pt(ganha["k"])))
+        ligacoes.append("<a href='%s'>%s</a>"
+                        % (para_lista("vencid"),
+                           "ver o que ganhou" if ganha["k"] == 1 else
+                           "ver os %s que ganhou" % mil_pt(ganha["k"])))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
 
     seguir_cx = _seguir_cx(chave)
@@ -31919,10 +31931,10 @@ def mercado_cx(a, chave, r=None):
                  "escolher o histórico que interessa. A entidade tem %s "
                  "contratos no Portal BASE." % mil_pt(ao_todo))
     elif not linhas:
-        aviso = ("Esta entidade tem %s contratos no Portal BASE, mas <b>nenhum "
+        aviso = ("Esta entidade tem %s no Portal BASE, mas <b>nenhum "
                  "no CPV %s</b> &mdash; é a primeira vez que compra isto, "
                  "pelo menos nos anos importados."
-                 % (mil_pt(ao_todo), html.escape(a["cpv"])))
+                 % (plural(ao_todo, "contrato"), html.escape(a["cpv"])))
     else:
         aviso = ""
 
@@ -33861,8 +33873,9 @@ def contactos_cx(a):
             # concursos da entidade, e não só neste
             # «não deste concurso» lia-se como um erro (E59): são os
             # contactos da ENTIDADE, e servem todos os concursos dela
-            meta=("Contactos de %s: servem todos os concursos dela"
-                  % html.escape(a["entidade"] or "esta entidade"))
+            # com o artigo e o «dela» no sítio (6.ª ronda, perfil 15)
+            meta=("Os contactos são da entidade (%s) e servem todos os "
+                  "concursos dela." % html.escape(a["entidade"] or "esta entidade"))
             if a["ref"] else "",
             id_="contactos")
 
@@ -35847,8 +35860,10 @@ def frase_do_ganho(linhas):
                   ("proposto", "com o proposto", "com o proposto"),
                   ("base", "com o preço base", "com o preço base"))
               if conta.get(k)]
+    # sem ganhas, a lista vinha vazia e a frase acabava em «): .» (6.ª
+    # ronda, perfil 10): aí acaba no parêntese
     return ("soma o adjudicado quando há, senão o proposto (e o preço "
-            "base, sem os dois): %s" % ", ".join(partes))
+            "base, sem os dois)" + (": %s" % ", ".join(partes) if partes else ""))
 
 
 def ganho_no_periodo(janela=None):
@@ -36389,12 +36404,12 @@ def ranhuras_cx_html(por_estado):
     barras = "".join(
         "<div class='col'><span class='v'>%d</span>"
         "<a class='b' href='%s?estado=%s' style='height:%d%%;"
-        "background:%s' title='ver as %d' aria-label='%s: ver as %d'></a>"
+        "background:%s' title='%s' aria-label='%s: %s'></a>"
         "<span class='l'>%s</span></div>"
         % (por_estado[ch], PROPOSTAS, ch,
            int(88.0 * por_estado[ch] / maior) + 6,
-           cor.get(ch, "var(--brand)"), por_estado[ch],
-           html.escape(rotulo, quote=True), por_estado[ch],
+           cor.get(ch, "var(--brand)"), ver_as(por_estado[ch]),
+           html.escape(rotulo, quote=True), ver_as(por_estado[ch]),
            html.escape(rotulo))
         for ch, rotulo in ESTADOS_DA_EMPRESA)
     return ("<div class='mg-card' style='padding:22px 24px'>"
@@ -40072,8 +40087,10 @@ def inicio():
         # Nem um botão «ver os 0 por decidir», que levava a uma lista
         # vazia: com nada aberto no perfil diz-se isso (6.ª ronda, 5/10/2026)
         if por_ver:
-            seguir = ("<a class='mg-btn mg-btn--primary' href='%s'>ver os %s "
-                      "por decidir</a> " % (LISTA + "?estado=porver", mil_pt(por_ver)))
+            seguir = ("<a class='mg-btn mg-btn--primary' href='%s'>%s</a> "
+                      % (LISTA + "?estado=porver",
+                         "ver o que está por decidir" if por_ver == 1 else
+                         "ver os %s por decidir" % mil_pt(por_ver)))
         else:
             seguir = ("Hoje não há concursos abertos dentro do perfil da "
                       "empresa. <a class='mg-btn mg-btn--primary' href='%s'>"

@@ -153,6 +153,16 @@ class TestContagemDeDias(unittest.TestCase):
 
     def test_plural(self):
         self.assertEqual(radar.conta_dias(5), "5 dias")
+        # 6.ª ronda (perfil 15): «1 contratos», «ver as 1»
+        self.assertEqual(radar.plural(1, "contrato"), "1 contrato")
+        self.assertEqual(radar.plural(2, "contrato"), "2 contratos")
+        self.assertEqual(radar.ver_as(1), "ver a proposta")
+        self.assertEqual(radar.ver_as(3), "ver as 3")
+        fonte = inspect.getsource(radar)
+        for frase in ("ver os %s contratos que adjudicou</a>",
+                      "ver os %s que ganhou</a>", "title='ver as %d'",
+                      "Esta entidade tem %s contratos"):
+            self.assertNotIn(frase, fonte, frase)
 
     def test_hoje_e_urgente_nao_folgado(self):
         from datetime import date
@@ -12676,7 +12686,8 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
                                      (datetime.date.today()
                                       + datetime.timedelta(days=20)).isoformat()))
         corpo = self.cliente.get("/").get_data(as_text=True)
-        self.assertIn("ver os 1 por decidir", corpo)
+        self.assertIn("ver o que está por decidir", corpo)
+        self.assertNotIn("ver os 1 por decidir", corpo)
 
     def test_a_mensagem_da_verificacao_nao_leva_entidades_html(self):
         """A `ultima_mensagem` é uma marca na base, e quem a mostra
@@ -23694,6 +23705,11 @@ class TestLotePCBHojeEPropostas(BaseTemporaria):
         self.assertEqual(radar.frase_do_ganho(linhas),
                          "soma o adjudicado quando há, senão o proposto (e o preço "
                          "base, sem os dois): 1 com o adjudicado, 6 com o proposto")
+        # sem ganhas acabava em «): .» (6.ª ronda, perfil 10)
+        self.assertTrue(radar.frase_do_ganho([]).endswith("sem os dois)"))
+        # e os contactos com o artigo e o «dela» no sítio (perfil 15)
+        self.assertIn("Os contactos são da entidade (%s) e servem todos os ",
+                      inspect.getsource(radar))
 
     def test_e35_adiar_todas_so_com_atrasadas_por_fazer(self):
         ontem = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
