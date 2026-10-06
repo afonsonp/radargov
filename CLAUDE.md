@@ -267,7 +267,8 @@ hooks e nos testes (ver «Comandos», em cima).
 
 O painel atende só em `127.0.0.1`, e **desde 8/09/2026 tem login**
 (etapa 1 do `docs/historico/ONLINE.md`), com **três níveis** desde 23/09/2026 (o dono da plataforma, o admin e o tester de cada empresa; eram dois papéis desde
-13/09/2026). **No ecrã o admin é «gestor» e o tester «utilizador»** desde
+13/09/2026). **No ecrã o admin é «gestor» e o tester «membro»** (era «utilizador» até
+6/10/2026, quando a Conta usava a palavra também para o nome de entrada) desde
 29/09/2026 (D7 da 3.ª ronda, `PAPEL_NO_ECRA`); na base e no código ficam
 `admin` e `tester`.
 

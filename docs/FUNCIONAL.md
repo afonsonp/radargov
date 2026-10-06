@@ -207,6 +207,8 @@ comparadas antes de apagar.
 | `data_adjudicacao` | 0 | A data da adjudicação (26/09/2026): é por ela que o `/situacao` conta o período |
 | `audiencia_em` | 0 | A data da notificação do relatório preliminar: abre a tarefa da audiência prévia (§3.5) |
 | `valor_adjudicado` | 0 | O que o «Ganho» soma; vazio, o proposto (26/09/2026). A Situação diz quantas ganhas somam cada um, e a tabela das decididas tem a coluna «Conta» |
+| `vencedor` | 0 | Numa perdida, quem ganhou (6/10/2026, decisão dele: só havia o «Os três primeiros», em texto livre) |
+| `preco_vencedor` | 0 | E por quanto; com o proposto, a ficha diz «Perdemos por X %» |
 | `notas` | 0 | **Vazia desde 26/09/2026**: as notas passaram à `notas_da_proposta`, e a coluna fica (largar uma coluna reescreve a tabela) |
 | `lugar`, `top3` | 34 | Em que posição ficámos, e quem ficou à frente |
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
@@ -1633,8 +1635,10 @@ página **dentro do molde** que diz o nome do admin da empresa, a quem
 pedir (`recado_so_do_admin()`, 3.ª ronda, G17). O **tester** trabalha, e
 vê o Perfil da empresa e os Alertas só para ler (os campos desligados e
 a linha «só o gestor o muda»). **No ecrã os papéis chamam-se «gestor» (o admin) e
-«utilizador» (o tester)** desde 29/09/2026 (D7, decisão dele: «as
-expressões admin e tester devem sair»): nos ecrãs, nos e-mails, nos
+«membro» (o tester)** — desde 29/09/2026 (D7, decisão dele: «as
+expressões admin e tester devem sair»), e o tester era «utilizador» até
+6/10/2026, quando se viu que a Conta usava a palavra também para o nome
+de entrada: nos ecrãs, nos e-mails, nos
 convites, nas recusas e nos termos (`PAPEL_NO_ECRA`). Na base e no
 código continuam `admin` e `tester`, e a conta que se chama `admin` é
 um nome de conta. **As duas
@@ -1980,7 +1984,7 @@ mesma rota sem sair da página (§4.3).
 | Criar / ligar / apagar alerta · enviar resumo | Configurações |
 | Criar o alerta a partir do perfil (`/alertas/do-perfil`) | Configurações › Alertas |
 | Dispensar o cartão «Pôr a empresa a trabalhar» | Hoje (admin) |
-| Aceitar um pedido de acesso, com o perfil da empresa nova — ou juntar quem pediu a uma empresa que já existe, como utilizador, dentro do plano dela (desde 5/10/2026) | `/pedidos-de-acesso` (dono) |
+| Aceitar um pedido de acesso, com o perfil da empresa nova — ou juntar quem pediu a uma empresa que já existe, como membro, dentro do plano dela (desde 5/10/2026) | `/pedidos-de-acesso` (dono) |
 | Verificar agora · actualizar contratos | Configurações |
 | Gravar qualquer configuração | Configurações |
 | Criar / apagar utilizador · trocar palavra-passe · sair de todos | Configurações |

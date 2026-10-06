@@ -3535,7 +3535,7 @@ class TestEmailsBonitos(unittest.TestCase):
         _, texto, h = radar.texto_e_html_do_convite(
             "https://x/convite/abc", "Beta", "tester")
         self.assertIn("Olá,", texto)
-        self.assertIn("uma conta de utilizador da Beta", texto)
+        self.assertIn("uma conta de membro da Beta", texto)
         self.assertNotIn("Convidar os colegas", texto + h)
 
 class TestEurosDoTexto(unittest.TestCase):
@@ -7407,6 +7407,22 @@ class TestEscadaNaLista(BaseTemporaria):
         html_ = self.cliente.get(r.headers["Location"]).get_data(as_text=True)
         self.assertIn("Formação", html_)
         self.assertIn("consulta prévia", html_)
+
+    def test_sexta_ronda_a_proposta_sem_anuncio_tem_preco_base(self):
+        """6.ª ronda (perfil 2; decisão dele a 6/10/2026): sem anúncio, a
+        proposta contava 0 € no «Por submeter» e escapava à guarda do art.
+        70.º. A coluna e a gravação existiam; faltava o campo."""
+        r = self.cliente.post("/proposta/nova",
+                              data={"entidade": "IPL", "titulo": "Formação",
+                                    "porque_sem_ref": "consulta prévia"})
+        local = r.headers["Location"].split("?")[0]
+        id_ = int(local.rsplit("/", 1)[1])
+        self.assertIn("name='preco_base'", self.cliente.get(local).get_data(as_text=True))
+        self.cliente.post("/proposta/%d/ficha" % id_, data={"preco_base": "125 000,00"})
+        self.assertEqual(radar.euros_do_texto(radar.proposta(id_)["preco_base"]), 125000.0)
+        # e a guarda do art. 70.º passa a valer: acima da base recusa
+        r = self.cliente.post("/proposta/%d/ficha" % id_, data={"valor_proposta": "130 000,00"})
+        self.assertIn("tom=erro", r.headers["Location"])
 
     def test_uma_proposta_sem_cliente_nem_titulo_recusa_se(self):
         """Uma linha sem nenhum dos dois não se encontra depois."""
@@ -11492,6 +11508,21 @@ class TestSegundaRondaAProposta(_CicloDoTesteComUtilizadores):
         return self.cliente.post("/escada/60%2F2026",
                                  data=dict(campos, estado=estado),
                                  headers=self.VOLTA)
+
+    def test_sexta_ronda_a_perdida_diz_quem_ganhou_e_por_quanto(self):
+        """6.ª ronda (perfil 2; decisão dele a 6/10/2026): numa perdida só
+        havia o «Os três primeiros», em texto livre."""
+        id_ = self._proposta()
+        self.mover("perdido", valor_proposta="100 000,00", motivo="Preço")
+        self.cliente.post("/proposta/%d/ficha" % id_, headers=self.VOLTA,
+                          data={"vencedor": "Concorrente, Lda.",
+                                "preco_vencedor": "90 000,00"})
+        p = radar.proposta(id_)
+        self.assertEqual(p["vencedor"], "Concorrente, Lda.")
+        self.assertEqual(radar.euros_do_texto(p["preco_vencedor"]), 90000.0)
+        h = self.cliente.get("/anuncio/60%2F2026").get_data(as_text=True)
+        self.assertIn("name='vencedor'", h)
+        self.assertIn("Perdemos por 11,1", h)
 
     def test_e12_um_preco_que_nao_se_le_diz_se_e_nao_falta(self):
         self._proposta()
@@ -23041,7 +23072,7 @@ class TestASaudeEOQueHaParaTratar(_PlataformaComDuasEmpresas):
             self.assertIn("<b>%s</b>" % semaforo, corpo, semaforo)
         self.assertIn("A tratar hoje", corpo)
         self.assertIn("1 pedido de acesso por decidir", corpo)
-        self.assertIn("Convite de utilizador para novo@alfa.pt (Alfa) acaba a", corpo)
+        self.assertIn("Convite de membro para novo@alfa.pt (Alfa) acaba a", corpo)
         self.assertIn("Beta: ninguém entrou desde que chegou", corpo)
         self.assertIn("1 erro por ver nas últimas 24 horas", corpo)
         # a Alfa também não tem entradas, mas chegou hoje: não é um
@@ -26502,7 +26533,7 @@ class TestTerceiraRondaCoerenciaDeDesenhoETexto(_CicloDoTesteComUtilizadores):
 
     def test_g97_a_ajuda_explica_o_lote_os_papeis_e_o_dispensar(self):
         h = self.cliente.get("/ajuda").get_data(as_text=True)
-        for termo in ("lote", "gestor-e-utilizador", "por-a-empresa-a-trabalhar"):
+        for termo in ("lote", "gestor-e-membro", "por-a-empresa-a-trabalhar"):
             self.assertIn("<dt id='%s'>" % termo, h)
 
 

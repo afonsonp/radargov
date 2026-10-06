@@ -631,7 +631,10 @@ def exigidos_da_ranhura(estado):
 
 # As colunas do desfecho (D3 e D10 da segunda ronda, 26/09/2026): datas
 # em ISO, o valor no formato do preço («118.500,00 EUR»).
-COLUNAS_DO_DESFECHO = ("data_adjudicacao", "audiencia_em", "valor_adjudicado")
+# E quem ganhou, e por quanto, numa perdida (6.ª ronda, decisão dele a
+# 6/10/2026): só havia o «Os três primeiros», em texto livre.
+COLUNAS_DO_DESFECHO = ("data_adjudicacao", "audiencia_em", "valor_adjudicado",
+                       "vencedor", "preco_vencedor")
 
 # O que a ranhura PEDE no gesto de a escolher sem o EXIGIR: opcional mas
 # sugerido (decisão dele). A data da adjudicação é a do período da
@@ -10657,8 +10660,9 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "ebitda", "lugar", "top3", "cv", "proposta_tecnica",
                        "notas", "criada_em", "fechada_em",
                        "data_adjudicacao", "audiencia_em", "valor_adjudicado",
-                       "documentos_prontos", "prazo_entrega")
-COLUNAS_DA_TAREFA = ("id", "proposta_id", "ref", "o_que", "quando", "quem",
+                       "documentos_prontos", "prazo_entrega",
+                       "vencedor", "preco_vencedor")
+COLUNAS_DA_TAREFA =("id", "proposta_id", "ref", "o_que", "quando", "quem",
                      "feita_em", "origem", "criada_em", "documento_id")
 COLUNAS_DA_NOTA = ("id", "proposta_id", "texto", "quem", "quando")
 COLUNAS_DO_DOCUMENTO = ("id", "tipo", "descricao", "validade", "criado_em")
@@ -21807,6 +21811,7 @@ _NOMES_ACCAO = {"análise": "leitura",
                 "valor_proposta": "preço proposto", "preco_base": "preço base",
                 "lugar": "lugar", "top3": "os três primeiros", "coe": "unidade de negócio",
                 "documentos_prontos": "documentos prontos",
+                "vencedor": "quem ganhou", "preco_vencedor": "preço vencedor",
                 "notas": "notas", "responsavel": "responsável",
                 "tipologia": "tipologia", "cv": "CV",
                 "proposta_tecnica": "proposta técnica", "motivo": "motivo",
@@ -26614,7 +26619,9 @@ def config_documento_apagar(id_):
 # Os papéis como o ecrã os diz (segunda ronda, glossário do revisor de
 # texto): «admin» e «tester» são as chaves gravadas, em inglês, e o
 # «tester» nem dizia o que a conta faz.
-PAPEL_NO_ECRA = {"admin": "Gestor", "tester": "Utilizador"}
+# «Membro» e não «Utilizador» (6.ª ronda, decisão dele a 6/10/2026): na
+# Conta, «Utilizador» era também o nome com que se entra
+PAPEL_NO_ECRA = {"admin": "Gestor", "tester": "Membro"}
 
 
 def papel_no_ecra(papel):
@@ -26675,7 +26682,7 @@ def _bloco_utilizadores(todos, eu):
         "</span></span><input type='email' name='email' autocomplete='off' "
         "placeholder='nome@empresa.pt'></label>"
         "<label class='conf-campo'><span>Papel</span><select name='papel'>"
-        "<option value='tester'>Utilizador</option>"
+        "<option value='tester'>Membro</option>"
         "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
         # O segundo caminho recolhido (UX-7-LEIS, H2 e V2, 30/09/2026):
@@ -26687,7 +26694,7 @@ def _bloco_utilizadores(todos, eu):
         "class='conf-form' style='margin-top:8px'>"
         "%s%s"
         "<label class='conf-campo'><span>Papel</span><select name='papel'>"
-        "<option value='tester'>Utilizador</option>"
+        "<option value='tester'>Membro</option>"
         "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button>"
         "</form></details>"
@@ -26808,10 +26815,10 @@ GLOSSARIO = (
          "mesmo anúncio pode ter vários, cada um com o seu preço base. A "
          "empresa concorre a um, a alguns ou a todos, e cada lote a que "
          "concorre é uma proposta."),
-        ("Gestor e utilizador", "Os dois tipos de conta de uma empresa. O "
-         "gestor faz o mesmo que o utilizador e, além disso, muda o Perfil "
+        ("Gestor e membro", "Os dois tipos de conta de uma empresa. O "
+         "gestor faz o mesmo que o membro e, além disso, muda o Perfil "
          "da empresa, os documentos e as contas da equipa (convida, tira, "
-         "gera a ligação de repor a palavra-passe). O utilizador trabalha "
+         "gera a ligação de repor a palavra-passe). O membro trabalha "
          "os concursos e as propostas."),
         ("Pôr a empresa a trabalhar", "O cartão do Hoje com os primeiros "
          "passos, que o gestor vê enquanto faltam. «Dispensar» tira-o para "
@@ -26955,7 +26962,7 @@ def conta_convidar():
     nem no historico: e ela que da entrada, e na base fica so o resumo."""
     papel = (request.form.get("papel") or "tester").strip()
     if papel not in contas.PAPEIS:
-        return volta_config_erro("conta", "O papel tem de ser Gestor ou Utilizador.")
+        return volta_config_erro("conta", "O papel tem de ser Gestor ou Membro.")
     email = (request.form.get("email") or "").strip()
     if email and not RX_EMAIL.fullmatch(email):
         return volta_config_erro("conta", "«%s» não é um e-mail." % corta(email, 60))
@@ -34065,6 +34072,13 @@ def _campos_que_a_ranhura_pede(p):
         pecas.insert(0, data(
             "prazo_entrega", "Prazo de entrega",
             "Dá o passo «até …» e a tarefa «entregar a proposta»"))
+        # E o preço base (6.ª ronda, decisão dele a 6/10/2026): sem anúncio
+        # contava 0 € no «Por submeter» e escapava à guarda do art. 70.º --
+        # a coluna e a gravação já existiam, faltava o campo
+        pecas.insert(1,
+            "<label>Preço base<input type='text' name='preco_base' value='%s' "
+            "inputmode='decimal' placeholder='ex. 125 000,00'></label>"
+            % html.escape(preco_do_campo(p["preco_base"]), quote=True))
     if estado in ("relatorio", "ganho", "perdido") or _valor(p, "audiencia_em"):
         pecas.append(data(
             "audiencia_em", "Notificação do relatório preliminar",
@@ -34082,6 +34096,24 @@ def _campos_que_a_ranhura_pede(p):
             "<label>Valor adjudicado<input type='text' name='valor_adjudicado' "
             "value='%s' inputmode='decimal' placeholder='vazio: o proposto'></label>"
             % html.escape(preco_do_campo(_valor(p, "valor_adjudicado")), quote=True))
+    # Quem ganhou e por quanto, numa perdida (6.ª ronda): e, com os dois
+    # preços, por quanto se perdeu
+    if estado == "perdido" or _valor(p, "vencedor") or _valor(p, "preco_vencedor"):
+        pecas.append(
+            "<label>Quem ganhou<input type='text' name='vencedor' maxlength='160' "
+            "value='%s' placeholder='a empresa que ficou com o contrato'></label>"
+            % html.escape(_valor(p, "vencedor") or "", quote=True))
+        pecas.append(
+            "<label>Preço vencedor<input type='text' name='preco_vencedor' "
+            "value='%s' inputmode='decimal' placeholder='ex. 98 000,00'></label>"
+            % html.escape(preco_do_campo(_valor(p, "preco_vencedor")), quote=True))
+        nosso = euros_do_texto(p["valor_proposta"] or "")
+        deles = euros_do_texto(_valor(p, "preco_vencedor") or "")
+        if nosso and deles and nosso > deles:
+            pecas.append("<p class='nota largo'>Perdemos por %s: a nossa "
+                         "proposta ficou %s acima da vencedora.</p>"
+                         % (pct_pt((nosso - deles) / deles, 1),
+                            html.escape(euros(nosso - deles))))
     permitidos = MOTIVOS_DO_ESTADO.get(estado)
     if permitidos:
         pecas.append(
@@ -34351,7 +34383,10 @@ def _desfecho_do_pedido(form, vazio_apaga=True):
             if vazio_apaga:
                 campos[nome] = None
             continue
-        if nome == "valor_adjudicado":
+        if nome == "vencedor":
+            campos[nome] = texto_de_campo(bruto, 160) or None
+            continue
+        if nome in ("valor_adjudicado", "preco_vencedor"):
             valor = preco_escrito(bruto)
             if not valor:
                 return {}, ("«%s» não se lê como preço. Escreva-o assim: "
@@ -34435,6 +34470,15 @@ def proposta_da_ficha(id_):
             return recusa("«%s» não é uma data (dd/mm/aaaa)." % corta(bruto, 20))
         campos.append("prazo_entrega")
         valores.append(prazo)
+    # E o preço base, também só sem anúncio (6.ª ronda): com anúncio é o do
+    # DR. Passa pela guarda do art. 70.º do gravar_campos_da_proposta()
+    if "preco_base" in request.form and not p["ref"]:
+        bruto = (request.form.get("preco_base") or "").strip()
+        base = preco_escrito(bruto)
+        if bruto and not base:
+            return recusa("«%s» não é um preço." % corta(bruto, 20))
+        campos.append("preco_base")
+        valores.append(base or None)
     # As listas da empresa mandam quando existem; o valor que a proposta
     # já tinha continua a valer (a lista pode ter mudado depois). Sem
     # lista, o ecrã não mostra o campo e aceita-se o texto, como antes.
@@ -38360,7 +38404,7 @@ def _escolha_da_empresa(p):
             "<label><input type='radio' name='destino' value='nova'%s> uma "
             "empresa nova, com o perfil e o plano de baixo</label><br>"
             "<label><input type='radio' name='destino' value='juntar'%s> juntar "
-            "a uma empresa que já existe, como utilizador:</label> "
+            "a uma empresa que já existe, como membro:</label> "
             "<select class='mg-field__input' name='empresa_id' "
             "aria-label='A empresa'>%s</select></fieldset>"
             % ("" if juntar else " checked", " checked" if juntar else "",
