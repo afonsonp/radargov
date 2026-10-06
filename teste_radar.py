@@ -12465,7 +12465,8 @@ class TestIconesNaFicha(BaseTemporaria):
 
 class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
     """O índice da ficha prometia seis destinos e a página tinha oito
-    blocos com âncora (fase 5, 16/09/2026).
+    blocos com âncora (fase 5, 16/09/2026). **O índice saiu a 6/10/2026**
+    (front end novo); ficam as âncoras, que as ligações de fora usam.
 
     Faltavam o **`#proposta`** — que é onde vive o trabalho da empresa, o
     bloco mais importante da ficha — e o `#contactos`. Um índice que
@@ -12493,15 +12494,11 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
         self.assertEqual(r.status_code, 200)
         return r.get_data(as_text=True)
 
-    def test_toda_a_ancora_da_pagina_esta_no_indice(self):
+    def test_a_ficha_ja_nao_tem_indice_mas_os_blocos_tem_ancora(self):
         corpo = self._ficha()
-        indice = corpo.split("class='ficha-indice'")[1].split("</nav>")[0]
-        for bloco in self.BLOCOS:
-            if "id='%s'" % bloco not in corpo:
-                continue                      # esse bloco não está nesta ficha
-            self.assertIn("href='#%s'" % bloco, indice,
-                          "o bloco «%s» existe na página e não no índice"
-                          % bloco)
+        self.assertNotIn("ficha-indice", corpo)
+        for bloco in ("proposta", "pecas", "contactos", "historico"):
+            self.assertIn("id='%s'" % bloco, corpo, bloco)
 
     def test_um_anuncio_sem_url_nao_derruba_a_ficha(self):
         """Apanhado por este teste, a 16/09/2026: o `html.escape(None)`
@@ -12514,23 +12511,6 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
         corpo = self._ficha()          # o fixture não põe `url`
         self.assertIn("id='proposta'", corpo)
         self.assertNotIn(">Ver no DR<", corpo)
-
-    def test_o_bloco_da_proposta_esta_no_indice(self):
-        """O que se perdeu antes, nomeado: é o bloco onde ele trabalha."""
-        corpo = self._ficha()
-        self.assertIn("id='proposta'", corpo)
-        self.assertIn("href='#proposta'", corpo)
-
-    def test_o_indice_nao_promete_um_bloco_que_nao_existe(self):
-        """A recíproca, que já estava certa e tem de continuar: o
-        «Desfecho» e os «Lotes» só entram quando há bloco. Um chip que
-        salta para um bloco que não existe é a mesma mentira ao
-        contrário."""
-        corpo = self._ficha()
-        indice = corpo.split("class='ficha-indice'")[1].split("</nav>")[0]
-        for bloco in self.BLOCOS:
-            if "href='#%s'" % bloco in indice:
-                self.assertIn("id='%s'" % bloco, corpo, bloco)
 
 
 class TestBlocoComPorque(unittest.TestCase):
@@ -13867,7 +13847,6 @@ class TestDesfechoNaFicha(BaseTemporaria):
         for a, tem in ((recente, False), (velho, True)):
             pagina = cliente.get("/anuncio/%s" % a["ref"].replace("/", "%2F"))
             saiu = pagina.data.decode("utf-8")
-            self.assertEqual("href='#desfecho'" in saiu, tem, a["ref"])
             self.assertEqual("id='desfecho'" in saiu, tem, a["ref"])
 
     def test_um_contrato_nao_desenha_a_tabela_dos_lotes(self):
@@ -15491,7 +15470,6 @@ class TestLotesNaEscadaENaFicha(BaseTemporaria):
     def test_a_ficha_tem_o_bloco_e_o_indice(self):
         html_ = self.cliente.get("/anuncio/1947%2F2026").get_data(as_text=True)
         self.assertIn("id='lotes'", html_)
-        self.assertIn("<a href='#lotes'>Lotes</a>", html_)
         bloco = html_.split("id='lotes'")[1].split("</table>")[0]
         self.assertIn("Fomos a todos os 3 lotes", bloco)
         self.assertIn("436\u00a0262,40\u00a0€", bloco)   # preco_pt()
@@ -16037,10 +16015,6 @@ class TestEcraEstreito(unittest.TestCase):
         # `.mg-tabs` do sistema, que rola na nossa folha)
         for regra in (".escada{flex-wrap:wrap}", ".barras .col{min-width:0}"):
             self.assertIn(regra, b, regra)
-        # o indice da ficha sao pilulas desde 24/09/2026: dobram, e por
-        # isso nao ha nada a rolar de lado
-        self.assertIn(".ficha-indice ul{display:flex;flex-wrap:wrap",
-                      radar.ler_estilo("miragov-radar.css"))
         # o viewport esta declarado, senao o browser do telemovel finge 980px
         # o `viewport-fit=cover` desde a barra de baixo (D9, 26/09/2026):
         # sem ele o `env(safe-area-inset-bottom)` do iPhone vale zero
@@ -25140,8 +25114,10 @@ class TestTerceiraRondaNumerosHojeEEscada(_CicloDoTesteComUtilizadores):
         topo = ficha[ficha.index("pagehead-etiquetas"):]
         self.assertNotIn("Faltam", topo[:topo.index("</div>")])
         self.assertIn(">Ganha<", topo[:topo.index("</div>")])
-        prazo = ficha[ficha.index("id='prazo'"):]
-        self.assertNotIn("Prazo em", prazo[:prazo.index("</section>")])
+        # sem alterações não há cartão do prazo desde 6/10/2026; o que
+        # importa é que nada na ficha conte dias a uma decidida
+        self.assertNotIn("id='prazo'", ficha)
+        self.assertNotIn("Prazo em", ficha)
         lista = self.cliente.get("/propostas?estado=ganho").get_data(as_text=True)
         self.assertIn("<th>Desfecho</th>", lista)
         self.assertIn("118\xa0500\xa0€", lista)
@@ -27982,13 +27958,15 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         self.assertIn(".tab-lista td.falta{color:var(--ink);", self._folha())
 
     def test_v3_o_cartao_do_prazo_nao_repete_a_etiqueta(self):
+        """V3, e desde 6/10/2026 (front end novo) mais: sem alterações
+        o cartão do prazo não existe -- a data está por baixo do título e
+        os dias na etiqueta. E a célula dos factos já não os repete."""
         daqui_a_5 = (datetime.date.today() + datetime.timedelta(days=5)).isoformat()
         with radar.liga() as c:
             c.execute("UPDATE anuncios SET prazo=? WHERE ref='60/2026'", (daqui_a_5,))
         h = self._marcacao(self._ficha())
-        prazo = h.split("id='prazo'", 1)[1].split("id='", 1)[0]
-        self.assertIn("ficha-prazo", prazo)
-        self.assertNotIn("mg-tag", prazo)
+        self.assertNotIn("id='prazo'", h)
+        self.assertEqual(h.count("Faltam 5 dias"), 1)
         self.assertIn("<div class='mg-alert mg-alert--info'><div class='mg-alert__body'>"
                       "<div class='mg-alert__title'>Falta decidir.", h)
 

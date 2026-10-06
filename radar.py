@@ -30385,6 +30385,9 @@ def passos_da_escada(a, minhas):
                     and not RANHURAS_IMPLICADAS.get(estado)):
                 estado_passo = "todo"
             nota = ""
+        # a data de entrega no passo «Submetida»: na ficha do anúncio a
+        # nota esconde-se (a data está por baixo do título), mas na da
+        # proposta sem anúncio é o único sítio que a diz (E6)
         if i == 2 and not nota and a["prazo"] and i >= actual:
             nota = "até %s" % data_pt(a["prazo"])[:5]
         itens.append(
@@ -31096,9 +31099,11 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
     else:
         esclarec = ("Esclarecimentos até", no_programa, "", True)
     if a["prazo"]:
-        nota = quanto_falta(a["prazo"], "expirou").capitalize()
-        if prorrogacoes:
-            nota += " · prorrogado %s" % plural(prorrogacoes, "vez", "vezes")
+        # os dias que faltam já estão na etiqueta do topo (front end
+        # novo, 6/10/2026: a ficha dizia-os três vezes); aqui só a
+        # prorrogação, que a etiqueta não diz
+        nota = ("Prorrogado %s" % plural(prorrogacoes, "vez", "vezes")
+                if prorrogacoes else "")
         propostas = ("Propostas até", data_pt(a["prazo"]), nota, False)
     else:
         propostas = ("Propostas até", "o anúncio não indica", "", True)
@@ -31441,10 +31446,9 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
 
     # Quem leu: o nome do modelo é para o dono; a um cliente diz-se só que
     # foi lido automaticamente (teste com utilizadores, 25/09/2026).
-    meta = ("Leitura automática %sde %s. Pode falhar por omissão: «não "
-            "encontrado» quer dizer que não estava nas páginas lidas. Cada "
-            "linha diz a página de onde veio; «confirmar» marca um número que "
-            "não está nas páginas lidas."
+    # De onde vem fica à vista; como se lê vai para o «?» (front end novo,
+    # 6/10/2026: o parágrafo inteiro empurrava a tabela para baixo)
+    meta = ("Leitura automática %sde %s."
             % (("(%s) " % html.escape(analise["modelo"] or "")) if sou_dono() else "",
                html.escape(fontes_pelo_papel(analise["fontes"]) or "peças do procedimento")))
     quando = data_pt((_valor(analise, "quando") or "")[:10], "")
@@ -31465,7 +31469,10 @@ def pecas_pedem_cx(a, seccoes, analise=None, origem="", sem_leitura=""):
             "Estas peças não entraram na leitura: abrem-se em «Peças».</span>"))
     return cartao(
         titulo, "".join(linhas), meta=meta, id_="pecas-pedem",
-        accoes="<span class='mg-tag mg-tag--warning'>Rascunho: confirmar nas peças</span>")
+        accoes="<span class='mg-tag mg-tag--warning'>Rascunho: confirmar nas peças</span>",
+        porque="Pode falhar por omissão: «não encontrado» quer dizer que não "
+               "estava nas páginas lidas. Cada linha diz a página de onde veio; "
+               "«confirmar» marca um número que não está nas páginas lidas.")
 
 
 def pecas_nao_lidas(ref, fontes):
@@ -32887,8 +32894,10 @@ def ficha(ref):
                "da data de esclarecimentos e quando o prazo ou o preço "
                "base mudam.")
 
-    # --- o prazo, num cartao proprio no topo da coluna da direita
-    prazo_cx = prazo_da_ficha(a, cadeia, decidida=decidida)
+    # --- o prazo: o cartão próprio só quando tem história para contar
+    # (front end novo, 6/10/2026). Sem alterações repetia o que o topo já
+    # diz -- a data por baixo do título e os dias na etiqueta.
+    prazo_cx = prazo_da_ficha(a, cadeia, decidida=decidida) if cadeia else ""
 
     # O responsavel e da proposta; com lotes, todos os cartoes do mesmo
     # procedimento tem o mesmo, e por isso basta ler o primeiro.
@@ -32956,30 +32965,15 @@ def ficha(ref):
                        ) + linhas_hist
     hist_cx = cartao("Histórico", linhas_hist, id_="historico")
 
-    # O indice (em pilulas, como o `EcraFicha`) tem de cobrir a pagina:
-    # ate 16/09/2026 prometia seis destinos e a pagina tinha oito blocos
-    # com ancora. Um indice que salta por cima de um bloco e a mesma
-    # mentira de um numero que abre outra lista.
-    # Pela ordem da página (28/09/2026): a coluna principal e depois a da
-    # direita.
-    entradas = [("decidir", "Factos do anúncio")]
-    if lotes_html:
-        entradas.append(("lotes", "Lotes"))
-    if desfecho_html:
-        entradas.append(("desfecho", "Desfecho"))
-    entradas += [("pecas-pedem", "O que as peças pedem"), ("mercado", "Mercado"),
-                 ("pecas", "Peças"), ("anuncio", "Anúncio"), ("prazo", "Prazo")]
-    if not sem_empresa:
-        entradas += [("proposta", "A nossa proposta"),
-                     ("contactos", "Contactos"), ("historico", "Histórico")]
-    indice = ("<nav class='ficha-indice' aria-label='Nesta página'><ul>%s</ul></nav>"
-              % "".join("<li><a href='#%s'>%s</a></li>" % e for e in entradas))
+    # O índice em pílulas saiu a 6/10/2026 (front end novo, as maquetes
+    # que ele aprovou): nove pílulas antes do primeiro facto. Os blocos
+    # mantêm as âncoras, para as ligações de fora (#proposta, #pecas).
 
     # DUAS colunas desde 23/09/2026, como o `EcraFicha`: o anuncio a
     # esquerda (o que se le), o trabalho e o contexto a direita (o que se
     # faz). "a pagina do anuncio e sempre a mesma" (15/09/2026): e aqui
     # que a proposta se trabalha, logo a seguir ao prazo.
-    conteudo = ("<div class='larg'>" + escada_html + indice +
+    conteudo = ("<div class='larg'>"
                 "<div class='ficha-duas'>"
                 "<div class='ficha-principal'>" + faixa_alteracao + decidir_cx +
                 lotes_html + desfecho_html + pedem_cx +
@@ -32991,7 +32985,7 @@ def ficha(ref):
                 # com a proposta deixa de caber e rola com a página (E7)
                 "<div class='ficha-lado%s'>"
                 % (" com-proposta" if minhas and not sem_empresa else "")
-                + prazo_cx +
+                + escada_html + prazo_cx +
                 # o dono sem empresa le o anuncio; a proposta, os
                 # contactos e o historico sao de uma empresa (24/09/2026)
                 ("" if sem_empresa else
@@ -33953,7 +33947,11 @@ def contactos_cx(a):
         for l in linhas) or "<p class='nota'>Ainda não há contactos aqui.</p>"
     return cartao(
             "Contactos",
+            # o formulário recolhido (front end novo, 6/10/2026): quatro
+            # campos vazios abertos em todas as fichas eram ruído
             (("%s"
+            "<details class='ct-mais'><summary class='mg-btn mg-btn--sm "
+            "mg-btn--subtle'>+ Adicionar contacto</summary>"
             "<form class='ct-novo' method='post' action='/contacto/nova'>"
             "<input type='hidden' name='chave' value='%s'>"
             "<input type='hidden' name='entidade' value='%s'>"
@@ -33964,7 +33962,7 @@ def contactos_cx(a):
             + rotulado("Telefone", "<input type='tel' name='telefone' autocomplete='tel' "
                        "maxlength='40'>") +
             "<button class='mg-btn mg-btn--sm mg-btn--secondary' type='submit'>"
-            "Adicionar</button></form>")
+            "Adicionar</button></form></details>")
             % (postos,
                html.escape(chave, quote=True),
                html.escape(a["entidade"] or "", quote=True),

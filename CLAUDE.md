@@ -561,9 +561,11 @@ A ordem do ficheiro é a ordem do fluxo:
    em `/anuncio/<ref>`, em **duas colunas** desde 23/09/2026 (o
    `EcraFicha`: o anúncio à esquerda, a proposta, os contactos e o
    histórico à direita); desde 24/09/2026 abre com o `cabecalho_de_pagina()`
-   em vez da faixa do topo (`envolver(..., cabeca=...)`), a escada em
-   quatro passos (`passos_da_escada()`) e o índice em pílulas, e cada
-   bloco é um `cartao()`. Uma peça abre **dentro
+   em vez da faixa do topo (`envolver(..., cabeca=...)`), e cada
+   bloco é um `cartao()`; desde 6/10/2026 (front end novo) a escada em
+   quatro passos (`passos_da_escada()`) está no topo da coluna da
+   direita, o índice em pílulas saiu e o cartão do prazo só existe
+   quando o prazo tem história (prorrogações, alterações). Uma peça abre **dentro
    da ficha** (`?peca=<nome>`), por baixo da lista das peças; a rota
    própria `/peca/<ref>/<nome>` mantém-se para ligações directas, e as
    duas partilham `visualizador_de_peca()`.
