@@ -153,6 +153,16 @@ class TestContagemDeDias(unittest.TestCase):
 
     def test_plural(self):
         self.assertEqual(radar.conta_dias(5), "5 dias")
+        # 6.ª ronda (perfil 15): «1 contratos», «ver as 1»
+        self.assertEqual(radar.plural(1, "contrato"), "1 contrato")
+        self.assertEqual(radar.plural(2, "contrato"), "2 contratos")
+        self.assertEqual(radar.ver_as(1), "ver a proposta")
+        self.assertEqual(radar.ver_as(3), "ver as 3")
+        fonte = inspect.getsource(radar)
+        for frase in ("ver os %s contratos que adjudicou</a>",
+                      "ver os %s que ganhou</a>", "title='ver as %d'",
+                      "Esta entidade tem %s contratos"):
+            self.assertNotIn(frase, fonte, frase)
 
     def test_hoje_e_urgente_nao_folgado(self):
         from datetime import date
@@ -12676,7 +12686,8 @@ class TestAberturaEOEstadoDoNegocio(BaseTemporaria):
                                      (datetime.date.today()
                                       + datetime.timedelta(days=20)).isoformat()))
         corpo = self.cliente.get("/").get_data(as_text=True)
-        self.assertIn("ver os 1 por decidir", corpo)
+        self.assertIn("ver o que está por decidir", corpo)
+        self.assertNotIn("ver os 1 por decidir", corpo)
 
     def test_a_mensagem_da_verificacao_nao_leva_entidades_html(self):
         """A `ultima_mensagem` é uma marca na base, e quem a mostra
