@@ -1521,3 +1521,8 @@ fieldset:disabled input,fieldset:disabled select,fieldset:disabled textarea{curs
 /* o número dos pedidos por decidir ao lado de «Plataforma» (2R-§7 (3)):
    o selo, que se lê sobre a barra escura nos três temas */
 .barra-emblema{display:inline-block;min-width:1.4em;margin-left:4px;padding:0 5px;border-radius:var(--radius-full);background:var(--seal);color:var(--on-brand);font:600 .75rem/1.5 var(--font-sans);text-align:center}
+/* «Interessa» e «Abandonar» com a mesma largura (6/10/2026, ele): cada um
+   tinha a do seu texto, 117 e 129 px na ficha, e o par lia-se torto. Em
+   `em`, para servir os pequenos da lista e os grandes da ficha. */
+form.accao[action$="/analisar"]>button,form.abandonar-js>button{
+ min-width:9.4em;justify-content:center}
