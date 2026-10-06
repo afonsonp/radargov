@@ -26614,7 +26614,9 @@ def config_documento_apagar(id_):
 # Os papéis como o ecrã os diz (segunda ronda, glossário do revisor de
 # texto): «admin» e «tester» são as chaves gravadas, em inglês, e o
 # «tester» nem dizia o que a conta faz.
-PAPEL_NO_ECRA = {"admin": "Gestor", "tester": "Utilizador"}
+# «Membro» e não «Utilizador» (6.ª ronda, decisão dele a 6/10/2026): na
+# Conta, «Utilizador» era também o nome com que se entra
+PAPEL_NO_ECRA = {"admin": "Gestor", "tester": "Membro"}
 
 
 def papel_no_ecra(papel):
@@ -26675,7 +26677,7 @@ def _bloco_utilizadores(todos, eu):
         "</span></span><input type='email' name='email' autocomplete='off' "
         "placeholder='nome@empresa.pt'></label>"
         "<label class='conf-campo'><span>Papel</span><select name='papel'>"
-        "<option value='tester'>Utilizador</option>"
+        "<option value='tester'>Membro</option>"
         "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
         # O segundo caminho recolhido (UX-7-LEIS, H2 e V2, 30/09/2026):
@@ -26687,7 +26689,7 @@ def _bloco_utilizadores(todos, eu):
         "class='conf-form' style='margin-top:8px'>"
         "%s%s"
         "<label class='conf-campo'><span>Papel</span><select name='papel'>"
-        "<option value='tester'>Utilizador</option>"
+        "<option value='tester'>Membro</option>"
         "<option value='admin'>Gestor</option></select></label>"
         "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button>"
         "</form></details>"
@@ -26808,10 +26810,10 @@ GLOSSARIO = (
          "mesmo anúncio pode ter vários, cada um com o seu preço base. A "
          "empresa concorre a um, a alguns ou a todos, e cada lote a que "
          "concorre é uma proposta."),
-        ("Gestor e utilizador", "Os dois tipos de conta de uma empresa. O "
-         "gestor faz o mesmo que o utilizador e, além disso, muda o Perfil "
+        ("Gestor e membro", "Os dois tipos de conta de uma empresa. O "
+         "gestor faz o mesmo que o membro e, além disso, muda o Perfil "
          "da empresa, os documentos e as contas da equipa (convida, tira, "
-         "gera a ligação de repor a palavra-passe). O utilizador trabalha "
+         "gera a ligação de repor a palavra-passe). O membro trabalha "
          "os concursos e as propostas."),
         ("Pôr a empresa a trabalhar", "O cartão do Hoje com os primeiros "
          "passos, que o gestor vê enquanto faltam. «Dispensar» tira-o para "
@@ -26955,7 +26957,7 @@ def conta_convidar():
     nem no historico: e ela que da entrada, e na base fica so o resumo."""
     papel = (request.form.get("papel") or "tester").strip()
     if papel not in contas.PAPEIS:
-        return volta_config_erro("conta", "O papel tem de ser Gestor ou Utilizador.")
+        return volta_config_erro("conta", "O papel tem de ser Gestor ou Membro.")
     email = (request.form.get("email") or "").strip()
     if email and not RX_EMAIL.fullmatch(email):
         return volta_config_erro("conta", "«%s» não é um e-mail." % corta(email, 60))
@@ -38360,7 +38362,7 @@ def _escolha_da_empresa(p):
             "<label><input type='radio' name='destino' value='nova'%s> uma "
             "empresa nova, com o perfil e o plano de baixo</label><br>"
             "<label><input type='radio' name='destino' value='juntar'%s> juntar "
-            "a uma empresa que já existe, como utilizador:</label> "
+            "a uma empresa que já existe, como membro:</label> "
             "<select class='mg-field__input' name='empresa_id' "
             "aria-label='A empresa'>%s</select></fieldset>"
             % ("" if juntar else " checked", " checked" if juntar else "",

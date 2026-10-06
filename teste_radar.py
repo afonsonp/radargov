@@ -3535,7 +3535,7 @@ class TestEmailsBonitos(unittest.TestCase):
         _, texto, h = radar.texto_e_html_do_convite(
             "https://x/convite/abc", "Beta", "tester")
         self.assertIn("Olá,", texto)
-        self.assertIn("uma conta de utilizador da Beta", texto)
+        self.assertIn("uma conta de membro da Beta", texto)
         self.assertNotIn("Convidar os colegas", texto + h)
 
 class TestEurosDoTexto(unittest.TestCase):
@@ -23041,7 +23041,7 @@ class TestASaudeEOQueHaParaTratar(_PlataformaComDuasEmpresas):
             self.assertIn("<b>%s</b>" % semaforo, corpo, semaforo)
         self.assertIn("A tratar hoje", corpo)
         self.assertIn("1 pedido de acesso por decidir", corpo)
-        self.assertIn("Convite de utilizador para novo@alfa.pt (Alfa) acaba a", corpo)
+        self.assertIn("Convite de membro para novo@alfa.pt (Alfa) acaba a", corpo)
         self.assertIn("Beta: ninguém entrou desde que chegou", corpo)
         self.assertIn("1 erro por ver nas últimas 24 horas", corpo)
         # a Alfa também não tem entradas, mas chegou hoje: não é um
@@ -26502,7 +26502,7 @@ class TestTerceiraRondaCoerenciaDeDesenhoETexto(_CicloDoTesteComUtilizadores):
 
     def test_g97_a_ajuda_explica_o_lote_os_papeis_e_o_dispensar(self):
         h = self.cliente.get("/ajuda").get_data(as_text=True)
-        for termo in ("lote", "gestor-e-utilizador", "por-a-empresa-a-trabalhar"):
+        for termo in ("lote", "gestor-e-membro", "por-a-empresa-a-trabalhar"):
             self.assertIn("<dt id='%s'>" % termo, h)
 
 
