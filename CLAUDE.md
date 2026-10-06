@@ -568,7 +568,9 @@ A ordem do ficheiro é a ordem do fluxo:
    em `/anuncio/<ref>`, em **duas colunas** desde 23/09/2026 (o
    `EcraFicha`: o anúncio à esquerda, a proposta, os contactos e o
    histórico à direita); desde 24/09/2026 abre com o `cabecalho_de_pagina()`
-   em vez da faixa do topo (`envolver(..., cabeca=...)`), e cada
+   em vez da faixa do topo (`envolver(..., cabeca=...)`; desde
+   6/10/2026 o `envolver()` monta esse cabeçalho a todas as páginas que
+   não o passam, e o `TOPO` antigo já não se desenha), e cada
    bloco é um `cartao()`; desde 6/10/2026 (front end novo) a escada em
    quatro passos (`passos_da_escada()`) está no topo da coluna da
    direita, o índice em pílulas saiu e o cartão do prazo só existe

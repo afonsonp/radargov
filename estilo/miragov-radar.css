@@ -1630,3 +1630,7 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
  color:var(--ink-secondary);width:fit-content}
 .como-se-conta>summary:hover{color:var(--link)}
 .como-se-conta>p{margin:var(--space-2) 0 0;max-width:640px}
+
+/* o ultimo passo das migalhas em letra normal, como no cabecalho novo
+   (uniformizar, 6/10/2026): o <em> vinha do topo antigo */
+.mg-crumbs.migalhas em{font-style:normal}

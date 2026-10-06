@@ -19114,6 +19114,25 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                                        icone("verificar") + " Verificar agora"))
             if activo in PAGINAS_COM_VERIFICAR and pode_verificar() else ""),
     }
+    if not cabeca:
+        # Toda a página abre com o cabeçalho do sistema (uniformizar,
+        # 6/10/2026): as que não o traziam montavam o topo antigo, com as
+        # abas numa faixa a toda a largura e o título noutro molde. Aqui
+        # monta-se com o que elas já passam -- as migalhas, o título, o
+        # subtítulo e as acções --, e as abas vão para o corpo, como no
+        # Mercado e na Situação. O `TOPO` fica para quem o pedir.
+        accoes_topo = partes_do_topo["accoes_topo"]
+        cabeca = ("<div class='mg mg-pagehead'>%s<div class='mg-pagehead__row'>"
+                  "<h1 class='mg-pagehead__title'>%s</h1>%s</div>%s</div>"
+                  % ("<div class='mg-crumbs migalhas'>%s</div>" % migalhas
+                     if migalhas else "",
+                     html.escape(titulo),
+                     "<div class='mg-pagehead__actions'>%s</div>" % accoes_topo
+                     if accoes_topo else "",
+                     "<p class='mg-pagehead__sub'>%s%s</p>"
+                     % (subtitulo, mais_na_ajuda(titulo))
+                     if subtitulo.strip() else ""))
+        conteudo = abas + conteudo
     return com_csrf(BASE % {
         "topo": "" if cabeca else TOPO % partes_do_topo,
         # «Ecrã — Mira Gov» em todas (segunda ronda, perfil 15): havia
@@ -23903,11 +23922,13 @@ def pagina_config(seccao, conteudo, script=""):
     embrulho = "<div class='mg-card conf-cx'>"
     if conteudo.startswith(embrulho) and conteudo.endswith("</div>") \
             and conteudo.count(embrulho) == 1:
+        # sem a faixa azul desde 6/10/2026 (uniformizar, como o «Para
+        # fazer» do Hoje): a cor é para o que pede acção
         seccao_html = cartao(html.escape(titulo), conteudo[len(embrulho):-6],
-                             meta=html.escape(descricao), banda=True)
+                             meta=html.escape(descricao))
     else:
-        seccao_html = (cartao(html.escape(titulo), "", meta=html.escape(descricao),
-                              banda=True) + conteudo)
+        seccao_html = (cartao(html.escape(titulo), "", meta=html.escape(descricao))
+                       + conteudo)
     corpo = ("<div class='conf'>%s<div class='conf-corpo'>%s</div></div>"
              % (indice, seccao_html))
     if da_plataforma:
