@@ -504,7 +504,11 @@ A ordem do ficheiro é a ordem do fluxo:
    disto, são as contas da empresa que o «quem» e o responsável
    escolhem (`contas_da_empresa()`, `pessoa_de()`, `conta_escolhida()`:
    gravam-se pela chave da conta desde a D4 da 3.ª ronda) e o
-   `quem_sou()`, que lê da porta. **A barra tem seis itens e a Ajuda desde 26/09/2026**
+   `quem_sou()`, que lê da porta. **A barra tem cinco itens e a Ajuda
+   desde 6/10/2026**: o **Calendário saiu** (decisão dele, no front end
+   novo) e é a terceira vista das Propostas, ao lado das Fases e da
+   Tabela (`_vistas_das_propostas()`; acende «Propostas» pelo
+   `ITEM_DA_PAGINA`). Eram seis desde 26/09/2026
    (D11 da segunda ronda, decisão dele: a **Situação**, `/situacao`,
    entrou a seguir às Propostas, e a Ajuda saiu do menu da conta para
    um «?» com o nome «Ajuda», depois das Configurações; as Entidades
@@ -538,7 +542,8 @@ A ordem do ficheiro é a ordem do fluxo:
    **Configurações** e quem está — **menos no telemóvel**: abaixo de
    600 px a navegação vai para uma barra fixa em baixo
    (`barra_de_baixo()`, `DESTINOS_DE_BAIXO`; D9 da segunda ronda,
-   26/09/2026), com quatro destinos e um «Mais». O Calendário tem três
+   26/09/2026), com quatro destinos e um «Mais» (desde 6/10/2026 o
+   Mercado é destino, no lugar do Calendário). O Calendário tem três
    filtros seus (`FILTROS_DO_CALENDARIO`, D12) e não as abas da escada;
    o aspecto (claro, escuro, como o sistema, alto contraste) é da conta
    (`tema_da_pessoa()`, D14; o escuro desde a D1 da 3.ª ronda). Na barra,

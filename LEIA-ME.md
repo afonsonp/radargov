@@ -340,14 +340,17 @@ itens** (desde 26/09/2026): **Concursos** (o que o DR publicou: por
 ver, expirou sem ver, todos), **Propostas** (as oito fases da
 proposta, de «Por analisar» a «Cancelada»), **Situação** (como vai o
 negócio; até 26/09 só se chegava lá pelo «Em jogo» do Hoje),
-**Mercado** (os contratos, com a aba **Entidades**), **Calendário** e
+**Mercado** (os contratos, com a aba **Entidades**) e
 **Configurações**, e depois delas o **«?»**, que é a Ajuda (o «Como
-funciona», que vivia no menu da conta). À direita, o teu nome.
+funciona», que vivia no menu da conta). À direita, o teu nome. O
+**Calendário** está dentro das Propostas desde 6/10/2026: é a terceira
+vista, ao lado das **Fases** (as colunas por fase, que é como as
+Propostas abrem) e da **Tabela**.
 
 **No telemóvel a barra é em baixo** (desde 26/09/2026, decisão tua na
 segunda ronda): fixa, ao alcance do polegar, com **Concursos,
-Propostas, Situação, Calendário** e um **«Mais»**, que abre o Mercado,
-as Configurações, a Ajuda, a conta e o sair. Em cima fica só a marca
+Propostas, Situação, Mercado** e um **«Mais»**, que abre as
+Configurações, a Ajuda, a conta e o sair. Em cima fica só a marca
 (o Hoje) e o teu nome. No computador e no tablet deitado fica tudo em
 cima, como sempre.
 
