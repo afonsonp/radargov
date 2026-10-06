@@ -28419,8 +28419,11 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
                              ("/proposta/nova", "Nova proposta")):
             h = self._ver(rota)
             self.assertNotIn("<summary><h1", h, rota)
-            self.assertIn("<h1 class='mg-pagehead__title'>%s</h1>"
-                          "<p class='mg-pagehead__sub'>" % titulo, h, rota)
+            # o subtítulo vem logo a seguir no topo antigo, e depois da
+            # linha das acções no cabeçalho novo (a Situação desde
+            # 6/10/2026): o que se guarda é que está fora do «?»
+            depois = h.split("<h1 class='mg-pagehead__title'>%s</h1>" % titulo, 1)[1]
+            self.assertIn("<p class='mg-pagehead__sub'>", depois[:400], rota)
 
 
 

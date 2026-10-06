@@ -36309,10 +36309,13 @@ def tabela_das_decididas(linhas, rotulo_periodo):
             "</tr></thead><tbody>%s</tbody><tfoot><tr><td></td>"
             "<td><b>%s ganha%s, %s perdida%s</b></td><td></td><td></td><td></td>"
             "<td></td><td class='p'><b>%s</b></td></tr></tfoot></table>"
-            "<div class='nota' style='padding:0 16px 16px'>A data é a da "
+            # a explicação fechada (uniformizar, 6/10/2026): fica na
+            # página, mas não empurra o resto
+            "<details class='como-se-conta' style='padding:0 16px 16px'>"
+            "<summary>Como se conta</summary><p class='nota'>A data é a da "
             "adjudicação; sem ela, a do dia em que a proposta se marcou como "
             "decidida no Mira Gov («marcada»). A coluna «Conta» é o que "
-            "entra no total: %s.</div></div>"
+            "entra no total: %s.</p></details></div>"
             % (html.escape(rotulo_periodo), corpo,
                mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s",
                mil_pt(len(linhas) - len(ganhas)),
@@ -36528,12 +36531,16 @@ def situacao():
 
         # «pela data em que se decidiu» lia-se como a da adjudicacao, e
         # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23)
+        # fechada desde 6/10/2026 (uniformizar): eram quatro linhas por
+        # baixo dos números, todos os dias
         nota_periodo = (
-            "<div class='nota' style='margin:16px 0 0'>Os números do "
+            "<details class='como-se-conta' style='margin:16px 0 0'>"
+            "<summary>Como se contam estes números</summary><p class='nota'>"
+            "Os números do "
             "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
             "dia em que a proposta se marcou como decidida no Mira Gov. "
             "«Por submeter» e «Em jogo» são uma fotografia de agora "
-            "— o que está aberto não se decidiu em período nenhum.%s</div>"
+            "— o que está aberto não se decidiu em período nenhum.%s</p></details>"
             % ("" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
@@ -36545,14 +36552,18 @@ def situacao():
                     negocio_cx() + quem_nos_ganha_cx(),
                     ranhuras_cx_html(_propostas_por_estado())))
 
+    # o cabeçalho novo, com as abas no corpo, como o Mercado
+    # (uniformizar, 6/10/2026)
     return envolver(
-        "situacao", "Ponto de situação",
-        "Como vai o negócio: o que está em jogo, o que se ganha e porque "
-        "se perde. Uma taxa só aparece com %d decididas ou mais."
-        % MINIMO_PARA_TAXA,
-        "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
+        "situacao", "Ponto de situação", "",
+        abas + "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
         "gap:18px'>%s</div></div>" % (selector, corpo),
-        abas=abas, titulo_aba="Ponto de situação")
+        titulo_aba="Ponto de situação",
+        cabeca=cabecalho_de_pagina(
+            "Ponto de situação",
+            "Como vai o negócio: o que está em jogo, o que se ganha e porque "
+            "se perde. Uma taxa só aparece com %d decididas ou mais."
+            % MINIMO_PARA_TAXA, []))
 
 
 @app.route("/indicadores")

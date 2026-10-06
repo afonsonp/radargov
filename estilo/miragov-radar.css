@@ -1623,3 +1623,10 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
  border-radius:var(--radius-lg);background:var(--surface-raised);
  font:400 var(--text-md)/22px var(--font-sans);color:var(--ink)}
 #procura-entidade>.mg-btn{min-height:48px}
+
+/* «Como se conta»: a explicacao de um bloco de numeros, fechada
+   (uniformizar, 6/10/2026) */
+.como-se-conta>summary{cursor:pointer;font:500 var(--text-sm)/20px var(--font-sans);
+ color:var(--ink-secondary);width:fit-content}
+.como-se-conta>summary:hover{color:var(--link)}
+.como-se-conta>p{margin:var(--space-2) 0 0;max-width:640px}
