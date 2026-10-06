@@ -29380,12 +29380,17 @@ def entidade(chave):
     selo = selo_do_papel(papel_da_entidade(d["compra_total"],
                                            d["ganha_total"]))
 
-    ident = ("<div class='mg-card ent-cab'><div class='n'>%s%s</div>"
-             "<div class='m'>%s</div>%s</div>"
-             % (html.escape(d["nome"]), selo,
-                ("NIF %s" % html.escape(d["nif"])) if d["nif"]
-                else "sem NIF público &mdash; identificada pelo nome",
-                nomes))
+    # O nome diz-se uma vez, no cabeçalho, com o NIF por baixo, o papel
+    # e os nomes por que assina, e o «seguir» à direita (uniformizar,
+    # 6/10/2026, como a ficha do concurso): estava no título e outra vez
+    # num cartão logo a seguir.
+    cabeca = cabecalho_de_pagina(
+        html.escape(d["nome"]),
+        ("NIF %s" % html.escape(d["nif"])) if d["nif"]
+        else "sem NIF público &mdash; identificada pelo nome",
+        [("Mercado", "/contratos"), ("Entidades", "/entidades"),
+         (d["nome"][:44], "")],
+        seguir_cx, selo + nomes)
 
     # Duas colunas (redesenho §4): **o nosso lado à esquerda** e o
     # Portal BASE à direita. Empilhados, o que já lhe fizemos ficava
@@ -29401,8 +29406,8 @@ def entidade(chave):
     filtro = ("<details class='ent-filtrar'%s><summary>Filtrar os contratos"
               "</summary>%s</details>"
               % (" open" if filtrada else "", filtros_da_ficha(chave, d)))
-    conteudo = ("<div class='larg'>" + ident
-                + factos + atalhos + seguir_cx
+    conteudo = ("<div class='larg'>"
+                + factos + atalhos
                 + "<div class='dois ent-dois'><div class='lado-nosso'>"
                 + nosso_lado_cx(nosso) + "</div><div class='lado-base'>"
                 + filtro
@@ -29415,12 +29420,8 @@ def entidade(chave):
                 + "</div></div></div>" + recentes + "</div>")
 
     return envolver(
-        "entidades", d["nome"],
-        "O que esta entidade compra e ganha, segundo o Portal BASE, e o "
-        "que nós já lhe fizemos.",
-        conteudo, script=ARVORE_JS,
-        migalhas=migalhas_de("entidades", d["nome"][:44]),
-        titulo_aba="%s" % d["nome"][:40])
+        "entidades", d["nome"], "", conteudo, script=ARVORE_JS,
+        titulo_aba="%s" % d["nome"][:40], cabeca=cabeca)
 
 
 @app.route("/entidade/<path:chave>/seguir", methods=["POST"])
