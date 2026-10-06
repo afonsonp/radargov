@@ -26023,6 +26023,9 @@ def config_conta():
                     contas.criar_utilizador(c, utilizador["email"], nova)
                 except ValueError as erro:
                     return volta_config("conta", erro=True, contacto=contacto or "", aviso="Não gravei: %s." % erro)
+                # e as outras sessões fecham-se, esta fica (6.ª ronda)
+                contas.fechar_as_outras_sessoes(c, utilizador["id"],
+                                                request.cookies.get("sessao"))
             if muda_contacto:
                 contas.gravar_contacto(c, utilizador["id"], contacto)
         recado = {(True, False): "Palavra-passe mudada.",

@@ -19119,6 +19119,18 @@ class TestPoliticaDasPalavrasPasse(unittest.TestCase):
             with self.subTest(senha=senha):
                 self.assertTrue(self.contas.criar_utilizador(self.c, "maria", senha))
 
+    def test_sexta_ronda_uma_palavra_solta_nao_serve(self):
+        """6.ª ronda (5/10/2026, perfis 7 e 17): «santarem» entrou numa
+        conta de gestor -- uma palavra de dicionário, das primeiras que um
+        ataque tenta. Uma frase, ou letras com algarismos no meio, passam."""
+        for senha in ("santarem", "Santarem!", "santarem1", "concurso"):
+            with self.subTest(senha=senha):
+                self.assertIn("palavra", self.recusa(senha))
+        self.assertIn("mais usadas", self.recusa("contratos2026"))
+        for senha in ("SantaremLeiria", "cadeira azul no telhado", "Lisboa2026Mar!"):
+            with self.subTest(senha=senha):
+                self.assertTrue(self.contas.criar_utilizador(self.c, "maria", senha))
+
     def test_vale_tambem_para_trocar(self):
         self.contas.criar_utilizador(self.c, "maria", "senha-comprida")
         self.recusa("11111111")
@@ -23370,6 +23382,21 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         r = self.post(chefe, "/alertas/criar", {"nome": "do chefe", "q": "escola"},
                       "/configuracoes/alertas")
         self.assertEqual(r.status_code, 302)
+
+    def test_sexta_ronda_mudar_a_palavra_passe_fecha_as_outras_sessoes(self):
+        """6.ª ronda (5/10/2026, perfil 17): quem mudava a palavra-passe por
+        suspeitar de alguém deixava essa pessoa entrada. As outras sessões
+        fecham-se; a deste pedido fica."""
+        aqui, ali = self.entrar("chefe"), self.entrar("chefe")
+        nova = "Cadeira-Azul-2026!x"
+        r = self.post(aqui, "/configuracoes/conta",
+                      {"actual": "senha-comprida", "nova": nova, "outra": nova},
+                      "/configuracoes/conta")
+        self.assertNotIn("tom=erro", r.headers["Location"])
+        self.assertEqual(self.ver(aqui, "/configuracoes/conta").status_code, 200)
+        r = self.ver(ali, "/configuracoes/conta")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/entrar", r.headers["Location"])
 
     def test_sexta_ronda_so_o_gestor_importa_e_desfaz(self):
         """6.ª ronda (5/10/2026): o utilizador abria o Importar e chegava ao
