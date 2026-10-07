@@ -29474,15 +29474,10 @@ def entidade(chave):
 
     # Os outros nomes por que assina. E o que explica porque e que somar
     # "a olho" pelo nome dava outro numero.
-    if d["variantes"] > 1:
-        nomes = ("<details class='ent-nomes'><summary>Assina com %d nomes "
-                 "diferentes &mdash; todos contam para estes números"
-                 "</summary><div>%s</div></details>"
-                 % (d["variantes"],
-                    "".join("<span>%s</span>" % html.escape(n)
-                            for n in d["nomes"])))
-    else:
-        nomes = ""
+    # Saiu da ficha a 7/10/2026 (ele: «isto sai daqui»): a lista dos nomes
+    # por que a entidade assina ocupava quatro linhas no cabeçalho, e a
+    # soma já os junta todos. Fica só na base.
+    nomes = ""
 
     # Cliente ou concorrente, dito pelo peso de cada lado (16/09/2026).
     # Fica **ao lado do nome** e nao ao pe dos dois numeros: e a primeira
