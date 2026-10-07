@@ -17362,7 +17362,10 @@ class TestFiltrosSimples(BaseTemporaria):
         for campo in ("name='q_excl'", "name='op'", "name='prazo'"):
             self.assertNotIn(campo, form)
         self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
-        self.assertIn("type='hidden' id='filtro-cpv'", form)
+        # sem perfil o CPV é um botão de filtro (6/10/2026), com o campo
+        # que a árvore enche dentro dele
+        self.assertIn("id='filtro-cpv' name='cpv'", form)
+        self.assertIn("data-abre-arvore", form)
         # o que vier pela URL passa escondido, para nao se perder
         html_ = radar.app.test_client().get(radar.LISTA + "?prazo=urgente&op=ou").get_data(as_text=True)
         self.assertIn("<input type='hidden' name='prazo' value='urgente'>", html_)
@@ -28287,7 +28290,8 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
             self.assertNotIn("name='%s'" % campo, antes, campo)
             self.assertIn("name='%s'" % campo, chips, campo)
         # fechados, todos, e exclusivos entre si
-        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 5)
+        # seis sem perfil: o CPV é um deles desde 6/10/2026
+        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 6)
         self.assertNotIn(" open", chips.split("</div>")[0])
         # com dois filtros postos, dois botões acesos, com o valor
         h = self._ver(radar.LISTA + "?plat=acingov&de=01/09/2026")

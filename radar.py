@@ -20042,6 +20042,20 @@ if (ARV_DET) {
   });
   arvoreSemear();
 }
+// O «Escolher na árvore» do botão CPV (6/10/2026): a árvore vive
+// escondida por baixo dos filtros, e abre-se daqui.
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-abre-arvore]');
+  if (!b) return;
+  var det = document.querySelector('details.arvore');
+  if (!det) return;
+  var fora = det.closest('details.painel-filtros');
+  if (fora) fora.open = true;
+  det.open = true;
+  var chip = b.closest('details.f-chip');
+  if (chip) chip.open = false;
+  det.scrollIntoView({block: 'start'});
+});
 </script>"""
 
 
@@ -21065,6 +21079,19 @@ def _lista_de_anuncios():
             data_campo("de", "Publicado de") + data_campo("ate", "Publicado até")),
         chip_de_filtro("Distrito", "local", arg("dist"), campo_dist),
         chip_de_filtro("Preço base", "euro", preco, campos_preco)))
+    # O CPV é um botão como os outros (6/10/2026, ele: «o CPV aparece
+    # duas vezes»): o campo vive nele, e a árvore, por baixo dos filtros,
+    # só se vê quando o «Escolher na árvore» a abre ou há um CPV posto.
+    # Com o perfil definido não há botão: o CPV é o do perfil.
+    sem_perfil = not all(interesse_definido(cfg)[:2])
+    if sem_perfil:
+        chips += chip_de_filtro("CPV", "lista", cpv_actual, (
+            "<label class='mg-field'><span class='mg-field__label'>CPV</span>"
+            "<input class='mg-field__input' type='text' id='filtro-cpv' "
+            "name='cpv' value='%s' placeholder='Código, ex. 45331000'></label>"
+            % html.escape(cpv_actual, quote=True))
+            + "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
+            "data-abre-arvore>Escolher na árvore</button>")
     filtros = (
         "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
         "<label class='f-q'><span class='so-leitor'>Pesquisar</span>%s"
@@ -21073,7 +21100,7 @@ def _lista_de_anuncios():
         "aria-describedby='sintaxe-q'></label>"
         "<div class='f-chips'>%s%s%s</div>"
         "<input type='hidden' name='nif' value='%s'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+        "%s"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         "<input type='hidden' name='estado' value='%s'>"
@@ -21092,7 +21119,9 @@ def _lista_de_anuncios():
            botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
                                         quote=True)),
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
-           html.escape(cpv_actual, quote=True),
+           "" if sem_perfil else
+           "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+           % html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo", "interesse")),
            html.escape(estado_actual, quote=True)))
@@ -29821,7 +29850,10 @@ def contratos():
             "id='filtro-cpv' name='cpv' value='%s' "
             "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
             "autocomplete='off' data-cpv-sugere='contratos' "
-            "aria-describedby='sintaxe-cpv'>" % v("cpv"))),
+            "aria-describedby='sintaxe-cpv'>" % v("cpv"))
+            + ("" if com_interesse else
+               "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
+               "data-abre-arvore>Escolher na árvore</button>")),
         chip_de_filtro("Procedimento", "documento", arg("proc"), campo(
             "Procedimento", selector_procedimento(procs, arg("proc"))
             .replace("<select ", "<select class='mg-field__input' ", 1))),
@@ -30138,7 +30170,8 @@ def contratos():
                       "</div>%s</div>" % (tabela_e_notas, graficos))
                      if ha_pergunta else tabela_e_notas)
     conteudo = (abas + "<div class='larg'>" + pergunta +
-                ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
+                ("" if com_interesse else "<div class='arvore-escondida'>"
+                 + arvore_html(n_cpv, "contratos") + "</div>") +
                 resumo_linha + corpo_mercado + barra_corpus(anos) +
                 (fonte if ha_pergunta else "") + "</div>")
     # Acima do tecto o CSV corta, e diz-se no botao e nao so na dica:

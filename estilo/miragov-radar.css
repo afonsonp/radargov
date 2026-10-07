@@ -1634,3 +1634,9 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
 /* o ultimo passo das migalhas em letra normal, como no cabecalho novo
    (uniformizar, 6/10/2026): o <em> vinha do topo antigo */
 .mg-crumbs.migalhas em{font-style:normal}
+
+/* A arvore dos CPV escondida por baixo dos filtros: abre-se do botao CPV
+   (6/10/2026, «o CPV aparece duas vezes»). Sem JS fica a vista, que e o
+   unico caminho para ela. */
+.com-js #painel-filtros:not([open]),
+.com-js .arvore-escondida>details.arvore:not([open]){display:none}
