@@ -1585,7 +1585,10 @@ página à vista, o scroll e quatro eventos (`EVENTOS_DA_VISITA`); o
 pedido de acesso leva o `id` da visita (`pedidos_acesso.vista`) e marca
 o «enviado». Guardam-se 13 meses (`DIAS_DAS_VISITAS`, podados ao virar o
 sal). O dono vê tudo em **`/plataforma/visitas`**, com o período do
-`/situacao`: visitas, visitantes (únicos por dia, somados), a mediana do
+`/situacao` mais o «hoje» e o «ontem» (`PERIODOS_DAS_VISITAS`, 7/10/2026),
+o gráfico dos últimos 30 dias e a tabela «Dia a dia, de onde vieram»
+(LinkedIn, WhatsApp, outras, directo e os pedidos de cada dia;
+`_evolucao_das_visitas()`): visitas, visitantes (únicos por dia, somados), a mediana do
 tempo, o scroll médio, o que fizeram, de onde vieram, as campanhas, os
 pedidos por origem e as páginas. Desde esse
 dia o robots é uma **lista branca**: abre as páginas do mapa, o que elas
