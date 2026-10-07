@@ -1405,6 +1405,21 @@ números e do nosso lado** (E11, 1/10/2026): vive no topo da coluna do
 Portal BASE, recolhido em «Filtrar os contratos», e abre quando está em
 uso. A tabela do fim chama-se «Os últimos contratos que ganhou».
 
+**O papel decide o que a ficha mostra** (7/10/2026, ele: «não quero
+saber se o IGFEJ vende para a Direção dos Tribunais»). A um **cliente**
+não se mostra o que vende (sem «A quem vende», «O que ganha», «Como
+ganha», a evolução do que ganhou e «Os últimos contratos que ganhou»);
+a um **concorrente** não se mostra o que compra, e os seis factos são
+os dele: ganha a 24 meses · quanto disso cai no nosso CPV · o desconto
+que dá · **contra nós** (as nossas propostas perdidas em que o «quem
+ganhou» do desfecho é ele, por NIF ou nome) · o maior cliente · os
+contratos dele que acabam em 3 meses, que é onde o podemos substituir.
+No nosso lado, um concorrente mostra as propostas que nos ganhou em vez
+dos anúncios dele no DR. Ganha também o gráfico «Como ganha», por tipo
+de procedimento. Quem tem os dois lados em peso parecido («ambos»)
+mostra os dois, como antes. O lado escondido fica a uma ligação nos
+atalhos («ver os N que ganhou»).
+
 **A concorrência de um fornecedor** (desde 1/10/2026, L5): no topo da
 coluna do Portal BASE, o cartão «Concorrência» (`concorrencia_cx()`)
 diz «Concorreu a N contratos lidos, ganhou M» e **quem lhe ganha** — os

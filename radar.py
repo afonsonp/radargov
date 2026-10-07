@@ -28142,6 +28142,12 @@ def ficha_entidade(chave, args=None):
             "SELECT p.ch, COALESCE(x.nome,p.ch) n, p.v, p.k FROM p "
             "LEFT JOIN entidades x ON x.chave=p.ch ORDER BY p.v DESC",
             [chave] + ev).fetchall()
+        d["ganha_proc"] = c.execute(
+            "SELECT c.tipo_procedimento p, COUNT(*) k, "
+            "SUM(c.preco_contratual/c.n_adj) v FROM contratos c "
+            "JOIN contrato_adjudicatario a ON a.contrato_id=c.id "
+            "WHERE a.chave=?" + e +
+            " GROUP BY p ORDER BY v DESC LIMIT 8", [chave] + ev).fetchall()
         d["ganha_cpv"] = c.execute(
             "SELECT v.cpv8 cod, COUNT(*) k, SUM(c.preco_contratual/c.n_adj/"
             " (SELECT COUNT(*) FROM contrato_cpv x WHERE x.contrato_id=c.id)) v "
@@ -28701,7 +28707,7 @@ def botoes_de_filtro(limpar="", primario=True):
                % limpar if limpar else ""))
 
 
-def nosso_lado_cx(nosso):
+def nosso_lado_cx(nosso, contra=None):
     """O lado da EMPRESA da ficha de uma entidade: os anúncios dela na
     base, as nossas propostas, a taxa com ela, e os contactos.
 
@@ -28720,6 +28726,29 @@ def nosso_lado_cx(nosso):
                "República</a>"
                % (html.escape(lista, quote=True), mil_pt(nosso["anuncios"]),
                   "anúncio" if nosso["anuncios"] == 1 else "anúncios")]
+    # Um concorrente (`contra`, 7/10/2026) não lança concursos: em vez dos
+    # anúncios dele, as propostas que nos ganhou.
+    if contra is not None:
+        pedacos = [
+            "<div class='ent-nossas'><div class='mg-field__label'>Contra nós "
+            "<i>%s</i></div><table class='mg-table tab-contratos'><tbody>%s"
+            "</tbody></table></div>"
+            % (mil_pt(len(contra)), "".join(
+                "<tr><td class='o'><a href='%s'>%s</a></td><td class='p'>%s</td></tr>"
+                % (html.escape(("/anuncio/" + quote(p["ref"], safe=""))
+                               if p["ref"] else "/proposta/%d" % p["id"], quote=True),
+                   html.escape(corta(p["titulo"] or p["ref"] or "(sem título)", 90)),
+                   html.escape(preco_pt(p["preco_vencedor"])))
+                for p in contra))
+            if contra else
+            "<p class='nota'>Nenhuma proposta nossa perdida para esta entidade. "
+            "Conta-se pelo «quem ganhou» do desfecho de cada proposta.</p>"]
+        if not nosso["propostas"]:
+            return ("<div class='mg-card lado-cx' id='nosso'>"
+                    + rot_com_porque("O nosso lado",
+                                     "O que esta entidade já nos ganhou, pelo "
+                                     "desfecho das nossas propostas.")
+                    + "".join(pedacos) + "</div>")
     if nosso["propostas"]:
         linhas = []
         for p in nosso["propostas"]:
@@ -29263,6 +29292,116 @@ def concorrentes():
                     titulo_aba="Concorrentes")
 
 
+def propostas_que_nos_ganhou(chave, nome):
+    """As nossas propostas perdidas em que quem ganhou foi esta entidade
+    (7/10/2026, o «Contra nós» da ficha de um concorrente).
+
+    O vencedor escreve-se à mão no desfecho da proposta, por isso bate
+    pelo NIF escrito lá, ou pelo nome simplificado, um contido no outro."""
+    # ponytail: nome contido no outro; um vencedor escrito só «Lda»
+    # bateria com todos -- daí o mínimo de 5 letras. Se errar, ligar o
+    # vencedor a uma chave de entidade no desfecho.
+    alvo = simplifica(nome or "")
+    with liga() as c:
+        perdidas = c.execute(
+            "SELECT * FROM propostas WHERE estado='perdido' "
+            "AND COALESCE(vencedor,'') != ''").fetchall()
+    def bate(vencedor):
+        escrito = simplifica(vencedor)
+        if re.fullmatch(r"\d{9}", chave or "") and chave in re.sub(r"\D", "", vencedor):
+            return True
+        return len(escrito) >= 5 and len(alvo) >= 5 and (
+            escrito in alvo or alvo in escrito)
+    return [p for p in perdidas if bate(p["vencedor"])]
+
+
+def factos_do_concorrente(chave, contra, meses=24, args=None):
+    """Os seis factos do topo quando a entidade é CONCORRENTE (7/10/2026,
+    ele: «uma página de cliente vs uma página de concorrente tem de
+    mostrar coisas diferentes»). As perguntas do outro lado da mesa:
+    quanto ganha, quanto disso é da nossa área, que desconto dá, quantas
+    vezes nos ganhou, a quem vende mais, e o que lhe acaba -- que é onde
+    o podemos substituir. O filtro da ficha soma-se, como nos do cliente."""
+    desde = (datetime.now().date()
+             - timedelta(days=int(30.44 * meses))).isoformat()
+    e, ev = filtro_da_ficha(args)
+    ganha_k = ganha_v = no_cpv = 0
+    desconto = maior = None
+    acabam = (0, 0.0)
+    if ha_corpus():
+        frag, vals = condicao_do_interesse_contratos(args={}, presa=True)
+        dele = ("FROM contratos c JOIN contrato_adjudicatario a "
+                "ON a.contrato_id=c.id WHERE a.chave=? ")
+        with liga_corpus() as c:
+            r = c.execute(
+                "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual/c.n_adj),0) v "
+                + dele + "AND c.data_celebracao >= ?" + e,
+                [chave, desde] + ev).fetchone()
+            ganha_k, ganha_v = r["k"], r["v"]
+            if frag and ganha_k:
+                no_cpv = c.execute(
+                    "SELECT COUNT(*) k " + dele + "AND c.data_celebracao >= ? "
+                    "AND (%s)" % frag + e,
+                    [chave, desde] + vals + ev).fetchone()["k"]
+            d = c.execute(
+                "SELECT COUNT(*) k, "
+                "  AVG((c.preco_base - c.preco_contratual) / c.preco_base) m "
+                + dele + "AND c.data_celebracao >= ? AND c.preco_base > 0 "
+                "AND c.preco_contratual > 0 "
+                "AND c.preco_contratual <= c.preco_base" + e,
+                [chave, desde] + ev).fetchone()
+            if d["k"]:
+                desconto = (d["m"], d["k"])
+            maior = c.execute(
+                "SELECT COALESCE(x.nome, c.adjudicante) n, "
+                "  SUM(c.preco_contratual/c.n_adj) v "
+                "FROM contratos c JOIN contrato_adjudicatario a "
+                "ON a.contrato_id=c.id "
+                "LEFT JOIN entidades x ON x.chave=c.adjudicante_chave "
+                "WHERE a.chave=? AND c.data_celebracao >= ?" + e +
+                " GROUP BY c.adjudicante_chave ORDER BY v DESC LIMIT 1",
+                [chave, desde] + ev).fetchone()
+            # a mesma janela e as mesmas linhas que a ligação «os contratos
+            # dele a acabar» abre no Mercado (vencid + ver=fim)
+            r = c.execute(
+                "SELECT COUNT(*) k, COALESCE(SUM(c.preco_contratual),0) v "
+                + dele + "AND c." + SQL_A_ACABAR + e,
+                [chave] + ev).fetchone()
+            acabam = (r["k"], r["v"])
+
+    no_filtro = " · no filtro" if e else ""
+    seis = (
+        ("Ganha · %s%s" % (plural(meses, "mês", "meses"), no_filtro),
+         euros_curto(ganha_v) if ganha_k else None,
+         plural(ganha_k, "contrato") if ganha_k else
+         ("sem BASE" if not ha_corpus() else "nada ganho nesta janela")),
+        ("No nosso CPV" + no_filtro, mil_pt(no_cpv) if no_cpv else None,
+         ("do " if ganha_k == 1 else "dos ") + plural(ganha_k, "contrato")
+         + " da janela" if no_cpv else
+         ("sem BASE" if not ha_corpus()
+          else "nada da janela cai no perfil da empresa")),
+        ("Desconto que dá" + no_filtro,
+         pct_pt(abs(desconto[0])) if desconto else None,
+         "abaixo do preço base (média), em %s" % plural(desconto[1], "contrato")
+         if desconto else ("sem BASE" if not ha_corpus()
+                           else "nenhum contrato tem os dois preços")),
+        ("Contra nós", mil_pt(len(contra)) if contra else None,
+         ("proposta nossa que ganhou" if len(contra) == 1
+          else "propostas nossas que ganhou") if contra
+         else "nenhuma proposta nossa perdida para ele"),
+        ("Maior cliente" + no_filtro,
+         html.escape(corta(maior["n"], 28)) if maior and maior["v"] else None,
+         euros_curto(maior["v"]) + " na janela" if maior and maior["v"]
+         else ("sem BASE" if not ha_corpus() else "nada na janela")),
+        ("A acabar · %d meses%s" % (MESES_A_ACABAR, no_filtro),
+         mil_pt(acabam[0]) if acabam[0] else None,
+         euros_curto(acabam[1]) + " que pode perder" if acabam[0] else
+         ("sem BASE" if not ha_corpus() else "nada acaba na janela")),
+    )
+    return ("<div class='mg-stats seis'>%s</div>" % "".join(
+        kpi(rotulo, valor, nota) for rotulo, valor, nota in seis))
+
+
 def factos_da_entidade(chave, nosso, meses=24, args=None):
     """Os seis factos do topo da ficha de uma entidade (redesenho §4).
 
@@ -29424,12 +29563,24 @@ def entidade(chave):
 
     filtrada = ha_filtro_na_ficha(request.args)
     compra, ganha = d["compra"], d["ganha"]
+    # O papel decide o que a ficha mostra (7/10/2026, ele: «eu não quero
+    # saber se o IGFEJ vende para a Direção dos Tribunais»): a um cliente
+    # não se mostra o que vende, a um concorrente não se mostra o que
+    # compra; quem tem os dois lados em peso parecido mostra os dois. O
+    # lado escondido fica a uma ligação, nos atalhos.
+    papel = papel_da_entidade(d["compra_total"], d["ganha_total"])
+    concorrente = papel[0] == "concorrente"
+    lado_compra = compra["k"] and not concorrente
+    lado_venda = ganha["k"] and papel[0] != "cliente"
+    contra = propostas_que_nos_ganhou(chave, d["nome"]) if concorrente else None
     # Os dois cartões «Compra» e «Ganha» deram lugar a SEIS factos
     # (17/09/2026, redesenho §4): os dois diziam o acervo inteiro, e a
     # pergunta comercial é sobre a janela recente, sobre o nosso CPV e
     # sobre o que já fizemos com ela. Os dois totais continuam a ler-se
     # nos atalhos, que são o caminho para a lista que os confirma.
-    factos = factos_da_entidade(chave, nosso, args=request.args)
+    factos = (factos_do_concorrente(chave, contra, args=request.args)
+              if concorrente else
+              factos_da_entidade(chave, nosso, args=request.args))
     # A janela das listas de baixo, dita no titulo de cada uma: sem ela,
     # 18,1 M€ de um fornecedor lia-se como os 24 meses dos factos de
     # cima, e e o acervo todo (teste de 26/09/2026).
@@ -29470,12 +29621,17 @@ def entidade(chave):
                         % (para_lista("vencid"),
                            "ver o que ganhou" if ganha["k"] == 1 else
                            "ver os %s que ganhou" % mil_pt(ganha["k"])))
+    if concorrente:
+        ligacoes.append("<a href='%s&amp;ver=fim&amp;meses=%d'>os contratos "
+                        "dele a acabar em %d meses (fim estimado)</a>"
+                        % (html.escape(para_lista("vencid"), quote=True),
+                           MESES_A_ACABAR, MESES_A_ACABAR))
     atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
 
     seguir_cx = _seguir_cx(chave)
 
     blocos = []
-    if compra["k"]:
+    if lado_compra:
         blocos.append(barras_h(d["fornecedores"], "A quem compra" + janela,
                                "Os fornecedores que mais receberam desta "
                                "entidade.", ligar=True))
@@ -29489,16 +29645,21 @@ def entidade(chave):
             "anúncio &mdash; não era concorrível."))
         blocos.append(evolucao_html(d["compra_trim"],
                                     "Quanto adjudicou, ao longo do tempo"))
-    if ganha["k"]:
+    if lado_venda:
         blocos.append(barras_h(d["clientes"], "A quem vende" + janela,
                                "As entidades que mais lhe adjudicaram.",
                                ligar=True))
         blocos.append(cpv_html(d["ganha_cpv"], "O que ganha" + janela,
                                "Por CPV, com o valor repartido.", ligar=False))
+        blocos.append(barras_h(
+            [{"n": p["p"], "v": p["v"], "k": p["k"]} for p in d["ganha_proc"]],
+            "Como ganha" + janela,
+            "Por tipo de procedimento. O que é por acordo-quadro só o ganha "
+            "quem está no acordo."))
         blocos.append(evolucao_html(d["ganha_trim"],
                                     "Quanto ganhou, ao longo do tempo"))
 
-    if d["recentes"]:
+    if d["recentes"] and lado_venda:
         linhas_r = "".join(
             "<tr><td class='d'>%s</td><td class='o'>%s</td>"
             "<td class='g'>%s</td><td>%s</td><td class='p'>%s</td></tr>"
@@ -29521,7 +29682,7 @@ def entidade(chave):
                     "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
                     "<tbody>%s</tbody></table></div>"
                     % (html.escape(janela), linhas_r))
-    elif filtrada:
+    elif filtrada and not d["recentes"]:
         # sem isto, um filtro que nao apanha nada deixava a pagina
         # aparentemente na mesma, so com os numeros a zero
         recentes = ("<div class='mg-empty'>Esta entidade não tem contratos que "
@@ -29547,8 +29708,7 @@ def entidade(chave):
     # Sem o filtro da ficha por cima: o papel e identidade da entidade,
     # como os nomes por que assina. Filtrar por um CPV em que ela so
     # ganha nao faz de um municipio um concorrente.
-    selo = selo_do_papel(papel_da_entidade(d["compra_total"],
-                                           d["ganha_total"]))
+    selo = selo_do_papel(papel)
 
     # O nome diz-se uma vez, no cabeçalho, com o NIF por baixo, o papel
     # e os nomes por que assina, e o «seguir» à direita (uniformizar,
@@ -29579,7 +29739,7 @@ def entidade(chave):
     conteudo = ("<div class='larg'>"
                 + factos + atalhos
                 + "<div class='dois ent-dois'><div class='lado-nosso'>"
-                + nosso_lado_cx(nosso) + "</div><div class='lado-base'>"
+                + nosso_lado_cx(nosso, contra) + "</div><div class='lado-base'>"
                 + filtro
                 + concorrencia_cx(chave, conc)
                 + "<div class='graf-corpo solto'>" + "".join(blocos)
