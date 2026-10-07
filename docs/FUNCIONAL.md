@@ -1141,8 +1141,8 @@ A caixa **Pesquisar** procura **todas as palavras**, por qualquer ordem
 (26/09/2026: «limpeza manutenção» dava 0, porque se procurava a frase);
 a vírgula ou a barra separam alternativas, e entre aspas procura-se a
 frase exacta. Vale igual para os alertas, que usam o mesmo motor. **A
-regra está escrita por baixo dos filtros** desde 1/10/2026 (fora dos
-botões de filtro: vê-se com eles fechados), e a do CPV por baixo dos do Mercado: estavam
+regra está por baixo dos filtros** desde 1/10/2026, num «Como se escreve a
+pesquisa» fechado desde 6/10/2026, e a do CPV por baixo dos do Mercado: estavam
 só no `title` do campo, que não aparece no toque nem ao focar. Sem
 resultados dentro do perfil da empresa, a lista diz quantos há fora dele.
 
@@ -1152,7 +1152,11 @@ Distrito, Preço base (6/10/2026, front end novo; era o «Mais filtros»
 da H1, de 1/10/2026). Cada botão abre uma caixa com os seus campos e o
 «Aplicar»; um filtro posto acende o botão e diz o valor («Plataforma:
 acinGov»). O perfil da empresa, quando recorta a lista, é o primeiro
-botão da fila, aceso, com o «ver tudo». A referência de cada concurso vai
+botão da fila, aceso, na forma curta («Perfil da empresa · 4 CPV · ver
+tudo»; os códigos no `title`). Sem perfil, o **CPV é um botão** da fila,
+com o campo e um «Escolher na árvore» que abre a árvore por baixo (que
+de resto fica escondida). Não há «Filtrar»: cada botão tem o «Aplicar» e a
+pesquisa vai com o Enter; o «Limpar» só aparece com filtro posto. A referência de cada concurso vai
 por baixo do título, junto à entidade (a coluna «Ref.ª» saiu). Na lista,
 os botões da triagem («Interessa», «Abandonar»)
 só aparecem na linha por onde se passa ou que tem o foco; sem rato

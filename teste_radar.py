@@ -3531,6 +3531,18 @@ class TestEmailsBonitos(unittest.TestCase):
         self.assertIn('href="%s"' % ligacao, h)
         self.assertIn("Criar a conta</a>", h)
 
+    def test_o_convite_e_azul_e_sem_ponto_duplo(self):
+        """6/10/2026, a verificação antes do anúncio: «gestor da Nova
+        Empresa, Lda..», e o cabeçalho e o botão a preto, na paleta antiga."""
+        _, texto, h = radar.texto_e_html_do_convite(
+            "https://miragov.pt/convite/abc", "Nova, Lda.", "admin", "Ana",
+            pedido=True)
+        for parte in (texto, h):
+            self.assertIn("gestor da Nova, Lda.", parte)
+            self.assertNotIn("Lda..", parte)
+        self.assertIn("background:%s" % radar._EM_MARCA, h)
+        self.assertNotIn("background:%s" % radar._EM_INK, h)
+
     def test_o_convite_de_utilizador_nao_manda_convidar_colegas(self):
         _, texto, h = radar.texto_e_html_do_convite(
             "https://x/convite/abc", "Beta", "tester")
@@ -7023,9 +7035,9 @@ class TestCaminhoDeVoltaDaFicha(BaseTemporaria):
             radar.LISTA + "?estado=submetido").get_data(as_text=True)
         # desde 24/09/2026 as ranhuras da empresa sao as Propostas, e a
         # procura fica la
-        self.assertIn("<form class='pf' method='get' action='%s'>" % radar.PROPOSTAS,
-                      html_)
-        self.assertNotIn("<form class='pf' method='get' action='/'>", html_)
+        self.assertIn("id='procura-propostas' method='get' action='%s'>"
+                      % radar.PROPOSTAS, html_)
+        self.assertNotIn("method='get' action='/'>", html_)
 
 
 class TestNenhumEcraDa500(BaseTemporaria):
@@ -9515,6 +9527,8 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         "interruptor": "o interruptor que liga e desliga um alerta",
         "apagar": "o ícone de remover um alerta, na linha dele",
         "aviso-fechar": "o × do aviso da vez",
+        "envio-da-pesquisa": "o envio da pesquisa pelo Enter, que só o leitor "
+                             "de ecrã vê (os filtros em botões, 6/10/2026)",
     }
 
     @staticmethod
@@ -9636,9 +9650,10 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         paginas = _paginas_do_guia(self)
         # Nas Propostas o «Filtrar» é o mesmo botão, secundário: o
         # primário do ecrã é a «Nova proposta» (UX-7-LEIS V2, 30/09/2026).
-        for rota, tom in ((radar.LISTA, "primary"), ("/propostas", "secondary"),
-                          ("/contratos?cpv=72000000", "primary"),
-                          ("/entidade/506000001", "primary")):
+        # Os Concursos, o Mercado e as Propostas deixaram de ter «Filtrar»
+        # a 6/10/2026 (os botões de filtro têm o «Aplicar», e a pesquisa vai
+        # com o Enter); fica a ficha da entidade.
+        for rota, tom in (("/entidade/506000001", "primary"),):
             self.assertIn("<button type='submit' class='mg-btn mg-btn--%s'>"
                           "Filtrar</button>" % tom, paginas[rota], rota)
             self.assertNotIn(">Perguntar<", paginas[rota], rota)
@@ -12031,7 +12046,9 @@ class TestFiltroPorDistritoEValor(BaseTemporaria):
                 "SELECT ref FROM anuncios WHERE " + frag, vals))
         self.assertEqual(refs, ["2/2026", "3/2026"])
         h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
-        self.assertIn("Lisboa", h.split("Limitado ao", 1)[1][:300])
+        # a forma curta da fila dos filtros (6/10/2026): sem CPV, o
+        # resumo é o perfil por palavras
+        self.assertIn("Lisboa", h.split("Perfil da empresa</a>", 1)[1][:300])
 
     def test_um_alerta_por_distrito_so_apanha_esse(self):
         radar.gravar_filtro("Porto", "dist=Porto&pbmin=20000", alerta=1)
@@ -12510,6 +12527,14 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
         r = radar.app.test_client().get("/anuncio/60%2F2026")
         self.assertEqual(r.status_code, 200)
         return r.get_data(as_text=True)
+
+    def test_as_accoes_da_ficha_vem_sempre_por_baixo_do_subtitulo(self):
+        """6/10/2026, ele: «isto não está uniformizado» -- com um título
+        curto as acções ficavam ao lado dele, com um comprido por baixo."""
+        corpo = self._ficha()
+        cab = corpo.split("mg-pagehead'>", 1)[1]
+        self.assertLess(cab.index("mg-pagehead__sub"),
+                        cab.index("mg-pagehead__actions em-baixo"))
 
     def test_a_ficha_ja_nao_tem_indice_mas_os_blocos_tem_ancora(self):
         corpo = self._ficha()
@@ -17362,7 +17387,10 @@ class TestFiltrosSimples(BaseTemporaria):
         for campo in ("name='q_excl'", "name='op'", "name='prazo'"):
             self.assertNotIn(campo, form)
         self.assertIn("type='hidden' id='filtro-cpv-excl'", form)
-        self.assertIn("type='hidden' id='filtro-cpv'", form)
+        # sem perfil o CPV é um botão de filtro (6/10/2026), com o campo
+        # que a árvore enche dentro dele
+        self.assertIn("id='filtro-cpv' name='cpv'", form)
+        self.assertIn("data-abre-arvore", form)
         # o que vier pela URL passa escondido, para nao se perder
         html_ = radar.app.test_client().get(radar.LISTA + "?prazo=urgente&op=ou").get_data(as_text=True)
         self.assertIn("<input type='hidden' name='prazo' value='urgente'>", html_)
@@ -17998,6 +18026,19 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
         self.enterContext(unittest.mock.patch.object(radar, "enviar_email", enviar))
         self.enterContext(unittest.mock.patch.object(
             radar.threading, "Thread", TestPesquisaGeralERepor._JaCorre))
+
+    def test_o_nome_escrito_no_convite_fica_na_conta(self):
+        """6/10/2026: sem o nome, a conta ficava «joana», do e-mail."""
+        with radar.liga() as c:
+            codigo = radar.contas.criar_convite(c, 1, "joana@nova.pt", "admin")
+            token, _ = radar.contas.usar_convite(
+                c, codigo, "joana@nova.pt", "senha-comprida-boa",
+                nome="Joana Matos")
+            self.assertTrue(token)
+            self.assertEqual(c.execute("SELECT nome FROM utilizadores WHERE "
+                                       "email='joana@nova.pt'").fetchone()[0],
+                             "Joana Matos")
+        self.assertIn('name="nome"', radar.FORMULARIO_DO_CONVITE)
 
     def _pelo_convite(self, utilizador, email=EMAIL, papel="admin"):
         with radar.liga() as c:
@@ -27649,7 +27690,10 @@ class TestAuditoriaDe1OutubroOsPequenos(unittest.TestCase):
         p = dict.fromkeys(radar.COLUNAS_DA_PROPOSTA)
         p.update(id=7, titulo="Consulta", estado="em_analise")
         linha = radar.linha_da_pipeline(p, 7, {})
-        self.assertTrue(linha.startswith("<tr><td class='mg-code'>&mdash;</td>"), linha[:80])
+        # desde 6/10/2026 não há coluna da referência: sem anúncio, a
+        # linha não leva referência nenhuma, nem ligação a mais
+        self.assertTrue(linha.startswith("<tr><td class='o'>"), linha[:80])
+        self.assertNotIn("mg-code", linha)
 
 
 class TestUXMercadoDe1Outubro(_CicloDoTesteComUtilizadores):
@@ -28287,7 +28331,8 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
             self.assertNotIn("name='%s'" % campo, antes, campo)
             self.assertIn("name='%s'" % campo, chips, campo)
         # fechados, todos, e exclusivos entre si
-        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 5)
+        # seis sem perfil: o CPV é um deles desde 6/10/2026
+        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 6)
         self.assertNotIn(" open", chips.split("</div>")[0])
         # com dois filtros postos, dois botões acesos, com o valor
         h = self._ver(radar.LISTA + "?plat=acingov&de=01/09/2026")
@@ -28718,8 +28763,10 @@ class TestUXFichasDe1Outubro(_CicloDoTesteComUtilizadores):
         # regra a esconde
         h = self.cliente.get(radar.LISTA).get_data(as_text=True)
         form = h.split("id='filtros-lista'", 1)[1].split("</form>", 1)[0]
-        self.assertGreater(form.index("id='sintaxe-q'"),
-                           form.rindex("</details>"))
+        # desde 6/10/2026 num «Como se escreve a pesquisa» fechado, fora
+        # dos botões de filtro
+        sintaxe = form.split("<details class='como-se-conta f-sintaxe'>", 1)[1]
+        self.assertIn("id='sintaxe-q'", sintaxe.split("</details>", 1)[0])
         self.assertIn(".f-sintaxe{grid-column:1/-1;order:2;margin:0}", self._folha())
         self.assertNotRegex(self._folha(), r"\.f-sintaxe[^{]*\{[^}]*display:none")
 

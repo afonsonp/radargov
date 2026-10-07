@@ -11323,6 +11323,10 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
 # cores sao as da paleta "ardosia e ambar" do painel, copiadas a mao
 # porque um e-mail nao le o CSS da aplicacao.
 _EM_INK = "#14181e"
+# o azul da marca, no cabeçalho e no botão (6/10/2026): os e-mails eram
+# a única coisa ainda na paleta antiga, a preto, e o convite é a primeira
+# coisa que um fundador recebe
+_EM_MARCA = "#004682"
 _EM_PAPEL = "#eef1f4"
 _EM_LINHA = "#dbe0e6"
 _EM_T2 = "#333c46"
@@ -11420,7 +11424,7 @@ def moldura_do_email(cabeca, corpo, rodape=""):
         "style=\"padding:24px 12px\">"
         "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
         "cellspacing=\"0\" style=\"max-width:640px\">"
-        "<tr><td style=\"background:%(ink)s;border-radius:8px 8px 0 0;"
+        "<tr><td style=\"background:%(marca)s;border-radius:8px 8px 0 0;"
         "padding:18px 20px 16px\">"
         "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
         "text-transform:uppercase;letter-spacing:.08em\">"
@@ -11433,7 +11437,7 @@ def moldura_do_email(cabeca, corpo, rodape=""):
         "<tr><td style=\"padding:4px 4px 0;font:400 11.5px/1.5 %(sans)s;"
         "color:%(t3)s\">%(rodape)s</td></tr>"
         "</table></td></tr></table></body></html>"
-        % {"papel": _EM_PAPEL, "ink": _EM_INK, "sans": _EM_SANS, "t3": _EM_T3,
+        % {"papel": _EM_PAPEL, "marca": _EM_MARCA, "sans": _EM_SANS, "t3": _EM_T3,
            "cabeca": html.escape(cabeca),
            "quando": datetime.now().strftime("%d/%m/%Y %H:%M"),
            "corpo": corpo, "rodape": rodape})
@@ -11462,7 +11466,7 @@ def _em_botao(ligacao, rotulo):
         "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
         "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
         "%s</a></td></tr></table>"
-        % (_EM_INK, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
+        % (_EM_MARCA, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
         + _em_paragrafo(
             "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
             "copie este endereço para o browser:<br><span style=\"font-family:%s;"
@@ -17468,11 +17472,22 @@ CSS_NOVO = r"""
  [data-pele=novo] .hj-row .hj-q{order:4;flex:0 0 auto;margin-left:26px}
  [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}
  [data-pele=novo] .hj-row .hj-mexer{order:6}}
-/* no telemóvel o concurso numa linha sua: ficava «2370…» e cortava
-   letras no fim (4.ª e 5.ª rondas) */
+/* No telemovel, duas linhas limpas (6/10/2026, o conselho antes do
+   anuncio): em cima a caixa, o que ha a fazer e o dia; em baixo, com o
+   recuo da caixa, o concurso (cortado com reticencias), a entrega, o dono
+   e o «adiar · quem». Eram quatro pedacos desalinhados. O `::after` com
+   a largura toda e o que parte a linha. */
 @media (max-width:600px){
- [data-pele=novo] .hj-row .hj-o{max-width:calc(100% - 30px)}
- [data-pele=novo] .hj-row .hj-c{order:7;flex:1 1 100%;margin-left:26px;white-space:normal}}
+ [data-pele=novo] .hj-row{gap:4px 8px;align-items:center}
+ [data-pele=novo] .hj-row form.accao{order:0}
+ [data-pele=novo] .hj-row .hj-o{order:1;flex:1 1 0;max-width:none;min-width:0}
+ [data-pele=novo] .hj-row .hj-q{order:2;margin-left:0}
+ [data-pele=novo] .hj-row::after{content:"";order:3;flex-basis:100%;height:0}
+ [data-pele=novo] .hj-row .hj-c{order:4;flex:1 1 0;min-width:0;margin-left:28px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ [data-pele=novo] .hj-row .fim{order:5;margin-left:0}
+ [data-pele=novo] .hj-row .av{order:6}
+ [data-pele=novo] .hj-row .hj-mexer{order:7}}
 @media (max-width:900px){
  [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
 
@@ -20042,6 +20057,20 @@ if (ARV_DET) {
   });
   arvoreSemear();
 }
+// O «Escolher na árvore» do botão CPV (6/10/2026): a árvore vive
+// escondida por baixo dos filtros, e abre-se daqui.
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-abre-arvore]');
+  if (!b) return;
+  var det = document.querySelector('details.arvore');
+  if (!det) return;
+  var fora = det.closest('details.painel-filtros');
+  if (fora) fora.open = true;
+  det.open = true;
+  var chip = b.closest('details.f-chip');
+  if (chip) chip.open = false;
+  det.scrollIntoView({block: 'start'});
+});
 </script>"""
 
 
@@ -20986,7 +21015,8 @@ def _lista_de_anuncios():
     cpv_actual = request.args.get("cpv", "")
     faixa_cpv = faixa_cpv_activo(request.args,
                                  sem_pagina(request.args, rota, cpv=""))
-    faixa_interesse = _faixa_do_interesse(rota, escondidos_interesse, cfg)
+    faixa_interesse = _faixa_do_interesse(rota, escondidos_interesse, cfg,
+                                          curta=True)
 
     # A plataforma decide se as peças se conseguem trazer, por isso vale
     # a pena poder isolá-la -- ver só acingov/vortal/compraspt é ver o que
@@ -21065,6 +21095,19 @@ def _lista_de_anuncios():
             data_campo("de", "Publicado de") + data_campo("ate", "Publicado até")),
         chip_de_filtro("Distrito", "local", arg("dist"), campo_dist),
         chip_de_filtro("Preço base", "euro", preco, campos_preco)))
+    # O CPV é um botão como os outros (6/10/2026, ele: «o CPV aparece
+    # duas vezes»): o campo vive nele, e a árvore, por baixo dos filtros,
+    # só se vê quando o «Escolher na árvore» a abre ou há um CPV posto.
+    # Com o perfil definido não há botão: o CPV é o do perfil.
+    sem_perfil = not all(interesse_definido(cfg)[:2])
+    if sem_perfil:
+        chips += chip_de_filtro("CPV", "lista", cpv_actual, (
+            "<label class='mg-field'><span class='mg-field__label'>CPV</span>"
+            "<input class='mg-field__input' type='text' id='filtro-cpv' "
+            "name='cpv' value='%s' placeholder='Código, ex. 45331000'></label>"
+            % html.escape(cpv_actual, quote=True))
+            + "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
+            "data-abre-arvore>Escolher na árvore</button>")
     filtros = (
         "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
         "<label class='f-q'><span class='so-leitor'>Pesquisar</span>%s"
@@ -21073,14 +21116,16 @@ def _lista_de_anuncios():
         "aria-describedby='sintaxe-q'></label>"
         "<div class='f-chips'>%s%s%s</div>"
         "<input type='hidden' name='nif' value='%s'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+        "%s"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         "<input type='hidden' name='estado' value='%s'>"
-        # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
-        "<p class='mg-field__hint f-sintaxe' id='sintaxe-q'>Pesquisar: as "
+        # fora do `title` do campo (UX-ICONES-DICAS-PESOS, 14), e
+        # fechada desde 6/10/2026: estava sempre à vista
+        "<details class='como-se-conta f-sintaxe'><summary>Como se escreve "
+        "a pesquisa</summary><p class='mg-field__hint' id='sintaxe-q'>As "
         "palavras soltas têm de estar todas; separe com vírgula para "
-        "qualquer uma; entre aspas, a frase exacta.</p>"
+        "qualquer uma; entre aspas, a frase exacta.</p></details>"
         "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            icone("pesquisar", 18),
@@ -21089,10 +21134,14 @@ def _lista_de_anuncios():
            # aceso (6/10/2026; vivia na linha da contagem)
            faixa_interesse,
            chips,
-           botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
-                                        quote=True)),
+           fim_da_fila(html.escape(href_limpar(rota, estado_actual), quote=True),
+                       any(arg(k) for k in ("q", "ent", "nif", "plat", "de", "ate",
+                                            "dist", "pbmin", "pbmax", "cpv",
+                                            "cpv_excl"))),
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
-           html.escape(cpv_actual, quote=True),
+           "" if sem_perfil else
+           "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+           % html.escape(cpv_actual, quote=True),
            html.escape(request.args.get("cpv_excl", ""), quote=True),
            campos_escondidos(request.args, ("q_excl", "op", "prazo", "interesse")),
            html.escape(estado_actual, quote=True)))
@@ -21346,7 +21395,9 @@ def _lista_de_anuncios():
 # As colunas do `EcraPropostas` (24/09/2026): a referencia a esquerda, o
 # objecto com o cliente por baixo, o responsavel em circulo, e o «Falta»
 # no fim a dizer o que trava -- a proxima tarefa por fazer.
-COLUNAS_DA_PIPELINE = ("Ref.ª", "Objecto", "Lote", "Resp.", "Preço base",
+# sem a «Ref.ª» desde 6/10/2026, como os Concursos: a referência vai na
+# linha da entidade, por baixo do título
+COLUNAS_DA_PIPELINE = ("Objecto", "Lote", "Resp.", "Preço base",
                        "Proposto", "Prazo", "Estado", "Falta")
 
 
@@ -21471,16 +21522,15 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
     # para o mesmo sítio que o título ao lado (N5 da UX-AUDITORIA-1-10).
     cel_ref = ("<a href='%s'>%s</a>" % (alvo, html.escape(p["ref"]))
                if p["ref"] else "&mdash;")
-    return ("<tr><td class='mg-code'>%s</td>"
+    return ("<tr>"
             "<td class='o'><a href='%s' title='%s'>%s</a>%s"
-            "<small title='%s'>%s</small></td>"
+            "<small title='%s'>%s%s</small></td>"
             "%s"
             "<td class='curta'>%s</td>"
             "<td class='mg-num p'>%s</td>%s"
             "<td class='mg-num d'>%s</td>"
             "<td class='celula-ranhura'>%s</td><td class='falta'>%s</td></tr>"
-            % (cel_ref,
-               alvo,
+            % (alvo,
                html.escape(p["titulo"] or p["ref"] or "(sem título)",
                            quote=True),
                html.escape(nome),
@@ -21489,6 +21539,8 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
                % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
                html.escape(p["entidade"] or "", quote=True),
                html.escape(corta(p["entidade"] or "", 45)),
+               (" &middot; <span class='mg-code'>%s</span>"
+                % html.escape(p["ref"])) if p["ref"] else "",
                # a celula do lote sai com a coluna (colunas_da_ranhura)
                "<td class='curta'>%s</td>"
                % ("L%d" % p["lote"] if p["lote"] else
@@ -21674,12 +21726,14 @@ def _fases_das_propostas():
         "<section class='fs-coluna fs-decididas' aria-label='Decididas'><header>"
         "<h2>Decididas</h2><span>abrem a tabela</span></header>%s</section>"
         % decididas)
-    caixa = ("<form class='pf' method='get' action='%s'>"
-             "<input type='search' name='q' value='%s' "
-             "placeholder='No título ou na entidade' aria-label='Filtrar as propostas'>"
-             "%s</form>"
-             % (PROPOSTAS, html.escape(procura, quote=True),
-                botoes_de_filtro(PROPOSTAS if procura else "", primario=False)))
+    # a procura larga, como a dos Concursos (6/10/2026)
+    caixa = ("<form class='procura-larga' id='procura-propostas' method='get' "
+             "action='%s'><label><span class='so-leitor'>Procurar nas propostas"
+             "</span>%s<input type='search' name='q' value='%s' "
+             "placeholder='Procurar no título ou na entidade'></label>%s</form>"
+             % (PROPOSTAS, icone("pesquisar", 18), html.escape(procura, quote=True),
+                "<a class='mg-btn mg-btn--subtle' href='%s'>Limpar</a>" % PROPOSTAS
+                if procura else ""))
     conteudo = ("<div class='larg'><div class='fs-topo'>"
                 + _vistas_das_propostas("fases") + caixa + "</div>"
                 "<div class='fs-quadro'>" + "".join(colunas) + "</div></div>")
@@ -21687,9 +21741,7 @@ def _fases_das_propostas():
         "propostas", "Propostas", "", conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
-            "O que a empresa tem em curso, por fase &mdash; com as "
-            "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
-            "convite).", [],
+            "O que a empresa tem em curso, por fase.", [],
             "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
             + icone("mais") + " Nova proposta</a>"),
         titulo_aba="Propostas")
@@ -21854,15 +21906,16 @@ def _lista_de_propostas():
     # abertura, com a pergunta escrita na barra de endereco e nenhuma
     # resposta no ecra. Um `action` nao e um `href` e por isso escapou a
     # varredura das nove ligacoes (16/09/2026).
-    caixa = ("<form class='pf' method='get' action='%s'>"
-             "<input type='hidden' name='estado' value='%s'>"
+    # a procura larga, como a dos Concursos (6/10/2026)
+    caixa = ("<form class='procura-larga' id='procura-propostas' method='get' "
+             "action='%s'><input type='hidden' name='estado' value='%s'>"
+             "<label><span class='so-leitor'>Procurar nas propostas</span>%s"
              "<input type='search' name='q' value='%s' "
-             "placeholder='No título ou na entidade' aria-label='Filtrar as propostas'>"
-             "%s</form>"
+             "placeholder='Procurar no título ou na entidade'></label>%s</form>"
              % (PROPOSTAS, html.escape(estado_actual, quote=True),
-                html.escape(procura, quote=True),
-                botoes_de_filtro("%s?estado=%s" % (PROPOSTAS, estado_actual)
-                                 if procura else "", primario=False)))
+                icone("pesquisar", 18), html.escape(procura, quote=True),
+                "<a class='mg-btn mg-btn--subtle' href='%s?estado=%s'>Limpar</a>"
+                % (PROPOSTAS, estado_actual) if procura else ""))
     # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
     # corpo, a procura e a contagem, e a tabela.
     conteudo = ("<div class='larg fs-topo'>" + _vistas_das_propostas("tabela")
@@ -21876,9 +21929,7 @@ def _lista_de_propostas():
         conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
-            "O que a empresa tem em curso, por fase &mdash; com as "
-            "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
-            "convite).", [],
+            "O que a empresa tem em curso, por fase.", [],
             "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
             + icone("mais") + " Nova proposta</a>"),
         script=caixa_do_motivo(),
@@ -22336,7 +22387,7 @@ def faixa_cpv_activo(args, tirar_href):
             % (html.escape(cpv), html.escape(tirar_href, quote=True)))
 
 
-def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
+def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False, curta=False):
     """A faixa que diz que a lista esta limitada ao interesse -- ou que
     ele foi levantado neste pedido.
 
@@ -22376,6 +22427,21 @@ def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
                                quote=True)))
     quantos = ("<span class='d'> &middot; %s de fora</span>"
                % mil_pt(escondidos)) if escondidos > 0 else ""
+    if curta:
+        # Na fila dos botões de filtro, a forma curta (6/10/2026, a
+        # maquete): os códigos por extenso partiam a fila do Mercado. Ficam
+        # no `title`, e o perfil inteiro está a um clique.
+        cpvs = [x for x in (dentro or "").split("|") if x.strip()]
+        resumo = (plural(len(cpvs), "CPV", "CPV") if cpvs
+                  else html.unescape(re.sub(r"<[^>]+>", "", descricao)))
+        return ("<div class='cpv-activo' title='%s'><a href='/configuracoes/"
+                "interesse'>Perfil da empresa</a> &middot; <b>%s</b>%s "
+                "<a href='%s'>ver tudo</a></div>"
+                % (html.escape(html.unescape(re.sub(r"<[^>]+>", "", descricao)),
+                               quote=True),
+                   html.escape(resumo), quantos,
+                   html.escape(sem_pagina(request.args, rota, interesse="nao"),
+                               quote=True)))
     return ("<div class='cpv-activo'>Limitado ao "
             "<a href='/configuracoes/interesse'>perfil da empresa</a>: "
             "<b>%s</b>%s%s%s <a href='%s'>ver tudo</a></div>"
@@ -23203,20 +23269,26 @@ def _conteudo_interesse():
         # a dica (L7 do plano de Outubro, da exploração dos concorrentes):
         # quem começa marca áreas a mais, e a lista enche-se do que não faz
         "<p class='nota dica-do-perfil'>%s</p>"
+        # a árvore dos CPV primeiro, e os distritos e o valor depois
+        # (6/10/2026, a verificação antes do anúncio): o perfil é o primeiro
+        # passo de uma empresa nova, e abria com ~30 caixas de distritos
+        # antes do que importa
+        "%s"
         "<form method='post' action='/alertas/interesse' class='filtros' "
         "id='form-perfil'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "</form>%s<div class='perfil-guardar'><button type='submit' "
+        "</form><div class='perfil-guardar'><button type='submit' "
         "form='form-perfil' class='mg-btn mg-btn--primary'>Guardar o perfil"
         "</button></div></div>"
-        % (estado, html.escape(DICA_DO_PERFIL), html.escape(dentro, quote=True),
-           html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg),
+        % (estado, html.escape(DICA_DO_PERFIL),
            # fechada quando o perfil ja tem CPV (UX-7-LEIS H7, 30/09/2026):
            # 9 454 codigos abertos por cima de um «Em vigor: 72000000»
            arvore_html(n_cpv, "anuncios", submeter=False, aberta=not dentro,
-                       botao=None, rodape=False)))
+                       botao=None, rodape=False),
+           html.escape(dentro, quote=True),
+           html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg)))
     conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
     if sou_admin():
         return ("<p class='nota' style='margin:0 0 12px'>O perfil vale para "
@@ -28529,6 +28601,17 @@ def campo_de_filtro(rotulo, dentro, classe=""):
             "</span>%s</label>" % (classe, rotulo, dentro))
 
 
+def fim_da_fila(limpar, ha_filtro):
+    """O fim da fila dos botões de filtro (6/10/2026, o conselho antes do
+    anúncio): sem «Filtrar» -- cada botão tem o seu «Aplicar» e a pesquisa
+    vai com o Enter, por um envio que só o leitor de ecrã vê --, e o
+    «Limpar» só quando há o que limpar."""
+    return ("<button type='submit' class='so-leitor envio-da-pesquisa'>"
+            "Procurar</button>%s"
+            % ("<a class='mg-btn mg-btn--subtle mg-btn--sm limpar f-limpar' "
+               "href='%s'>Limpar</a>" % limpar if ha_filtro else ""))
+
+
 def botoes_de_filtro(limpar="", primario=True):
     """O fim de um formulário de filtro, igual nos quatro (segunda ronda,
     perfil 11: eram cinco desenhos do mesmo gesto, com os verbos
@@ -29025,9 +29108,7 @@ def entidades():
                   % (html.escape(titulo_vazio), porque))
 
     return envolver("entidades", "Entidades",
-                    "Quem compra, quem ganha, e com quem já trabalhámos. "
-                    "Toda a entidade tem ficha — as do Portal BASE e as que "
-                    "só existem no Diário da República.",
+                    "Quem compra, quem ganha, e com quem já trabalhámos.",
                     "<div class='larg'>%s%s%s</div>"
                     % (procura, _bloco_de_comparacao(marcadas), tabela),
                     migalhas=migalhas_de("entidades"), abas=abas,
@@ -29411,7 +29492,7 @@ def entidade(chave):
         else "sem NIF público &mdash; identificada pelo nome",
         [("Mercado", "/contratos"), ("Entidades", "/entidades"),
          (d["nome"][:44], "")],
-        seguir_cx, selo + nomes)
+        seguir_cx, selo + nomes, accoes_em_baixo=True)
 
     # Duas colunas (redesenho §4): **o nosso lado à esquerda** e o
     # Portal BASE à direita. Empilhados, o que já lhe fizemos ficava
@@ -29821,7 +29902,10 @@ def contratos():
             "id='filtro-cpv' name='cpv' value='%s' "
             "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
             "autocomplete='off' data-cpv-sugere='contratos' "
-            "aria-describedby='sintaxe-cpv'>" % v("cpv"))),
+            "aria-describedby='sintaxe-cpv'>" % v("cpv"))
+            + ("" if com_interesse else
+               "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
+               "data-abre-arvore>Escolher na árvore</button>")),
         chip_de_filtro("Procedimento", "documento", arg("proc"), campo(
             "Procedimento", selector_procedimento(procs, arg("proc"))
             .replace("<select ", "<select class='mg-field__input' ", 1))),
@@ -29849,14 +29933,19 @@ def contratos():
         "<input type='hidden' name='vencid' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
-        "<p class='mg-field__hint f-sintaxe' id='sintaxe-cpv'>CPV: um ou "
+        # fora do `title` (UX-ICONES-DICAS-PESOS, 14), fechada desde
+        # 6/10/2026
+        "<details class='como-se-conta f-sintaxe'><summary>Como se escreve "
+        "o CPV</summary><p class='mg-field__hint' id='sintaxe-cpv'>Um ou "
         "mais códigos, separados por |; os zeros à direita alargam ao "
-        "grupo (45000000 é toda a construção).</p>"
+        "grupo (45000000 é toda a construção).</p></details>"
         "</form><datalist id='entidades-contratos'></datalist>"
         "<datalist id='cpv-sugestoes'></datalist>"
         % (escondidos_modo, icone("pesquisar", 18), v("q"), chips,
-           botoes_de_filtro(html.escape(modo_limpo, quote=True)),
+           fim_da_fila(html.escape(modo_limpo, quote=True),
+                       any(arg(k) for k in ("q", "adj", "entid", "ganhou",
+                                            "vencid", "cpv", "proc", "de",
+                                            "ate", "min", "meses"))),
            v("entid"), v("vencid"), v("cpv_excl"),
            campos_escondidos(request.args, ("q_excl", "op", "interesse"))))
 
@@ -30069,7 +30158,7 @@ def contratos():
                       "celebração.</div>")
     faixa_cpv = "".join(faixas)
     faixa_interesse = _faixa_do_interesse("/contratos", escondidos_interesse,
-                                          cfg, so_cpv=True)
+                                          cfg, so_cpv=True, curta=True)
     if com_interesse:
         filtros = filtros.replace("<input type='text' id='filtro-cpv-excl'",
                                   "<input type='hidden' id='filtro-cpv-excl'")
@@ -30138,7 +30227,8 @@ def contratos():
                       "</div>%s</div>" % (tabela_e_notas, graficos))
                      if ha_pergunta else tabela_e_notas)
     conteudo = (abas + "<div class='larg'>" + pergunta +
-                ("" if com_interesse else arvore_html(n_cpv, "contratos")) +
+                ("" if com_interesse else "<div class='arvore-escondida'>"
+                 + arvore_html(n_cpv, "contratos") + "</div>") +
                 resumo_linha + corpo_mercado + barra_corpus(anos) +
                 (fonte if ha_pergunta else "") + "</div>")
     # Acima do tecto o CSV corta, e diz-se no botao e nao so na dica:
@@ -30162,9 +30252,8 @@ def contratos():
             "renovacoes", "Renovações", "",
             conteudo,
             cabeca=cabecalho_de_pagina(
-                "Mercado", "Os mesmos contratos vistos pelo <b>fim "
-                "estimado</b>: o que está a acabar volta a concurso, e quem "
-                "o vê antes do anúncio prepara-se com tempo.", [], accoes),
+                "Mercado", "Os contratos pelo <b>fim estimado</b>: o que "
+                "está a acabar volta a concurso.", [], accoes),
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + CPV_SUGERE_JS
             + espera_corpus(),
@@ -30174,8 +30263,7 @@ def contratos():
         "contratos", "Contratos celebrados", "",
         conteudo,
         cabeca=cabecalho_de_pagina(
-            "Mercado", "Contratos celebrados no Portal BASE: quem compra, "
-            "quem ganha, por quanto e quando renova.", [], accoes),
+            "Mercado", "Os contratos celebrados no Portal BASE.", [], accoes),
         script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + CPV_SUGERE_JS
         + espera_corpus(),
@@ -30504,7 +30592,8 @@ def kpi(rotulo, valor, nota="", alvo="", classe="", delta="", porque=""):
                "a" if alvo else "div"))
 
 
-def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas=""):
+def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas="",
+                        accoes_em_baixo=False):
     """O cabeçalho de uma página (o `PageHeader`): as migalhas, o título
     grande com as acções à direita, e o subtítulo por baixo.
 
@@ -30520,14 +30609,23 @@ def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas=""):
     # sem migalhas nao ha `<ol>`: uma pagina do primeiro nivel (os
     # Concursos) e ela propria o inicio do caminho
     migalhas_html = "<ol class='mg-crumbs'>%s</ol>" % passos if passos else ""
+    # Nas fichas o título tem o tamanho do objecto, e as acções saltavam
+    # para baixo dele quando era comprido e ficavam ao lado quando era
+    # curto (6/10/2026, ele: «isto não está uniformizado»). Com
+    # `accoes_em_baixo` vão sempre numa linha sua, depois do subtítulo e
+    # das etiquetas.
+    accoes_html = ("<div class='mg-pagehead__actions%s'>%s</div>"
+                   % (" em-baixo" if accoes_em_baixo else "", accoes)
+                   if accoes else "")
     return ("<div class='mg mg-pagehead'>%s"
             "<div class='mg-pagehead__row'><h1 class='mg-pagehead__title'>%s</h1>%s</div>"
-            "%s%s</div>"
+            "%s%s%s</div>"
             % (migalhas_html, titulo,
-               "<div class='mg-pagehead__actions'>%s</div>" % accoes if accoes else "",
+               "" if accoes_em_baixo else accoes_html,
                "<p class='mg-pagehead__sub'>%s</p>" % subtitulo if subtitulo else "",
                "<div class='mg-row pagehead-etiquetas'>%s</div>" % etiquetas
-               if etiquetas else ""))
+               if etiquetas else "",
+               accoes_html if accoes_em_baixo else ""))
 
 
 # Os quatro passos da escada na ficha (o `Stepper` do sistema). São a
@@ -32807,7 +32905,8 @@ def ficha(ref):
                               (ref,))]
     cabeca_pagina = cabecalho_de_pagina(
         html.escape(a["titulo"] or ref), " &middot; ".join(sub),
-        migalhas, "".join(sair + decidir), "".join(etiquetas))
+        migalhas, "".join(sair + decidir), "".join(etiquetas),
+        accoes_em_baixo=True)
 
     # --- a escada, em quatro passos (o `Stepper` do sistema)
     escada_html = passos_da_escada(a, minhas)
@@ -34968,9 +35067,8 @@ def proposta_nova():
                              "anterior a 2025", "não sei"))))
     # Acende «Propostas», que é onde ela vai viver (3.ª ronda, G89)
     return envolver("propostas", "Nova proposta",
-                    "O que não vem do Diário da República: consulta "
-                    "prévia, ajuste directo, convite. O que vem do DR "
-                    "abre-se a partir da ficha do anúncio, com «Interessa».",
+                    "Consulta prévia, ajuste directo ou convite: o que "
+                    "não vem do Diário da República.",
                     "<div class='larg'>" + corpo + "</div>",
                     migalhas=migalhas_de("propostas", "Nova proposta"),
                     titulo_aba="Nova proposta")
@@ -36561,8 +36659,9 @@ def situacao():
             "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
             "dia em que a proposta se marcou como decidida no Mira Gov. "
             "«Por submeter» e «Em jogo» são uma fotografia de agora "
-            "— o que está aberto não se decidiu em período nenhum.%s</p></details>"
-            % ("" if not rotulo_antes
+            "— o que está aberto não se decidiu em período nenhum. Uma taxa só "
+            "aparece com %d decididas ou mais.%s</p></details>"
+            % (MINIMO_PARA_TAXA, "" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
         corpo = ("<div class='mg-card' style='padding:22px 24px'>"
@@ -36583,8 +36682,7 @@ def situacao():
         cabeca=cabecalho_de_pagina(
             "Ponto de situação",
             "Como vai o negócio: o que está em jogo, o que se ganha e porque "
-            "se perde. Uma taxa só aparece com %d decididas ou mais."
-            % MINIMO_PARA_TAXA, []))
+            "se perde.", []))
 
 
 @app.route("/indicadores")
@@ -38373,6 +38471,8 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False,
              "a de %s da %s." if pedido else
              "Tem um convite para entrar no Mira Gov, com uma conta de %s "
              "da %s.") % (papel_ecra, empresa)
+    # o nome que já acaba em ponto («Lda.») não leva outro (6/10/2026)
+    frase = frase.replace("..", ".")
     ate = data_pt((datetime.now() + timedelta(days=contas.DIAS_DE_CONVITE))
                   .strftime("%Y-%m-%d"))
     passos = PASSOS_DO_CONVITE.get(papel, PASSOS_DO_CONVITE["tester"])
@@ -38842,6 +38942,8 @@ PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="
 </main></body></html>"""
 
 FORMULARIO_DO_CONVITE = """<form method="post">
+  <div class="mg-field"><label class="mg-field__label" for="c-nome">O seu nome</label>
+   <input class="mg-field__input" id="c-nome" type="text" name="nome" value="%(nome)s" autocomplete="name" maxlength="80" required></div>
   <div class="mg-field"><label class="mg-field__label" for="c-utilizador">E-mail</label>
    <input class="mg-field__input" id="c-utilizador" type="email" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
@@ -38876,7 +38978,9 @@ def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True, convite_=No
                      " role='alert'" if erro else "", html.escape(aviso))
                   if aviso else ""),
         "formulario": (antes + FORMULARIO_DO_CONVITE
-                       % {"utilizador": html.escape(utilizador, quote=True)} + depois
+                       % {"utilizador": html.escape(utilizador, quote=True),
+                          "nome": html.escape(request.form.get("nome") or "",
+                                              quote=True)} + depois
                        if utilizador is not None else
                        "<p><a href='/entrar'>Ir para a entrada</a></p>"),
     }, codigo, mimetype="text/html")
@@ -38913,7 +39017,9 @@ def convite(codigo):
     try:
         with liga() as c:
             token, porque = contas.usar_convite(
-                c, codigo, utilizador, senha, ip=request.remote_addr or "",
+                c, codigo, utilizador, senha,
+                nome=" ".join((request.form.get("nome") or "").split())[:80],
+                ip=request.remote_addr or "",
                 agente=request.headers.get("User-Agent") or "")
     except ValueError as erro:
         return pagina_convite("Não criei a conta: %s." % erro,
