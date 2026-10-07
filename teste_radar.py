@@ -30158,6 +30158,50 @@ class TestOsLogotiposDasPlataformas(unittest.TestCase):
         self.assertEqual(radar.plataforma_com_logo("saphety"), "saphety")
         self.assertEqual(radar.plataforma_com_logo(""), "")
 
+
+class TestAFichaPeloPapel(_CicloDoTesteComUtilizadores):
+    """7/10/2026, ele: «uma página de cliente vs uma página de concorrente
+    tem de mostrar coisas diferentes. Eu não quero saber se o IGFEJ vende
+    para a Direção dos Tribunais». No corpus de ensaio os municípios só
+    compram (clientes) e as empresas só vendem (concorrentes)."""
+
+    _ver = TestUXMercadoDe1Outubro._ver
+
+    def test_o_cliente_nao_mostra_o_que_vende(self):
+        semear_corpus()
+        h = self._ver("/entidade/506000000")
+        self.assertIn("A quem compra", h)
+        self.assertNotIn("A quem vende", h)
+        self.assertNotIn("Os últimos contratos que ganhou", h)
+        self.assertIn("Compra · 24 meses", h)
+
+    def test_o_concorrente_nao_mostra_o_que_compra(self):
+        semear_corpus()
+        h = self._ver("/entidade/510000001")
+        self.assertIn("A quem vende", h)
+        self.assertIn("Como ganha", h)
+        self.assertIn("Os últimos contratos que ganhou", h)
+        self.assertNotIn("A quem compra", h)
+        self.assertIn("Ganha · 24 meses", h)
+        self.assertIn("Desconto que dá", h)
+        self.assertIn("Maior cliente", h)
+        self.assertIn("os contratos dele a acabar", h)
+        # um concorrente não lança concursos: sai a contagem dos anúncios
+        self.assertNotIn("no Diário da República</a>", h)
+
+    def test_contra_nos_conta_as_propostas_que_nos_ganhou(self):
+        semear_corpus()
+        id_ = self._proposta("perdido")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET vencedor='Empresa 1, Lda' "
+                      "WHERE id=?", (id_,))
+        self.assertEqual(len(radar.propostas_que_nos_ganhou(
+            "510000001", "Empresa 1, Lda")), 1)
+        self.assertEqual(radar.propostas_que_nos_ganhou(
+            "510000002", "Empresa 2, Lda"), [])
+        h = self._ver("/entidade/510000001")
+        self.assertIn("Contra nós <i>1</i>", h)
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -1354,6 +1354,16 @@ Uma árvore, duas fontes de contagem, dois campos.
   das tabelas das entidades e dos contratos, e o glossário tem «Cliente»
   e «Concorrente».
 
+- **O que a ficha mostra decide-se pelo papel, e o papel pelos totais
+  SEM filtro** (7/10/2026). Um cliente esconde o lado das vendas, um
+  concorrente o das compras (`lado_compra` / `lado_venda` no
+  `entidade()`). Os atalhos continuam a dar os dois lados: são o
+  caminho para o que está escondido, e um atalho que sumisse com o lado
+  deixava a ficha a mentir por omissão. O «Contra nós» do concorrente
+  (`propostas_que_nos_ganhou()`) compara o «quem ganhou» escrito à mão
+  com o NIF e o nome: é texto livre, e por isso os nomes curtos (menos
+  de 5 letras simplificadas) não batem, senão «Lda» apanhava todos.
+
 - **O papel da entidade (Cliente / Concorrente) conta com os totais SEM
   o filtro da ficha.** São duas somas próprias no `ficha_entidade()`
   (`compra_total`, `ganha_total`), e não os `compra`/`ganha` que os
