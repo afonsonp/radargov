@@ -23236,20 +23236,26 @@ def _conteudo_interesse():
         # a dica (L7 do plano de Outubro, da exploração dos concorrentes):
         # quem começa marca áreas a mais, e a lista enche-se do que não faz
         "<p class='nota dica-do-perfil'>%s</p>"
+        # a árvore dos CPV primeiro, e os distritos e o valor depois
+        # (6/10/2026, a verificação antes do anúncio): o perfil é o primeiro
+        # passo de uma empresa nova, e abria com ~30 caixas de distritos
+        # antes do que importa
+        "%s"
         "<form method='post' action='/alertas/interesse' class='filtros' "
         "id='form-perfil'>"
         "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        "</form>%s<div class='perfil-guardar'><button type='submit' "
+        "</form><div class='perfil-guardar'><button type='submit' "
         "form='form-perfil' class='mg-btn mg-btn--primary'>Guardar o perfil"
         "</button></div></div>"
-        % (estado, html.escape(DICA_DO_PERFIL), html.escape(dentro, quote=True),
-           html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg),
+        % (estado, html.escape(DICA_DO_PERFIL),
            # fechada quando o perfil ja tem CPV (UX-7-LEIS H7, 30/09/2026):
            # 9 454 codigos abertos por cima de um «Em vigor: 72000000»
            arvore_html(n_cpv, "anuncios", submeter=False, aberta=not dentro,
-                       botao=None, rodape=False)))
+                       botao=None, rodape=False),
+           html.escape(dentro, quote=True),
+           html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg)))
     conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
     if sou_admin():
         return ("<p class='nota' style='margin:0 0 12px'>O perfil vale para "
