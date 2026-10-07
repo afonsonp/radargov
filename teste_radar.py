@@ -3531,6 +3531,18 @@ class TestEmailsBonitos(unittest.TestCase):
         self.assertIn('href="%s"' % ligacao, h)
         self.assertIn("Criar a conta</a>", h)
 
+    def test_o_convite_e_azul_e_sem_ponto_duplo(self):
+        """6/10/2026, a verificação antes do anúncio: «gestor da Nova
+        Empresa, Lda..», e o cabeçalho e o botão a preto, na paleta antiga."""
+        _, texto, h = radar.texto_e_html_do_convite(
+            "https://miragov.pt/convite/abc", "Nova, Lda.", "admin", "Ana",
+            pedido=True)
+        for parte in (texto, h):
+            self.assertIn("gestor da Nova, Lda.", parte)
+            self.assertNotIn("Lda..", parte)
+        self.assertIn("background:%s" % radar._EM_MARCA, h)
+        self.assertNotIn("background:%s" % radar._EM_INK, h)
+
     def test_o_convite_de_utilizador_nao_manda_convidar_colegas(self):
         _, texto, h = radar.texto_e_html_do_convite(
             "https://x/convite/abc", "Beta", "tester")
@@ -18001,6 +18013,19 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
         self.enterContext(unittest.mock.patch.object(radar, "enviar_email", enviar))
         self.enterContext(unittest.mock.patch.object(
             radar.threading, "Thread", TestPesquisaGeralERepor._JaCorre))
+
+    def test_o_nome_escrito_no_convite_fica_na_conta(self):
+        """6/10/2026: sem o nome, a conta ficava «joana», do e-mail."""
+        with radar.liga() as c:
+            codigo = radar.contas.criar_convite(c, 1, "joana@nova.pt", "admin")
+            token, _ = radar.contas.usar_convite(
+                c, codigo, "joana@nova.pt", "senha-comprida-boa",
+                nome="Joana Matos")
+            self.assertTrue(token)
+            self.assertEqual(c.execute("SELECT nome FROM utilizadores WHERE "
+                                       "email='joana@nova.pt'").fetchone()[0],
+                             "Joana Matos")
+        self.assertIn('name="nome"', radar.FORMULARIO_DO_CONVITE)
 
     def _pelo_convite(self, utilizador, email=EMAIL, papel="admin"):
         with radar.liga() as c:

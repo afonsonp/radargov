@@ -11323,6 +11323,10 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
 # cores sao as da paleta "ardosia e ambar" do painel, copiadas a mao
 # porque um e-mail nao le o CSS da aplicacao.
 _EM_INK = "#14181e"
+# o azul da marca, no cabeçalho e no botão (6/10/2026): os e-mails eram
+# a única coisa ainda na paleta antiga, a preto, e o convite é a primeira
+# coisa que um fundador recebe
+_EM_MARCA = "#004682"
 _EM_PAPEL = "#eef1f4"
 _EM_LINHA = "#dbe0e6"
 _EM_T2 = "#333c46"
@@ -11420,7 +11424,7 @@ def moldura_do_email(cabeca, corpo, rodape=""):
         "style=\"padding:24px 12px\">"
         "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
         "cellspacing=\"0\" style=\"max-width:640px\">"
-        "<tr><td style=\"background:%(ink)s;border-radius:8px 8px 0 0;"
+        "<tr><td style=\"background:%(marca)s;border-radius:8px 8px 0 0;"
         "padding:18px 20px 16px\">"
         "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
         "text-transform:uppercase;letter-spacing:.08em\">"
@@ -11433,7 +11437,7 @@ def moldura_do_email(cabeca, corpo, rodape=""):
         "<tr><td style=\"padding:4px 4px 0;font:400 11.5px/1.5 %(sans)s;"
         "color:%(t3)s\">%(rodape)s</td></tr>"
         "</table></td></tr></table></body></html>"
-        % {"papel": _EM_PAPEL, "ink": _EM_INK, "sans": _EM_SANS, "t3": _EM_T3,
+        % {"papel": _EM_PAPEL, "marca": _EM_MARCA, "sans": _EM_SANS, "t3": _EM_T3,
            "cabeca": html.escape(cabeca),
            "quando": datetime.now().strftime("%d/%m/%Y %H:%M"),
            "corpo": corpo, "rodape": rodape})
@@ -11462,7 +11466,7 @@ def _em_botao(ligacao, rotulo):
         "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
         "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
         "%s</a></td></tr></table>"
-        % (_EM_INK, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
+        % (_EM_MARCA, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
         + _em_paragrafo(
             "<span style=\"font-size:12.5px;color:%s\">Se o botão não abrir, "
             "copie este endereço para o browser:<br><span style=\"font-family:%s;"
@@ -38406,6 +38410,8 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False,
              "a de %s da %s." if pedido else
              "Tem um convite para entrar no Mira Gov, com uma conta de %s "
              "da %s.") % (papel_ecra, empresa)
+    # o nome que já acaba em ponto («Lda.») não leva outro (6/10/2026)
+    frase = frase.replace("..", ".")
     ate = data_pt((datetime.now() + timedelta(days=contas.DIAS_DE_CONVITE))
                   .strftime("%Y-%m-%d"))
     passos = PASSOS_DO_CONVITE.get(papel, PASSOS_DO_CONVITE["tester"])
@@ -38875,6 +38881,8 @@ PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="
 </main></body></html>"""
 
 FORMULARIO_DO_CONVITE = """<form method="post">
+  <div class="mg-field"><label class="mg-field__label" for="c-nome">O seu nome</label>
+   <input class="mg-field__input" id="c-nome" type="text" name="nome" value="%(nome)s" autocomplete="name" maxlength="80" required></div>
   <div class="mg-field"><label class="mg-field__label" for="c-utilizador">E-mail</label>
    <input class="mg-field__input" id="c-utilizador" type="email" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
@@ -38909,7 +38917,9 @@ def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True, convite_=No
                      " role='alert'" if erro else "", html.escape(aviso))
                   if aviso else ""),
         "formulario": (antes + FORMULARIO_DO_CONVITE
-                       % {"utilizador": html.escape(utilizador, quote=True)} + depois
+                       % {"utilizador": html.escape(utilizador, quote=True),
+                          "nome": html.escape(request.form.get("nome") or "",
+                                              quote=True)} + depois
                        if utilizador is not None else
                        "<p><a href='/entrar'>Ir para a entrada</a></p>"),
     }, codigo, mimetype="text/html")
@@ -38946,7 +38956,9 @@ def convite(codigo):
     try:
         with liga() as c:
             token, porque = contas.usar_convite(
-                c, codigo, utilizador, senha, ip=request.remote_addr or "",
+                c, codigo, utilizador, senha,
+                nome=" ".join((request.form.get("nome") or "").split())[:80],
+                ip=request.remote_addr or "",
                 agente=request.headers.get("User-Agent") or "")
     except ValueError as erro:
         return pagina_convite("Não criei a conta: %s." % erro,

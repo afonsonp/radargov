@@ -878,7 +878,8 @@ def renovar_convite(c, id_, empresa_id=None, agora=None):
                          convite["papel"], convite["pedido_id"], agora)
 
 
-def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
+def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None,
+                 nome=""):
     """Cria a conta do convite e entra. Devolve (token de sessao, None)
     ou (None, porque). Tudo na mesma ligacao: ou fica a conta, o convite
     gasto e a sessao, ou nao fica nada."""
@@ -892,7 +893,9 @@ def usar_convite(c, codigo, utilizador, senha, ip="", agente="", agora=None):
     # o plano pode ter descido depois do convite: so as contas contam aqui
     if lugares_livres(c, convite["empresa_id"], agora, contar_convites=False) == 0:
         return None, frase_do_limite(c, convite["empresa_id"])
-    uid = criar_conta(c, utilizador, senha, papel=convite["papel"],
+    # o nome escreve-se no convite (6/10/2026): sem ele a conta ficava
+    # com o princípio do e-mail, em minúsculas, na barra para sempre
+    uid = criar_conta(c, utilizador, senha, nome=nome, papel=convite["papel"],
                            empresa_id=convite["empresa_id"])
     # o e-mail do convite fica na conta (1/10/2026), seja qual for o
     # utilizador escolhido -- sem ele o «esqueci-me» nao a encontra. Se
