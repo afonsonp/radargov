@@ -12046,7 +12046,9 @@ class TestFiltroPorDistritoEValor(BaseTemporaria):
                 "SELECT ref FROM anuncios WHERE " + frag, vals))
         self.assertEqual(refs, ["2/2026", "3/2026"])
         h = self.cliente.get("/concursos?estado=").get_data(as_text=True)
-        self.assertIn("Lisboa", h.split("Limitado ao", 1)[1][:300])
+        # a forma curta da fila dos filtros (6/10/2026): sem CPV, o
+        # resumo é o perfil por palavras
+        self.assertIn("Lisboa", h.split("Perfil da empresa</a>", 1)[1][:300])
 
     def test_um_alerta_por_distrito_so_apanha_esse(self):
         radar.gravar_filtro("Porto", "dist=Porto&pbmin=20000", alerta=1)

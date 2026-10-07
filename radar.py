@@ -17472,11 +17472,22 @@ CSS_NOVO = r"""
  [data-pele=novo] .hj-row .hj-q{order:4;flex:0 0 auto;margin-left:26px}
  [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}
  [data-pele=novo] .hj-row .hj-mexer{order:6}}
-/* no telemóvel o concurso numa linha sua: ficava «2370…» e cortava
-   letras no fim (4.ª e 5.ª rondas) */
+/* No telemovel, duas linhas limpas (6/10/2026, o conselho antes do
+   anuncio): em cima a caixa, o que ha a fazer e o dia; em baixo, com o
+   recuo da caixa, o concurso (cortado com reticencias), a entrega, o dono
+   e o «adiar · quem». Eram quatro pedacos desalinhados. O `::after` com
+   a largura toda e o que parte a linha. */
 @media (max-width:600px){
- [data-pele=novo] .hj-row .hj-o{max-width:calc(100% - 30px)}
- [data-pele=novo] .hj-row .hj-c{order:7;flex:1 1 100%;margin-left:26px;white-space:normal}}
+ [data-pele=novo] .hj-row{gap:4px 8px;align-items:center}
+ [data-pele=novo] .hj-row form.accao{order:0}
+ [data-pele=novo] .hj-row .hj-o{order:1;flex:1 1 0;max-width:none;min-width:0}
+ [data-pele=novo] .hj-row .hj-q{order:2;margin-left:0}
+ [data-pele=novo] .hj-row::after{content:"";order:3;flex-basis:100%;height:0}
+ [data-pele=novo] .hj-row .hj-c{order:4;flex:1 1 0;min-width:0;margin-left:28px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ [data-pele=novo] .hj-row .fim{order:5;margin-left:0}
+ [data-pele=novo] .hj-row .av{order:6}
+ [data-pele=novo] .hj-row .hj-mexer{order:7}}
 @media (max-width:900px){
  [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
 
@@ -21004,7 +21015,8 @@ def _lista_de_anuncios():
     cpv_actual = request.args.get("cpv", "")
     faixa_cpv = faixa_cpv_activo(request.args,
                                  sem_pagina(request.args, rota, cpv=""))
-    faixa_interesse = _faixa_do_interesse(rota, escondidos_interesse, cfg)
+    faixa_interesse = _faixa_do_interesse(rota, escondidos_interesse, cfg,
+                                          curta=True)
 
     # A plataforma decide se as peças se conseguem trazer, por isso vale
     # a pena poder isolá-la -- ver só acingov/vortal/compraspt é ver o que
@@ -22379,7 +22391,7 @@ def faixa_cpv_activo(args, tirar_href):
             % (html.escape(cpv), html.escape(tirar_href, quote=True)))
 
 
-def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
+def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False, curta=False):
     """A faixa que diz que a lista esta limitada ao interesse -- ou que
     ele foi levantado neste pedido.
 
@@ -22419,6 +22431,21 @@ def _faixa_do_interesse(rota, escondidos, cfg=None, so_cpv=False):
                                quote=True)))
     quantos = ("<span class='d'> &middot; %s de fora</span>"
                % mil_pt(escondidos)) if escondidos > 0 else ""
+    if curta:
+        # Na fila dos botões de filtro, a forma curta (6/10/2026, a
+        # maquete): os códigos por extenso partiam a fila do Mercado. Ficam
+        # no `title`, e o perfil inteiro está a um clique.
+        cpvs = [x for x in (dentro or "").split("|") if x.strip()]
+        resumo = (plural(len(cpvs), "CPV", "CPV") if cpvs
+                  else html.unescape(re.sub(r"<[^>]+>", "", descricao)))
+        return ("<div class='cpv-activo' title='%s'><a href='/configuracoes/"
+                "interesse'>Perfil da empresa</a> &middot; <b>%s</b>%s "
+                "<a href='%s'>ver tudo</a></div>"
+                % (html.escape(html.unescape(re.sub(r"<[^>]+>", "", descricao)),
+                               quote=True),
+                   html.escape(resumo), quantos,
+                   html.escape(sem_pagina(request.args, rota, interesse="nao"),
+                               quote=True)))
     return ("<div class='cpv-activo'>Limitado ao "
             "<a href='/configuracoes/interesse'>perfil da empresa</a>: "
             "<b>%s</b>%s%s%s <a href='%s'>ver tudo</a></div>"
@@ -30137,7 +30164,7 @@ def contratos():
                       "celebração.</div>")
     faixa_cpv = "".join(faixas)
     faixa_interesse = _faixa_do_interesse("/contratos", escondidos_interesse,
-                                          cfg, so_cpv=True)
+                                          cfg, so_cpv=True, curta=True)
     if com_interesse:
         filtros = filtros.replace("<input type='text' id='filtro-cpv-excl'",
                                   "<input type='hidden' id='filtro-cpv-excl'")
