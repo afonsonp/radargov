@@ -29492,7 +29492,7 @@ def entidade(chave):
         else "sem NIF público &mdash; identificada pelo nome",
         [("Mercado", "/contratos"), ("Entidades", "/entidades"),
          (d["nome"][:44], "")],
-        seguir_cx, selo + nomes)
+        seguir_cx, selo + nomes, accoes_em_baixo=True)
 
     # Duas colunas (redesenho §4): **o nosso lado à esquerda** e o
     # Portal BASE à direita. Empilhados, o que já lhe fizemos ficava
@@ -30592,7 +30592,8 @@ def kpi(rotulo, valor, nota="", alvo="", classe="", delta="", porque=""):
                "a" if alvo else "div"))
 
 
-def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas=""):
+def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas="",
+                        accoes_em_baixo=False):
     """O cabeçalho de uma página (o `PageHeader`): as migalhas, o título
     grande com as acções à direita, e o subtítulo por baixo.
 
@@ -30608,14 +30609,23 @@ def cabecalho_de_pagina(titulo, subtitulo, migalhas, accoes="", etiquetas=""):
     # sem migalhas nao ha `<ol>`: uma pagina do primeiro nivel (os
     # Concursos) e ela propria o inicio do caminho
     migalhas_html = "<ol class='mg-crumbs'>%s</ol>" % passos if passos else ""
+    # Nas fichas o título tem o tamanho do objecto, e as acções saltavam
+    # para baixo dele quando era comprido e ficavam ao lado quando era
+    # curto (6/10/2026, ele: «isto não está uniformizado»). Com
+    # `accoes_em_baixo` vão sempre numa linha sua, depois do subtítulo e
+    # das etiquetas.
+    accoes_html = ("<div class='mg-pagehead__actions%s'>%s</div>"
+                   % (" em-baixo" if accoes_em_baixo else "", accoes)
+                   if accoes else "")
     return ("<div class='mg mg-pagehead'>%s"
             "<div class='mg-pagehead__row'><h1 class='mg-pagehead__title'>%s</h1>%s</div>"
-            "%s%s</div>"
+            "%s%s%s</div>"
             % (migalhas_html, titulo,
-               "<div class='mg-pagehead__actions'>%s</div>" % accoes if accoes else "",
+               "" if accoes_em_baixo else accoes_html,
                "<p class='mg-pagehead__sub'>%s</p>" % subtitulo if subtitulo else "",
                "<div class='mg-row pagehead-etiquetas'>%s</div>" % etiquetas
-               if etiquetas else ""))
+               if etiquetas else "",
+               accoes_html if accoes_em_baixo else ""))
 
 
 # Os quatro passos da escada na ficha (o `Stepper` do sistema). São a
@@ -32895,7 +32905,8 @@ def ficha(ref):
                               (ref,))]
     cabeca_pagina = cabecalho_de_pagina(
         html.escape(a["titulo"] or ref), " &middot; ".join(sub),
-        migalhas, "".join(sair + decidir), "".join(etiquetas))
+        migalhas, "".join(sair + decidir), "".join(etiquetas),
+        accoes_em_baixo=True)
 
     # --- a escada, em quatro passos (o `Stepper` do sistema)
     escada_html = passos_da_escada(a, minhas)

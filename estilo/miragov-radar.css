@@ -1656,3 +1656,8 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
    aparece com o «Como se contam estes numeros» aberto (6/10/2026): eram
    tres linhas pequenas por baixo de cada numero, todos os dias. */
 .mg-card:has(>details.como-se-conta:not([open])) .mg-stat .porque{display:none}
+
+/* As accoes das fichas numa linha sua, por baixo da entidade e do prazo
+   (6/10/2026): o titulo tem o tamanho do objecto, e elas mudavam de sitio
+   com ele */
+.mg-pagehead__actions.em-baixo{flex-wrap:wrap;justify-content:flex-start;margin-top:var(--space-3)}

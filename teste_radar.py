@@ -12528,6 +12528,14 @@ class TestIndiceDaFichaCobreAPagina(BaseTemporaria):
         self.assertEqual(r.status_code, 200)
         return r.get_data(as_text=True)
 
+    def test_as_accoes_da_ficha_vem_sempre_por_baixo_do_subtitulo(self):
+        """6/10/2026, ele: «isto não está uniformizado» -- com um título
+        curto as acções ficavam ao lado dele, com um comprido por baixo."""
+        corpo = self._ficha()
+        cab = corpo.split("mg-pagehead'>", 1)[1]
+        self.assertLess(cab.index("mg-pagehead__sub"),
+                        cab.index("mg-pagehead__actions em-baixo"))
+
     def test_a_ficha_ja_nao_tem_indice_mas_os_blocos_tem_ancora(self):
         corpo = self._ficha()
         self.assertNotIn("ficha-indice", corpo)
