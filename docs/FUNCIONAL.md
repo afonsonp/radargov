@@ -899,7 +899,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**154 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**155 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1541,7 +1541,7 @@ Abertos, por igualdade, também o **`/robots.txt`**, o **`/sitemap.xml`**
 (as páginas públicas, `paginas_publicas()`, com o `<lastmod>` da data do
 ficheiro; as legais só quando existem), a **`/partilha.png`** (a imagem
 do Open Graph, `site/partilha.png`) e o **`/llms.txt`** (o resumo do
-site para os agentes de IA, `site/llms.txt`; 29/09/2026). A **visita
+site para os agentes de IA, `site/llms.txt`; 29/09/2026), e o **`/logotipo-email.png`** (o logótipo na barra dos e-mails, `site/logotipo-email.png`, que o cliente de e-mail pede sem sessão; 7/10/2026). A **visita
 guiada** (5/10/2026): o **`/demo`** (`site/demo.html`, no mapa do site)
 é a aplicação em ecrã inteiro, com uma empresa inventada, e um balão que
 leva a pessoa por onze passos — do Hoje aos Concursos, à ficha com a

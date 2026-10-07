@@ -3550,6 +3550,45 @@ class TestEmailsBonitos(unittest.TestCase):
         self.assertIn("uma conta de membro da Beta", texto)
         self.assertNotIn("Convidar os colegas", texto + h)
 
+
+class TestEmailsComoAPlataforma(unittest.TestCase):
+    """7/10/2026: «gostava apenas que o html dos emails fosse mais coerente
+    com o da plataforma». Os e-mails tinham ainda as cores da paleta
+    antiga, um ponto laranja com «MIRA GOV» em maiúsculas no lugar do
+    logótipo, e a referência em letra mono."""
+
+    def test_as_cores_sao_as_dos_tokens(self):
+        # copiadas a mão, porque um e-mail não lê o CSS: se um token mudar
+        # e o e-mail não, este teste diz qual
+        pasta = os.path.dirname(radar.__file__)
+        with open(os.path.join(pasta, "estilo", "miragov-tokens.css"),
+                  encoding="utf-8") as f:
+            claro = re.search(r"\[data-theme=\"claro\"\]\{([^}]*)\}", f.read()).group(1)
+        token = dict(re.findall(r"--([\w-]+):([^;]+)", claro))
+        for nome, valor in (("ink", radar._EM_INK), ("brand", radar._EM_MARCA),
+                            ("surface", radar._EM_PAPEL), ("line", radar._EM_LINHA),
+                            ("ink-secondary", radar._EM_T2),
+                            ("ink-muted", radar._EM_T3),
+                            ("success", radar._EM_CORES["ok"][1]),
+                            ("warning", radar._EM_CORES["avisa"][1]),
+                            ("danger", radar._EM_CORES["mau"][1])):
+            self.assertEqual(token[nome].strip(), valor, nome)
+
+    def test_a_barra_leva_o_logotipo_e_nao_o_ponto_laranja(self):
+        h = radar.moldura_do_email("Convite para a Beta", "<p>x</p>")
+        logo = radar.endereco_do_painel().rstrip("/") + radar.LOGOTIPO_DO_EMAIL
+        self.assertIn('<img src="%s"' % logo, h)
+        self.assertIn('alt="Mira Gov"', h)
+        self.assertNotIn("#e08b2c", h)
+        self.assertNotIn("uppercase", h)
+
+    def test_a_referencia_nao_vai_em_mono(self):
+        a = {"ref": "123/2026", "titulo": "T", "entidade": "E", "prazo": "",
+             "preco_base": "", "cpv": "", "data_pub": "2026-10-01"}
+        saiu = radar.html_do_resumo([({"nome": "TI"}, [a])])
+        self.assertIn("123/2026", saiu)
+        self.assertNotIn("monospace", saiu)
+
 class TestEurosDoTexto(unittest.TestCase):
     """O DR escreve "175.000,00 EUR": o ponto separa os milhares e a
     virgula os centimos, ao contrario do que o float() de Python le. Ler
@@ -14404,6 +14443,13 @@ class TestOSiteDaTerceiraRonda(BaseTemporaria):
         for rota in ("/robots.txt", "/sitemap.xml", "/partilha.png"):
             self.assertIn(rota, radar.ROTAS_ABERTAS)
         self.assertEqual(self.get("/robots.txt/x").status_code, 404)
+
+    def test_o_logotipo_dos_emails_abre_sem_sessao(self):
+        # 7/10/2026: o cliente de e-mail pede a imagem sem sessão
+        r = self.get(radar.LOGOTIPO_DO_EMAIL)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.mimetype, "image/png")
+        self.assertIn(radar.LOGOTIPO_DO_EMAIL, radar.ROTAS_ABERTAS)
 
     def test_o_site_tem_titulo_partilha_canonical_e_lingua(self):
         corpo = self.get("/").get_data(as_text=True)
