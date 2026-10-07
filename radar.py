@@ -38767,22 +38767,32 @@ RESPOSTA_AO_PEDIDO = {
                  "conseguimos aceitar o seu pedido.\n\nSe a situação da sua "
                  "empresa mudar, pode voltar a pedir no site, ou responder a "
                  "este e-mail."),
+    # o texto do kit do anúncio (7/10/2026): com a empresa, o pedido das
+    # duas linhas para deixar o perfil pronto, e assinado por ele
     "espera": ("O seu pedido de acesso ao Mira Gov está na lista de espera",
-               "Recebemos o seu pedido de acesso ao Mira Gov. Estamos a abrir "
-               "por vagas, para acompanhar bem cada empresa que entra, e o seu "
-               "pedido ficou na lista de espera.\n\nEscrevemos-lhe assim que "
-               "houver lugar. Dúvidas? Responda a este e-mail."),
+               "Obrigado pelo pedido de acesso ao Mira Gov para a %(empresa)s."
+               "\n\nEstou a abrir o acesso por vagas, para acompanhar cada "
+               "empresa no arranque — configuro o perfil consigo, para a lista "
+               "mostrar mesmo os concursos da sua área. A sua empresa ficou na "
+               "lista de espera, e escrevo-lhe assim que houver lugar."
+               "\n\nEntretanto, se me disser em duas linhas o que a empresa faz "
+               "e onde trabalha (ou os códigos CPV, se os souber), deixo o "
+               "perfil pronto para o dia em que entrar."),
 }
+ASSINATURA_DO_PEDIDO = ("Obrigado,\nAfonso Nunes Pinto\n"
+                        "Mira Gov — https://miragov.pt · contacto@miragov.pt")
 
 
 def responder_ao_pedido(p, estado):
     """Manda a quem pediu a resposta fixa de `estado` (RESPOSTA_AO_PEDIDO).
     (bem, porque)."""
     assunto, texto = RESPOSTA_AO_PEDIDO[estado]
+    texto = texto % {"empresa": p["empresa"] or "sua empresa"}
     ola = "Olá %s," % p["nome"] if p["nome"] else "Olá,"
-    corpo = "".join(_em_paragrafo(html.escape(x)) for x in
-                    [ola] + texto.split("\n\n"))
-    return _mandar_a(p["email"], assunto, "%s\n\n%s\n\nMira Gov\n" % (ola, texto),
+    corpo = "".join(_em_paragrafo(html.escape(x).replace("\n", "<br>")) for x in
+                    [ola] + texto.split("\n\n") + [ASSINATURA_DO_PEDIDO])
+    return _mandar_a(p["email"], assunto,
+                     "%s\n\n%s\n\n%s\n" % (ola, texto, ASSINATURA_DO_PEDIDO),
                      moldura_do_email(assunto, _em_cartao_branco(corpo),
                                       "Responda a este e-mail se tiver dúvidas."))
 
