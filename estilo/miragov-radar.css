@@ -1651,3 +1651,8 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
 
 /* O «Limpar» no fim da fila dos filtros, so com filtro posto (6/10/2026) */
 .f-chips>.f-limpar{margin-left:auto}
+
+/* A definicao de cada numero da Situacao (o `porque` do `kpi()`) so
+   aparece com o «Como se contam estes numeros» aberto (6/10/2026): eram
+   tres linhas pequenas por baixo de cada numero, todos os dias. */
+.mg-card:has(>details.como-se-conta:not([open])) .mg-stat .porque{display:none}

@@ -21741,9 +21741,7 @@ def _fases_das_propostas():
         "propostas", "Propostas", "", conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
-            "O que a empresa tem em curso, por fase &mdash; com as "
-            "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
-            "convite).", [],
+            "O que a empresa tem em curso, por fase.", [],
             "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
             + icone("mais") + " Nova proposta</a>"),
         titulo_aba="Propostas")
@@ -21931,9 +21929,7 @@ def _lista_de_propostas():
         conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
-            "O que a empresa tem em curso, por fase &mdash; com as "
-            "propostas sem anúncio do DR (consulta prévia, ajuste directo, "
-            "convite).", [],
+            "O que a empresa tem em curso, por fase.", [],
             "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
             + icone("mais") + " Nova proposta</a>"),
         script=caixa_do_motivo(),
@@ -29112,9 +29108,7 @@ def entidades():
                   % (html.escape(titulo_vazio), porque))
 
     return envolver("entidades", "Entidades",
-                    "Quem compra, quem ganha, e com quem já trabalhámos. "
-                    "Toda a entidade tem ficha — as do Portal BASE e as que "
-                    "só existem no Diário da República.",
+                    "Quem compra, quem ganha, e com quem já trabalhámos.",
                     "<div class='larg'>%s%s%s</div>"
                     % (procura, _bloco_de_comparacao(marcadas), tabela),
                     migalhas=migalhas_de("entidades"), abas=abas,
@@ -30258,9 +30252,8 @@ def contratos():
             "renovacoes", "Renovações", "",
             conteudo,
             cabeca=cabecalho_de_pagina(
-                "Mercado", "Os mesmos contratos vistos pelo <b>fim "
-                "estimado</b>: o que está a acabar volta a concurso, e quem "
-                "o vê antes do anúncio prepara-se com tempo.", [], accoes),
+                "Mercado", "Os contratos pelo <b>fim estimado</b>: o que "
+                "está a acabar volta a concurso.", [], accoes),
             script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + CPV_SUGERE_JS
             + espera_corpus(),
@@ -30270,8 +30263,7 @@ def contratos():
         "contratos", "Contratos celebrados", "",
         conteudo,
         cabeca=cabecalho_de_pagina(
-            "Mercado", "Contratos celebrados no Portal BASE: quem compra, "
-            "quem ganha, por quanto e quando renova.", [], accoes),
+            "Mercado", "Os contratos celebrados no Portal BASE.", [], accoes),
         script=("" if com_interesse else ARVORE_JS) + GRAFICOS_JS + ENTIDADES_JS
             + CPV_SUGERE_JS
         + espera_corpus(),
@@ -35064,9 +35056,8 @@ def proposta_nova():
                              "anterior a 2025", "não sei"))))
     # Acende «Propostas», que é onde ela vai viver (3.ª ronda, G89)
     return envolver("propostas", "Nova proposta",
-                    "O que não vem do Diário da República: consulta "
-                    "prévia, ajuste directo, convite. O que vem do DR "
-                    "abre-se a partir da ficha do anúncio, com «Interessa».",
+                    "Consulta prévia, ajuste directo ou convite: o que "
+                    "não vem do Diário da República.",
                     "<div class='larg'>" + corpo + "</div>",
                     migalhas=migalhas_de("propostas", "Nova proposta"),
                     titulo_aba="Nova proposta")
@@ -36657,8 +36648,9 @@ def situacao():
             "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
             "dia em que a proposta se marcou como decidida no Mira Gov. "
             "«Por submeter» e «Em jogo» são uma fotografia de agora "
-            "— o que está aberto não se decidiu em período nenhum.%s</p></details>"
-            % ("" if not rotulo_antes
+            "— o que está aberto não se decidiu em período nenhum. Uma taxa só "
+            "aparece com %d decididas ou mais.%s</p></details>"
+            % (MINIMO_PARA_TAXA, "" if not rotulo_antes
                else " A comparação é com %s." % rotulo_antes))
 
         corpo = ("<div class='mg-card' style='padding:22px 24px'>"
@@ -36679,8 +36671,7 @@ def situacao():
         cabeca=cabecalho_de_pagina(
             "Ponto de situação",
             "Como vai o negócio: o que está em jogo, o que se ganha e porque "
-            "se perde. Uma taxa só aparece com %d decididas ou mais."
-            % MINIMO_PARA_TAXA, []))
+            "se perde.", []))
 
 
 @app.route("/indicadores")
