@@ -4301,7 +4301,7 @@ class TestBotoesDaLinha(unittest.TestCase):
         verde (acingov, vortal, anogov), e uma cor que todas têm não diz
         nada. A coluna leva só o nome."""
         h = radar.linha(dict(self.anuncio(), plataforma="acingov"), na_escada={})
-        self.assertIn("<td class='col-plat'>acingov</td>", h)
+        self.assertIn("<td class='col-plat'>acinGov</td>", h)
 
     def test_em_analise_nao_repete_o_botao_interessa(self):
         h = radar.linha(self.anuncio(), na_escada=self._na_escada("analisar"))
@@ -8960,7 +8960,8 @@ class TestLinkDoProcedimento(unittest.TestCase):
         # nunca o link do ZIP: era isso que o botão fazia
         self.assertNotIn("donwloadProcedurePiece", destino)
         self.assertEqual(destino, radar.ACINGOV_PROCEDIMENTO % "1131418")
-        self.assertIn("acingov", rotulo)
+        # com o nome da plataforma como ela o escreve (7/10/2026)
+        self.assertIn("acinGov", rotulo)
         self.assertIn("sessão iniciada", dica)
 
     def test_acingov_com_o_idprocesso_as_claras(self):
@@ -8986,7 +8987,7 @@ class TestLinkDoProcedimento(unittest.TestCase):
         destino, rotulo, _ = radar.link_do_procedimento(
             self._a("anogov", link))
         self.assertEqual(destino, link)
-        self.assertIn("anogov", rotulo)
+        self.assertIn("anoGov", rotulo)
 
     def test_anogov_sem_acessodocs_abre_a_lista_da_entidade(self):
         # 29/09/2026: 14 anúncios de 2026 (quase todos da IP) trazem só a
@@ -9850,7 +9851,10 @@ class TestAsRotasNaoTemPadroesDeAcessibilidadeConhecidos(BaseTemporaria):
         # e os dois botões da triagem levam um sinal além do verde e do âmbar
         corpo, _ = self._ler(radar.LISTA)
         self.assertIn(radar.SINAL_SIM + "Interessa", corpo)
-        self.assertIn(radar.SINAL_NAO + "Abandonar", corpo)
+        # na linha da lista é só o ✕ desde 7/10/2026 (a maquete): a palavra
+        # vai no nome do botão, que o leitor de ecrã diz, e no `title`
+        self.assertIn("aria-label='Abandonar: ", corpo)
+        self.assertIn("title='Abandonar'>" + radar.SINAL_NAO + "</button>", corpo)
 
     def test_as_regras_que_so_o_browser_mede_estao_na_folha(self):
         """Não se mede aqui, mas a regra tem de lá estar: o foco não fica

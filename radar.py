@@ -6248,10 +6248,10 @@ def link_do_procedimento(a):
     if plat == "acingov":
         id_ = id_do_processo_acingov(link)
         if id_:
-            return (ACINGOV_PROCEDIMENTO % id_, "Abrir na acingov",
+            return (ACINGOV_PROCEDIMENTO % id_, "Abrir na acinGov",
                     "a página do procedimento — pede sessão iniciada "
                     "na acingov")
-        return (ACINGOV_PESQUISA, "Procurar na acingov",
+        return (ACINGOV_PESQUISA, "Procurar na acinGov",
                 "a acingov não tem página pública do procedimento — só se "
                 "vê com sessão iniciada; isto abre a pesquisa pública")
     # A anogov quando o DR nao traz o acessoDocs, so a entrada da
@@ -6262,14 +6262,15 @@ def link_do_procedimento(a):
                                link)
     if entidade_anogov and "acessoDocs" not in link:
         return (entidade_anogov.group(1) + "/faces/app/pap/listaPaps.jsp",
-                "Procurar na anogov",
+                "Procurar na anoGov",
                 "o anúncio não traz o endereço do procedimento; isto abre a "
                 "lista dos procedimentos da entidade")
     if link:
         # anogov, compraspt e a ESPAP: o acessoDocs e a pagina do
         # procedimento. Para o resto, e o unico endereco que ha.
         return (link, "Abrir na plataforma" if not plat
-                else "Abrir na " + plat, "a página do procedimento")
+                else "Abrir na " + rotulo_da_plataforma(plat),
+                "a página do procedimento")
     return None, "", ""
 
 
@@ -6343,7 +6344,15 @@ def agrupar_plataformas(contagens):
     return saida
 
 
+# O nome de cada plataforma como ela o escreve (7/10/2026): a base guarda
+# em minúsculas, e a ficha dizia «· vortal» ao lado do filtro «Vortal».
+NOMES_DAS_PLATAFORMAS = {"acingov": "acinGov", "vortal": "Vortal",
+                         "anogov": "anoGov", "compraspt": "comprasPT"}
+
+
 def rotulo_da_plataforma(p):
+    if p in NOMES_DAS_PLATAFORMAS:
+        return NOMES_DAS_PLATAFORMAS[p]
     if p == SEM_PLATAFORMA:
         return "sem plataforma indicada"
     if p == POR_LER:
@@ -18433,7 +18442,7 @@ SINAL_NAO = "<span aria-hidden='true'>&#10005;</span> "
 
 
 def forma_abandonar(ref, classe="mini", etiqueta="abandonar",
-                    titulo=""):
+                    titulo="", so_sinal=False):
     """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
 
     Neutro desde 30/09/2026 (UX-7-LEIS V1; era cinzento a 02/09): o
@@ -18453,12 +18462,16 @@ def forma_abandonar(ref, classe="mini", etiqueta="abandonar",
     """
     return ("<form class='accao abandonar-js' method='post' "
             "action='/estado/%s/nao_fomos' data-titulo='%s'>"
-            "<button type='submit' class='%s' aria-label='%s'>%s%s</button></form>"
+            "<button type='submit' class='%s' aria-label='%s'%s>%s%s</button></form>"
             % (quote(ref, safe=""), html.escape(titulo or ref, quote=True),
                botao(classe),
                html.escape("%s: %s" % (etiqueta.capitalize(),
                                        corta(titulo or ref, 80)), quote=True),
-               SINAL_NAO, etiqueta))
+               # na linha da lista, só o ✕ (7/10/2026, a maquete): os dois
+               # botões com nome não cabiam na coluna e cortavam-se
+               " title='%s'" % html.escape(etiqueta.capitalize(), quote=True)
+               if so_sinal else "",
+               SINAL_NAO, "" if so_sinal else etiqueta))
 
 
 # A caixa e UMA por pagina, partilhada por todos os botoes: vinte copias
@@ -19331,7 +19344,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
                             SINAL_SIM + "Interessa", "mini verde",
                             rotulo="Interessa: %s" % corta(a["titulo"] or a["ref"], 80)))
         botoes.append(forma_abandonar(a["ref"], etiqueta="Abandonar",
-                                      titulo=a["titulo"] or ""))
+                                      titulo=a["titulo"] or "", so_sinal=True))
     else:
         botoes.append(selector_de_ranhura(
             "/escada/" + quote(a["ref"], safe=""), aqui[0]["estado"],
@@ -19377,7 +19390,8 @@ def linha(a, vista="", urgente=None, na_escada=None):
            # Texto, e não uma etiqueta verde (30/09/2026, ele): o verde
            # dizia «as peças descarregam-se daqui», e isso vale para 99,6%
            # dos anúncios -- todas iguais, a cor não distinguia nada.
-           html.escape(a["plataforma"] or ""),
+           html.escape(rotulo_da_plataforma(a["plataforma"]) if a["plataforma"]
+                       else ""),
            html.escape(preco_do_anuncio(a)),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
@@ -32878,7 +32892,7 @@ def ficha(ref):
     if a["prazo"]:
         sub.append("<b>propostas até %s</b>" % data_pt(a["prazo"]))
     if a["plataforma"]:
-        sub.append(html.escape(a["plataforma"]))
+        sub.append(html.escape(rotulo_da_plataforma(a["plataforma"])))
     # As etiquetas por baixo: o estado do prazo (o da cadeia) e as da
     # empresa, só para ler -- põem-se e tiram-se no bloco da proposta.
     etiquetas = []
@@ -32926,7 +32940,8 @@ def ficha(ref):
                                             quote=True)))
     pares = [("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
              ("Publicado", data_pt(a["data_pub"], ""), "n"),
-             ("Plataforma", html.escape(a["plataforma"] or ""), ""),
+             ("Plataforma", html.escape(rotulo_da_plataforma(a["plataforma"])
+                                        if a["plataforma"] else ""), ""),
              ("CPV", cpv_facto, "n")]
     blocos = []
     for numero, titulo_sec, pares_sec in seccoes:
@@ -33140,7 +33155,8 @@ def ficha(ref):
                               icone("descarregar", 16) + " Trazer peças",
                               "mini")
                         + botao_das_pecas_na_plataforma(a))
-        meta_pecas = html.escape(a["plataforma"] or "")
+        meta_pecas = html.escape(rotulo_da_plataforma(a["plataforma"])
+                                 if a["plataforma"] else "")
 
     # O leitor da peca escolhida, por baixo da lista e dentro da mesma
     # caixa. Se o nome nao corresponder a nenhum ficheiro em disco (uma

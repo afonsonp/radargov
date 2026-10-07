@@ -46,6 +46,19 @@ radar.BASE_DIR = PASTA
 HOJE = date.today()
 
 
+def ligacao_das_pecas(ref, plat):
+    """A ligação das peças como o DR a traz, por plataforma (7/10/2026):
+    sem ela a ficha da visita não tinha o «Abrir na acinGov», que nos
+    concursos verdadeiros quase todos têm."""
+    n = re.sub(r"\D", "", ref)
+    return {"acingov": "https://www.acingov.pt/acingovprod/2/zonaPublica/"
+                       "zona_publica_c/indexProcedimentos?idProcesso=%s" % n,
+            "vortal": "https://community.vortal.biz/PRODPublic/Tenders/"
+                      "TenderDetail/Index?noticeUID=PT1.NTC.%s" % n.zfill(7),
+            "anogov": "https://www.anogov.com/municipio/faces/app/pap/"
+                      "acessoDocs.jsp?id=%s" % n}.get(plat, "")
+
+
 def dia(n):
     return (HOJE + timedelta(days=n)).isoformat()
 
@@ -57,25 +70,25 @@ EMPRESA = radar.criar_empresa("Climatérmica, Lda.")
 # (ref, título, entidade, nif, publicado há, prazo daqui a, preço, cpv, plataforma)
 ANUNCIOS = [
     ("9101/2026", "Manutenção preventiva e corretiva dos equipamentos de climatização dos edifícios municipais",
-     "Município de Leiria", "505181266", 1, 18, "184652.00", "50730000", "acinGov"),
+     "Município de Leiria", "505181266", 1, 18, "184652.00", "50730000", "acingov"),
     ("9102/2026", "Assistência técnica a sistemas de AVAC do bloco operatório",
-     "Hospital Distrital de Santarém, E.P.E.", "506361616", 2, 12, "96000.00", "50720000", "Vortal"),
+     "Hospital Distrital de Santarém, E.P.E.", "506361616", 2, 12, "96000.00", "50720000", "vortal"),
     ("9103/2026", "Substituição de chillers no pavilhão municipal",
-     "Município de Viseu", "506697320", 3, 25, "238500.00", "45331000", "anoGov"),
+     "Município de Viseu", "506697320", 3, 25, "238500.00", "45331000", "anogov"),
     ("9104/2026", "Fornecimento e instalação de bombas de calor na escola básica",
-     "Município de Pombal", "506334562", 0, 30, "142300.00", "45331000", "acinGov"),
+     "Município de Pombal", "506334562", 0, 30, "142300.00", "45331000", "acingov"),
     ("9105/2026", "Manutenção das unidades de tratamento de ar do centro de saúde",
-     "ULS da Região de Leiria", "510445152", 4, 9, "58900.00", "50730000", "Vortal"),
+     "ULS da Região de Leiria", "510445152", 4, 9, "58900.00", "50730000", "vortal"),
     ("9106/2026", "Remodelação da rede de ventilação do arquivo distrital",
      "Direção-Geral do Património Cultural", "600084779", 5, 21, "312000.00", "45331210", "ComprasPT"),
     ("9107/2026", "Aquisição de serviços de limpeza de condutas de ar",
-     "Município de Ourém", "501280740", 1, 15, "27500.00", "90915000", "acinGov"),
+     "Município de Ourém", "501280740", 1, 15, "27500.00", "90915000", "acingov"),
     ("9108/2026", "Eficiência energética: instalação de sistemas solares térmicos",
-     "Município da Batalha", "506631729", 2, 40, "410000.00", "45331100", "anoGov"),
+     "Município da Batalha", "506631729", 2, 40, "410000.00", "45331100", "anogov"),
     ("9109/2026", "Manutenção de equipamentos de frio industrial",
-     "Mercado Abastecedor da Região de Lisboa", "504986107", 6, 5, "73400.00", "50730000", "Vortal"),
+     "Mercado Abastecedor da Região de Lisboa", "504986107", 6, 5, "73400.00", "50730000", "vortal"),
     ("9110/2026", "Empreitada de climatização do auditório municipal",
-     "Município de Alcobaça", "506811913", 7, 33, "268700.00", "45331000", "acinGov"),
+     "Município de Alcobaça", "506811913", 7, 33, "268700.00", "45331000", "acingov"),
 ]
 
 TEXTO = ("1 - Entidade adjudicante: %s. 2 - Objeto do contrato: %s. "
@@ -97,12 +110,13 @@ with radar.liga() as c:
     for (ref, tit, ent, nif, pub, prazo, preco, cpv, plat) in ANUNCIOS:
         c.execute("INSERT INTO anuncios (ref, titulo, entidade, data_pub, tipo,"
                   " url, cpv, prazo, preco_base, plataforma, detalhe_lido,"
-                  " estado, nif, texto, distrito, docs_estado) VALUES"
-                  " (?,?,?,?,?,?,?,?,?,?,1,'novo',?,?,'Leiria','ok')",
+                  " estado, nif, texto, distrito, docs_estado, link_pecas) VALUES"
+                  " (?,?,?,?,?,?,?,?,?,?,1,'novo',?,?,'Leiria','ok',?)",
                   (ref, tit, ent, dia(-pub), "Anúncio de procedimento",
                    "https://diariodarepublica.pt/", cpv, dia(prazo),
                    preco_pt(preco), plat, nif,
-                   TEXTO % (ent, tit, preco_pt(preco), dia(prazo))))
+                   TEXTO % (ent, tit, preco_pt(preco), dia(prazo)),
+                   ligacao_das_pecas(ref, plat)))
         # as peças: PDF de uma página, que a ficha lista
         pasta = radar.pasta_do_anuncio(ref)
         os.makedirs(pasta, exist_ok=True)
