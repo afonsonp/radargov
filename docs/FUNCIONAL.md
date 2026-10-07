@@ -1153,9 +1153,12 @@ da H1, de 1/10/2026). Cada botão abre uma caixa com os seus campos e o
 «Aplicar»; um filtro posto acende o botão e diz o valor («Plataforma:
 acinGov»). O perfil da empresa, quando recorta a lista, é o primeiro
 botão da fila, aceso, na forma curta («Perfil da empresa · 4 CPV · ver
-tudo»; os códigos no `title`). Sem perfil, o **CPV é um botão** da fila,
-com o campo e um «Escolher na árvore» que abre a árvore por baixo (que
-de resto fica escondida). Não há «Filtrar»: cada botão tem o «Aplicar» e a
+tudo»; os códigos no `title`). Sem perfil, o **CPV é um botão** da fila
+que abre e fecha a árvore inteira por baixo dos filtros, sem títulos por
+cima (7/10/2026; de resto fica escondida): é lá que se escolhem vários.
+As plataformas escrevem-se como elas se escrevem — acinGov, Vortal,
+anoGov, comprasPT (`NOMES_DAS_PLATAFORMAS`) — na lista, na ficha e no
+botão «Abrir na …», e o «Abandonar» da linha é só o ✕. Não há «Filtrar»: cada botão tem o «Aplicar» e a
 pesquisa vai com o Enter; o «Limpar» só aparece com filtro posto. A referência de cada concurso vai
 por baixo do título, junto à entidade (a coluna «Ref.ª» saiu). Na lista,
 os botões da triagem («Interessa», «Abandonar»)
