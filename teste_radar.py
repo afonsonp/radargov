@@ -30062,6 +30062,37 @@ class TestOPainelDasVisitas(_PlataformaComDuasEmpresas):
                       .get_data(as_text=True))
         self.assertEqual(self.ver(self.entrar("chefe"), "/plataforma/visitas").status_code, 403)
 
+    def test_o_hoje_o_ontem_e_o_dia_a_dia(self):
+        """7/10/2026, véspera do anúncio: ver o dia de uma publicação
+        sozinho, a evolução dia a dia, e de onde veio cada dia."""
+        hoje = datetime.date.today()
+        ontem = (hoje - datetime.timedelta(days=1)).isoformat()
+        with radar.liga() as c:
+            for i, (dia, fonte, origem) in enumerate((
+                    (hoje.isoformat(), "linkedin", ""),
+                    (hoje.isoformat(), "linkedin", ""),
+                    (hoje.isoformat(), "whatsapp", ""),
+                    (hoje.isoformat(), "", "google.com"),
+                    (ontem, "", ""))):
+                c.execute("INSERT INTO visitas (id, quando, dia, caminho, origem, "
+                          "utm_fonte, visitante, com_js) "
+                          "VALUES (?, ?, ?, '/', ?, ?, ?, 1)",
+                          ("%016x" % (100 + i), dia + " 10:00:00", dia, origem,
+                           fonte, "v%d" % i))
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/plataforma/visitas?periodo=hoje").get_data(as_text=True)
+        o = self.ver(dono, "/plataforma/visitas?periodo=ontem").get_data(as_text=True)
+        visitas = re.compile(r"Visitas</[^>]+>\s*<[^>]+>(\d+)<")
+        self.assertEqual(visitas.search(h).group(1), "4")
+        self.assertEqual(visitas.search(o).group(1), "1")
+        self.assertIn("As visitas, dia a dia", h)
+        self.assertIn("Dia a dia, de onde vieram", h)
+        # hoje: 4 visitas, 4 visitantes, 2 LinkedIn, 1 WhatsApp, 1 outra, 0 directo
+        linha = re.search(r"<tr><td[^>]*>%s</td>(.*?)</tr>"
+                          % re.escape(radar.data_pt(hoje.isoformat())), h).group(1)
+        self.assertEqual(re.findall(r">(\d+)<", linha), ["4", "4", "2", "1", "1", "0", "0"])
+        self.assertEqual(radar.janela_das_visitas("ontem", hoje), (ontem, ontem))
+
 
 class TestOUsoDaAplicacao(_PlataformaComDuasEmpresas):
     """ANL, a aplicação (desenho aceite por ele a 4/10/2026): o que cada

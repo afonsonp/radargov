@@ -37858,16 +37858,67 @@ def _tabela_das_visitas(titulo, cabecalhos, linhas):
                           for h, v in zip(cabecalhos, l)) for l in linhas)))
 
 
+# O «hoje» e o «ontem» (7/10/2026, véspera do anúncio): para ver o dia
+# de uma publicação sozinho, sem os dias à volta
+PERIODOS_DAS_VISITAS = (("hoje", "hoje"), ("ontem", "ontem")) + PERIODOS_DA_SITUACAO
+DIAS_DA_EVOLUCAO = 30
+
+
+def janela_das_visitas(periodo, hoje):
+    """(desde, ate) do período das visitas, ou None para «tudo»."""
+    if periodo in ("hoje", "ontem"):
+        dia = (hoje - timedelta(days=periodo == "ontem")).isoformat()
+        return dia, dia
+    return janelas_do_periodo(periodo, hoje)[0]
+
+
+def _evolucao_das_visitas(c, hoje):
+    """Os últimos DIAS_DA_EVOLUCAO dias, um a um, com os dias sem visitas
+    a zero: o gráfico das visitas e a tabela da origem e dos pedidos por
+    dia. A origem é o `utm_source` quando há, senão quem mandou."""
+    dias = [(hoje - timedelta(days=n)).isoformat()
+            for n in range(DIAS_DA_EVOLUCAO - 1, -1, -1)]
+    por_dia = {r[0]: r[1:] for r in c.execute(
+        "SELECT dia, COUNT(*), COUNT(DISTINCT visitante), "
+        "SUM(utm_fonte = 'linkedin' OR origem LIKE '%linkedin%'), "
+        "SUM(utm_fonte = 'whatsapp' OR origem LIKE '%whatsapp%'), "
+        "SUM(utm_fonte = '' AND origem = '') "
+        "FROM visitas WHERE dia >= ? GROUP BY dia", (dias[0],))}
+    pedidos = dict(c.execute(
+        "SELECT substr(criado_em, 1, 10), COUNT(*) FROM pedidos_acesso "
+        "WHERE substr(criado_em, 1, 10) >= ? GROUP BY 1", (dias[0],)).fetchall())
+    grafico = barras_v(
+        [{"t": data_pt(d)[:5], "v": por_dia.get(d, (0, 0))[0],
+          "k": por_dia.get(d, (0, 0))[1]} for d in dias],
+        "As visitas, dia a dia",
+        "Os últimos %d dias; a barra é o número de visitas, e o de visitantes "
+        "está na tabela." % DIAS_DA_EVOLUCAO, fmt=mil_pt, unidade="visitantes")
+    linhas = []
+    for d in reversed(dias):
+        n, unicos, linkedin, whatsapp, directo = por_dia.get(d, (0, 0, 0, 0, 0))
+        if n or pedidos.get(d):
+            linhas.append((data_pt(d), n, unicos, linkedin or 0, whatsapp or 0,
+                           n - (linkedin or 0) - (whatsapp or 0) - (directo or 0),
+                           directo or 0, pedidos.get(d, 0)))
+    tabela = _tabela_das_visitas(
+        "Dia a dia, de onde vieram", ("Dia", "Visitas", "Visitantes", "LinkedIn",
+                                      "WhatsApp", "Outras", "Directo", "Pedidos"),
+        linhas)
+    return grafico + tabela
+
+
 @app.route("/plataforma/visitas")
 def plataforma_visitas():
     """As visitas ao site público, para o dono (ANL, 4/10/2026), com o
-    período do /situacao. Só o dono (ROTAS_SO_DONO, por prefixo)."""
+    período do /situacao, mais o hoje e o ontem. Só o dono (ROTAS_SO_DONO,
+    por prefixo)."""
     periodo = request.args.get("periodo") or "mes"
-    if periodo not in dict(PERIODOS_DA_SITUACAO):
+    if periodo not in dict(PERIODOS_DAS_VISITAS):
         periodo = "mes"
-    janela, _, _ = janelas_do_periodo(periodo, date.today())
+    janela = janela_das_visitas(periodo, date.today())
     onde, args = ("WHERE dia BETWEEN ? AND ?", list(janela)) if janela else ("", [])
     with liga() as c:
+        evolucao = _evolucao_das_visitas(c, date.today())
         def um(sql, mais=()):
             return c.execute(sql % onde, args + list(mais)).fetchall()
         total, com_js, eventos = um(
@@ -37907,10 +37958,10 @@ def plataforma_visitas():
     escolha = " · ".join(
         "<a href='?periodo=%s'%s>%s</a>" % (k, " aria-current='page'" if k == periodo
                                             else "", html.escape(v))
-        for k, v in PERIODOS_DA_SITUACAO)
+        for k, v in PERIODOS_DAS_VISITAS)
     corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "<p class='nota'>Período: %s</p>%s%s%s%s%s%s</div>"
-             % (escolha, factos, funil,
+             "<p class='nota'>Período: %s</p>%s%s%s%s%s%s%s</div>"
+             % (escolha, factos, evolucao, funil,
                 _tabela_das_visitas("De onde vieram", ("Origem", "Visitas"), origens),
                 _tabela_das_visitas("Campanhas (utm)", ("Fonte", "Meio", "Campanha",
                                                         "Visitas"), campanhas),
