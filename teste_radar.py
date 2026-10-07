@@ -30068,6 +30068,22 @@ class TestOUsoDaAplicacao(_PlataformaComDuasEmpresas):
         self.assertIn("Uso da aplicação", texto)
 
 
+
+class TestOAlertaComAsDatasTrocadas(BaseTemporaria):
+    """7/10/2026, ele: um alerta «desde 01/01/2025 até 01/01/2024»
+    gravava-se, e nunca avisava de nada."""
+
+    def test_recusa_o_de_depois_do_ate(self):
+        cliente = radar.app.test_client()
+        r = cliente.post("/alertas/criar", data={
+            "nome": "trocado", "q": "limpeza",
+            "de": "01/01/2025", "ate": "01/01/2024"})
+        self.assertIn("aviso=", r.headers["Location"])
+        self.assertIn("depois", unquote(r.headers["Location"]))
+        with radar.liga() as c:
+            self.assertIsNone(c.execute("SELECT 1 FROM filtros_guardados "
+                                        "WHERE nome='trocado'").fetchone())
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)

@@ -27408,6 +27408,12 @@ def alerta_criar():
             if campos.get(k) and not data_de_filtro(campos[k])]
     maus += [recado_do_preco(campos[k]) for k in ("pbmin", "pbmax", "min")
              if campos.get(k) and recado_do_preco(campos[k])]
+    # «desde 01/01/2025 até 01/01/2024» gravava-se (7/10/2026, ele): um
+    # alerta que nunca avisa de nada, sem uma palavra a dizê-lo
+    de, ate = (data_de_filtro(campos.get(k) or "") for k in ("de", "ate"))
+    if de and ate and de > ate:
+        maus.append("A data «de» (%s) é depois da data «até» (%s)."
+                    % (data_pt(de), data_pt(ate)))
     if maus:
         return recusa(maus[0] + " O alerta não foi gravado.")
     consulta = urlencode(pares)
