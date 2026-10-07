@@ -183,8 +183,10 @@ ensaio de restauro.
   fora do PC.
 - **A instalação só traz código novo quando o Afonso corre
   `actualizar.sh`**, e só até à última tag publicada como GitHub Release
-  — nunca segue o `master` a cada merge. A última é a **`v2.0.69`**, de
-  7/10/2026 — o ícone de cada plataforma à frente do nome, e o emblema
+  — nunca segue o `master` a cada merge. A última é a **`v2.0.70`**, de
+  7/10/2026 — a ficha da entidade pelo papel: um cliente sem o que
+  vende, um concorrente com os seus seis factos, o «Como ganha» e o
+  «Contra nós». Antes dela, a `v2.0.69`, do mesmo dia — o ícone de cada plataforma à frente do nome, e o emblema
   do DR no «Ver no DR». Antes dela, a `v2.0.68`, do mesmo dia — **os e-mails com o desenho da plataforma**: as cores dos
   tokens, o logótipo verdadeiro na barra azul (em PNG) e o título por
   baixo, como o cabeçalho das páginas. Antes dela, a `v2.0.67`, do mesmo
