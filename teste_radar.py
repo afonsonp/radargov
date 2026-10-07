@@ -27562,11 +27562,14 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
         o desfocado (6.ª ronda). Ficam à vista, com uma linha por baixo."""
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
-        planos = site.split('<div class="planos', 1)[1].split('<div class="em-todos"', 1)[0]
+        planos = site.split('id="t-planos"', 1)[1].split('<div class="em-todos"', 1)[0]
         self.assertNotIn("indisponiveis", site)
         self.assertNotIn("planos-vidro", site)
         self.assertNotIn("filter:blur", site)
         self.assertIn("Os planos pagos abrem em breve.", planos)
+        # por cima dos preços (7/10/2026, ele): no telemóvel lia-se 39 € e
+        # 75 € três cartões antes de saber que ainda não se paga
+        self.assertLess(planos.index("abrem em breve"), planos.index("39 €"))
         self.assertIn('href="#fundador"', planos)
         self.assertIn('id="fundador"', site)
         self.assertNotIn("plano-selo", site)
