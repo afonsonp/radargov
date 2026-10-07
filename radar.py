@@ -11329,23 +11329,29 @@ def texto_do_resumo(achados, alteradas=(), seguidas=()):
 # O e-mail "bonito" (02/09/2026): o mesmo resumo em HTML, ao lado do
 # texto. Tudo em estilos em linha e em tabelas, que e o que os clientes
 # de e-mail percebem -- nem <style>, nem fontes externas, nem flex. As
-# cores sao as da paleta "ardosia e ambar" do painel, copiadas a mao
-# porque um e-mail nao le o CSS da aplicacao.
-_EM_INK = "#14181e"
-# o azul da marca, no cabeçalho e no botão (6/10/2026): os e-mails eram
-# a única coisa ainda na paleta antiga, a preto, e o convite é a primeira
-# coisa que um fundador recebe
-_EM_MARCA = "#004682"
-_EM_PAPEL = "#eef1f4"
-_EM_LINHA = "#dbe0e6"
-_EM_T2 = "#333c46"
-_EM_T3 = "#4d5661"
-_EM_SANS = "system-ui,-apple-system,'Segoe UI',Arial,sans-serif"
-_EM_MONO = "Consolas,Menlo,monospace"
-_EM_CORES = {"ok": ("#e7f3ec", "#1a7a4d"),
-             "avisa": ("#fbeee2", "#a8450e"),
-             "mau": ("#fbe9e5", "#b0341a"),
-             "": ("#eceff2", "#4d5661")}
+# cores sao as do tema claro do `estilo/miragov-tokens.css`, copiadas a
+# mao porque um e-mail nao le o CSS da aplicacao (7/10/2026: eram ainda
+# as da paleta "ardosia e ambar", e so o azul tinha mudado). Quem mudar
+# um token muda-o aqui tambem; o `TestEmailsComoAPlataforma` confere.
+_EM_INK = "#2b363c"         # --ink
+# o azul da marca, na barra e no botão (6/10/2026)
+_EM_MARCA = "#004682"       # --brand, --surface-header
+_EM_PAPEL = "#f1f3f8"       # --surface
+_EM_LINHA = "#e1e4ea"       # --line
+_EM_T2 = "#475164"          # --ink-secondary
+_EM_T3 = "#5b6780"          # --ink-muted
+# a letra da aplicação primeiro; quem não a tem instalada vê a do sistema,
+# porque um cliente de e-mail não carrega as fontes do painel
+_EM_SANS = "'Source Sans 3','Segoe UI',system-ui,-apple-system,Arial,sans-serif"
+_EM_SERIF = "'Zilla Slab','Roboto Slab',Georgia,serif"
+_EM_MONO = "'Source Code Pro',Consolas,Menlo,monospace"
+_EM_CORES = {"ok": ("#dff1e6", "#006432"),       # --success-soft, --success
+             "avisa": ("#fff0d6", "#8a4f00"),    # --warning-soft, --warning
+             "mau": ("#fce4e3", "#c8181a"),      # --danger-soft, --danger
+             "": ("#e8ebf1", "#5b6780")}         # --surface-sunken, --ink-muted
+# o logótipo na barra: um PNG (o Gmail e o Outlook não mostram SVG), branco
+# sobre o azul, feito a partir do `marca/miragov-logo-branco.svg` a 3x
+LOGOTIPO_DO_EMAIL = "/logotipo-email.png"
 
 
 def _em_pilula(texto, classe=""):
@@ -11379,8 +11385,9 @@ def _em_cartao(a, urgente, mostrar_prazo=True):
     titulo = html.escape(a["titulo"] or "(sem título)")
     entidade = html.escape(a["entidade"] or "")
     preco = html.escape(preco_do_anuncio(a, "sem preço base"))
-    metas = ["<span style=\"font:500 12px/1.5 %s;color:%s\">%s</span>"
-             % (_EM_MONO, _EM_T3, html.escape(a["ref"]))]
+    # a referência em letra normal, como na lista (6/10/2026)
+    metas = ["<span style=\"color:%s\">%s</span>"
+             % (_EM_T3, html.escape(a["ref"]))]
     if mostrar_prazo:
         data, pilula = _em_prazo(a["prazo"], urgente)
         if data:
@@ -11405,12 +11412,12 @@ def _em_seccao(rotulo, n, linhas):
     """Um bloco branco com o cabecalho da seccao em cima."""
     return ("<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
             "cellspacing=\"0\" style=\"background:#fff;border:1px solid %s;"
-            "border-radius:8px;margin:0 0 16px;border-collapse:separate\">"
-            "<tr><td style=\"padding:11px 16px 9px;font:700 11px/1.4 %s;"
-            "color:%s;text-transform:uppercase;letter-spacing:.06em\">%s "
-            "<span style=\"color:%s;font-weight:500\">(%d)</span></td></tr>"
+            "border-radius:10px;margin:0 0 16px;border-collapse:separate\">"
+            "<tr><td style=\"padding:14px 16px 10px;font:600 17px/1.4 %s;"
+            "color:%s\">%s "
+            "<span style=\"color:%s;font-weight:400\">(%d)</span></td></tr>"
             "%s</table>"
-            % (_EM_LINHA, _EM_SANS, _EM_T2, html.escape(rotulo), _EM_T3, n,
+            % (_EM_LINHA, _EM_SANS, _EM_INK, html.escape(rotulo), _EM_T3, n,
                "".join(linhas)))
 
 
@@ -11433,20 +11440,27 @@ def moldura_do_email(cabeca, corpo, rodape=""):
         "style=\"padding:24px 12px\">"
         "<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
         "cellspacing=\"0\" style=\"max-width:640px\">"
-        "<tr><td style=\"background:%(marca)s;border-radius:8px 8px 0 0;"
-        "padding:18px 20px 16px\">"
-        "<div style=\"font:700 12px/1 %(sans)s;color:rgba(255,255,255,.7);"
-        "text-transform:uppercase;letter-spacing:.08em\">"
-        "<span style=\"color:#e08b2c\">&#9679;</span>&nbsp; Mira Gov</div>"
-        "<div style=\"font:600 18px/1.3 %(sans)s;color:#fff;margin-top:8px\">%(cabeca)s</div>"
-        "<div style=\"font:400 12px/1.4 %(sans)s;color:rgba(255,255,255,.55);"
+        # a barra como a do painel (7/10/2026): azul, só com o logótipo; o
+        # título vai por baixo, a escuro, como o cabeçalho das páginas. Sem
+        # imagens, o `alt` diz «Mira Gov» a branco sobre o mesmo azul
+        "<tr><td style=\"background:%(marca)s;border-radius:10px;"
+        "padding:12px 16px\"><a href=\"%(painel)s\" style=\"text-decoration:none\">"
+        "<img src=\"%(logo)s\" width=\"177\" height=\"32\" alt=\"Mira Gov\" "
+        "style=\"display:block;border:0;width:177px;height:32px;"
+        "font:600 20px/32px %(serif)s;color:#fff\"></a></td></tr>"
+        "<tr><td style=\"padding:22px 4px 14px\">"
+        "<div style=\"font:600 24px/1.25 %(serif)s;color:%(ink)s\">%(cabeca)s</div>"
+        "<div style=\"font:400 13px/1.4 %(sans)s;color:%(t3)s;"
         "margin-top:4px\">%(quando)s</div>"
         "</td></tr>"
-        "<tr><td style=\"padding:16px 0 0\">%(corpo)s</td></tr>"
-        "<tr><td style=\"padding:4px 4px 0;font:400 11.5px/1.5 %(sans)s;"
+        "<tr><td>%(corpo)s</td></tr>"
+        "<tr><td style=\"padding:4px 4px 0;font:400 12.5px/1.5 %(sans)s;"
         "color:%(t3)s\">%(rodape)s</td></tr>"
         "</table></td></tr></table></body></html>"
         % {"papel": _EM_PAPEL, "marca": _EM_MARCA, "sans": _EM_SANS, "t3": _EM_T3,
+           "serif": _EM_SERIF, "ink": _EM_INK,
+           "painel": html.escape(painel, quote=True),
+           "logo": html.escape(painel + LOGOTIPO_DO_EMAIL, quote=True),
            "cabeca": html.escape(cabeca),
            "quando": datetime.now().strftime("%d/%m/%Y %H:%M"),
            "corpo": corpo, "rodape": rodape})
@@ -11456,8 +11470,8 @@ def _em_cartao_branco(conteudo):
     """O bloco branco de um e-mail que não é uma lista de anúncios."""
     return ("<table role=\"presentation\" width=\"100%%\" cellpadding=\"0\" "
             "cellspacing=\"0\" style=\"background:#fff;border:1px solid %s;"
-            "border-radius:8px;margin:0 0 16px;border-collapse:separate\">"
-            "<tr><td style=\"padding:20px 22px 8px;font:400 14.5px/1.55 %s;"
+            "border-radius:10px;margin:0 0 16px;border-collapse:separate\">"
+            "<tr><td style=\"padding:20px 22px 8px;font:400 15px/1.5 %s;"
             "color:%s\">%s</td></tr></table>"
             % (_EM_LINHA, _EM_SANS, _EM_T2, conteudo))
 
@@ -11473,7 +11487,7 @@ def _em_botao(ligacao, rotulo):
         "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
         "style=\"margin:6px 0 16px\"><tr><td style=\"background:%s;"
         "border-radius:6px\"><a href=\"%s\" style=\"display:inline-block;"
-        "padding:12px 22px;font:600 15px/1 %s;color:#fff;text-decoration:none\">"
+        "padding:12px 22px;font:600 16px/1 %s;color:#fff;text-decoration:none\">"
         "%s</a></td></tr></table>"
         % (_EM_MARCA, html.escape(ligacao, quote=True), _EM_SANS, html.escape(rotulo))
         + _em_paragrafo(
@@ -14893,6 +14907,9 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
                  "/partilha.png", "/llms.txt", "/afonso-pinto.jpg",
                  "/esqueci-me", "/pedido-recebido",
+                 # o logótipo dos e-mails (7/10/2026): um ficheiro do
+                 # `site/`, sem dados, só GET, como a /partilha.png
+                 LOGOTIPO_DO_EMAIL,
                  # o beacon das visitas (ANL): a guarda está na rota
                  "/visita",
                  # a visita guiada (5/10/2026): um ficheiro do `site/`,
@@ -37959,7 +37976,18 @@ def rosto_do_site():
 # abertura do site (1200 x 630, o tamanho do Open Graph).
 @app.route("/partilha.png")
 def imagem_de_partilha():
-    caminho = os.path.join(os.path.dirname(SITE), "partilha.png")
+    return _imagem_do_site("partilha.png")
+
+
+# O logótipo dos e-mails (7/10/2026): o cliente de e-mail pede-o sem
+# sessão, como a imagem de partilha. Um ficheiro do `site/`, sem dados.
+@app.route(LOGOTIPO_DO_EMAIL)
+def logotipo_do_email():
+    return _imagem_do_site("logotipo-email.png")
+
+
+def _imagem_do_site(nome):
+    caminho = os.path.join(os.path.dirname(SITE), nome)
     if not os.path.isfile(caminho):
         return pagina_de_erro(404)
     resposta = send_file(caminho, mimetype="image/png")
@@ -38507,10 +38535,9 @@ def texto_e_html_do_convite(ligacao, empresa, papel, nome="", pedido=False,
         + (_em_paragrafo(html.escape(nota).replace("\n", "<br>")) if nota else "")
         + _em_botao(ligacao, "Criar a conta")
         + _em_paragrafo("A ligação serve uma vez e é válida até <b>%s</b>." % ate)
-        + "<p style=\"margin:18px 0 6px;font:700 11px/1.4 %s;color:%s;"
-          "text-transform:uppercase;letter-spacing:.06em\">O que vem a seguir</p>"
+        + "<p style=\"margin:18px 0 6px;font:600 17px/1.4 %s;color:%s\">O que vem a seguir</p>"
           "<ol style=\"margin:0 0 16px;padding-left:20px\">%s</ol>"
-          % (_EM_SANS, _EM_T2, "".join("<li style=\"margin:0 0 6px\">%s</li>"
+          % (_EM_SANS, _EM_INK, "".join("<li style=\"margin:0 0 6px\">%s</li>"
                                       % html.escape(p) for p in passos)))
     return ("O seu acesso ao Mira Gov" if pedido else "Convite para o Mira Gov",
             texto,

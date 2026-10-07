@@ -324,8 +324,8 @@ porque quem fecha a porta nas fontes e na folha é a lista branca
 formulário `/pedir-acesso`, que é rota aberta com a guarda dentro de
 si (`pedir_acesso()`). Desde 29/09/2026 (lote 9 da 3.ª ronda) um
 caminho sem sessão que não é rota nenhuma dá 404, e há o `/robots.txt`,
-o `/sitemap.xml`, a `/partilha.png`, o `/llms.txt` (29/09/2026) e a
-`/afonso-pinto.jpg` (30/09/2026),
+o `/sitemap.xml`, a `/partilha.png`, o `/llms.txt` (29/09/2026), a
+`/afonso-pinto.jpg` (30/09/2026) e o `/logotipo-email.png` (7/10/2026),
 abertos por igualdade — o robots é uma lista branca; as páginas
 do site passam todas pelo `_do_site()`, que lhes põe os tokens da
 aplicação e a moldura (`site/moldura.css`) — e, desde 4/10/2026, o beacon
