@@ -9530,6 +9530,8 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         "aviso-fechar": "o × do aviso da vez",
         "envio-da-pesquisa": "o envio da pesquisa pelo Enter, que só o leitor "
                              "de ecrã vê (os filtros em botões, 6/10/2026)",
+        "f-chip-botao": "o botão «CPV» da fila dos filtros, que abre a árvore "
+                        "e tem o desenho dos outros botões de filtro (7/10/2026)",
     }
 
     @staticmethod
@@ -28335,8 +28337,9 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
             self.assertNotIn("name='%s'" % campo, antes, campo)
             self.assertIn("name='%s'" % campo, chips, campo)
         # fechados, todos, e exclusivos entre si
-        # seis sem perfil: o CPV é um deles desde 6/10/2026
-        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 6)
+        # cinco caixas; o CPV é um botão que abre a árvore (7/10/2026)
+        self.assertEqual(chips.count("<details class='f-chip' name='filtros'>"), 5)
+        self.assertIn("class='f-chip-botao' data-abre-arvore", chips)
         self.assertNotIn(" open", chips.split("</div>")[0])
         # com dois filtros postos, dois botões acesos, com o valor
         h = self._ver(radar.LISTA + "?plat=acingov&de=01/09/2026")

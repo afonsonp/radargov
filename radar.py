@@ -16362,12 +16362,6 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .ent-papel.curto{margin-left:5px;padding:1px 5px;text-align:center;
  font:600 var(--text-xs)/1.5 var(--font-sans);letter-spacing:.3px;vertical-align:1px;
  text-transform:uppercase}
-.ent-nomes{margin-top:12px}
-.ent-nomes summary{cursor:pointer;font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
-.ent-nomes summary:hover{color:var(--ink)}
-.ent-nomes>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.ent-nomes span{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
- background:var(--surface-sunken);padding:4px 8px;border-radius:var(--radius-sm)}
 .ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
  background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
@@ -20071,19 +20065,20 @@ if (ARV_DET) {
   });
   arvoreSemear();
 }
-// O «Escolher na árvore» do botão CPV (6/10/2026): a árvore vive
-// escondida por baixo dos filtros, e abre-se daqui.
+// O botão «CPV» abre e fecha a árvore inteira, por baixo dos filtros
+// (7/10/2026): sem a camada «Escolher por CPV» por cima de «Escolher CPV
+// na árvore», que eram dois títulos para a mesma coisa.
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-abre-arvore]');
   if (!b) return;
   var det = document.querySelector('details.arvore');
   if (!det) return;
+  var abrir = !det.open;
   var fora = det.closest('details.painel-filtros');
-  if (fora) fora.open = true;
-  det.open = true;
-  var chip = b.closest('details.f-chip');
-  if (chip) chip.open = false;
-  det.scrollIntoView({block: 'start'});
+  if (fora) fora.open = abrir;
+  det.open = abrir;
+  b.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  if (abrir) det.scrollIntoView({block: 'nearest'});
 });
 </script>"""
 
@@ -20151,6 +20146,21 @@ def campos_do_local_e_valor(valores, com_rotulo=True):
             "<input class='mg-field__input' type='text' name='pbmax' value='%s' "
             "inputmode='decimal' placeholder='€'></label>"
             % (v("pbmin"), v("pbmax")))
+
+
+def botao_da_arvore(valor, descrito_por=""):
+    """O botão «CPV» da fila dos filtros (7/10/2026, ele: «ao abrir o botão
+    CPV abrir a árvore completa»). Não abre uma caixa: abre a árvore dos
+    CPV por baixo dos filtros, que é onde se escolhem vários. O campo que a
+    árvore enche (`filtro-cpv`) vai escondido ao lado."""
+    return ("<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+            "<button type='button' class='f-chip-botao%s' data-abre-arvore "
+            "aria-expanded='false'%s>%s%s%s</button>"
+            % (html.escape(valor, quote=True), " f-chip--on" if valor else "",
+               " aria-describedby='%s'" % descrito_por if descrito_por else "",
+               icone("lista", 16),
+               "CPV" + (": <b>%s</b>" % html.escape(corta(valor, 40)) if valor else ""),
+               icone("baixo", 14)))
 
 
 def chip_de_filtro(rotulo, nome_do_icone, valor, campos):
@@ -21115,13 +21125,7 @@ def _lista_de_anuncios():
     # Com o perfil definido não há botão: o CPV é o do perfil.
     sem_perfil = not all(interesse_definido(cfg)[:2])
     if sem_perfil:
-        chips += chip_de_filtro("CPV", "lista", cpv_actual, (
-            "<label class='mg-field'><span class='mg-field__label'>CPV</span>"
-            "<input class='mg-field__input' type='text' id='filtro-cpv' "
-            "name='cpv' value='%s' placeholder='Código, ex. 45331000'></label>"
-            % html.escape(cpv_actual, quote=True))
-            + "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
-            "data-abre-arvore>Escolher na árvore</button>")
+        chips += botao_da_arvore(cpv_actual)
     filtros = (
         "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
         "<label class='f-q'><span class='so-leitor'>Pesquisar</span>%s"
@@ -29906,15 +29910,15 @@ def contratos():
         # que se filtra num estudo de mercado. O campo é o mesmo que a
         # árvore enche (`filtro-cpv`), e sugere códigos pelo número ou
         # pelo nome, do `/cpv.json` dos contratos (`CPV_SUGERE_JS`).
+        # sem perfil, o botão abre a árvore (7/10/2026); com ele não há
+        # árvore, e o CPV escreve-se no campo do botão
+        botao_da_arvore(arg("cpv"), "sintaxe-cpv") if not com_interesse else
         chip_de_filtro("CPV", "lista", arg("cpv"), campo(
             "CPV", "<input class='mg-field__input' type='text' "
             "id='filtro-cpv' name='cpv' value='%s' "
             "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
             "autocomplete='off' data-cpv-sugere='contratos' "
-            "aria-describedby='sintaxe-cpv'>" % v("cpv"))
-            + ("" if com_interesse else
-               "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
-               "data-abre-arvore>Escolher na árvore</button>")),
+            "aria-describedby='sintaxe-cpv'>" % v("cpv"))),
         chip_de_filtro("Procedimento", "documento", arg("proc"), campo(
             "Procedimento", selector_procedimento(procs, arg("proc"))
             .replace("<select ", "<select class='mg-field__input' ", 1))),
