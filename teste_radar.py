@@ -7035,9 +7035,9 @@ class TestCaminhoDeVoltaDaFicha(BaseTemporaria):
             radar.LISTA + "?estado=submetido").get_data(as_text=True)
         # desde 24/09/2026 as ranhuras da empresa sao as Propostas, e a
         # procura fica la
-        self.assertIn("<form class='pf' method='get' action='%s'>" % radar.PROPOSTAS,
-                      html_)
-        self.assertNotIn("<form class='pf' method='get' action='/'>", html_)
+        self.assertIn("id='procura-propostas' method='get' action='%s'>"
+                      % radar.PROPOSTAS, html_)
+        self.assertNotIn("method='get' action='/'>", html_)
 
 
 class TestNenhumEcraDa500(BaseTemporaria):
@@ -9527,6 +9527,8 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         "interruptor": "o interruptor que liga e desliga um alerta",
         "apagar": "o ícone de remover um alerta, na linha dele",
         "aviso-fechar": "o × do aviso da vez",
+        "envio-da-pesquisa": "o envio da pesquisa pelo Enter, que só o leitor "
+                             "de ecrã vê (os filtros em botões, 6/10/2026)",
     }
 
     @staticmethod
@@ -9648,9 +9650,10 @@ class TestODesenhoSegueOSistema(BaseTemporaria):
         paginas = _paginas_do_guia(self)
         # Nas Propostas o «Filtrar» é o mesmo botão, secundário: o
         # primário do ecrã é a «Nova proposta» (UX-7-LEIS V2, 30/09/2026).
-        for rota, tom in ((radar.LISTA, "primary"), ("/propostas", "secondary"),
-                          ("/contratos?cpv=72000000", "primary"),
-                          ("/entidade/506000001", "primary")):
+        # Os Concursos, o Mercado e as Propostas deixaram de ter «Filtrar»
+        # a 6/10/2026 (os botões de filtro têm o «Aplicar», e a pesquisa vai
+        # com o Enter); fica a ficha da entidade.
+        for rota, tom in (("/entidade/506000001", "primary"),):
             self.assertIn("<button type='submit' class='mg-btn mg-btn--%s'>"
                           "Filtrar</button>" % tom, paginas[rota], rota)
             self.assertNotIn(">Perguntar<", paginas[rota], rota)
@@ -27677,7 +27680,10 @@ class TestAuditoriaDe1OutubroOsPequenos(unittest.TestCase):
         p = dict.fromkeys(radar.COLUNAS_DA_PROPOSTA)
         p.update(id=7, titulo="Consulta", estado="em_analise")
         linha = radar.linha_da_pipeline(p, 7, {})
-        self.assertTrue(linha.startswith("<tr><td class='mg-code'>&mdash;</td>"), linha[:80])
+        # desde 6/10/2026 não há coluna da referência: sem anúncio, a
+        # linha não leva referência nenhuma, nem ligação a mais
+        self.assertTrue(linha.startswith("<tr><td class='o'>"), linha[:80])
+        self.assertNotIn("mg-code", linha)
 
 
 class TestUXMercadoDe1Outubro(_CicloDoTesteComUtilizadores):
@@ -28747,8 +28753,10 @@ class TestUXFichasDe1Outubro(_CicloDoTesteComUtilizadores):
         # regra a esconde
         h = self.cliente.get(radar.LISTA).get_data(as_text=True)
         form = h.split("id='filtros-lista'", 1)[1].split("</form>", 1)[0]
-        self.assertGreater(form.index("id='sintaxe-q'"),
-                           form.rindex("</details>"))
+        # desde 6/10/2026 num «Como se escreve a pesquisa» fechado, fora
+        # dos botões de filtro
+        sintaxe = form.split("<details class='como-se-conta f-sintaxe'>", 1)[1]
+        self.assertIn("id='sintaxe-q'", sintaxe.split("</details>", 1)[0])
         self.assertIn(".f-sintaxe{grid-column:1/-1;order:2;margin:0}", self._folha())
         self.assertNotRegex(self._folha(), r"\.f-sintaxe[^{]*\{[^}]*display:none")
 

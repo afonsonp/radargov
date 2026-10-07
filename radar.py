@@ -21108,10 +21108,12 @@ def _lista_de_anuncios():
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
         "<input type='hidden' name='estado' value='%s'>"
-        # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
-        "<p class='mg-field__hint f-sintaxe' id='sintaxe-q'>Pesquisar: as "
+        # fora do `title` do campo (UX-ICONES-DICAS-PESOS, 14), e
+        # fechada desde 6/10/2026: estava sempre à vista
+        "<details class='como-se-conta f-sintaxe'><summary>Como se escreve "
+        "a pesquisa</summary><p class='mg-field__hint' id='sintaxe-q'>As "
         "palavras soltas têm de estar todas; separe com vírgula para "
-        "qualquer uma; entre aspas, a frase exacta.</p>"
+        "qualquer uma; entre aspas, a frase exacta.</p></details>"
         "</form><datalist id='entidades'></datalist>"
         % (html.escape(rota, quote=True),
            icone("pesquisar", 18),
@@ -21120,8 +21122,10 @@ def _lista_de_anuncios():
            # aceso (6/10/2026; vivia na linha da contagem)
            faixa_interesse,
            chips,
-           botoes_de_filtro(html.escape(href_limpar(rota, estado_actual),
-                                        quote=True)),
+           fim_da_fila(html.escape(href_limpar(rota, estado_actual), quote=True),
+                       any(arg(k) for k in ("q", "ent", "nif", "plat", "de", "ate",
+                                            "dist", "pbmin", "pbmax", "cpv",
+                                            "cpv_excl"))),
            html.escape(re.sub(r"\D", "", request.args.get("nif", "")), quote=True),
            "" if sem_perfil else
            "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
@@ -21379,7 +21383,9 @@ def _lista_de_anuncios():
 # As colunas do `EcraPropostas` (24/09/2026): a referencia a esquerda, o
 # objecto com o cliente por baixo, o responsavel em circulo, e o «Falta»
 # no fim a dizer o que trava -- a proxima tarefa por fazer.
-COLUNAS_DA_PIPELINE = ("Ref.ª", "Objecto", "Lote", "Resp.", "Preço base",
+# sem a «Ref.ª» desde 6/10/2026, como os Concursos: a referência vai na
+# linha da entidade, por baixo do título
+COLUNAS_DA_PIPELINE = ("Objecto", "Lote", "Resp.", "Preço base",
                        "Proposto", "Prazo", "Estado", "Falta")
 
 
@@ -21504,16 +21510,15 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
     # para o mesmo sítio que o título ao lado (N5 da UX-AUDITORIA-1-10).
     cel_ref = ("<a href='%s'>%s</a>" % (alvo, html.escape(p["ref"]))
                if p["ref"] else "&mdash;")
-    return ("<tr><td class='mg-code'>%s</td>"
+    return ("<tr>"
             "<td class='o'><a href='%s' title='%s'>%s</a>%s"
-            "<small title='%s'>%s</small></td>"
+            "<small title='%s'>%s%s</small></td>"
             "%s"
             "<td class='curta'>%s</td>"
             "<td class='mg-num p'>%s</td>%s"
             "<td class='mg-num d'>%s</td>"
             "<td class='celula-ranhura'>%s</td><td class='falta'>%s</td></tr>"
-            % (cel_ref,
-               alvo,
+            % (alvo,
                html.escape(p["titulo"] or p["ref"] or "(sem título)",
                            quote=True),
                html.escape(nome),
@@ -21522,6 +21527,8 @@ def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
                % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
                html.escape(p["entidade"] or "", quote=True),
                html.escape(corta(p["entidade"] or "", 45)),
+               (" &middot; <span class='mg-code'>%s</span>"
+                % html.escape(p["ref"])) if p["ref"] else "",
                # a celula do lote sai com a coluna (colunas_da_ranhura)
                "<td class='curta'>%s</td>"
                % ("L%d" % p["lote"] if p["lote"] else
@@ -21707,12 +21714,14 @@ def _fases_das_propostas():
         "<section class='fs-coluna fs-decididas' aria-label='Decididas'><header>"
         "<h2>Decididas</h2><span>abrem a tabela</span></header>%s</section>"
         % decididas)
-    caixa = ("<form class='pf' method='get' action='%s'>"
-             "<input type='search' name='q' value='%s' "
-             "placeholder='No título ou na entidade' aria-label='Filtrar as propostas'>"
-             "%s</form>"
-             % (PROPOSTAS, html.escape(procura, quote=True),
-                botoes_de_filtro(PROPOSTAS if procura else "", primario=False)))
+    # a procura larga, como a dos Concursos (6/10/2026)
+    caixa = ("<form class='procura-larga' id='procura-propostas' method='get' "
+             "action='%s'><label><span class='so-leitor'>Procurar nas propostas"
+             "</span>%s<input type='search' name='q' value='%s' "
+             "placeholder='Procurar no título ou na entidade'></label>%s</form>"
+             % (PROPOSTAS, icone("pesquisar", 18), html.escape(procura, quote=True),
+                "<a class='mg-btn mg-btn--subtle' href='%s'>Limpar</a>" % PROPOSTAS
+                if procura else ""))
     conteudo = ("<div class='larg'><div class='fs-topo'>"
                 + _vistas_das_propostas("fases") + caixa + "</div>"
                 "<div class='fs-quadro'>" + "".join(colunas) + "</div></div>")
@@ -21887,15 +21896,16 @@ def _lista_de_propostas():
     # abertura, com a pergunta escrita na barra de endereco e nenhuma
     # resposta no ecra. Um `action` nao e um `href` e por isso escapou a
     # varredura das nove ligacoes (16/09/2026).
-    caixa = ("<form class='pf' method='get' action='%s'>"
-             "<input type='hidden' name='estado' value='%s'>"
+    # a procura larga, como a dos Concursos (6/10/2026)
+    caixa = ("<form class='procura-larga' id='procura-propostas' method='get' "
+             "action='%s'><input type='hidden' name='estado' value='%s'>"
+             "<label><span class='so-leitor'>Procurar nas propostas</span>%s"
              "<input type='search' name='q' value='%s' "
-             "placeholder='No título ou na entidade' aria-label='Filtrar as propostas'>"
-             "%s</form>"
+             "placeholder='Procurar no título ou na entidade'></label>%s</form>"
              % (PROPOSTAS, html.escape(estado_actual, quote=True),
-                html.escape(procura, quote=True),
-                botoes_de_filtro("%s?estado=%s" % (PROPOSTAS, estado_actual)
-                                 if procura else "", primario=False)))
+                icone("pesquisar", 18), html.escape(procura, quote=True),
+                "<a class='mg-btn mg-btn--subtle' href='%s?estado=%s'>Limpar</a>"
+                % (PROPOSTAS, estado_actual) if procura else ""))
     # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
     # corpo, a procura e a contagem, e a tabela.
     conteudo = ("<div class='larg fs-topo'>" + _vistas_das_propostas("tabela")
@@ -28568,6 +28578,17 @@ def campo_de_filtro(rotulo, dentro, classe=""):
             "</span>%s</label>" % (classe, rotulo, dentro))
 
 
+def fim_da_fila(limpar, ha_filtro):
+    """O fim da fila dos botões de filtro (6/10/2026, o conselho antes do
+    anúncio): sem «Filtrar» -- cada botão tem o seu «Aplicar» e a pesquisa
+    vai com o Enter, por um envio que só o leitor de ecrã vê --, e o
+    «Limpar» só quando há o que limpar."""
+    return ("<button type='submit' class='so-leitor envio-da-pesquisa'>"
+            "Procurar</button>%s"
+            % ("<a class='mg-btn mg-btn--subtle mg-btn--sm limpar f-limpar' "
+               "href='%s'>Limpar</a>" % limpar if ha_filtro else ""))
+
+
 def botoes_de_filtro(limpar="", primario=True):
     """O fim de um formulário de filtro, igual nos quatro (segunda ronda,
     perfil 11: eram cinco desenhos do mesmo gesto, com os verbos
@@ -29891,14 +29912,19 @@ def contratos():
         "<input type='hidden' name='vencid' value='%s'>"
         "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
         "%s"
-        # à vista e não no `title` do campo (UX-ICONES-DICAS-PESOS, 14)
-        "<p class='mg-field__hint f-sintaxe' id='sintaxe-cpv'>CPV: um ou "
+        # fora do `title` (UX-ICONES-DICAS-PESOS, 14), fechada desde
+        # 6/10/2026
+        "<details class='como-se-conta f-sintaxe'><summary>Como se escreve "
+        "o CPV</summary><p class='mg-field__hint' id='sintaxe-cpv'>Um ou "
         "mais códigos, separados por |; os zeros à direita alargam ao "
-        "grupo (45000000 é toda a construção).</p>"
+        "grupo (45000000 é toda a construção).</p></details>"
         "</form><datalist id='entidades-contratos'></datalist>"
         "<datalist id='cpv-sugestoes'></datalist>"
         % (escondidos_modo, icone("pesquisar", 18), v("q"), chips,
-           botoes_de_filtro(html.escape(modo_limpo, quote=True)),
+           fim_da_fila(html.escape(modo_limpo, quote=True),
+                       any(arg(k) for k in ("q", "adj", "entid", "ganhou",
+                                            "vencid", "cpv", "proc", "de",
+                                            "ate", "min", "meses"))),
            v("entid"), v("vencid"), v("cpv_excl"),
            campos_escondidos(request.args, ("q_excl", "op", "interesse"))))
 

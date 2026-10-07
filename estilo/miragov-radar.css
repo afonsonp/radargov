@@ -1614,15 +1614,15 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
    barra com a lupa da pesquisa dos Concursos e do Mercado, com o botao
    a direita. Serve a procura de uma entidade. Pelo `id`, porque as
    regras gerais dos campos (`main.mg input:not(...)`) ganhavam a classe. */
-#procura-entidade{display:flex;gap:var(--space-2);align-items:stretch;margin:0 0 var(--space-4)}
-#procura-entidade>label{position:relative;flex:1 1 auto;min-width:0;display:block}
-#procura-entidade>label>svg{position:absolute;left:var(--space-4);top:50%;transform:translateY(-50%);
+#procura-entidade,#procura-propostas{display:flex;gap:var(--space-2);align-items:stretch;margin:0 0 var(--space-4)}
+#procura-entidade>label,#procura-propostas>label{position:relative;flex:1 1 auto;min-width:0;display:block}
+#procura-entidade>label>svg,#procura-propostas>label>svg{position:absolute;left:var(--space-4);top:50%;transform:translateY(-50%);
  color:var(--ink-muted);pointer-events:none}
-#procura-entidade>label>input{width:100%;box-sizing:border-box;min-height:48px;margin:0;
+#procura-entidade>label>input,#procura-propostas>label>input{width:100%;box-sizing:border-box;min-height:48px;margin:0;
  padding:0 var(--space-3) 0 44px;border:var(--border-hairline) solid var(--line-strong);
  border-radius:var(--radius-lg);background:var(--surface-raised);
  font:400 var(--text-md)/22px var(--font-sans);color:var(--ink)}
-#procura-entidade>.mg-btn{min-height:48px}
+#procura-entidade>.mg-btn,#procura-propostas>.mg-btn{min-height:48px}
 
 /* «Como se conta»: a explicacao de um bloco de numeros, fechada
    (uniformizar, 6/10/2026) */
@@ -1640,3 +1640,14 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
    unico caminho para ela. */
 .com-js #painel-filtros:not([open]),
 .com-js .arvore-escondida>details.arvore:not([open]){display:none}
+
+/* As Propostas (6/10/2026): a procura larga ocupa a sua linha, por baixo
+   do interruptor das vistas; e na tabela o «Mudar» e a fase seguinte so
+   aparecem na linha por onde se passa, como a triagem dos Concursos -- o
+   selector fica, porque diz a fase. */
+.fs-topo>#procura-propostas{flex:1 1 100%;margin:0}
+@media (hover:hover) and (pointer:fine){
+ .tab-lista tr:not(:hover):not(:focus-within) .celula-ranhura .mg-btn{opacity:0}}
+
+/* O «Limpar» no fim da fila dos filtros, so com filtro posto (6/10/2026) */
+.f-chips>.f-limpar{margin-left:auto}
