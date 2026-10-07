@@ -29716,6 +29716,14 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
                                        (self.pedido,)).fetchone()[0], "espera")
         self.assertEqual([m[0] for m in self.mandados], ["ze@gama.pt"])
         self.assertIn("lista de espera", self.mandados[0][2])
+        # o texto do kit (7/10/2026): a empresa, as duas linhas e a assinatura
+        _, _, texto, em_html = self.mandados[0]
+        empresa = radar.liga().execute("SELECT empresa FROM pedidos_acesso WHERE id=?",
+                                       (self.pedido,)).fetchone()[0]
+        self.assertIn("Mira Gov para a %s." % empresa, texto)
+        self.assertIn("em duas linhas o que a empresa faz", texto)
+        self.assertIn("Afonso Nunes Pinto", texto)
+        self.assertIn("Afonso Nunes Pinto<br>", em_html)
         lista = self.ver(dono, "/pedidos-de-acesso").get_data(as_text=True)
         self.assertIn("Em espera", lista)
         # já não é «por decidir» no a tratar hoje, mas aceita-se e recusa-se
