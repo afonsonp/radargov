@@ -4338,9 +4338,11 @@ class TestBotoesDaLinha(unittest.TestCase):
     def test_a_plataforma_e_texto_e_nao_uma_etiqueta(self):
         """30/09/2026, ele: as etiquetas das plataformas estavam todas a
         verde (acingov, vortal, anogov), e uma cor que todas têm não diz
-        nada. A coluna leva só o nome."""
+        nada. A coluna leva só o nome -- e, desde 7/10/2026, o ícone da
+        plataforma à frente, que a identifica sem ser uma etiqueta."""
         h = radar.linha(dict(self.anuncio(), plataforma="acingov"), na_escada={})
-        self.assertIn("<td class='col-plat'>acinGov</td>", h)
+        self.assertIn("<td class='col-plat'><span class='plat-logo plat-acingov' "
+                      "aria-hidden='true'></span>acinGov</td>", h)
 
     def test_em_analise_nao_repete_o_botao_interessa(self):
         h = radar.linha(self.anuncio(), na_escada=self._na_escada("analisar"))
@@ -30129,6 +30131,32 @@ class TestOAlertaComAsDatasTrocadas(BaseTemporaria):
         with radar.liga() as c:
             self.assertIsNone(c.execute("SELECT 1 FROM filtros_guardados "
                                         "WHERE nome='trocado'").fetchone())
+
+
+class TestOsLogotiposDasPlataformas(unittest.TestCase):
+    """7/10/2026, ele: «os botões das plataformas com os logos para ser
+    mais fácil identificar». Os ícones vão na folha (uma vez, em cache);
+    uma plataforma sem ícone fica só com o nome, sem caixa vazia."""
+
+    def test_as_quatro_tem_icone_na_folha(self):
+        for p in radar.NOMES_DAS_PLATAFORMAS:
+            self.assertIn(".plat-%s{background-image:url(data:image/png;base64," % p,
+                          radar.CSS_TUDO)
+
+    def test_o_nome_leva_o_icone_a_frente(self):
+        self.assertEqual(radar.plataforma_com_logo("acingov"),
+                         "<span class='plat-logo plat-acingov' aria-hidden='true'>"
+                         "</span>acinGov")
+
+    def test_o_dr_tambem_tem_icone(self):
+        """7/10/2026, ele: «vamos fazer o mesmo para o botão do DR»."""
+        self.assertIn(".plat-dr{background-image:url(data:image/png;base64,",
+                      radar.CSS_TUDO)
+        self.assertIn("plat-dr", radar.logo_da_plataforma("dr"))
+
+    def test_sem_icone_fica_so_o_nome(self):
+        self.assertEqual(radar.plataforma_com_logo("saphety"), "saphety")
+        self.assertEqual(radar.plataforma_com_logo(""), "")
 
 if __name__ == "__main__":
 

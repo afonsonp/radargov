@@ -1669,3 +1669,7 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
 .com-js #painel-filtros>summary,
 .com-js #painel-filtros details.arvore>summary,
 .com-js .arvore-escondida>details.arvore>summary{display:none}
+
+/* O icone de cada plataforma antes do nome (7/10/2026); a imagem de cada
+   uma vem de marca/plataformas/, acrescentada pelo radar.py */
+.plat-logo{display:inline-block;width:1.1em;height:1.1em;margin-right:.35em;vertical-align:-.2em;background:center/contain no-repeat;border-radius:var(--radius-sm)}

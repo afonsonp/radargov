@@ -1158,7 +1158,10 @@ que abre e fecha a árvore inteira por baixo dos filtros, sem títulos por
 cima (7/10/2026; de resto fica escondida): é lá que se escolhem vários.
 As plataformas escrevem-se como elas se escrevem — acinGov, Vortal,
 anoGov, comprasPT (`NOMES_DAS_PLATAFORMAS`) — na lista, na ficha e no
-botão «Abrir na …», e o «Abandonar» da linha é só o ✕. Não há «Filtrar»: cada botão tem o «Aplicar» e a
+botão «Abrir na …», com o ícone que o site de cada uma publica à frente
+(`marca/plataformas/`, `plataforma_com_logo()`; uma plataforma sem ícone
+fica só com o nome; o «Ver no DR» leva o emblema do Diário da
+República), e o «Abandonar» da linha é só o ✕. Não há «Filtrar»: cada botão tem o «Aplicar» e a
 pesquisa vai com o Enter; o «Limpar» só aparece com filtro posto. A referência de cada concurso vai
 por baixo do título, junto à entidade (a coluna «Ref.ª» saiu). Na lista,
 os botões da triagem («Interessa», «Abandonar»)

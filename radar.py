@@ -6350,6 +6350,37 @@ NOMES_DAS_PLATAFORMAS = {"acingov": "acinGov", "vortal": "Vortal",
                          "anogov": "anoGov", "compraspt": "comprasPT"}
 
 
+def _logotipos_das_plataformas():
+    """O ícone de cada plataforma (7/10/2026, ele: «com os logos para ser
+    mais fácil identificar»), de `marca/plataformas/<p>.png` -- o ícone
+    que o site de cada uma publica. Vão na folha de estilo, que se guarda
+    em cache, e não em cada linha. Se um faltar, essa fica só com o nome.
+    O «dr» é o emblema do Diário da República, para o «Ver no DR»."""
+    logos = {}
+    for p in list(NOMES_DAS_PLATAFORMAS) + ["dr"]:
+        try:
+            with open(os.path.join(BASE_DIR, "marca", "plataformas", p + ".png"),
+                      "rb") as f:
+                logos[p] = base64.b64encode(f.read()).decode("ascii")
+        except OSError:
+            pass
+    return logos
+
+
+LOGOTIPOS_DAS_PLATAFORMAS = _logotipos_das_plataformas()
+
+
+def logo_da_plataforma(p):
+    """O ícone antes do nome da plataforma; vazio quando não o temos."""
+    return ("<span class='plat-logo plat-%s' aria-hidden='true'></span>" % p
+            if p in LOGOTIPOS_DAS_PLATAFORMAS else "")
+
+
+def plataforma_com_logo(p):
+    """O nome da plataforma com o ícone à frente, em HTML."""
+    return logo_da_plataforma(p) + html.escape(rotulo_da_plataforma(p)) if p else ""
+
+
 def rotulo_da_plataforma(p):
     if p in NOMES_DAS_PLATAFORMAS:
         return NOMES_DAS_PLATAFORMAS[p]
@@ -17635,7 +17666,9 @@ CSS_TUDO = (carregar_estilos_de_terceiros()
             # o que é do RADAR e não do sistema -- ver o cabeçalho dessa
             # folha. Vem por último, e é o único sítio onde se escreve
             # CSS de componente que não venha do design system.
-            + ler_estilo("miragov-radar.css"))
+            + ler_estilo("miragov-radar.css")
+            + "".join(".plat-%s{background-image:url(data:image/png;base64,%s)}"
+                      % par for par in LOGOTIPOS_DAS_PLATAFORMAS.items()))
 
 # --- o CSS deixa de viajar em cada clique (17/09/2026)
 #
@@ -19401,8 +19434,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
            # Texto, e não uma etiqueta verde (30/09/2026, ele): o verde
            # dizia «as peças descarregam-se daqui», e isso vale para 99,6%
            # dos anúncios -- todas iguais, a cor não distinguia nada.
-           html.escape(rotulo_da_plataforma(a["plataforma"]) if a["plataforma"]
-                       else ""),
+           plataforma_com_logo(a["plataforma"]),
            html.escape(preco_do_anuncio(a)),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
@@ -32850,8 +32882,9 @@ def ficha(ref):
         # Sem `url` nao ha ligacao: o `html.escape(None)` rebentava a
         # ficha inteira com um 500 (apanhado a 16/09/2026).
         # o «externo» diz, antes do clique, que isto sai da aplicacao
-        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>%s %s</a>"
+        sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>%s%s %s</a>"
                     % (html.escape(a["url"], quote=True),
+                       logo_da_plataforma("dr" if e_do_dr else "vortal"),
                        "Ver no DR" if e_do_dr else "Ver na Vortal", icone("externo")))
     if a["pdf_url"]:
         sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank'>PDF oficial %s</a>"
@@ -32864,9 +32897,10 @@ def ficha(ref):
     # davam no mesmo sitio (29/09/2026, ele). Fica o primeiro.
     if destino and destino != a["url"]:
         sair.append("<a class='mg-btn mg-btn--secondary' href='%s' target='_blank' "
-                    "title='%s'>%s %s</a>"
+                    "title='%s'>%s%s %s</a>"
                     % (html.escape(destino, quote=True),
-                       html.escape(dica, quote=True), html.escape(rotulo),
+                       html.escape(dica, quote=True),
+                       logo_da_plataforma(a["plataforma"]), html.escape(rotulo),
                        icone("externo")))
     # As pecas da plataforma NAO tem botao aqui em cima (29/09/2026, ele:
     # «as pessoas começam logo por aí e não vão às peças na nossa
@@ -32914,7 +32948,7 @@ def ficha(ref):
     if a["prazo"]:
         sub.append("<b>propostas até %s</b>" % data_pt(a["prazo"]))
     if a["plataforma"]:
-        sub.append(html.escape(rotulo_da_plataforma(a["plataforma"])))
+        sub.append(plataforma_com_logo(a["plataforma"]))
     # As etiquetas por baixo: o estado do prazo (o da cadeia) e as da
     # empresa, só para ler -- põem-se e tiram-se no bloco da proposta.
     etiquetas = []
@@ -32962,8 +32996,7 @@ def ficha(ref):
                                             quote=True)))
     pares = [("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
              ("Publicado", data_pt(a["data_pub"], ""), "n"),
-             ("Plataforma", html.escape(rotulo_da_plataforma(a["plataforma"])
-                                        if a["plataforma"] else ""), ""),
+             ("Plataforma", plataforma_com_logo(a["plataforma"]), ""),
              ("CPV", cpv_facto, "n")]
     blocos = []
     for numero, titulo_sec, pares_sec in seccoes:
