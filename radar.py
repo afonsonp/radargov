@@ -6248,10 +6248,10 @@ def link_do_procedimento(a):
     if plat == "acingov":
         id_ = id_do_processo_acingov(link)
         if id_:
-            return (ACINGOV_PROCEDIMENTO % id_, "Abrir na acingov",
+            return (ACINGOV_PROCEDIMENTO % id_, "Abrir na acinGov",
                     "a página do procedimento — pede sessão iniciada "
                     "na acingov")
-        return (ACINGOV_PESQUISA, "Procurar na acingov",
+        return (ACINGOV_PESQUISA, "Procurar na acinGov",
                 "a acingov não tem página pública do procedimento — só se "
                 "vê com sessão iniciada; isto abre a pesquisa pública")
     # A anogov quando o DR nao traz o acessoDocs, so a entrada da
@@ -6262,14 +6262,15 @@ def link_do_procedimento(a):
                                link)
     if entidade_anogov and "acessoDocs" not in link:
         return (entidade_anogov.group(1) + "/faces/app/pap/listaPaps.jsp",
-                "Procurar na anogov",
+                "Procurar na anoGov",
                 "o anúncio não traz o endereço do procedimento; isto abre a "
                 "lista dos procedimentos da entidade")
     if link:
         # anogov, compraspt e a ESPAP: o acessoDocs e a pagina do
         # procedimento. Para o resto, e o unico endereco que ha.
         return (link, "Abrir na plataforma" if not plat
-                else "Abrir na " + plat, "a página do procedimento")
+                else "Abrir na " + rotulo_da_plataforma(plat),
+                "a página do procedimento")
     return None, "", ""
 
 
@@ -6343,7 +6344,15 @@ def agrupar_plataformas(contagens):
     return saida
 
 
+# O nome de cada plataforma como ela o escreve (7/10/2026): a base guarda
+# em minúsculas, e a ficha dizia «· vortal» ao lado do filtro «Vortal».
+NOMES_DAS_PLATAFORMAS = {"acingov": "acinGov", "vortal": "Vortal",
+                         "anogov": "anoGov", "compraspt": "comprasPT"}
+
+
 def rotulo_da_plataforma(p):
+    if p in NOMES_DAS_PLATAFORMAS:
+        return NOMES_DAS_PLATAFORMAS[p]
     if p == SEM_PLATAFORMA:
         return "sem plataforma indicada"
     if p == POR_LER:
@@ -16353,12 +16362,6 @@ details.porque-bloco > .nota{margin:6px 0 12px}
 .ent-papel.curto{margin-left:5px;padding:1px 5px;text-align:center;
  font:600 var(--text-xs)/1.5 var(--font-sans);letter-spacing:.3px;vertical-align:1px;
  text-transform:uppercase}
-.ent-nomes{margin-top:12px}
-.ent-nomes summary{cursor:pointer;font:400 var(--text-xs)/1.4 var(--font-sans);color:var(--ink-muted)}
-.ent-nomes summary:hover{color:var(--ink)}
-.ent-nomes>div{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.ent-nomes span{font:400 var(--text-xs)/1.3 var(--font-sans);color:var(--ink-muted);
- background:var(--surface-sunken);padding:4px 8px;border-radius:var(--radius-sm)}
 .ent-atalhos{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .ent-atalhos a{padding:9px 14px;border:1px solid var(--line);border-radius:var(--radius-md);
  background:var(--surface-raised);font:500 var(--text-xs)/1 var(--font-sans);color:var(--ink-secondary);
@@ -18433,7 +18436,7 @@ SINAL_NAO = "<span aria-hidden='true'>&#10005;</span> "
 
 
 def forma_abandonar(ref, classe="mini", etiqueta="abandonar",
-                    titulo=""):
+                    titulo="", so_sinal=False):
     """O botao de abandonar. O motivo pergunta-se numa caixa por cima.
 
     Neutro desde 30/09/2026 (UX-7-LEIS V1; era cinzento a 02/09): o
@@ -18453,12 +18456,16 @@ def forma_abandonar(ref, classe="mini", etiqueta="abandonar",
     """
     return ("<form class='accao abandonar-js' method='post' "
             "action='/estado/%s/nao_fomos' data-titulo='%s'>"
-            "<button type='submit' class='%s' aria-label='%s'>%s%s</button></form>"
+            "<button type='submit' class='%s' aria-label='%s'%s>%s%s</button></form>"
             % (quote(ref, safe=""), html.escape(titulo or ref, quote=True),
                botao(classe),
                html.escape("%s: %s" % (etiqueta.capitalize(),
                                        corta(titulo or ref, 80)), quote=True),
-               SINAL_NAO, etiqueta))
+               # na linha da lista, só o ✕ (7/10/2026, a maquete): os dois
+               # botões com nome não cabiam na coluna e cortavam-se
+               " title='%s'" % html.escape(etiqueta.capitalize(), quote=True)
+               if so_sinal else "",
+               SINAL_NAO, "" if so_sinal else etiqueta))
 
 
 # A caixa e UMA por pagina, partilhada por todos os botoes: vinte copias
@@ -19331,7 +19338,7 @@ def linha(a, vista="", urgente=None, na_escada=None):
                             SINAL_SIM + "Interessa", "mini verde",
                             rotulo="Interessa: %s" % corta(a["titulo"] or a["ref"], 80)))
         botoes.append(forma_abandonar(a["ref"], etiqueta="Abandonar",
-                                      titulo=a["titulo"] or ""))
+                                      titulo=a["titulo"] or "", so_sinal=True))
     else:
         botoes.append(selector_de_ranhura(
             "/escada/" + quote(a["ref"], safe=""), aqui[0]["estado"],
@@ -19377,7 +19384,8 @@ def linha(a, vista="", urgente=None, na_escada=None):
            # Texto, e não uma etiqueta verde (30/09/2026, ele): o verde
            # dizia «as peças descarregam-se daqui», e isso vale para 99,6%
            # dos anúncios -- todas iguais, a cor não distinguia nada.
-           html.escape(a["plataforma"] or ""),
+           html.escape(rotulo_da_plataforma(a["plataforma"]) if a["plataforma"]
+                       else ""),
            html.escape(preco_do_anuncio(a)),
            data_pt(a["prazo"], "\u2014"),
            prazo_html, "".join(tags),
@@ -20057,19 +20065,20 @@ if (ARV_DET) {
   });
   arvoreSemear();
 }
-// O «Escolher na árvore» do botão CPV (6/10/2026): a árvore vive
-// escondida por baixo dos filtros, e abre-se daqui.
+// O botão «CPV» abre e fecha a árvore inteira, por baixo dos filtros
+// (7/10/2026): sem a camada «Escolher por CPV» por cima de «Escolher CPV
+// na árvore», que eram dois títulos para a mesma coisa.
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-abre-arvore]');
   if (!b) return;
   var det = document.querySelector('details.arvore');
   if (!det) return;
+  var abrir = !det.open;
   var fora = det.closest('details.painel-filtros');
-  if (fora) fora.open = true;
-  det.open = true;
-  var chip = b.closest('details.f-chip');
-  if (chip) chip.open = false;
-  det.scrollIntoView({block: 'start'});
+  if (fora) fora.open = abrir;
+  det.open = abrir;
+  b.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  if (abrir) det.scrollIntoView({block: 'nearest'});
 });
 </script>"""
 
@@ -20137,6 +20146,21 @@ def campos_do_local_e_valor(valores, com_rotulo=True):
             "<input class='mg-field__input' type='text' name='pbmax' value='%s' "
             "inputmode='decimal' placeholder='€'></label>"
             % (v("pbmin"), v("pbmax")))
+
+
+def botao_da_arvore(valor, descrito_por=""):
+    """O botão «CPV» da fila dos filtros (7/10/2026, ele: «ao abrir o botão
+    CPV abrir a árvore completa»). Não abre uma caixa: abre a árvore dos
+    CPV por baixo dos filtros, que é onde se escolhem vários. O campo que a
+    árvore enche (`filtro-cpv`) vai escondido ao lado."""
+    return ("<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
+            "<button type='button' class='f-chip-botao%s' data-abre-arvore "
+            "aria-expanded='false'%s>%s%s%s</button>"
+            % (html.escape(valor, quote=True), " f-chip--on" if valor else "",
+               " aria-describedby='%s'" % descrito_por if descrito_por else "",
+               icone("lista", 16),
+               "CPV" + (": <b>%s</b>" % html.escape(corta(valor, 40)) if valor else ""),
+               icone("baixo", 14)))
 
 
 def chip_de_filtro(rotulo, nome_do_icone, valor, campos):
@@ -21101,13 +21125,7 @@ def _lista_de_anuncios():
     # Com o perfil definido não há botão: o CPV é o do perfil.
     sem_perfil = not all(interesse_definido(cfg)[:2])
     if sem_perfil:
-        chips += chip_de_filtro("CPV", "lista", cpv_actual, (
-            "<label class='mg-field'><span class='mg-field__label'>CPV</span>"
-            "<input class='mg-field__input' type='text' id='filtro-cpv' "
-            "name='cpv' value='%s' placeholder='Código, ex. 45331000'></label>"
-            % html.escape(cpv_actual, quote=True))
-            + "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
-            "data-abre-arvore>Escolher na árvore</button>")
+        chips += botao_da_arvore(cpv_actual)
     filtros = (
         "<form class='mg-card filtros' id='filtros-lista' method='get' action='%s'>"
         "<label class='f-q'><span class='so-leitor'>Pesquisar</span>%s"
@@ -27390,6 +27408,12 @@ def alerta_criar():
             if campos.get(k) and not data_de_filtro(campos[k])]
     maus += [recado_do_preco(campos[k]) for k in ("pbmin", "pbmax", "min")
              if campos.get(k) and recado_do_preco(campos[k])]
+    # «desde 01/01/2025 até 01/01/2024» gravava-se (7/10/2026, ele): um
+    # alerta que nunca avisa de nada, sem uma palavra a dizê-lo
+    de, ate = (data_de_filtro(campos.get(k) or "") for k in ("de", "ate"))
+    if de and ate and de > ate:
+        maus.append("A data «de» (%s) é depois da data «até» (%s)."
+                    % (data_pt(de), data_pt(ate)))
     if maus:
         return recusa(maus[0] + " O alerta não foi gravado.")
     consulta = urlencode(pares)
@@ -29460,15 +29484,10 @@ def entidade(chave):
 
     # Os outros nomes por que assina. E o que explica porque e que somar
     # "a olho" pelo nome dava outro numero.
-    if d["variantes"] > 1:
-        nomes = ("<details class='ent-nomes'><summary>Assina com %d nomes "
-                 "diferentes &mdash; todos contam para estes números"
-                 "</summary><div>%s</div></details>"
-                 % (d["variantes"],
-                    "".join("<span>%s</span>" % html.escape(n)
-                            for n in d["nomes"])))
-    else:
-        nomes = ""
+    # Saiu da ficha a 7/10/2026 (ele: «isto sai daqui»): a lista dos nomes
+    # por que a entidade assina ocupava quatro linhas no cabeçalho, e a
+    # soma já os junta todos. Fica só na base.
+    nomes = ""
 
     # Cliente ou concorrente, dito pelo peso de cada lado (16/09/2026).
     # Fica **ao lado do nome** e nao ao pe dos dois numeros: e a primeira
@@ -29897,15 +29916,15 @@ def contratos():
         # que se filtra num estudo de mercado. O campo é o mesmo que a
         # árvore enche (`filtro-cpv`), e sugere códigos pelo número ou
         # pelo nome, do `/cpv.json` dos contratos (`CPV_SUGERE_JS`).
+        # sem perfil, o botão abre a árvore (7/10/2026); com ele não há
+        # árvore, e o CPV escreve-se no campo do botão
+        botao_da_arvore(arg("cpv"), "sintaxe-cpv") if not com_interesse else
         chip_de_filtro("CPV", "lista", arg("cpv"), campo(
             "CPV", "<input class='mg-field__input' type='text' "
             "id='filtro-cpv' name='cpv' value='%s' "
             "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
             "autocomplete='off' data-cpv-sugere='contratos' "
-            "aria-describedby='sintaxe-cpv'>" % v("cpv"))
-            + ("" if com_interesse else
-               "<button type='button' class='mg-btn mg-btn--secondary mg-btn--sm' "
-               "data-abre-arvore>Escolher na árvore</button>")),
+            "aria-describedby='sintaxe-cpv'>" % v("cpv"))),
         chip_de_filtro("Procedimento", "documento", arg("proc"), campo(
             "Procedimento", selector_procedimento(procs, arg("proc"))
             .replace("<select ", "<select class='mg-field__input' ", 1))),
@@ -32878,7 +32897,7 @@ def ficha(ref):
     if a["prazo"]:
         sub.append("<b>propostas até %s</b>" % data_pt(a["prazo"]))
     if a["plataforma"]:
-        sub.append(html.escape(a["plataforma"]))
+        sub.append(html.escape(rotulo_da_plataforma(a["plataforma"])))
     # As etiquetas por baixo: o estado do prazo (o da cadeia) e as da
     # empresa, só para ler -- põem-se e tiram-se no bloco da proposta.
     etiquetas = []
@@ -32926,7 +32945,8 @@ def ficha(ref):
                                             quote=True)))
     pares = [("Tipo de anúncio", html.escape(a["tipo"] or ""), ""),
              ("Publicado", data_pt(a["data_pub"], ""), "n"),
-             ("Plataforma", html.escape(a["plataforma"] or ""), ""),
+             ("Plataforma", html.escape(rotulo_da_plataforma(a["plataforma"])
+                                        if a["plataforma"] else ""), ""),
              ("CPV", cpv_facto, "n")]
     blocos = []
     for numero, titulo_sec, pares_sec in seccoes:
@@ -33140,7 +33160,8 @@ def ficha(ref):
                               icone("descarregar", 16) + " Trazer peças",
                               "mini")
                         + botao_das_pecas_na_plataforma(a))
-        meta_pecas = html.escape(a["plataforma"] or "")
+        meta_pecas = html.escape(rotulo_da_plataforma(a["plataforma"])
+                                 if a["plataforma"] else "")
 
     # O leitor da peca escolhida, por baixo da lista e dentro da mesma
     # caixa. Se o nome nao corresponder a nenhum ficheiro em disco (uma

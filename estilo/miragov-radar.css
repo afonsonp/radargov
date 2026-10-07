@@ -1339,7 +1339,7 @@ body:has(.faixa-ver-como) form select:disabled{opacity:.45;cursor:not-allowed;fi
  font-size:var(--text-sm)}
 #filtros-lista .f-chips .f-accoes .mg-btn,#filtros-mercado .f-chips .f-accoes .mg-btn{height:36px}
 .f-chip{position:relative}
-.f-chip>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;
+.f-chip>summary,.f-chip-botao{list-style:none;cursor:pointer;display:inline-flex;align-items:center;
  gap:var(--space-2);height:36px;padding:0 var(--space-3) 0 14px;box-sizing:border-box;
  border:var(--border-hairline) solid var(--line-strong);border-radius:var(--radius-full);
  background:var(--surface-raised);font:500 var(--text-sm)/20px var(--font-sans);color:var(--ink);
@@ -1661,3 +1661,11 @@ form.accao[action$="/analisar"]>button,form.abandonar-js>button{
    (6/10/2026): o titulo tem o tamanho do objecto, e elas mudavam de sitio
    com ele */
 .mg-pagehead__actions.em-baixo{flex-wrap:wrap;justify-content:flex-start;margin-top:var(--space-3)}
+
+/* O botao «CPV» e os outros botoes de filtro sao o mesmo desenho; e a
+   arvore que ele abre fica sem os dois titulos por cima (7/10/2026) */
+.f-chip-botao:hover,.f-chip-botao[aria-expanded=true]{border-color:var(--brand)}
+.f-chip-botao.f-chip--on{background:var(--brand-soft);border-color:var(--brand-soft);color:var(--brand)}
+.com-js #painel-filtros>summary,
+.com-js #painel-filtros details.arvore>summary,
+.com-js .arvore-escondida>details.arvore>summary{display:none}

@@ -517,7 +517,7 @@ precisares de o actualizar para uma versão mais recente do vocabulário,
 corre `python radar.py --importar-cpv caminho\para\ficheiro.json`, com
 um ficheiro no formato `[{"codigo":"...", "descricao":"..."}]`.
 
-Abaixo da caixa de filtro há **"Escolher CPV na árvore"**, com o
+O botão **CPV** da fila dos filtros abre a árvore por baixo, com o
 vocabulário CPV inteiro em hierarquia (divisão, grupo, classe...), cada
 nó com a contagem de anúncios guardados nesse ramo. Escreve na caixa de
 busca da árvore para filtrar por palavra (ela abre os ramos onde bate
