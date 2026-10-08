@@ -1628,8 +1628,10 @@ oito algarismos, G56 da 3.ª ronda — e quando nada se sugere o ecrã
 di-lo, em vez de «vem do sector e da mensagem»), para o dono afinar
 antes de aceitar — é o
 «configuramos o perfil consigo» que o site promete. Só se aceitam
-códigos CPV (`_perfil_do_formulario()`); vazio, a empresa define-o
-depois. Ao aceitar nasce a empresa
+códigos CPV (`_perfil_do_formulario()`), escolhidos na mesma árvore do
+Perfil da empresa ou escritos à mão (a árvore desde 8/10/2026, com os
+códigos que se tiram de dentro de uma divisão); vazio, a empresa
+define-o depois. Ao aceitar nasce a empresa
 (`criar_empresa()`), com o NIF do pedido como o NIF da empresa quando o
 pedido o trouxe (de 30/09 a 4/10/2026; é o da fatura), e o ecrã diz «Empresa n.º N criada» com a ligação
 para a página dela; o resumo vai para quem pediu, e um convite de

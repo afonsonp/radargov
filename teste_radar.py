@@ -22318,6 +22318,22 @@ class TestODonoPreparaOPerfilAoAceitar(BaseTemporaria):
                          (True, "45000000|71520000", "Porto", "20 000"))
         self.assertEqual(cfg["email"]["para"], "ana@exemplo.pt")
 
+    def test_o_formulario_tem_a_arvore_e_grava_o_que_ela_tira(self):
+        """8/10/2026: sem a árvore, só se acrescentava um CPV sabendo-o de
+        cor. A árvore escreve na caixa (`filtro-cpv`) e nos excluídos."""
+        corpo = self.cliente.get(self.url, environ_base=self.FORA).get_data(as_text=True)
+        self.assertIn("<details class='arvore'", corpo)
+        self.assertIn("id='filtro-cpv'", corpo)
+        self.assertIn("id='filtro-cpv-excl' name='cpv_excl'", corpo)
+        self.assertIn("function arvoreCarregar", corpo)
+        self.cliente.post(self.url, data={
+            "csrf": self.token(), "cpv": "45000000", "cpv_excl": "45200000"},
+            environ_base=self.FORA)
+        with radar.com_empresa(2):
+            cfg = radar.ler_config()
+        self.assertEqual((cfg["interesse_cpv"], cfg["interesse_cpv_excl"]),
+                         ("45000000", "45200000"))
+
     def test_um_cpv_estragado_volta_ao_formulario_sem_criar_nada(self):
         r = self.cliente.post(self.url, data={"csrf": self.token(), "cpv": "obras"},
                               environ_base=self.FORA)
