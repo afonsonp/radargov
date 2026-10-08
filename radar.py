@@ -20009,6 +20009,14 @@ function arvoreChip() {
                 : 'nenhum seleccionado';
   if (f) texto += ' · ' + f + (f === 1 ? ' tirado' : ' tirados');
   chip.textContent = texto;
+  // Com a caixa do CPV à vista (o aceitar de um pedido, 8/10/2026), a
+  // árvore escreve nela a cada marca: o que se vê é o que se grava.
+  var campo = document.getElementById('filtro-cpv');
+  if (campo && campo.type !== 'hidden') {
+    campo.value = Array.from(ARV_SEL).join('|');
+    var fora = document.getElementById('filtro-cpv-excl');
+    if (fora) fora.value = Array.from(ARV_EXC).join('|');
+  }
 }
 
 function arvoreAplicar() {
@@ -20045,6 +20053,19 @@ document.addEventListener('submit', function (e) {
   var fora = document.getElementById('filtro-cpv-excl');
   if (fora) fora.value = Array.from(ARV_EXC).join('|');
 });
+
+// ... e a caixa, mudada à mão, volta a semear a árvore: senão o «submit»
+// de cima gravava as marcas velhas por cima do que se escreveu.
+(function () {
+  var campo = document.getElementById('filtro-cpv');
+  if (!campo || campo.type === 'hidden') return;
+  campo.addEventListener('change', function () {
+    ARV_SEL.clear();
+    ARV_EXC.clear();
+    arvoreSemear();
+    if (ARV_MOLDE) arvorePintar();
+  });
+})();
 
 function arvoreLimpar() {
   ARV_SEL.clear();
@@ -38988,18 +39009,25 @@ def _perfil_do_formulario(form):
     """O perfil que veio no formulário do aceitar, já validado, ou
     ValueError com a frase para o ecrã. Os CPV só como códigos: é o que
     a árvore grava, e um termo solto aqui apanhava o que calhasse."""
-    cpv = [c.strip() for c in re.split(r"[|,;\s]+", form.get("cpv") or "") if c.strip()]
-    maus = [c for c in cpv if not re.fullmatch(r"\d{2,8}", c)]
-    if maus:
-        raise ValueError("«%s» não é um código CPV (só algarismos, ex. 45000000)."
-                         % corta(maus[0], 20))
+    def codigos(nome):
+        lidos = [c.strip() for c in re.split(r"[|,;\s]+", form.get(nome) or "")
+                 if c.strip()]
+        maus = [c for c in lidos if not re.fullmatch(r"\d{2,8}", c)]
+        if maus:
+            raise ValueError("«%s» não é um código CPV (só algarismos, ex. 45000000)."
+                             % corta(maus[0], 20))
+        return "|".join(c.ljust(8, "0") for c in lidos)
+    cpv = codigos("cpv")
+    # o que se desmarcou dentro de uma divisão marcada na árvore (8/10/2026):
+    # sem campo à vista, só a árvore o escreve
+    cpv_excl = codigos("cpv_excl") if cpv else ""
     pbmin = (form.get("pbmin") or "").strip()
     if recado_do_preco(pbmin):
         raise ValueError(recado_do_preco(pbmin))
     distritos = [d for d in form.getlist("dist") if d in DISTRITOS]
     return {"interesse_activo": bool(cpv or distritos or pbmin),
-            "interesse_cpv": "|".join(c.ljust(8, "0") for c in cpv),
-            "interesse_cpv_excl": "",
+            "interesse_cpv": cpv,
+            "interesse_cpv_excl": cpv_excl,
             "interesse_distritos": "|".join(distritos),
             "interesse_pbmin": pbmin}
 
@@ -39049,9 +39077,18 @@ def _formulario_do_aceitar(p, aviso=""):
            _escolha_da_empresa(p),
            "Vem do sector e do que a mensagem diz" if (cpv or distritos)
            else "O sector e a mensagem não chegaram para o sugerir: escreva-o",
-           _campo("CPV", "cpv", cpv, nota="códigos separados por «|», ex. "
-                  "45000000|71000000; afina-se depois na árvore, em "
-                  "Configurações › Perfil da empresa"),
+           # a árvore do Perfil da empresa (8/10/2026, pedido dele: «se
+           # quiser adicionar mais coisas não consigo a não ser que saiba
+           # de cor»); parte do que está na caixa, e as duas andam juntas
+           "<div style='flex:1 1 100%%'>%s</div>%s"
+           "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
+           % (arvore_html(quantos_cpv(), "anuncios", submeter=False,
+                          botao=None, rodape=False),
+              _campo("CPV", "cpv", cpv, nota="códigos separados por «|», ex. "
+                     "45000000|71000000; marque-os na árvore, ou escreva-os",
+                     extra="id='filtro-cpv'"),
+              html.escape(request.form.get("cpv_excl", "")
+                          if request.method == "POST" else "", quote=True)),
            caixas,
            _campo("Preço base a partir de", "pbmin",
                   request.form.get("pbmin", "") if request.method == "POST" else "",
@@ -39060,7 +39097,7 @@ def _formulario_do_aceitar(p, aviso=""):
                              else p["plano"] or "fundador"),
            TECTO_DA_NOTA_DO_CONVITE,
            html.escape(request.form.get("nota", "") if request.method == "POST" else "")),
-        titulo_aba="Aceitar o pedido")
+        script=ARVORE_JS, titulo_aba="Aceitar o pedido")
 
 
 TECTO_DA_NOTA_DO_CONVITE = 1000

@@ -14,8 +14,8 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 33
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 12
-- [A árvore de CPV](#a-arvore-de-cpv) &middot; 4
-- [Contratos e entidades](#contratos-e-entidades) &middot; 40
+- [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
+- [Contratos e entidades](#contratos-e-entidades) &middot; 41
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 131
 - [Convenções](#convencoes) &middot; 8
 
-São **459** ao todo, contados a 6/10/2026. Contam-se por secção com
+São **461** ao todo, contados a 8/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1224,6 +1224,17 @@ Uma árvore, duas fontes de contagem, dois campos.
   exclusão para baixo** (`arvoreDesexcluir()`, exclui os irmãos do
   caminho): o par (cpv, cpv_excl) sabe somar e subtrair uma vez, não
   sabe alternar.
+
+- **Onde a caixa do CPV está à vista, ela e a árvore andam juntas**
+  (o aceitar de um pedido, 8/10/2026). No Perfil o `filtro-cpv` é
+  escondido e só a árvore lhe escreve; no aceitar é uma caixa que o dono
+  também escreve à mão. O `submit` da árvore grava o `ARV_SEL` por cima
+  do campo — e o `ARV_SEL` semeia-se da caixa **ao carregar a página**:
+  quem escrevesse na caixa depois via o que escreveu trocado pelas
+  marcas de antes. Por isso, com a caixa à vista, o `arvoreChip()`
+  escreve nela a cada marca, e um `change` na caixa volta a semear a
+  árvore. Uma página nova com a caixa à vista herda isto; uma com o
+  campo escondido não muda.
 
 
 ---
