@@ -3210,7 +3210,11 @@ O login de 8/09/2026 (etapa 1 do `docs/historico/ONLINE.md`): o
   manda.** De 30/09 a 4/10/2026 o `/pedir-acesso` exigia os dois; desde
   4/10 (decisão dele: assustavam quem só queria experimentar) pede o
   nome, a empresa, o e-mail, o **telemóvel** (`telefone_valido()`: 9 a 15
-  algarismos) e a área. Quem tiver o site antigo em cache manda o NIF e
+  algarismos) e a área — desde 8/10/2026 **uma ou mais** áreas, caixas
+  com o mesmo `name='sector'`, gravadas juntas na mesma coluna pelo
+  `SEPARADOR_DAS_AREAS` e lidas pelo `areas_do_pedido()`; quem
+  ler o `sector` de um pedido como um nome só de área (o `CPV_DO_SECTOR`
+  é o caso) perde todas menos a primeira. Quem tiver o site antigo em cache manda o NIF e
   o plano **e não o telemóvel**, e leva a frase «Preencha … o
   telemóvel». Um NIF que chegue, válido, guarda-se e passa para
   `nif_da_empresa` ao aceitar; o plano escolhe-o o dono no ecrã do
