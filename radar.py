@@ -37414,6 +37414,16 @@ SECTORES_DO_PEDIDO = ("Obras públicas e construção", "Engenharia e projetos",
                       "Software e informática", "Consultoria",
                       "Fornecimento de bens", "Prestação de serviços", "Outro")
 SECTORES_ANTIGOS = ("Tecnologias de informação",)
+# Mais do que uma área (8/10/2026, pedido de quem pediu acesso: uma
+# empresa faz obra E engenharia). Guardam-se juntas na mesma coluna, por
+# este separador: nenhum nome de área o tem, e um pedido de antes, com
+# uma área só, lê-se igual.
+SEPARADOR_DAS_AREAS = " · "
+
+
+def areas_do_pedido(texto):
+    """As áreas de um pedido, pela ordem em que se gravaram."""
+    return [a for a in (texto or "").split(SEPARADOR_DAS_AREAS) if a]
 # O que o formulario do site deixa escolher (30/09/2026): o valor e como
 # se diz. A oferta de fundador e o Duo a preco de fundador. Os planos
 # mudaram a 1/10/2026 (decisao dele): sairam o Vigia e o VigIA+, e no
@@ -38340,7 +38350,13 @@ def pedir_acesso():
     # mensagem, vê-os guardados.
     p = {chave: " ".join((f.get(chave) or "").split())[:tecto]
          for chave, tecto in (("nome", 120), ("empresa", 160),
-                              ("email", 200), ("sector", 60), ("telefone", 30))}
+                              ("email", 200), ("telefone", 30))}
+    # as áreas são caixas (8/10/2026); uma que não é da lista recusa o pedido
+    areas = list(dict.fromkeys(" ".join(a.split()) for a in f.getlist("sector")
+                               if a.strip()))
+    areas_boas = bool(areas) and all(a in SECTORES_DO_PEDIDO + SECTORES_ANTIGOS
+                                     for a in areas)
+    p["sector"] = SEPARADOR_DAS_AREAS.join(areas)[:400]
     p["mensagem"] = (f.get("mensagem") or "").strip()[:2000]
     # cortado a 200 e só depois conferido, um e-mail comprido ficava
     # outro e-mail válido (4/10/2026)
@@ -38354,9 +38370,9 @@ def pedir_acesso():
     if telefone_bom:
         p["telefone"] = telefone_arrumado(p["telefone"])
     if not (p["nome"] and p["empresa"] and RX_EMAIL.fullmatch(p["email"])
-            and telefone_bom and p["sector"] in SECTORES_DO_PEDIDO + SECTORES_ANTIGOS):
+            and telefone_bom and areas_boas):
         completo = (p["nome"] and p["empresa"] and p["email"] and p["telefone"]
-                    and p["sector"] in SECTORES_DO_PEDIDO + SECTORES_ANTIGOS)
+                    and areas_boas)
         # só o campo mal escrito diz-se como tal (3.ª ronda, G103)
         if completo and not RX_EMAIL.fullmatch(p["email"]):
             return resposta(False, "O e-mail não parece válido. Confira-o: "
@@ -38365,7 +38381,8 @@ def pedir_acesso():
             return resposta(False, "O telemóvel não parece válido: são nove "
                                    "algarismos, ou o indicativo e o número.", 400)
         return resposta(False, "Preencha o nome, a empresa, um e-mail válido, "
-                               "o telemóvel e a área, para podermos responder.", 400)
+                               "o telemóvel e pelo menos uma área, para podermos "
+                               "responder.", 400)
     agora = datetime.now()
     ip = ip_de_quem_pede()
     with liga() as c:
@@ -38457,13 +38474,17 @@ def _formulario_do_pedido_outra_vez():
                 "value='%s' required></div>"
                 % (nome, rotulo, nome, nome, tipo,
                    html.escape((f.get(nome) or "")[:200], quote=True)))
-    opcoes = "".join("<option%s>%s</option>" % (
-        " selected" if f.get("sector") == o else "", html.escape(o))
+    marcadas = set(f.getlist("sector"))
+    opcoes = "".join(
+        "<label style='display:flex;gap:8px;align-items:center'>"
+        "<input type='checkbox' name='sector' value='%s'%s>%s</label>"
+        % (html.escape(o, quote=True), " checked" if o in marcadas else "",
+           html.escape(o))
         for o in SECTORES_DO_PEDIDO)
     return ("<form method='post' action='/pedir-acesso' style='text-align:left'>%s%s%s%s"
-            "<div class='mg-field'><label class='mg-field__label' for='p-sector'>Área"
-            "</label><select class='mg-field__input' id='p-sector' name='sector' "
-            "required><option value=''>Escolher a área</option>%s</select></div>"
+            "<fieldset class='mg-field' style='border:0;padding:0;margin:0'>"
+            "<legend class='mg-field__label'>Áreas (uma ou mais)</legend>%s"
+            "</fieldset>"
             "<div class='mg-field'><label class='mg-field__label' for='p-mensagem'>"
             "%s</label><textarea class='mg-field__input' id='p-mensagem' "
             "name='mensagem' maxlength='%d'>%s</textarea></div>"
@@ -38990,7 +39011,8 @@ def perfil_do_pedido(p):
     distritos que a mensagem nomeia. É um ponto de partida: o dono vê-o
     e muda-o antes de aceitar."""
     mensagem = p["mensagem"] or ""
-    cpv = [c for c in (CPV_DO_SECTOR.get(p["sector"] or "") or "").split("|") if c]
+    cpv = list(dict.fromkeys(c for area in areas_do_pedido(p["sector"])
+                             for c in (CPV_DO_SECTOR.get(area) or "").split("|") if c))
     cpv += [c for c in RX_CPV_NA_MENSAGEM.findall(mensagem) if c not in cpv]
     for fila in RX_CPV_CURTO_NA_MENSAGEM.findall(mensagem):
         # os de 8 já vieram pelo de cima; o «-5» do dígito de controlo

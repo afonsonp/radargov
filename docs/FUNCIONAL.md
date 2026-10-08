@@ -1621,7 +1621,8 @@ que não serve diz «peça outro ao gestor da sua empresa».
 **Do pedido de acesso à empresa a trabalhar** (F5). Em «pedidos de
 acesso do site», o dono carrega em **aceitar…**, que desde 26/09/2026
 (D13 da segunda ronda) abre primeiro **o perfil da empresa nova**: os
-CPV que o sector diz sem dúvida (`CPV_DO_SECTOR`) mais os códigos
+CPV que as áreas do pedido dizem sem dúvida (`CPV_DO_SECTOR`; uma ou
+mais áreas desde 8/10/2026, e o perfil junta os CPV de todas) mais os códigos
 escritos na mensagem, e os distritos que ela nomeia — também pelas regiões, «Algarve», «Norte», «região Centro», pelo `DISTRITOS_POR_REGIAO` (LANC-F, 4/10/2026); a mensagem é o campo opcional «O que vende, e onde» do formulário
 (`perfil_do_pedido()`; também o «CPV 909» escrito à mão, completado a
 oito algarismos, G56 da 3.ª ronda — e quando nada se sugere o ecrã

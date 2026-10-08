@@ -348,6 +348,13 @@ form{background:var(--surface-raised);color:var(--ink);border:1px solid var(--li
    dos campos era a mesma queixa de 24/09, que só se tinha resolvido lá) */
 .campo input:focus,.campo select:focus,.campo textarea:focus{outline:2px solid var(--brand);outline-offset:1px}
 .campo [aria-invalid="true"]{border-color:var(--danger)}
+fieldset.areas{border:0;padding:0;margin:0;min-width:0}
+fieldset.areas legend{font-weight:600;font-size:.95rem;padding:0;margin-bottom:6px}
+fieldset.areas legend small{font-weight:400;color:var(--ink-muted);font-size:.88rem}
+.areas .opcoes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 16px;border:1px solid transparent;border-radius:10px}
+.areas .opcoes label{display:flex;gap:10px;align-items:center;font-weight:400;font-size:1rem;min-height:40px;cursor:pointer}
+.areas input{width:20px;height:20px;flex:none;accent-color:var(--brand)}
+.areas[aria-invalid="true"] .opcoes{border-color:var(--danger);padding:4px 8px}
 .duas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
 .armadilha{position:absolute!important;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
 .nota{font-size:.86rem;color:var(--ink-muted)}
@@ -776,21 +783,22 @@ form .btn{justify-self:start}
           <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="200" pattern="[^@\s]+@[^@\s]+\.[^@\s]+"></div>
           <div class="campo"><label for="telefone">Telemóvel</label><input id="telefone" name="telefone" type="tel" autocomplete="tel" required maxlength="30" pattern="[0-9 .\(\)\+\-]{9,30}"></div>
         </div>
-        <div class="campo">
-          <label for="sector">Área</label>
-          <select id="sector" name="sector" required>
-            <option value="">Escolher a área</option>
-            <option>Obras públicas e construção</option>
-            <option>Engenharia e projetos</option>
-            <option>Limpeza, segurança e manutenção</option>
-            <option>Espaços verdes e ambiente</option>
-            <option>Software e informática</option>
-            <option>Consultoria</option>
-            <option>Fornecimento de bens</option>
-            <option>Prestação de serviços</option>
-            <option>Outro</option>
-          </select>
-        </div>
+        <!-- mais do que uma área (8/10/2026): uma empresa faz obra E
+             engenharia, e a lista só deixava escolher uma -->
+        <fieldset class="campo areas" id="sector">
+          <legend>Áreas <small>(uma ou mais)</small></legend>
+          <div class="opcoes">
+            <label><input type="checkbox" name="sector" value="Obras públicas e construção"> Obras públicas e construção</label>
+            <label><input type="checkbox" name="sector" value="Engenharia e projetos"> Engenharia e projetos</label>
+            <label><input type="checkbox" name="sector" value="Limpeza, segurança e manutenção"> Limpeza, segurança e manutenção</label>
+            <label><input type="checkbox" name="sector" value="Espaços verdes e ambiente"> Espaços verdes e ambiente</label>
+            <label><input type="checkbox" name="sector" value="Software e informática"> Software e informática</label>
+            <label><input type="checkbox" name="sector" value="Consultoria"> Consultoria</label>
+            <label><input type="checkbox" name="sector" value="Fornecimento de bens"> Fornecimento de bens</label>
+            <label><input type="checkbox" name="sector" value="Prestação de serviços"> Prestação de serviços</label>
+            <label><input type="checkbox" name="sector" value="Outro"> Outro</label>
+          </div>
+        </fieldset>
         <!-- opcional (LANC-F, 4/10/2026): é daqui que o perfil da empresa
              nova se pré-preenche; os obrigatórios continuam cinco -->
         <div class="campo">
@@ -870,7 +878,7 @@ form .btn{justify-self:start}
   });
 
   var NOMES = { nome: "o nome", empresa: "a empresa", email: "o e-mail",
-                telefone: "o telemóvel", sector: "a área" };
+                telefone: "o telemóvel", sector: "pelo menos uma área" };
 
   // o campo opcional corta aos 500 sem dizer nada a quem cola um texto
   // maior (6.ª ronda, perfil 19): o contador torna o corte visível
@@ -885,13 +893,24 @@ form .btn{justify-self:start}
     if (guardado && guardado.email) confirma(guardado, false);
   } catch (e) {}
 
+  // marcar uma área tira o vermelho do grupo, sem esperar pelo envio
+  form.addEventListener("change", function (e) {
+    if (e.target.name === "sector")
+      document.getElementById("sector").setAttribute("aria-invalid", "false");
+  });
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     erro.hidden = true;
     var invalidos = [];
+    // as áreas são caixas: falta quando nenhuma está marcada
+    function vazio(el) {
+      return el.id === "sector" ? !form.querySelector("input[name=sector]:checked")
+                                : !el.value.trim();
+    }
     ["nome", "empresa", "email", "telefone", "sector"].forEach(function (id) {
       var el = document.getElementById(id);
-      var mau = !el.value.trim() || !el.checkValidity();
+      var mau = vazio(el) || (el.id !== "sector" && !el.checkValidity());
       el.setAttribute("aria-invalid", mau ? "true" : "false");
       if (mau) invalidos.push(el);
     });
@@ -902,8 +921,8 @@ form .btn{justify-self:start}
       var telefone = document.getElementById("telefone");
       // o que está vazio falta; o que está escrito mas mal não falta (6.ª
       // ronda: «Falta o telemóvel» com o telemóvel preenchido)
-      var vazios = invalidos.filter(function (el) { return !el.value.trim(); });
-      var mal = invalidos.filter(function (el) { return el.value.trim(); });
+      var vazios = invalidos.filter(vazio);
+      var mal = invalidos.filter(function (el) { return !vazio(el); });
       function lista(els) {
         return els.map(function (el) { return NOMES[el.id]; })
           .join(", ").replace(/, ([^,]*)$/, " e $1");
@@ -919,11 +938,12 @@ form .btn{justify-self:start}
         ? "O telemóvel não parece válido: são nove algarismos, ou o indicativo e o número."
         : vazios.length < 5
         ? junta.charAt(0).toUpperCase() + junta.slice(1) + "."
-        : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e a área, para podermos responder.");
+        : "Preencha o nome, a empresa, um e-mail válido, o telemóvel e pelo menos uma área, para podermos responder.");
       // a frase do erro fica por cima dos campos, e o foco no campo
       // deixava-a debaixo da barra fixa (6.ª ronda, perfil 19)
       erro.scrollIntoView({ block: "center" });
-      invalidos[0].focus({ preventScroll: true });
+      (invalidos[0].id === "sector" ? invalidos[0].querySelector("input")
+                                     : invalidos[0]).focus({ preventScroll: true });
       return;
     }
     enviar.disabled = true;

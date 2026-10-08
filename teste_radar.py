@@ -27568,7 +27568,8 @@ class TestAQuartaRondaDeTestes(BaseTemporaria):
         # desde a 5.ª ronda o formulário volta preenchido, ali mesmo
         self.assertIn("action='/pedir-acesso'", mau)
         self.assertIn("value='Obras Lda'", mau)
-        self.assertIn("<option selected>Obras públicas e construção</option>", mau)
+        # as áreas são caixas desde 8/10/2026: volta marcada a que veio
+        self.assertIn("value='Obras públicas e construção' checked", mau)
 
     def test_o_resumo_do_filtro_nao_mostra_a_aba(self):
         """O dono via «porver» solto ao lado de «Escolher por CPV»."""
@@ -27658,8 +27659,9 @@ class TestOPedidoLevaONifEOPlano(BaseTemporaria):
             self.assertNotIn(frase, site)
         formulario = site.split('id="form-acesso"', 1)[1].split("</form>", 1)[0]
         self.assertEqual(
-            [n for n in re.findall(r'name="(\w+)"', formulario)
-             if n not in ("website", "plano", "vista")],
+            # as áreas são nove caixas com o mesmo nome (8/10/2026)
+            list(dict.fromkeys(n for n in re.findall(r'name="(\w+)"', formulario)
+                               if n not in ("website", "plano", "vista"))),
             ["nome", "empresa", "email", "telefone", "sector", "mensagem"])
         # os obrigatórios continuam cinco: «o que vende, e onde» é
         # opcional (LANC-F, 4/10/2026)
@@ -28275,7 +28277,8 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         self.assertIn('frases.push("Falta " + lista(vazios))', site)
         self.assertIn('<small id="mensagem-conta">0 de 500</small>', site)
         self.assertIn('erro.scrollIntoView({ block: "center" });', site)
-        self.assertIn("invalidos[0].focus({ preventScroll: true });", site)
+        # o foco vai para a primeira caixa quando o que falta são as áreas
+        self.assertIn(".focus({ preventScroll: true });", site)
 
     # -- UX-ECRAS-EM-FALTA-E-ESCURO.md ---------------------------------
 
@@ -29583,8 +29586,24 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
         for sector in radar.SECTORES_DO_PEDIDO:
-            self.assertIn("<option>%s</option>" % sector, site)
+            self.assertIn('name="sector" value="%s"' % sector, site)
         self.assertTrue(self.pedir(sector="Consultoria").get_json()["ok"])
+
+    def test_mais_do_que_uma_area(self):
+        """8/10/2026, de quem pediu acesso: uma empresa faz obra E
+        engenharia, e a lista só deixava escolher uma. As áreas gravam-se
+        juntas, e o perfil sugerido junta os CPV de todas."""
+        r = self.pedir(sector=["Obras públicas e construção", "Engenharia e projetos"])
+        self.assertTrue(r.get_json()["ok"])
+        with radar.liga() as c:
+            sector = c.execute("SELECT sector FROM pedidos_acesso "
+                               "ORDER BY id DESC LIMIT 1").fetchone()[0]
+        self.assertEqual(sector, "Obras públicas e construção · Engenharia e projetos")
+        self.assertEqual(radar.perfil_do_pedido({"sector": sector, "mensagem": ""})[0],
+                         "45000000|71000000")
+        # uma área que não é da lista recusa o pedido inteiro, e nenhuma também
+        self.assertFalse(self.pedir(sector=["Consultoria", "Inventada"]).get_json()["ok"])
+        self.assertFalse(self.pedir(sector=[]).get_json()["ok"])
 
     def test_o_sector_ja_nao_engana(self):
         self.assertIn("Engenharia e projetos", radar.SECTORES_DO_PEDIDO)
@@ -29594,7 +29613,7 @@ class TestOPedidoParaUmDiaComMuitos(_PlataformaComDuasEmpresas):
             {"sector": "Engenharia e projetos", "mensagem": ""})[0], "71000000")
         with open(radar.SITE, encoding="utf-8") as f:
             site = f.read()
-        self.assertIn("<option>Engenharia e projetos</option>", site)
+        self.assertIn('name="sector" value="Engenharia e projetos"', site)
         # uma página antiga, em cache, ainda manda o nome de antes
         self.assertTrue(self.pedir(sector="Tecnologias de informação").get_json()["ok"])
 
