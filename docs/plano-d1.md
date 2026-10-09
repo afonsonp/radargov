@@ -148,7 +148,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.2a | o esqueleto das Configurações (o índice e a secção) e as quatro secções do sistema (recolha, leitura, capturas, cópias) — **feito a 9/10/2026**; as macros `campo` e `interruptor` nasceram aqui | só o dono as vê |
 | 3.2b | a Conta — **feito a 9/10/2026**: sete moldes `conta_*.html`; as funções `_bloco_*` ficam com o nome e desenham o seu molde; nasce a macro `accao` | a maior das secções da empresa |
 | 3.2c-i | o Interesse — **feito a 9/10/2026** (`interesse.html`, `interesse_listas.html`); a árvore dos CPV entra feita (`arvore_html()`, partilhada com os Concursos: passa no 3.8) | o mais pequeno dos dois |
-| 3.2c-ii | os Alertas | 177 linhas e quatro auxiliares de ~90 |
+| 3.2c-ii | os Alertas — **feito a 9/10/2026** (`alertas.html`; saem o `_linha_filtro`, o `_caixa_email`, o `_caixa_urgente` e o `_caixa_alerta_do_perfil`; nasce a macro `rotulado`, com `{% call %}`). Entram feitos o `arvore_html()`, o `campos_do_local_e_valor()` e o `envios_html()`, partilhados | 177 linhas e quatro auxiliares de ~90 |
 | 3.2d | o Importar, os Documentos e os Indicadores | |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |
@@ -178,6 +178,13 @@ corrige-se num trabalho à parte, com o seu teste.
   `accao` escapa-o outra vez — um e-mail com `&` aparece no diálogo
   como `&amp;`. O molde reproduz o defeito de propósito (`u.email|e`);
   corrige-se tirando esse `|e`.
+
+- **Um disco temporário cheio parece uma diferença**: no lote 3.2c-ii o
+  `/tmp` (memória, 3,6 GB, partilhado com as outras sessões) encheu, um
+  PDF da demo saiu com 852 B em vez de 856 e um teste caiu com
+  `Disk quota exceeded`. Com espaço, os dois passaram. Antes de procurar
+  a diferença no código, `df -h /tmp`; e as gravações dos lotes já
+  fundidos apagam-se.
 
 ## 4. Riscos e como se tratam
 

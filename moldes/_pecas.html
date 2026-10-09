@@ -28,3 +28,8 @@
     atributo; a `classe` é a da casa («mini», «bt»), e o filtro `botao`
     tradu-la na do sistema. -#}
 {% macro accao(destino, etiqueta, classe="bt", confirmar="", campos={}, rotulo="") %}<form class='accao' method='post' action='{{ destino }}'{% if confirmar %} onsubmit="return confirm({{ confirmar|js }})"{% endif %}>{% for k, v in campos.items() %}<input type='hidden' name='{{ k }}' value='{{ v }}'>{% endfor %}<button type='submit' class='{{ classe|botao }}'{% if rotulo %} aria-label='{{ rotulo }}'{% endif %}>{{ etiqueta }}</button></form>{% endmacro %}
+
+{#- Um campo pequeno com o rótulo à vista, por cima dele (era o
+    `rotulado()`, que serve os ecrãs ainda em Python). O campo vem no
+    corpo do `{% call %}`; o rótulo é texto. -#}
+{% macro rotulado(texto, classe="") %}<label class='rot{% if classe %} {{ classe }}{% endif %}'><span class='rot-t'>{{ texto }}</span>{{ caller() }}</label>{% endmacro %}

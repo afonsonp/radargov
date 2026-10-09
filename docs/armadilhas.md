@@ -3865,7 +3865,9 @@ botões ou no calendário.
   sistema) e o `js` (o `json.dumps` do texto da confirmação, que o Jinja
   escapa para o atributo). Os atributos a mais de um campo vão em
   `attrs`, uma lista de pares pela ordem em que saem: a ordem mudava de
-  campo para campo, e uma macro com ordem fixa não a reproduzia.
+  campo para campo, e uma macro com ordem fixa não a reproduzia. E o
+  `rotulado()` tem a macro irmã `rotulado`, que recebe o campo no corpo
+  de um `{% call %}` (lote 3.2c-ii).
 - **Abaixo de 900px as tabelas das listas são cartões, e a barra dobra**
   (`miragov-radar.css`, teste com utilizadores de 25/09/2026; o corte
   subiu de 600 para 900 a 26/09/2026, porque a 150 % de zoom a tabela

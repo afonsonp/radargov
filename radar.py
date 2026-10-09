@@ -21508,215 +21508,6 @@ def interesse_gravar():
     return redirect("/configuracoes/interesse?" + urlencode({"aviso": aviso}))
 
 
-def _linha_filtro(f):
-    """Um filtro na lista de gestao: o interruptor, o que apanha, e onde
-    o aplicar. As ligacoes vao para as duas listas, porque o mesmo filtro
-    serve as duas."""
-    ligado = bool(f["alerta"])
-    onde, fora_anuncios = filtro_para(f["consulta"] or "", "anuncios")
-    onde_c, fora_contratos = filtro_para(f["consulta"] or "", "contratos")
-    aplicar = []
-    if not fora_anuncios or onde:
-        # Todas as ranhuras e sem o interesse: e o que o alerta ve. Com a
-        # aba e o interesse da lista, a ligacao abria 0 (teste com
-        # utilizadores, 25/09/2026).
-        aplicar.append("<a href='/concursos?%s'>anúncios%s</a>"
-                       % (html.escape(urlencode(
-                           [(k, v) for k, v in parse_qsl(onde, keep_blank_values=True)
-                            if k not in ("estado", "interesse")]
-                           + [("estado", ""), ("interesse", "nao")]), quote=True),
-                          " (parcial)" if fora_anuncios else ""))
-    if not fora_contratos or onde_c:
-        aplicar.append("<a href='/contratos?%s'>contratos%s</a>"
-                       % (html.escape(onde_c, quote=True),
-                          " (parcial)" if fora_contratos else ""))
-    # A taxa de acerto (B06), como a Tendios mostra na ficha do alerta:
-    # em que estados acabou o que este filtro marcou. So conta os
-    # triados -- por ver ainda nao e opiniao -- e so aparece quando ha
-    # historia que chegue para dizer alguma coisa.
-    triagem = ""
-    marcou = (f["interessou"] or 0) + (f["descartou"] or 0) + (f["por_triar"] or 0)
-    if marcou:
-        triados = (f["interessou"] or 0) + (f["descartou"] or 0)
-        taxa = (" &middot; acerto <b>%s</b>" % pct_pt(f["interessou"] / triados)
-                if triados else " &middot; ainda nada triado")
-        # «que marcou» dizia-o de quem nao marcou nada (26/09/2026)
-        # «sem decisão» e não «por ver» (G26, N4): conta também os que
-        # já fecharam, e a aba «Por ver» dos Concursos dava outro número
-        triagem = ("<span class='onde'>dos %s que o alerta apanhou: %s interessa "
-                   "&middot; %s descartados &middot; %s sem decisão%s</span>"
-                   % (mil_pt(marcou), mil_pt(f["interessou"] or 0),
-                      mil_pt(f["descartou"] or 0), mil_pt(f["por_triar"] or 0),
-                      taxa))
-    return (
-        "<div class='alerta %s'>"
-        "<form method='post' action='/alertas/%d/trocar'>"
-        "<button type='submit' class='interruptor %s' title='%s' aria-label='%s'><i></i>"
-        "</button></form>"
-        "<div class='sobre'><b>%s</b><span class='q'>%s</span>"
-        # «ver em», e não «aplicar a»: só os anúncios avisam, e os
-        # contratos são uma ligação para ver (5.ª ronda)
-        "<span class='onde'>ver em: %s</span>%s%s</div>"
-        "<div class='conta'>%s</div>"
-        # o confirm pelas duas escapagens do `accao()`: escrito à mão,
-        # o `&quot;` fechava a cadeia de JS e o × apagava sem perguntar
-        # (varredura de 25/09/2026)
-        "<form method='post' action='/filtros/%d/apagar' "
-        "onsubmit=\"return confirm(%s)\">"
-        "<input type='hidden' name='volta' value='/alertas'>"
-        # os dois com o NOME do alerta (segunda ronda, 26/09/2026; WCAG
-        # 2.4.6 e 4.1.2): o «×» lia-se «vezes», e três «desligar o
-        # alerta» não diziam qual
-        "<button type='submit' class='apagar' title='Remover' aria-label='%s'>"
-        "%s</button>"
-        "</form></div>"
-        % ("on" if ligado else "", f["id"], "on" if ligado else "",
-           "desligar o alerta" if ligado else "ligar o alerta",
-           html.escape(("Desligar o alerta «%s»" if ligado
-                         else "Ligar o alerta «%s»") % f["nome"], quote=True),
-           html.escape(f["nome"]),
-           html.escape(resumo_filtro(f["consulta"] or "")),
-           " &middot; ".join(aplicar) or "sem campos",
-           triagem,
-           # O aviso logo (25/09/2026): so num alerta ligado, que um
-           # desligado nao avisa de nada.
-           ("<span class='onde'>%s %s</span>" % (
-               "avisa <b>logo</b>, a cada verificação" if f["imediato"]
-               else "avisa no resumo do dia",
-               accao("/alertas/%d/imediato" % f["id"],
-                     "só no resumo" if f["imediato"] else "avisar logo",
-                     "mini",
-                     rotulo=("Passar «%s» a só no resumo" if f["imediato"]
-                             else "Avisar logo de «%s»") % f["nome"])))
-           if ligado else "",
-           ("<span class='avisa-mal'>não avisa: nada aqui é sobre "
-            "anúncios</span>" if ligado and not onde else
-            "<b>%s</b> por avisar &middot; %s avisados &middot; %s de todos os concursos%s"
-            % (mil_pt(f["por_enviar"]), mil_pt(f["avisados"]),
-               mil_pt(f["acervo"]),
-               "<span class='avisa-mal'>avisa só por %s</span>"
-               % html.escape(resumo_filtro(onde)) if fora_anuncios else "")
-            if ligado else "não avisa"),
-           f["id"], html.escape(json.dumps(
-               "Apagar o alerta «%s»? Não se apaga nada além do alerta."
-               % f["nome"]), quote=True),
-           html.escape("Apagar o alerta «%s»" % f["nome"], quote=True),
-           icone("apagar", 16) or "&times;"))
-
-
-def _caixa_email(cfg):
-    """O destino e a hora configuram-se no ecra; a conta que **envia**
-    nao.
-
-    Quem envia sao tres coisas que andam juntas -- endereco, servidor e
-    porta -- e a quarta, a palavra-passe, nunca podia estar aqui. Ter
-    metade no ecra e metade num ficheiro convidava a preencher o ecra e
-    a achar que estava feito. Fica tudo do lado de fora, e o painel
-    mostra o que ja esta posto.
-    """
-    e = cfg.get("email") or {}
-    tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
-    senha_por_variavel = bool((os.environ.get("RADAR_EMAIL_SENHA") or "").strip())
-    tem_conta = bool((e.get("de") or "").strip() and (e.get("servidor") or "").strip())
-    pronto = bool((e.get("para") or "").strip() and tem_conta and tem_senha)
-    estado = le_marca_da_empresa("ultimo_resumo_estado", "")
-
-    envio = [
-        ("Conta que envia", e.get("de") or "por configurar", tem_conta),
-        ("Servidor", "%s:%s" % (e.get("servidor") or "—", e.get("porta") or "—"),
-         tem_conta),
-        ("Palavra-passe",
-         "lida de email_senha.txt" if tem_senha
-         else "falta o ficheiro email_senha.txt", tem_senha),
-    ]
-    if estado:
-        envio.append(("Último envio", html.escape(estado),
-                      not estado.startswith("por enviar")))
-
-    # Quem nao e dono ve so o destino e a hora (13/09/2026; F4); a conta
-    # que envia e do sistema, e so o dono a ve -- a porta recusa-lhe o POST.
-    # No «ver como» o dono ve o que a empresa ve (G54 da 3.ª ronda): o
-    # cartao era dele, e podia cita-lo a um cliente que nao o tem.
-    if not sou_dono() or g.get("ver_como") is not None:
-        return (
-            "<div class='mg-card conf-email'>"
-            "<div class='mg-field__label'>Resumo por e-mail</div>"
-            "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
-            "da hora marcada, e só se houver novidade.</div>"
-            "<form class='form-email' method='post' action='/alertas/email'>"
-            "<label>Enviar para<input type='email' name='para' value='%s' "
-            "placeholder='nome@empresa.pt'></label>"
-            "<label>Hora do resumo<input type='time' name='hora_resumo' "
-            "value='%s'></label>"
-            "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
-            "</form></div>"
-            % (html.escape(str(e.get("para") or ""), quote=True),
-               html.escape(str(e.get("hora_resumo") or "17:00"), quote=True)))
-    return (
-        "<div class='mg-card conf-email'>"
-        "<div class='mg-field__label'>Resumo por e-mail</div>"
-        "<div class='nota' style='margin:6px 0 16px'>Um por dia, a partir "
-        "da hora marcada, e só se houver novidade.</div>"
-        "<form class='form-email' method='post' action='/alertas/email'>"
-        "<label>Enviar para<input type='email' name='para' value='%s' "
-        "placeholder='nome@empresa.pt'></label>"
-        "<label>Hora do resumo<input type='time' name='hora_resumo' "
-        "value='%s'></label>"
-        "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
-        "</form>"
-        "<div class='mg-field__label' style='margin:22px 0 6px'>Quem envia</div>"
-        "<div class='nota' style='margin-bottom:14px'>A conta que manda o "
-        "resumo. A palavra-passe grava-se no <code>email_senha.txt</code>, "
-        "nunca no <code>config.json</code>; o campo fica vazio de "
-        "propósito, e só se grava se escrever uma nova.%s</div>"
-        "<form class='form-email' method='post' action='/alertas/remetente'>"
-        "<label>Conta que envia<input type='email' name='de' value='%s' "
-        "placeholder='nome@gmail.com'></label>"
-        "<label>Servidor<input type='text' name='servidor' value='%s' "
-        "placeholder='smtp.gmail.com'></label>"
-        "<label>Porta<input type='text' name='porta' value='%s' inputmode='numeric'></label>"
-        "<label>Palavra-passe<input type='password' name='senha' value='' "
-        "autocomplete='new-password'%s></label>"
-        "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button>"
-        "</form>"
-        "<div class='saude'>%s</div>%s</div>"
-        % (html.escape(str(e.get("para") or ""), quote=True),
-           html.escape(str(e.get("hora_resumo") or "17:00"), quote=True),
-           (" Está definida pela variável de ambiente e não se edita aqui."
-            if senha_por_variavel else ""),
-           html.escape(str(e.get("de") or ""), quote=True),
-           html.escape(str(e.get("servidor") or ""), quote=True),
-           html.escape(str(e.get("porta") or "587"), quote=True),
-           " disabled" if senha_por_variavel else "",
-           linhas_de_saude(envio, "var(--warning)"),
-           ("<div style='margin-top:16px'>%s</div>"
-            % accao("/alertas/enviar", "Enviar o resumo agora", "bt")
-            if pronto else
-            "<div class='nota' style='margin-top:14px'>Enquanto não estiver "
-            "pronto, o radar escreve o <code>AVISOS.txt</code> na pasta e a "
-            "lista aqui em baixo mostra o mesmo.</div>")))
-
-
-def _caixa_urgente():
-    """A janela do "urgente", editavel no painel (B13). E UM numero,
-    usado pelo filtro, pelo cartao dos indicadores e pelos rotulos --
-    por isso edita-se num sitio so, e todos leem dias_urgente()."""
-    return ("<div class='mg-card novo-filtro' style='margin-top:16px'>"
-            "<div class='mg-field__label'>Janela do «urgente»</div>"
-            "<div class='nota' style='margin:6px 0 10px'>Um anúncio é "
-            "«urgente» quando o prazo acaba nos próximos N "
-            "dias. O mesmo número serve o filtro da lista, o cartão dos "
-            "indicadores e os avisos &mdash; mudar aqui muda em todo o "
-            "lado.</div>"
-            "<form method='post' action='/alertas/urgente' class='filtros'>"
-            "<label for='dias-urgente'>prazos a menos de</label>"
-            "<input type='text' id='dias-urgente' name='dias' value='%d' inputmode='numeric' "
-            "style='min-width:0;width:70px;flex:none'>"
-            "<label>dias</label>"
-            "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form></div>"
-            % dias_urgente())
-
-
 @app.route("/alertas/urgente", methods=["POST"])
 def alertas_urgente():
     """Grava a janela do urgente (B13), com a validacao a vista: um 0
@@ -21743,30 +21534,6 @@ def alertas():
     POST antigos e as ligacoes guardadas continuarem a abrir."""
     qs = request.query_string.decode()
     return redirect("/configuracoes/alertas" + ("?" + qs if qs else ""))
-
-
-def _caixa_alerta_do_perfil(cfg):
-    """O «criar alerta a partir do perfil» (D13, 26/09/2026): um botão,
-    com o perfil por palavras ao lado para se saber o que vai avisar.
-    Sem perfil, diz onde se define."""
-    descricao = descricao_do_interesse(cfg)
-    if not consulta_do_perfil(cfg):
-        return ("<div class='mg-card novo-filtro' id='do-perfil' style='margin-top:16px'>"
-                "<div class='mg-field__label'>Alerta a partir do perfil</div>"
-                "<p class='nota'>Com o <a href='/configuracoes/interesse'>perfil "
-                "da empresa</a> definido, cria-se aqui num clique o alerta do "
-                "que a empresa trabalha.</p></div>")
-    return ("<div class='mg-card novo-filtro' id='do-perfil' style='margin-top:16px'>"
-            "<div class='mg-field__label'>Alerta a partir do perfil</div>"
-            "<p class='nota'>Avisa por e-mail do que entrar dentro do perfil "
-            "da empresa: %s.</p>%s</div>"
-            % (descricao, accao("/alertas/do-perfil",
-                                # com o alerta já criado, o botão diz o
-                                # que faz (5.ª ronda: parecia por criar)
-                                "Actualizar o alerta do perfil"
-                                if any(f["nome"] == NOME_DO_ALERTA_DO_PERFIL
-                                       for f in filtros_de_alerta())
-                                else "Criar o alerta do perfil", "bt")))
 
 
 def _conteudo_alertas():
@@ -21807,145 +21574,98 @@ def _conteudo_alertas():
     with liga() as c:
         seguidas = c.execute("SELECT chave, nome FROM entidades_seguidas "
                              "ORDER BY nome COLLATE NOCASE").fetchall()
-    if seguidas:
-        caixa_seguidas = (
-            "<div class='mg-card novo-filtro' style='margin-top:16px'>"
-            "<div class='mg-field__label'>Entidades seguidas</div>"
-            "<div class='nota' style='margin:6px 0 10px'>Os anúncios "
-            "novos destas entidades entram no resumo diário. Segue-se e "
-            "deixa-se de seguir na ficha de cada uma.</div>"
-            "<div class='guardados'>%s</div></div>"
-            % "".join("<span class='guardado'><a href='/entidade/%s'>%s"
-                      "</a></span>"
-                      % (quote(s["chave"], safe=""), html.escape(s["nome"]))
-                      for s in seguidas))
-    else:
-        caixa_seguidas = ""
 
-    if filtros:
-        lista = "<div class='alertas'>%s</div>" % "".join(
-            _linha_filtro(f) for f in filtros)
-    else:
-        lista = ("<div class='mg-empty'>Ainda não há alertas. Crie um aqui em "
-                 "baixo: o que entrar e corresponder vai no resumo por "
-                 "e-mail.</div>")
+    # A taxa de acerto (B06), como a Tendios mostra na ficha do alerta: em
+    # que estados acabou o que o alerta marcou -- só conta os triados, e
+    # «sem decisão» e não «por ver» (G26, N4). As ligações do «ver em»
+    # levam todas as ranhuras e sem o interesse, que é o que o alerta vê
+    # (25/09/2026: com a aba e o interesse da lista, abria 0).
+    alertas = []
+    for f in filtros:
+        onde, fora_anuncios = filtro_para(f["consulta"] or "", "anuncios")
+        onde_c, fora_contratos = filtro_para(f["consulta"] or "", "contratos")
+        aplicar = []
+        if not fora_anuncios or onde:
+            aplicar.append(("/concursos?" + urlencode(
+                [(k, v) for k, v in parse_qsl(onde, keep_blank_values=True)
+                 if k not in ("estado", "interesse")]
+                + [("estado", ""), ("interesse", "nao")]),
+                "anúncios" + (" (parcial)" if fora_anuncios else "")))
+        if not fora_contratos or onde_c:
+            aplicar.append(("/contratos?" + onde_c,
+                            "contratos" + (" (parcial)" if fora_contratos else "")))
+        marcou = (f["interessou"] or 0) + (f["descartou"] or 0) + (f["por_triar"] or 0)
+        triados = (f["interessou"] or 0) + (f["descartou"] or 0)
+        alertas.append({
+            "id": f["id"], "nome": f["nome"], "ligado": bool(f["alerta"]),
+            "imediato": f["imediato"], "resumo": resumo_filtro(f["consulta"] or ""),
+            "aplicar": aplicar, "onde": onde, "fora": fora_anuncios,
+            "avisa_so": resumo_filtro(onde),
+            "por_enviar": mil_pt(f["por_enviar"]), "avisados": mil_pt(f["avisados"]),
+            "acervo": mil_pt(f["acervo"]),
+            "triagem": {
+                "marcou": mil_pt(marcou), "interessou": mil_pt(f["interessou"] or 0),
+                "descartou": mil_pt(f["descartou"] or 0),
+                "por_triar": mil_pt(f["por_triar"] or 0),
+                "taxa": pct_pt(f["interessou"] / triados) if triados else ""}
+            if marcou else None})
 
-    # O que se tinha escrito quando a validacao recusou: vem na query
-    # string do redirect e volta para os campos, em vez de se perder.
-    def pv(campo):
-        return html.escape(request.args.get(campo, ""), quote=True)
-
-    def marca_sel(campo, valor, omissao=""):
-        return " selected" if request.args.get(campo, omissao) == valor else ""
-
-    # Criar um filtro aqui, sem ter de ir a uma lista primeiro.
-    novo = ((
-        "<div class='mg-card novo-filtro'><div class='mg-field__label'>Filtro de alertas</div>"
-        "<div class='nota' style='margin:6px 0 14px'>Um alerta é um "
-        "conjunto de campos: o que entrar e corresponder vai no resumo "
-        "por e-mail. Um alerta por CPV ou por palavras avisa dos "
-        "anúncios; os campos dos contratos (quem ganhou, valor) não "
-        "avisam de nada.</div>"
-        # Os campos todos, e nao metade. O formulario oferecia seis dos
-        # treze campos que um filtro tem: nao dava para criar aqui um
-        # filtro por plataforma, por estado, por tipo de procedimento nem
-        # por valor -- coisas que se punham nas outras paginas e se
-        # guardavam de la. Eram dois caminhos para a mesma coisa, e um
-        # deles secretamente mais fraco do que o outro.
-        #
-        # POST, como tudo o que escreve. E os campos vem preenchidos da
-        # query string: quando a validacao recusa, o redirect traz o que
-        # se tinha escrito -- antes vinha tudo vazio, nome incluido.
-        # Os mesmos campos da lista de anuncios (14/09/2026, a pedido do
-        # Afonso), mais o nome: e por estes que o alerta avisa. A arvore
-        # de CPV vem por cima e escreve no campo do CPV, que aqui fica a
-        # ver -- nao ha lista por baixo a mostrar o resultado. Sairam
-        # "excluir palavras", "excluir CPV" (fica escondido, e onde a
-        # arvore poe o que se desmarca), o E/OU, a triagem, o prazo e o
-        # grupo dos contratos, que nao avisava de nada.
-        "%s"
-        "<form method='post' action='/alertas/criar' class='filtros'>"
-        + rotulado("Nome do alerta", "<input type='text' name='nome' required "
-                   "maxlength='60' value='%s'>", "larga")
-        + rotulado("Palavras do objecto", "<input type='text' name='q' value='%s' "
-                   "placeholder='Nome do anúncio ou objecto…'>", "larga")
-        + rotulado("CPV", "<input type='text' id='filtro-cpv' name='cpv' value='%s' "
-                   "readonly placeholder='escolha na árvore aqui em cima'>", "larga") +
-        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
-        + rotulado("Entidade que publica", "<input type='text' name='ent' value='%s' "
-                   "list='entidades' autocomplete='off' data-sugere='anuncios' "
-                   "data-chave-em='nif'>", "larga") +
-        "<input type='hidden' name='nif' value='%s'>"
-        + rotulado("Plataforma", "<select name='plat' aria-label='Plataforma'>%s</select>")
-        + rotulado("Publicado de", "<input type='text' name='de' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>")
-        + rotulado("Publicado até", "<input type='text' name='ate' value='%s' inputmode='numeric' placeholder='dd/mm/aaaa' maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}' class='campo-data'>") +
-        "%s"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Criar alerta</button>"
-        "</form><datalist id='entidades'></datalist></div>")
-        % (arvore_html(quantos_cpv(), "anuncios", submeter=False),
-           pv("nome"), pv("q"), pv("cpv"), pv("cpv_excl"), pv("ent"), pv("nif"),
-           "".join(["<option value=''>plataforma: qualquer uma</option>"]
-                   + ["<option value='%s'%s>%s</option>"
-                      % (html.escape(p, quote=True), marca_sel("plat", p),
-                         html.escape(rotulo_da_plataforma(p)))
-                      for p in plataformas]
-                   + ["<option value='%s'%s>sem plataforma indicada</option>"
-                      % (html.escape(SEM_PLATAFORMA, quote=True),
-                         marca_sel("plat", SEM_PLATAFORMA)),
-                      "<option value='%s'%s>ainda sem detalhe lido</option>"
-                      % (html.escape(POR_LER, quote=True),
-                         marca_sel("plat", POR_LER))]),
-           html.escape(data_para_campo(request.args.get("de")), quote=True),
-           html.escape(data_para_campo(request.args.get("ate")), quote=True),
-           campos_do_local_e_valor(request.args, com_rotulo=False)))
-
-    # O registo dos envios (L7 do plano de Outubro): era a lista dos
-    # últimos 25 anúncios avisados, solta; passou a um envio por linha
-    # -- quando, que alerta, por onde, e quantos --, com os anúncios de
-    # cada um a abrir por baixo do número.
+    # O registo dos envios (L7 do plano de Outubro): um envio por linha --
+    # quando, que alerta, por onde, e quantos. Sem alerta ligado nem
+    # entidade seguida não sai nada (3.ª ronda, G30).
     envios = envios_dos_alertas()
-    if envios:
-        historico = envios_html(envios)
-    else:
-        # Sem alerta ligado nem entidade seguida não sai nada (3.ª ronda,
-        # G30): dizia «Sai no resumo a seguir…» com 0 alertas ligados.
-        sem_fonte = not seguidas and not any(f["alerta"] for f in filtros)
-        historico = ("<div class='nota'>Ainda não saiu nenhum aviso. %s</div>"
-                     % ("Não sai nenhum: nenhum alerta está ligado."
-                        if sem_fonte else
-                        "Aparece aqui a seguir à próxima verificação."
-                        if porque_o_email_nao_sai(cfg) else
-                        "Sai no resumo a seguir à próxima verificação."))
-
-    # Os avisos prometiam um e-mail que nao podia sair, e nada o dizia
-    # (teste de 26/09/2026). A razao vem do mesmo teste que o envio faz.
+    sem_fonte = not seguidas and not any(f["alerta"] for f in filtros)
+    # Os avisos prometiam um e-mail que não podia sair, e nada o dizia
+    # (teste de 26/09/2026); o que só o dono resolve diz-se ao cliente sem
+    # o ficheiro do servidor (4.ª ronda).
     falta = porque_o_email_nao_sai(cfg)
-    # O que só o dono resolve diz-se ao cliente sem o ficheiro do servidor
-    # (4.ª ronda: o gestor lia «falta a palavra-passe em email_senha.txt»)
-    falta = razao_do_correio(falta)
-    faixa_correio = ("<div class='mg-alert mg-alert--warning' role='status'>"
-                     "Os avisos ainda não saem por e-mail (%s). Ficam em "
-                     "«Últimos avisos», aqui em baixo.</div>"
-                     % html.escape(falta)) if falta else ""
-    mexer = (lista + _caixa_alerta_do_perfil(cfg) +
-             "<div style='height:16px'></div>" + novo +
-             "<div style='height:16px'></div>" + _caixa_email(cfg) +
-             _caixa_urgente())
-    if not sou_admin():
-        # Só o gestor muda os alertas (decisão dele, 4/10/2026); o
-        # utilizador vê-os, e a porta recusa o POST na mesma
-        mexer = ("<div class='mg-alert mg-alert--info' style='margin:0 0 12px'>"
-                 "Os alertas são da empresa, e só o gestor%s os muda. Se "
-                 "precisa de outro, peça-lhe.</div>"
-                 "<fieldset disabled style='border:0;padding:0;margin:0;"
-                 "min-width:0'>%s</fieldset>"
-                 % (html.escape(gestores_da_empresa()), mexer))
-    conteudo = ("<div class='larg'>" + faixa_correio + mexer +
-                caixa_seguidas +
-                "<div class='mg-field__label' style='margin:22px 0 12px'>Últimos avisos"
-                "</div>" + historico + "</div>")
-
-    return conteudo
+    e = cfg.get("email") or {}
+    tem_senha = bool(ler_chave(("email_senha.txt",), "RADAR_EMAIL_SENHA"))
+    tem_conta = bool((e.get("de") or "").strip() and (e.get("servidor") or "").strip())
+    estado = le_marca_da_empresa("ultimo_resumo_estado", "")
+    envio = [
+        ("Conta que envia", e.get("de") or "por configurar", tem_conta),
+        ("Servidor", "%s:%s" % (e.get("servidor") or "—", e.get("porta") or "—"),
+         tem_conta),
+        ("Palavra-passe",
+         "lida de email_senha.txt" if tem_senha
+         else "falta o ficheiro email_senha.txt", tem_senha)]
+    if estado:
+        envio.append(("Último envio", html.escape(estado),
+                      not estado.startswith("por enviar")))
+    return ecra(
+        "alertas.html", admin=sou_admin(), gestores=gestores_da_empresa(),
+        falta=razao_do_correio(falta), alertas=alertas,
+        icone_apagar=Markup(icone("apagar", 16) or "&times;"),
+        perfil=bool(consulta_do_perfil(cfg)),
+        descricao=Markup(descricao_do_interesse(cfg)),
+        perfil_criado=any(f["nome"] == NOME_DO_ALERTA_DO_PERFIL
+                          for f in filtros_de_alerta()),
+        arvore=Markup(arvore_html(quantos_cpv(), "anuncios", submeter=False)),
+        v={k: request.args.get(k, "") for k in
+           ("nome", "q", "cpv", "cpv_excl", "ent", "nif", "plat")}
+        | {"de": data_para_campo(request.args.get("de")),
+           "ate": data_para_campo(request.args.get("ate"))},
+        plataformas=[(p, rotulo_da_plataforma(p)) for p in plataformas],
+        sem_plataforma=SEM_PLATAFORMA, por_ler=POR_LER,
+        local_e_valor=Markup(campos_do_local_e_valor(request.args,
+                                                     com_rotulo=False)),
+        # a conta que ENVIA é do sistema: só o dono a vê, e no «ver como»
+        # vê o que a empresa vê (13/09/2026; F4; G54 da 3.ª ronda)
+        e={"para": str(e.get("para") or ""),
+           "hora": str(e.get("hora_resumo") or "17:00"),
+           "remetente": sou_dono() and g.get("ver_como") is None,
+           "por_variavel": bool((os.environ.get("RADAR_EMAIL_SENHA") or "").strip()),
+           "de": str(e.get("de") or ""), "servidor": str(e.get("servidor") or ""),
+           "porta": str(e.get("porta") or "587"),
+           "saude": Markup(linhas_de_saude(envio, "var(--warning)")),
+           "pronto": bool((e.get("para") or "").strip() and tem_conta and tem_senha)},
+        dias_urgente=dias_urgente(),
+        seguidas=[(quote(s["chave"], safe=""), s["nome"]) for s in seguidas],
+        envios=Markup(envios_html(envios)) if envios else "",
+        sem_envios=("Não sai nenhum: nenhum alerta está ligado." if sem_fonte else
+                    "Aparece aqui a seguir à próxima verificação." if falta else
+                    "Sai no resumo a seguir à próxima verificação."))
 
 
 # ------------------------------------- configuracoes (ONLINE.md, etapa 2)
