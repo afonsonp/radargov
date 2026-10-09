@@ -3817,6 +3817,20 @@ botões ou no calendário.
   levavam um `(i + n) % n`, e a bateria inteira caiu — 160 testes, todos
   com «not enough arguments for format string», porque todas as páginas
   passam pelo `BASE`.
+- **Os moldes e o CSS antigo vivem em ficheiros desde o D1, e lêem-se
+  tal e qual** (9/10/2026, fase 1 do `docs/plano-d1.md`). O `BASE`, a
+  `PAGINA_ENTRAR` e a `PAGINA_ERRO` estão em `moldes/`, e o `CSS` e o
+  `CSS_NOVO` em `estilo/radar-antigo.css` e `estilo/radar-novo.css`; os
+  nomes continuam no `radar.py`, lidos pelo `ler_molde()`. Três coisas
+  que não são óbvias: o ficheiro é o **valor** da string, já avaliado (um
+  `\\` do Python é uma `\` lá dentro, e o `%%` do `BASE` continua `%%`,
+  porque o molde ainda se formata com `%`); um molde que falte
+  **rebenta o arranque**, ao contrário do `ler_estilo()`, porque sem o
+  esqueleto não há página; e um teste que procura JS ou HTML «no código»
+  procura pela função fonte_do_painel do `teste_radar.py`, que junta o
+  `radar.py` e os moldes — a ler só o `radar.py`, dois testes deixaram de
+  encontrar o que estava no `BASE`. **Quem mexer nestes ficheiros passa
+  o `ferramentas/igual.py`**: tem de dar «Iguais» contra o `master`.
 - **Abaixo de 900px as tabelas das listas são cartões, e a barra dobra**
   (`miragov-radar.css`, teste com utilizadores de 25/09/2026; o corte
   subiu de 600 para 900 a 26/09/2026, porque a 150 % de zoom a tabela

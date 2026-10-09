@@ -1,0 +1,370 @@
+<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="csrf" content="%(csrf)s">
+<title>%(titulo_aba)s</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>document.documentElement.classList.add('com-js')</script>
+%(css)s</head><body>
+<a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
+<div class="app">
+<header class="mg mg-topbar">%(faixa)s
+ <a class="mg-topbar__brand" href="/" %(inicio_on)s aria-label="Hoje &mdash; Mira Gov" title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
+ <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
+ %(procurar)s
+ %(conta)s
+</header>
+<main class="mg" id="conteudo" tabindex="-1">
+ %(topo)s
+ <div class="corpo">%(aviso)s%(conteudo)s</div>
+</main>
+%(baixo)s
+</div>
+<script>
+/* A barra e o topo estavam os DOIS em sticky;top:0, e o topo ficava por
+   baixo: as migalhas e o "Verificar agora" desapareciam debaixo da
+   barra escura assim que se rolava, e na ficha o titulo com a seta de
+   voltar ficava a meio. Nao da para fixar a altura em CSS porque a
+   barra **dobra** (flex-wrap): 50px em ecra largo, 87px a 375px.
+   Mede-se, e o CSS usa a medida. */
+(function(){var b=document.querySelector('.mg-topbar');if(!b)return;
+ /* E a faixa do topo, quando se prende por baixo dela: o
+    `scroll-padding-top` soma as duas, para o foco nunca ficar tapado
+    por elas (segunda ronda, 26/09/2026; WCAG 2.4.11). Uma barra que
+    nao se prende (telemovel, ecra baixo) nao conta. */
+ var t=document.querySelector('.topo');
+ var alt=function(e){return e && getComputedStyle(e).position==='sticky'
+   ? e.getBoundingClientRect().height : 0};
+ var p=function(){var s=document.documentElement.style;
+   s.setProperty('--barra-h', b.getBoundingClientRect().height + 'px');
+   s.setProperty('--prende-h', (alt(b) + alt(t)) + 'px')};
+ p(); addEventListener('resize', p);
+ /* E outra vez quando as letras chegarem. Medido a 21/09/2026, a 375px:
+    a barra media 130px com a letra de recurso e 92px com a Zilla Slab,
+    e o `.topo` ficava 38px descaido -- uma faixa vazia por baixo da
+    barra que so aparecia em telemovel. O `resize` nao dispara com uma
+    fonte a carregar. */
+ if (document.fonts && document.fonts.ready) document.fonts.ready.then(p);})();
+/* A pesquisa geral (J1, 1/10/2026). Ctrl+K (ou Cmd+K) em qualquer
+   sitio, e «/» fora de um campo, levam a caixa da barra; o que se
+   escreve pergunta ao /pesquisa (JSON) 200 ms depois da ultima tecla, e
+   as setas andam pela lista. O texto entra por textContent, nunca por
+   innerHTML: e o que veio da base. Sem JS a caixa e um formulario GET. */
+(function () {
+ var f = document.querySelector('form.pesquisa-geral');
+ if (!f) return;
+ var i = f.querySelector('input'), l = f.querySelector('.pesquisa-lista'),
+     vivo = f.querySelector('[role=status]'), espera = null, vez = 0;
+ document.addEventListener('keydown', function (e) {
+  var t = e.target, campo = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+      t.tagName === 'SELECT' || t.isContentEditable;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+   e.preventDefault(); i.focus(); i.select();
+  } else if (e.key === '/' && !campo && !e.ctrlKey && !e.metaKey && !e.altKey) {
+   e.preventDefault(); i.focus();
+  }
+ });
+ function fecha() {
+  l.hidden = true; l.textContent = '';
+ }
+ function grupo(titulo, itens, rotulo, nota) {
+  if (!itens.length) return;
+  var h = document.createElement('p');
+  h.className = 'pesquisa-lista__grupo'; h.textContent = titulo; l.appendChild(h);
+  itens.forEach(function (x) {
+   var a = document.createElement('a'), s = document.createElement('small');
+   a.href = x.url; a.className = 'pesquisa-lista__item';
+   a.textContent = rotulo(x); s.textContent = nota(x);
+   a.appendChild(s); l.appendChild(a);
+  });
+ }
+ function desenha(d) {
+  l.textContent = '';
+  grupo('Propostas', d.propostas, function (x) { return x.titulo; },
+        function (x) { return [x.entidade, x.estado].filter(Boolean).join(' · '); });
+  grupo('Concursos', d.concursos, function (x) { return x.titulo || x.ref; },
+        function (x) { return [x.ref, x.entidade, x.data].filter(Boolean).join(' · '); });
+  grupo('Entidades', d.entidades, function (x) { return x.nome; },
+        function (x) { return x.chave.indexOf('n:') === 0 ? 'sem NIF' : x.chave; });
+  var n = l.querySelectorAll('a').length, todos = document.createElement('a');
+  todos.href = '/pesquisa?q=' + encodeURIComponent(d.q);
+  todos.className = 'pesquisa-lista__item pesquisa-lista__todos';
+  todos.textContent = n ? 'Ver tudo o que responde' : 'Nada responde: abrir a página';
+  l.appendChild(todos);
+  l.hidden = false;
+  vivo.textContent = n ? n + ' resultados; seta para baixo para os percorrer'
+                       : 'Nenhum resultado';
+ }
+ i.addEventListener('input', function () {
+  clearTimeout(espera);
+  var q = i.value.trim();
+  if (q.length < 3) { fecha(); return; }
+  espera = setTimeout(function () {
+   var esta = ++vez;
+   fetch('/pesquisa?q=' + encodeURIComponent(q),
+         {headers: {Accept: 'application/json'}, credentials: 'same-origin'})
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && esta === vez) desenha(d); })
+    .catch(function () {});
+  }, 200);
+ });
+ f.addEventListener('keydown', function (e) {
+  var itens = Array.prototype.slice.call(l.querySelectorAll('a')),
+      onde = itens.indexOf(document.activeElement);
+  if (e.key === 'Escape') { fecha(); i.focus(); }
+  else if (e.key === 'ArrowDown' && itens.length) {
+   e.preventDefault(); itens[Math.min(onde + 1, itens.length - 1)].focus();
+  } else if (e.key === 'ArrowUp' && onde >= 0) {
+   e.preventDefault(); (onde ? itens[onde - 1] : i).focus();
+  }
+ });
+ document.addEventListener('click', function (e) { if (!f.contains(e.target)) fecha(); });
+})();
+/* Um formulario GET com a classe `sem-vazios` nao leva os campos vazios
+   para o endereco (varredura de 25/09/2026: a pergunta do Mercado dava
+   `?q=x&adj=&entid=&ganhou=&vencid=&cpv=&de=&ate=`, feio de partilhar).
+   E opt-in de proposito: no Hoje, `?quem=` vazio quer dizer «sem dono»,
+   e nos Concursos `?estado=` vazio e a aba «Todos». */
+/* O aviso da vez e um aviso fixo em baixo (segunda ronda, 26/09/2026:
+   E25 e WCAG 4.1.3). Ficava no topo, a 5 000 px de onde se carregou, e
+   o «desfazer» nunca se via. E uma regiao viva que JA EXISTE quando a
+   pagina carrega nao e lida pela maioria dos leitores de ecra: o que se
+   anuncia e uma regiao a parte, so para o leitor, onde o texto entra
+   depois. O aviso a vista fica com o texto desde o HTML (3.a ronda, G90):
+   era ele que se esvaziava e voltava a encher, e chegava como um friso
+   vazio de 26 px que depois empurrava a pagina 32 px -- um erro rapido
+   nao se chegava a ler. O «x» fecha-o. */
+(function () {
+ var t = document.querySelector('.aviso-da-vez');
+ if (!t) return;
+ var vivo = document.createElement('div');
+ vivo.className = 'so-leitor';
+ vivo.setAttribute('role', t.getAttribute('role') || 'status');
+ t.removeAttribute('role');
+ document.body.appendChild(vivo);
+ /* Preso em baixo SO quando a pagina volta a um sitio (uma ancora) ou
+    traz o «desfazer» (ronda em PC, 26/09/2026): sem ancora a pagina
+    abre no topo, que e onde o aviso ja esta -- e preso em baixo tapava
+    o que la estivesse, como o «Criar o alerta do perfil» nos Alertas. */
+ /* o `h` vinha de quando o aviso se esvaziava (G90) e ficou sem dono:
+    um ReferenceError parava aqui o aviso ao leitor e o foco (4.a ronda) */
+ var h = t.innerHTML;
+ if (!location.hash && h.indexOf('desfazer') < 0) t.classList.add('no-topo');
+ /* E o foco, se ninguem o levou para a linha (a lista leva-o), vai para
+    o aviso: caia no <body>, no topo da pagina (WCAG 2.4.3). */
+ t.setAttribute('tabindex', '-1');
+ setTimeout(function () {
+  vivo.textContent = t.innerText.replace(/[⚠︎✓×]/g, '').replace(/desfazer/, '').trim();
+  if (document.activeElement === document.body) t.focus({preventScroll: true});
+ }, 150);
+ /* No telemóvel o aviso preso em baixo tapava o «Sair» do «Mais» (6.ª
+    ronda, perfil 1): abrir o «Mais» fecha-o. E o de sucesso sem
+    «desfazer» sai sozinho ao fim de 8 s -- o de erro, o do «desfazer» e
+    o do topo ficam, e quem entrou com o Tab no «×» também o segura. */
+ var mais = document.querySelector('details.bb-mais');
+ if (mais) mais.addEventListener('toggle', function () {
+  if (mais.open && t.isConnected) t.remove();
+ });
+ if (t.classList.contains('mg-alert--success') && h.indexOf('desfazer') < 0
+     && !t.classList.contains('no-topo')) {
+  setTimeout(function () {
+   var foco = document.activeElement;
+   if (t.isConnected && (!t.contains(foco) || foco === t)) t.remove();
+  }, 8000);
+ }
+ t.addEventListener('click', function (e) {
+  if (e.target.closest('.aviso-fechar')) t.remove();
+ });
+})();
+/* Uma data que nao se le fica no campo -- e onde se corrige -- mas
+   marcada a vermelho (3.a ronda, G96): o aviso dizia que «32/13/2026»
+   tinha sido ignorada, e o campo continuava igual aos outros. O padrao
+   do campo nao a apanha: 32/13 tem a forma de uma data. */
+(function () {
+ document.querySelectorAll('input.campo-data').forEach(function (i) {
+  var v = i.value.trim(), m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v);
+  if (!v || /^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+  var d = m && new Date(+m[3], +m[2] - 1, +m[1]);
+  if (d && d.getMonth() === +m[2] - 1 && d.getDate() === +m[1]) return;
+  i.setAttribute('aria-invalid', 'true');
+  var campo = i.closest('.mg-field');
+  if (campo) campo.classList.add('mg-field--error');
+  i.addEventListener('input', function () {
+   i.removeAttribute('aria-invalid');
+   if (campo) campo.classList.remove('mg-field--error');
+  }, {once: true});
+ });
+})();
+/* O calendario do browser ao lado de cada data dos filtros (J6 da
+   UX-7-LEIS, 1/10/2026). O campo continua texto dd/mm/aaaa: o
+   `type=date` desenha-se no idioma do BROWSER (mm/dd/yyyy num browser
+   em ingles), e foi por isso que saiu a 16/09/2026. O botao abre o
+   calendario de um `input[type=date]` escondido, que nao se le, e a
+   data escolhida escreve-se no campo a portuguesa. Sem `showPicker`
+   (browsers antigos) fica o campo, como estava. */
+(function () {
+ var escolha = document.createElement('input');
+ escolha.type = 'date';
+ if (escolha.type !== 'date' || !escolha.showPicker) return;
+ escolha.className = 'data-escolha';
+ escolha.tabIndex = -1;
+ escolha.setAttribute('aria-hidden', 'true');
+ var alvo = null;
+ escolha.addEventListener('change', function () {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(escolha.value);
+  if (!alvo || !m) return;
+  alvo.value = m[3] + '/' + m[2] + '/' + m[1];
+  alvo.dispatchEvent(new Event('input', {bubbles: true}));
+  alvo.focus();
+ });
+ document.querySelectorAll('input.campo-data[type=text]').forEach(function (i) {
+  var cx = document.createElement('span');
+  cx.className = 'campo-data-cx';
+  i.parentNode.insertBefore(cx, i);
+  cx.appendChild(i);
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'data-cal';
+  b.title = 'Escolher no calendário';
+  b.setAttribute('aria-label', 'Escolher no calendário');
+  b.innerHTML = %(icone_cal)s;
+  cx.appendChild(b);
+  b.addEventListener('click', function () {
+   if (!escolha.parentNode) document.body.appendChild(escolha);
+   var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(i.value.trim());
+   escolha.value = m ? m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2) : '';
+   var r = b.getBoundingClientRect();
+   escolha.style.left = r.left + 'px';
+   escolha.style.top = r.bottom + 'px';
+   alvo = i;
+   try { escolha.showPicker(); } catch (erro) { i.focus(); }
+  });
+ });
+})();
+/* As abas deixaram de ter role=tab a 26/09/2026 (segunda ronda; WCAG
+   4.1.2): sao ligacoes de navegacao, com `aria-current`, e o Tab e o
+   Enter bastam. As setas que aqui estavam prometiam o padrao das abas
+   da WAI-ARIA sem painel nenhum por tras. */
+document.addEventListener('submit', function (e) {
+ var f = e.target;
+ if (!f.classList || !f.classList.contains('sem-vazios')) return;
+ [].forEach.call(f.elements, function (c) {
+  if (c.name && !c.disabled && c.value === '') {
+   c.disabled = true; setTimeout(function () { c.disabled = false; }, 0);
+  }
+ });
+});
+/* «A gravar…» (3.ª ronda, G1 e G2): com rede má uma gravação leva 4 a 5 s
+   sem sinal nenhum, e o segundo toque gravava outra vez. No primeiro
+   envio de um formulário POST o botão desliga-se e diz o que está a
+   fazer, e um segundo envio do mesmo formulário não sai. O que se vê
+   decide-se DEPOIS dos outros ouvintes (o setTimeout): um formulário que
+   eles pararam -- a caixa do motivo, o `confirm`, a triagem por fetch --
+   não fica preso. O servidor tem a sua guarda (o `envio`), para o que
+   isto não apanha. */
+(function () {
+ var DESPRENDE = 30000;
+ function soltar(f) {
+  delete f.dataset.aGravar; f.removeAttribute('aria-busy');
+  [].forEach.call(f.querySelectorAll('[data-texto-antes]'), function (b) {
+   b.innerHTML = b.dataset.textoAntes; delete b.dataset.textoAntes; b.disabled = false;
+  });
+ }
+ document.addEventListener('submit', function (e) {
+  var f = e.target;
+  if (!f.getAttribute || (f.getAttribute('method') || '').toLowerCase() !== 'post'
+      || f.target) return;
+  if (f.dataset.aGravar) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  f.dataset.aGravar = '1';
+  var b = e.submitter || f.querySelector('button[type=submit], button:not([type])');
+  setTimeout(function () {
+   if (e.defaultPrevented) { delete f.dataset.aGravar; return; }
+   f.setAttribute('aria-busy', 'true');
+   if (b && !b.disabled) {
+    b.dataset.textoAntes = b.innerHTML;
+    if (b.textContent.trim().length > 2) b.textContent = 'A gravar…';
+    b.disabled = true;
+   }
+   setTimeout(function () { soltar(f); }, DESPRENDE);
+  }, 0);
+ });
+ /* O «voltar» traz a página do bfcache tal como ficou: com o botão preso
+    em «A gravar…». Solta-se. */
+ addEventListener('pageshow', function (e) {
+  if (e.persisted) [].forEach.call(document.querySelectorAll('form[data-a-gravar]'), soltar);
+ });
+})();
+/* As bolhas da validação do browser vêm na língua do BROWSER: num em
+   inglês, o alerta sem nome dizia «Please fill out this field.» (3.ª
+   ronda, G77). Cada campo inválido diz a sua em português. A caixa do
+   motivo tem as suas mensagens, e fica de fora. */
+(function () {
+ document.addEventListener('invalid', function (e) {
+  var c = e.target, v = c.validity;
+  if (!v || v.customError || (c.closest && c.closest('#form-motivo'))) return;
+  var m = '';
+  if (v.valueMissing) m = c.tagName === 'SELECT' ? 'Escolha uma opção.' : 'Preencha este campo.';
+  else if (v.patternMismatch && c.placeholder === 'dd/mm/aaaa') m = 'Escreva a data assim: 31/12/2026.';
+  else if (v.typeMismatch && c.type === 'email') m = 'Escreva um endereço de e-mail, como nome@empresa.pt.';
+  else if (v.patternMismatch) m = 'O que escreveu não tem a forma pedida.';
+  if (m) { c.setCustomValidity(m); c.dataset.recadoPt = '1'; }
+ }, true);
+ function limpa(e) {
+  var c = e.target;
+  if (c.dataset && c.dataset.recadoPt) { c.setCustomValidity(''); delete c.dataset.recadoPt; }
+ }
+ document.addEventListener('input', limpa, true);
+ document.addEventListener('change', limpa, true);
+})();
+/* Uma tabela que rola de lado di-lo (3.ª ronda, G75): a 768 px o domingo
+   do calendário, o «Preço» da Situação e o «Quem ganhou» do Mercado
+   ficavam cortados, sem nada a dizer que havia mais. A dica nasce e sai
+   com a medida, e o leitor de ecrã não precisa dela (lê a tabela toda). */
+(function () {
+ function mede() {
+  [].forEach.call(document.querySelectorAll('main .cal-rolo, main .tab-cx, main .mercado-tab'), function (e) {
+   var rola = e.scrollWidth > e.clientWidth + 2;
+   var dica = e.previousElementSibling;
+   var tem = dica && dica.classList.contains('rola-dica');
+   if (rola && !tem) {
+    dica = document.createElement('p');
+    dica.className = 'rola-dica'; dica.setAttribute('aria-hidden', 'true');
+    dica.textContent = 'A tabela continua para o lado →';
+    e.parentNode.insertBefore(dica, e);
+   } else if (!rola && tem) dica.remove();
+  });
+ }
+ mede(); addEventListener('resize', mede);
+})();
+/* Os menus da barra (o da conta e o «Mais»): o Esc fecha-os e devolve o
+   foco ao botão, e sair deles com o Tab ou com um clique fora também os
+   fecha (3.ª ronda, G71). Um <details> não faz nada disto sozinho, e o
+   menu aberto ficava por cima da página, a tapar o foco seguinte. */
+(function () {
+ /* e o «adiar · quem» das tarefas (5.ª ronda: não fechava com o Esc) */
+ function abertos() { return document.querySelectorAll('details.sou[open], details.bb-mais[open], details.hj-mexer[open]'); }
+ function fechaFora(e) {
+  [].forEach.call(abertos(), function (d) { if (!d.contains(e.target)) d.open = false; });
+ }
+ document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  [].forEach.call(abertos(), function (d) {
+   d.open = false; d.querySelector('summary').focus();
+  });
+ });
+ document.addEventListener('focusin', fechaFora);
+ document.addEventListener('click', fechaFora);
+})();
+/* O aviso vive no endereço (?aviso=…&assin=…), e refrescar repetia-o:
+   parecia que se tinha gravado outra vez (3.ª ronda, G11). Depois de o
+   mostrar, sai do endereço -- e o que é da página (?quem=, a âncora)
+   fica. */
+(function () {
+ var q = new URLSearchParams(location.search);
+ if (!q.has('aviso') || !history.replaceState) return;
+ ['aviso', 'desfazer', 'assin', 'tom'].forEach(function (k) { q.delete(k); });
+ var s = q.toString();
+ history.replaceState(history.state, '', location.pathname + (s ? '?' + s : '') + location.hash);
+})();
+</script>
+%(script)s
+</body></html>

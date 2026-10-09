@@ -1,0 +1,325 @@
+
+
+/* A paleta. Medida sobre TODOS os fundos que existem, nao so sobre o
+   papel: pior caso 4,52 (docs/design.md §4). A escala de texto passou a
+   ter cinco degraus, todos AA sobre tudo -- o --t6 aponta para o --t5
+   porque um sexto cinzento que so funciona em metade dos fundos e uma
+   armadilha, e foi o que ja partiu as .coluna-pede a 2/09. */
+[data-pele=novo]{
+   
+   
+   --ink:#111418;
+    
+  
+    
+ 
+  
+   
+ 
+   
+  
+ /* A escala: seis degraus, no lugar dos dezanove tamanhos soltos.
+    Os valores sao os da Plex Sans, que e a letra escolhida (decisao
+    dele a 16/09/2026). A Plex tem altura-de-x 52 contra 54 da Inter --
+    le-se 3,8% mais pequena ao mesmo tamanho --, e por isso a escala
+    sobe meio pixel em vez de se copiar a da Inter. Nao custa densidade:
+    medido, a mesma frase a 13,5px em Plex da 625,7px contra 637,3px a
+    13px em Inter, que e 1,8% MAIS estreita ao mesmo tamanho optico. */
+      
+ 
+ 
+}
+/* Regra 4: os numeros alinham por algarismo. Dinheiro, prazos, datas,
+   referencias e CPV sao metade do que este ecra mostra, e sem isto uma
+   coluna de precos nao se compara de relance. */
+[data-pele=novo] body{background:var(--surface);
+ font-variant-numeric:tabular-nums}
+
+/* Regra 3: as superficies separam-se por tom, nao por risco. */
+[data-pele=novo] .item,[data-pele=novo] .sec,[data-pele=novo] .conf-cx,[data-pele=novo] .prop{
+ border-color:var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm)}
+
+/* Regra 1: hierarquia pelo tamanho e pelo peso. */
+[data-pele=novo] .item-titulo{font:620 var(--text-lg)/1.3 var(--font-sans);
+ letter-spacing:-.2px}
+[data-pele=novo] .bt{font-size:var(--text-sm)}
+
+/* Regra d do diagnostico: as maiusculas espacadas saem. Um rotulo de
+   bloco passa a caixa normal, peso 600, --f2 -- le-se melhor, ocupa
+   menos, e deixa de obrigar a letra a descer a 9px para caber. */
+[data-pele=novo] .rot,[data-pele=novo] .facto .k,
+[data-pele=novo] details.sec .st,[data-pele=novo] .prop-campos label,
+[data-pele=novo] details.painel-filtros .pf-tit,
+[data-pele=novo] .desfecho-som span{
+ text-transform:none;letter-spacing:0;font-size:var(--text-sm);font-weight:600;
+ color:var(--ink-muted)}
+
+/* Os botoes (docs/design.md §5). Cinco classes, e a funcao ve-se pela
+   cor e pelo preenchimento antes de se ler a palavra.
+   Os dois perigosos comecam em contorno e so se enchem ao passar ou ao
+   receber foco: um botao vermelho cheio numa lista de vinte linhas e um
+   alvo -- puxa o olho e convida ao clique errado, que e o contrario do
+   que uma accao irreversivel quer. */
+[data-pele=novo] .bt{border-radius:var(--radius-sm);font-weight:600;
+ background:var(--surface-raised);border-color:var(--line-strong);color:var(--ink-secondary)}
+[data-pele=novo] .bt:hover{border-color:var(--ink-secondary);color:var(--ink)}
+[data-pele=novo] .bt.forte{background:var(--brand);border-color:var(--brand);
+ color:var(--on-brand)}
+[data-pele=novo] .bt.forte:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
+[data-pele=novo] .bt.ok,[data-pele=novo] .bt.verde{background:var(--success);
+ border-color:var(--success);color:var(--on-brand)}
+[data-pele=novo] .bt.ok:hover,[data-pele=novo] .bt.verde:hover{
+ background:color-mix(in srgb,var(--success) 85%,var(--ink));border-color:color-mix(in srgb,var(--success) 85%,var(--ink));color:var(--on-brand)}
+[data-pele=novo] .bt.cuidado{background:var(--surface-raised);color:var(--warning);
+ border-color:color-mix(in srgb,var(--warning) 45%,transparent)}
+[data-pele=novo] .bt.cuidado:hover,[data-pele=novo] .bt.cuidado:focus-visible{
+ background:var(--warning);border-color:var(--warning);color:var(--on-brand)}
+[data-pele=novo] .bt.perigo{background:var(--surface-raised);color:var(--danger);
+ border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
+[data-pele=novo] .bt.perigo:hover,[data-pele=novo] .bt.perigo:focus-visible{
+ background:var(--danger);border-color:var(--danger);color:var(--on-brand)}
+
+/* O `.mini` e o botao DA LINHA, e o `.bt` e o botao DA PAGINA. A
+   diferenca nao e so o tamanho: numa lista de vinte linhas com dois
+   botoes cada, encher quarenta botoes de cor faz quarenta alvos e
+   nenhuma hierarquia. Por isso a regra do `.mini` e a mesma que a dos
+   perigosos: **contorno com a cor do significado, e enche ao passar ou
+   ao receber o foco**. O `.bt.forte` e o `.bt.ok` continuam cheios,
+   porque sao um por bloco.
+
+   E o `.mini` deixa de ficar VERMELHO ao passar por cima. Ficava, em
+   todos -- no "ir" do selector, no "desfazer", no "X lotes" --, o que e
+   o ponto (c) do diagnostico em estado puro: a cor de alarme a sair em
+   coisas que nao alarmam nada, e por isso a nao querer dizer nada onde
+   devia. Quem apaga mesmo leva `.mini.perigo`. */
+[data-pele=novo] .mini{border-radius:var(--radius-sm);font-size:var(--text-xs);
+ background:var(--surface-raised);border-color:var(--line-strong);color:var(--ink-secondary)}
+[data-pele=novo] .mini:hover{border-color:var(--ink-secondary);color:var(--ink);
+ background:var(--surface-raised)}
+[data-pele=novo] .mini.verde,[data-pele=novo] .mini.ok{color:var(--success);
+ border-color:color-mix(in srgb,var(--success) 45%,transparent)}
+[data-pele=novo] .mini.verde:hover,[data-pele=novo] .mini.ok:hover,
+[data-pele=novo] .mini.verde:focus-visible,[data-pele=novo] .mini.ok:focus-visible{
+ background:var(--success);border-color:var(--success);color:var(--on-brand)}
+[data-pele=novo] .mini.cuidado{color:var(--warning);border-color:color-mix(in srgb,var(--warning) 45%,transparent)}
+[data-pele=novo] .mini.cuidado:hover,
+[data-pele=novo] .mini.cuidado:focus-visible{
+ background:var(--warning);border-color:var(--warning);color:var(--on-brand)}
+[data-pele=novo] .mini.perigo{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,transparent)}
+[data-pele=novo] .mini.perigo:hover,
+[data-pele=novo] .mini.perigo:focus-visible{
+ background:var(--danger);border-color:var(--danger);color:var(--on-brand)}
+
+/* --------------------------------------------------------------------
+   A ABERTURA REDESENHADA (17/09/2026, pacote «Radar Gov UI redesign»,
+   design_handoff_radar/README.md §1).
+
+   Quatro cartoes `.kpi` ocupavam 120px de altura para dizerem quatro
+   numeros; a linha de factos diz os mesmos quatro numa linha de 20px, e
+   o que sobra e a fita da semana -- que responde a "o que fecha esta
+   semana" sem ninguem ter de ir ao calendario. */
+
+/* A fita da semana: sete celulas, 1px de intervalo sobre a linha -- a
+   separacao e o fundo a aparecer, nao um risco desenhado (regra 3). */
+[data-pele=novo] .fita{display:grid;
+ grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;
+ background:var(--line);border:1px solid var(--line);border-radius:var(--radius-md);
+ overflow:hidden;box-shadow:var(--shadow-sm)}
+[data-pele=novo] .fita a{display:flex;flex-direction:column;gap:3px;
+ padding:8px 10px 10px;min-height:66px;background:var(--surface-raised);
+ color:var(--ink-muted);font:400 var(--text-xs)/1.35 var(--font-sans)}
+[data-pele=novo] .fita a:hover{background:var(--surface-sunken)}
+[data-pele=novo] .fita .d{font:600 var(--text-sm)/1 var(--font-num);color:var(--ink-secondary)}
+/* os dias que passaram vão a cinzento, e nao a meia-luz: o opacity:.7
+   baixava o texto a 3,1:1, abaixo dos 4,5 que o texto pede (axe, 25/09/2026) */
+[data-pele=novo] .fita .passou .d{color:var(--ink-muted);font-weight:400}
+[data-pele=novo] .fita .fds{background:var(--surface-sunken)}
+[data-pele=novo] .fita .e{color:var(--warning)}
+[data-pele=novo] .fita .m{color:var(--danger)}
+[data-pele=novo] .fita .hoje{background:var(--brand-soft);opacity:1}
+[data-pele=novo] .fita .hoje .d{color:var(--brand);font-weight:700}
+[data-pele=novo] .fita .on{outline:2px solid var(--brand);outline-offset:-2px}
+[data-pele=novo] .fita-nav{display:flex;gap:18px;margin:8px 0 16px;
+ flex-wrap:wrap;font:500 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
+[data-pele=novo] .fita-nav a{color:var(--ink-secondary)}
+[data-pele=novo] .fita-nav .adiante{margin-left:auto}
+
+/* Duas colunas: as tarefas a esquerda, o que mudou a direita. */
+[data-pele=novo] .dois{display:grid;
+ grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:18px;
+ align-items:start}
+[data-pele=novo] .lado{display:flex;flex-direction:column;gap:14px}
+
+/* O cabecalho do "Para fazer": o rotulo, as pilhas de pessoa e o
+   "esconder as feitas". */
+[data-pele=novo] .fazer-topo{display:flex;align-items:center;gap:8px 12px;
+ padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+[data-pele=novo] .fazer-topo .periodos{margin:0 0 0 6px}
+[data-pele=novo] .fazer-topo .esconder{margin-left:auto;display:flex;gap:6px;
+ align-items:center;font:400 var(--text-sm)/1 var(--font-sans);color:var(--ink-muted)}
+[data-pele=novo] .periodos .av{margin-right:5px;width:16px;height:16px;
+ line-height:16px;font-size:var(--text-xs)}
+/* Na pilula escolhida o circulo inverte: era branco a 28 % sobre o azul,
+   ~4,3:1 para letra de 12 px (N10 da UX-AUDITORIA-1-10). */
+[data-pele=novo] .periodos a.on .av{background:var(--on-brand);color:var(--brand)}
+[data-pele=novo] .periodos i{font:500 var(--text-xs)/1 var(--font-num);font-style:normal;
+ margin-left:4px}
+
+/* Os baldes dobram com o <details> do browser -- nao ha JS nenhum a
+   guardar isto, e por isso tambem nao ha estado escondido para
+   divergir do que o servidor manda. */
+[data-pele=novo] .hj-g{padding:4px 10px 8px;margin:0;
+ border-top:1px solid var(--surface-sunken)}
+[data-pele=novo] .hj-g:first-child{border-top:0}
+[data-pele=novo] details.hj-g > summary{list-style:none}
+[data-pele=novo] details.hj-g > summary::-webkit-details-marker{display:none}
+[data-pele=novo] details.hj-g > summary .hj-t{cursor:pointer;
+ padding:10px 8px 4px;margin:0}
+[data-pele=novo] details.hj-g > summary .seta::before{content:'\25b8';
+ font:500 var(--text-xs)/1 var(--font-num);color:var(--ink-muted)}
+[data-pele=novo] details.hj-g[open] > summary .seta::before{content:'\25be'}
+[data-pele=novo] .hj-t .direita{margin-left:auto;font-weight:400;
+ font-size:var(--text-xs);color:var(--ink-muted)}
+[data-pele=novo] .hj-t .feitas{font:400 var(--text-xs)/1 var(--font-sans);
+ color:var(--ink-muted)}
+
+/* A LINHA DE TAREFA. Rica-se no sitio: a queixa dele era "concluo a
+   tarefa e volto para o inicio da pagina". */
+[data-pele=novo] .hj-row{display:grid;
+ grid-template-columns:20px minmax(0,1fr) 64px minmax(120px,220px) 20px 96px auto;
+ gap:10px;align-items:center;padding:6px 8px;border-radius:var(--radius-sm);
+ border-left:2px solid var(--line-strong)}
+[data-pele=novo] .hj-row:hover{background:var(--surface-sunken)}
+[data-pele=novo] .hj-g.mau .hj-row{border-left-color:var(--danger)}
+[data-pele=novo] .hj-g.avisa .hj-row{border-left-color:var(--warning)}
+[data-pele=novo] .hj-row form.accao{display:flex;margin:0}
+[data-pele=novo] .hj-row .fim{justify-self:end;text-align:right;
+ font:400 var(--text-sm)/1.4 var(--font-sans);color:var(--ink-muted)}
+[data-pele=novo] .hj-row.feita{background:var(--surface-sunken)}
+[data-pele=novo] .hj-row.feita .hj-o{color:var(--ink-muted);
+ text-decoration:line-through}
+[data-pele=novo] .hj-row .hj-q.avisa{color:var(--warning)}
+[data-pele=novo] .hj-row .hj-q.mau{color:var(--danger)}
+[data-pele=novo] .hj-sem{display:grid;grid-template-columns:minmax(0,1fr) auto;
+ gap:10px;align-items:center;padding:7px 8px 7px 16px;border-radius:var(--radius-sm);
+ border-left:2px solid var(--danger)}
+[data-pele=novo] .hj-sem > div > a{font:600 var(--text-sm)/1.35 var(--font-sans);
+ color:var(--ink)}
+[data-pele=novo] .hj-sem .hj-c{white-space:normal}
+
+/* A caixa de ✓ e um <button> de um POST, e nao um <input type=checkbox>:
+   sem JS uma caixa nao submete nada, e este gesto tem de valer sem JS. */
+[data-pele=novo] .chk{width:16px;height:16px;padding:0;flex:none;
+ position:relative;border:1px solid var(--line-strong);border-radius:var(--radius-sm);
+ background:var(--surface-raised);cursor:pointer;font:inherit;color:inherit}
+[data-pele=novo] .chk:hover{border-color:var(--success)}
+[data-pele=novo] .chk.on{background:var(--success);border-color:var(--success)}
+[data-pele=novo] .chk.on::after{content:'';position:absolute;left:4px;top:1px;
+ width:4px;height:8px;border:solid var(--on-brand);border-width:0 2px 2px 0;
+ transform:rotate(45deg)}
+
+/* O avatar de quem e a tarefa. Sem dono e um circulo tracejado -- um
+   lugar vazio a dizer que falta alguem, e nao a ausencia de marca. */
+[data-pele=novo] .av{width:20px;height:20px;border-radius:50%;flex:none;
+ display:inline-block;background:var(--surface-sunken);color:var(--ink-secondary);
+ font:600 var(--text-xs)/20px var(--font-sans);text-align:center}
+[data-pele=novo] .av.eu{background:var(--brand);color:var(--on-brand)}
+[data-pele=novo] .av.vago{background:transparent;
+ border:1px dashed var(--line-strong)}
+
+/* "O que mudou", "Prazos a chegar" e "Paradas ha mais tempo". */
+[data-pele=novo] .mudou-n{display:flex;gap:12px;margin:12px 0 10px}
+[data-pele=novo] .mudou-n a{flex:1;display:flex;flex-direction:column;gap:2px;
+ color:inherit}
+[data-pele=novo] .mudou-n b{font:600 var(--text-xl)/1 var(--font-num);color:var(--ink)}
+[data-pele=novo] .mudou-n b.azul{color:var(--brand)}
+[data-pele=novo] .feed{display:flex;flex-direction:column;
+ border-top:1px solid var(--surface-sunken)}
+[data-pele=novo] .feed .l{display:grid;
+ grid-template-columns:44px minmax(0,1fr);gap:10px;padding:8px 0;
+ border-bottom:1px solid var(--surface-sunken)}
+[data-pele=novo] .feed .l:last-child{border-bottom:0}
+[data-pele=novo] .feed .l p{margin:0;font:500 var(--text-sm)/1.45 var(--font-sans);
+ color:var(--ink)}
+[data-pele=novo] .prazos{display:flex;flex-direction:column;margin-top:8px}
+/* so as linhas: a ligacao dentro da frase do vazio («estao em
+   Concursos.») tambem era um `a` filho, e virava grelha de tres colunas
+   -- a frase partia-se em tres linhas (E54 da segunda ronda) */
+[data-pele=novo] .prazos>a{display:grid;
+ grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:baseline;
+ padding:6px 0;border-top:1px solid var(--surface-sunken);color:inherit}
+[data-pele=novo] .prazos>a .hj-c{color:var(--ink);font-weight:500}
+[data-pele=novo] .prazos .hj-q.avisa{color:var(--warning)}
+
+/* Abaixo de 1180 a linha parte-se em duas: caixa + texto + dono +
+   accao em cima, quando + concurso por baixo com o recuo da caixa. O
+   alvo continua a ser >= 24px, que e o que a regra pede. */
+@media (max-width:1180px){
+ [data-pele=novo] .hj-row{display:flex;flex-wrap:wrap;gap:3px 10px}
+ [data-pele=novo] .hj-row .hj-o{flex:1 1 100%;max-width:calc(100% - 150px);
+  order:1}
+ [data-pele=novo] .hj-row form.accao{order:0}
+ [data-pele=novo] .hj-row .av{order:2}
+ [data-pele=novo] .hj-row .fim{order:3;margin-left:auto}
+ [data-pele=novo] .hj-row .hj-q{order:4;flex:0 0 auto;margin-left:26px}
+ [data-pele=novo] .hj-row .hj-c{order:5;flex:1 1 0;min-width:0}
+ [data-pele=novo] .hj-row .hj-mexer{order:6}}
+/* No telemovel, duas linhas limpas (6/10/2026, o conselho antes do
+   anuncio): em cima a caixa, o que ha a fazer e o dia; em baixo, com o
+   recuo da caixa, o concurso (cortado com reticencias), a entrega, o dono
+   e o «adiar · quem». Eram quatro pedacos desalinhados. O `::after` com
+   a largura toda e o que parte a linha. */
+@media (max-width:600px){
+ [data-pele=novo] .hj-row{gap:4px 8px;align-items:center}
+ [data-pele=novo] .hj-row form.accao{order:0}
+ [data-pele=novo] .hj-row .hj-o{order:1;flex:1 1 0;max-width:none;min-width:0}
+ [data-pele=novo] .hj-row .hj-q{order:2;margin-left:0}
+ [data-pele=novo] .hj-row::after{content:"";order:3;flex-basis:100%;height:0}
+ [data-pele=novo] .hj-row .hj-c{order:4;flex:1 1 0;min-width:0;margin-left:28px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ [data-pele=novo] .hj-row .fim{order:5;margin-left:0}
+ [data-pele=novo] .hj-row .av{order:6}
+ [data-pele=novo] .hj-row .hj-mexer{order:7}}
+@media (max-width:900px){
+ [data-pele=novo] .dois{grid-template-columns:minmax(0,1fr)}}
+
+/* AS ENTIDADES (redesenho §3). A fita do "connosco": um quadrado por
+   proposta, com a cor do desfecho. Seis quadrados dizem se correram bem
+   antes de se ler a taxa; "6 propostas" nao diz nada disso. */
+[data-pele=novo] .ent-fita{display:flex;gap:2px;flex-wrap:wrap;
+ margin-bottom:3px}
+[data-pele=novo] .ent-fita i{width:8px;height:8px;border-radius:var(--radius-sm);
+ display:block}
+[data-pele=novo] .tab-pe{display:flex;gap:12px;align-items:center;
+ flex-wrap:wrap;padding:12px 14px;border-top:1px solid var(--line)}
+[data-pele=novo] .tab-pe .nota{flex:1 1 320px}
+[data-pele=novo] .comparar{border-color:var(--brand-soft);padding:0;
+ margin-bottom:18px}
+[data-pele=novo] .comparar .cab{display:grid;
+ grid-template-columns:180px 1fr 1fr;gap:12px;padding:12px 16px;
+ background:var(--brand-soft);border-bottom:1px solid var(--brand-soft);
+ font:600 var(--text-sm)/1.3 var(--font-sans)}
+[data-pele=novo] .comparar .grelha{display:grid;
+ grid-template-columns:180px 1fr 1fr;gap:10px 12px;padding:14px 16px;
+ font:400 var(--text-sm)/1.5 var(--font-sans);color:var(--ink-secondary)}
+[data-pele=novo] .comparar .grelha .r{font-weight:600;color:var(--ink-muted)}
+[data-pele=novo] .comparar > a{display:block;padding:0 16px 14px}
+@media (max-width:760px){
+ [data-pele=novo] .comparar .cab,[data-pele=novo] .comparar .grelha{
+  grid-template-columns:minmax(0,1fr)}}
+
+/* A ficha da entidade (redesenho §4): os seis factos, e o NOSSO lado à
+   esquerda. Empilhados, o que já fizemos com ela ficava debaixo de seis
+   gráficos do mercado -- e é a primeira pergunta ao abrir uma ficha. */
+[data-pele=novo] .ent-dois{grid-template-columns:minmax(0,360px) minmax(0,1fr);
+ margin-top:14px}
+@media (max-width:900px){
+ [data-pele=novo] .ent-dois{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){
+ [data-pele=novo] .fita a{min-height:52px;padding:6px}
+ [data-pele=novo] .fita .nota-dia{display:none}
+ /* o número curto fica (5.ª ronda: o dia com tarefas parecia vazio) */
+ [data-pele=novo] .fita .n-curto{display:block;font-weight:600}
+ [data-pele=novo] .fita .longo{display:none}
+ [data-pele=novo] .fita .curto{display:inline}}
+[data-pele=novo] .fita .n-curto,[data-pele=novo] .fita .curto{display:none}
