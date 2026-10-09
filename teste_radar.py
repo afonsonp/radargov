@@ -10057,11 +10057,11 @@ class TestPeleNova(unittest.TestCase):
             # sessão a quem perguntar, e seguem o computador (3.ª ronda,
             # D1: o site segue-o, e quem carregava em «Entrar» com o
             # computador em escuro caía numa página clara).
-            self.assertIn('data-theme="%(tema)s"' if molde is radar.BASE
+            self.assertIn('data-theme="{{ tema }}"' if molde is radar.BASE
                           else 'data-theme="sistema"', molde)
             self.assertNotIn('data-tipo=', molde)
             # e a folha que carimbam tem de ser a que traz a pele
-            self.assertIn("%(css)s", molde)
+            self.assertIn("{{ css }}", molde)
         # A ORDEM é o que importa, e não por onde começa: o que é nosso
         # vem depois do que é de terceiros (para nos podermos sobrepor às
         # curvas do Open Props). A 17/09/2026 isto pregava
@@ -17161,7 +17161,7 @@ class TestNomeRadarGov(unittest.TestCase):
         self.assertIn("aria-label='Mira Gov'", marca)  # e lê-se assim
         self.assertIn('class="mg-topbar__brand" href="/"', radar.BASE)
         for molde in (radar.PAGINA_ENTRAR, radar.PAGINA_ERRO):
-            self.assertIn("%(logo)s", molde)
+            self.assertIn("{{ logo }}", molde)
             self.assertIn("Mira Gov", molde)           # no <title>
         self.assertNotIn("Radar<span>DR", radar.BASE + radar.PAGINA_ENTRAR)
         # Desde 24/09/2026 o produto chama-se Mira Gov: o nome antigo
@@ -30371,6 +30371,24 @@ class TestOPortaoDaIgualdade(unittest.TestCase):
             "tipo": "x"})
         self.assertEqual(sem_exemplo, [])
 
+
+
+class TestOsMoldesJinja(unittest.TestCase):
+    """D1, fase 2 (9/10/2026): os moldes passaram de `%` a Jinja. O que
+    o `%` garantia sem se pensar nisso tem de continuar garantido."""
+
+    def test_um_nome_em_falta_rebenta_como_rebentava_o_por_cento(self):
+        import jinja2
+        with self.assertRaises(jinja2.UndefinedError):
+            radar.desenhar("erro.html", {"css": "", "titulo": "t",
+                                         "logo": ""})      # falta o texto
+
+    def test_o_texto_que_nao_vem_marcado_e_escapado(self):
+        molde = radar.MOLDES_JINJA.from_string("<p>{{ x }}</p>")
+        self.assertEqual(molde.render(x="<b>&"), "<p>&lt;b&gt;&amp;</p>")
+
+    def test_o_ultimo_fim_de_linha_do_molde_nao_se_perde(self):
+        self.assertEqual(radar.MOLDES_JINJA.from_string("a\n").render(), "a\n")
 
 if __name__ == "__main__":
 

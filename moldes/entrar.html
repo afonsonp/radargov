@@ -1,23 +1,23 @@
 <!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Entrar — Mira Gov</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
+<title>Entrar — Mira Gov</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml">{{ css }}</head>
 <body class="entrar-fundo"><main class="mg entrar-duas">
  <section class="entrar-lado">
-  <div><p class="entrar-marca"><a href="/" title="Voltar ao início">%(logo)s</a></p><small>Vigilância de concursos públicos</small></div>
+  <div><p class="entrar-marca"><a href="/" title="Voltar ao início">{{ logo }}</a></p><small>Vigilância de concursos públicos</small></div>
   <p>Lê o Diário da República e as plataformas ao longo do dia, traz as
   peças, e põe no mesmo sítio o que há para decidir.</p>
-  <div class="kv">%(numeros)s</div>
+  <div class="kv">{{ numeros }}</div>
  </section>
  <section class="entrar-form"><div class="entrar-cx">
  <a class="entrar-voltar" href="/">&larr; Voltar ao início</a>
  <h1>Entrar</h1>
- %(aviso)s
+ {{ aviso }}
  <form method="post" action="/entrar">
-  <input type="hidden" name="para" value="%(para)s">
+  <input type="hidden" name="para" value="{{ para }}">
   <div class="mg-field"><label class="mg-field__label" for="e-utilizador">E-mail</label>
-   <input class="mg-field__input" id="e-utilizador" type="text" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" required autofocus></div>
+   <input class="mg-field__input" id="e-utilizador" type="text" name="email" value="{{ email }}" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="e-senha">Palavra-passe</label>
-   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required%(descrito)s></div>
+   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required{{ descrito }}></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
  <p class="entrar-nota">Esqueceu-se da palavra-passe? <a href="/esqueci-me">Receba uma ligação por e-mail</a>. Se entra com um nome de utilizador e não com um e-mail, peça ao gestor da sua empresa uma ligação para a repor.</p>

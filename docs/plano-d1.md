@@ -112,19 +112,22 @@ corta release: a release continua a ser decisão dele.
   mudam.
 - Ganho: ~2 000 linhas fora do `radar.py`, com risco quase nulo.
 
-### Fase 2 — a mecânica Jinja e as peças partilhadas (1–2 sessões)
-- `app = Flask(..., template_folder="moldes")`, `autoescape` ligado,
-  `trim_blocks` e `lstrip_blocks` (para o Jinja não meter quebras de linha
-  a mais no HTML).
-- `moldes/pagina.html` (o esqueleto do `envolver()`) e
-  `moldes/_pecas.html`, com macros para `cartao`, `cabecalho_de_pagina`,
-  `barra_das_abas`, a barra e a barra de baixo.
-- **As funções Python ficam com o mesmo nome e a mesma assinatura**: por
-  dentro passam a `render_template(...)`. Os ecrãs que as chamam nem dão
-  por isso. É o que deixa migrar ecrã a ecrã.
-- Uma regra no `docs/armadilhas.md` («A interface»): HTML que já vem
-  pronto entra com `|safe` **só** se for de uma macro nossa, nunca texto
-  de fora.
+### Fase 2 — a mecânica Jinja (feita a 9/10/2026)
+- `MOLDES_JINJA` (escape automático ligado, `StrictUndefined`,
+  `keep_trailing_newline`, `trim_blocks` e `lstrip_blocks`) e o
+  `desenhar(molde, valores)`.
+- Os três moldes de página passaram de `%(nome)s` a `{{ nome }}`, e as
+  onze formatações com `%` a `desenhar(...)`, reescritas pela árvore
+  sintáctica.
+- **Por agora todos os valores entram como HTML já feito** (`Markup`):
+  era o que o `%` fazia. Cada lote da fase 3 passa a texto o que é texto,
+  e aí é o Jinja que escapa.
+- **As macros das peças partilhadas (`cartao`, `cabecalho_de_pagina`,
+  `barra_das_abas`, as barras) não se fizeram aqui, de propósito:** são
+  funções de uma linha que recebem HTML pronto, e uma macro só ganha
+  alguma coisa quando um ecrã em molde a chama. **Cada macro nasce no
+  primeiro lote da fase 3 que a precisar**, e as funções Python ficam com
+  o mesmo nome enquanto houver ecrãs em Python a chamá-las.
 
 ### Fase 3 — os ecrãs, um lote de cada vez (~10 sessões)
 Do mais pequeno e isolado para o maior. Cada lote tem o seu plano curto

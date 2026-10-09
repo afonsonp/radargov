@@ -77,6 +77,8 @@ try:
     import requests
     from flask import abort, Flask, g, has_request_context, redirect, \
         request, Response, send_file
+    import jinja2
+    from markupsafe import Markup
     from werkzeug.exceptions import NotFound
     from werkzeug.middleware.proxy_fix import ProxyFix
 except ImportError:
@@ -14789,6 +14791,27 @@ def ler_molde(caminho):
         return f.read()
 
 
+# Os moldes Jinja (D1, fase 2, 9/10/2026). O escape automático está
+# ligado e um nome em falta rebenta (`StrictUndefined`), como rebentava
+# o `%` com uma chave a menos. `keep_trailing_newline` porque o molde é
+# o valor que era a string, e o Jinja comia-lhe o último fim de linha.
+MOLDES_JINJA = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.join(BASE_DIR, "moldes")),
+    autoescape=True, undefined=jinja2.StrictUndefined,
+    keep_trailing_newline=True, trim_blocks=True, lstrip_blocks=True)
+
+
+def desenhar(molde, valores):
+    """Um molde de `moldes/` com os valores.
+
+    ponytail: por agora TODOS os valores entram como HTML já feito
+    (`Markup`), porque era isso que o `%` fazia e o HTML tem de sair
+    igual ao byte. Os lotes da fase 3 passam cada valor que é texto a
+    texto, e aí é o Jinja que o escapa."""
+    return MOLDES_JINJA.get_template(molde).render(
+        {k: Markup(v) for k, v in valores.items()})
+
+
 # O relogio de cada pedido (lote 4 da segunda ronda, 26/09/2026): o
 # cabecalho `Server-Timing` diz no DevTools de qualquer pessoa quanto do
 # tempo foi base de dados (`base`) e quanto foi o pedido inteiro
@@ -15111,12 +15134,12 @@ def _so_leitura():
                         403, mimetype="application/json")
     if request.headers.get("X-CSRF"):
         return Response(frase, 403, mimetype="text/plain")
-    return Response(PAGINA_ERRO % {
+    return Response(desenhar("erro.html", {
         "css": LIGACAO_CSS, "titulo": "Só leitura",
         "texto": "%s <a href='/plataforma/empresa/%d'>Voltar à página da "
                  "empresa</a>, onde está o botão para sair."
                  % (html.escape(frase), g.ver_como),
-        "logo": logotipo(tamanho=24)}, 403, mimetype="text/html")
+        "logo": logotipo(tamanho=24)}), 403, mimetype="text/html")
 
 
 def empresas_suspensas(cfg=None):
@@ -15147,10 +15170,10 @@ def _empresa_suspensa():
              % (" (%s)" % contacto if contacto else ""))
     if request.method != "GET":
         return Response(texto, 403, mimetype="text/plain")
-    return Response((PAGINA_ERRO % {
+    return Response((desenhar("erro.html", {
         "css": LIGACAO_CSS, "titulo": "Acesso suspenso",
         "texto": html.escape(texto),
-        "logo": logotipo(tamanho=24)}).replace(
+        "logo": logotipo(tamanho=24)})).replace(
             ACCAO_DA_PAGINA_DE_ERRO,
             "<form method='post' action='/sair'><input type='hidden' name='csrf' "
             "value='%s'><button type='submit' class='mg-btn mg-btn--primary'>"
@@ -15366,11 +15389,11 @@ def porta_de_entrada():
                                     403, mimetype="text/plain")
                 # num separador antigo é uma página com caminho de volta, e
                 # sem «token» (5.ª ronda: texto cru, com jargão)
-                return Response(PAGINA_ERRO % {
+                return Response(desenhar("erro.html", {
                     "css": LIGACAO_CSS, "titulo": "Nada foi gravado",
                     "texto": "Esta página estava aberta de antes de voltar a "
                              "entrar. Recarregue-a e volte a fazer o que fazia.",
-                    "logo": logotipo(tamanho=24)}, 403, mimetype="text/html")
+                    "logo": logotipo(tamanho=24)}), 403, mimetype="text/html")
         elif not origem_e_nossa():
             return Response("pedido recusado: vem de outro sítio", 403,
                             mimetype="text/plain")
@@ -15428,16 +15451,16 @@ def _sessao_em_falta():
              "Mira Gov. <a href='/entrar?para=%s'>Entre outra vez</a>: o "
              "botão Voltar do browser costuma devolver o que escreveu."
              % html.escape(quote(para, safe=""), quote=True))
-    return Response(PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": "Sessão terminada",
+    return Response(desenhar("erro.html", {"css": LIGACAO_CSS, "titulo": "Sessão terminada",
                                    "texto": texto,
-                                   "logo": logotipo(tamanho=24)},
+                                   "logo": logotipo(tamanho=24)}),
                     403, mimetype="text/html")
 
 
 def pagina_de_erro(codigo):
     titulo, texto = ERROS_DO_PAINEL.get(codigo, ERROS_DO_PAINEL[500])
-    pagina = PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": titulo,
-                            "texto": texto, "logo": logotipo(tamanho=24)}
+    pagina = desenhar("erro.html", {"css": LIGACAO_CSS, "titulo": titulo,
+                            "texto": texto, "logo": logotipo(tamanho=24)})
     # Quem não tem sessão não tem Hoje: a raiz é o site (3.ª ronda, G100,
     # agora que um endereço errado sem sessão dá este 404).
     if has_request_context() and not g.get("utilizador") \
@@ -15532,12 +15555,12 @@ def metodo_errado(_erro):
     por uma rota fechada foi para o /entrar."""
     if request.method in ("GET", "HEAD") and request.path in VOLTA_DO_GET:
         return redirect(VOLTA_DO_GET[request.path])
-    resposta = Response(PAGINA_ERRO % {
+    resposta = Response(desenhar("erro.html", {
         "css": LIGACAO_CSS, "titulo": "Este endereço só grava",
         "texto": "Este endereço serve só para gravar um formulário, e "
                  "abri-lo não faz nada. Volte à página de onde veio e grave "
                  "de lá.",
-        "logo": logotipo(tamanho=24)}, 405, mimetype="text/html")
+        "logo": logotipo(tamanho=24)}), 405, mimetype="text/html")
     resposta.headers["Allow"] = ", ".join(sorted(getattr(_erro, "valid_methods", None) or ["POST"]))
     return resposta
 
@@ -15830,7 +15853,7 @@ def frase_do_aviso_de_entrar(aviso):
 
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
     aviso = frase_do_aviso_de_entrar(aviso)
-    return Response(PAGINA_ENTRAR % {
+    return Response(desenhar("entrar.html", {
         "css": LIGACAO_CSS,
         "logo": logotipo(tamanho=40, inverso=True),
         "numeros": _numeros_da_entrada(),
@@ -15843,7 +15866,7 @@ def pagina_entrar(aviso="", email="", para="/", codigo=200):
         "descrito": " aria-describedby='e-erro'" if aviso else "",
         "email": html.escape(email, quote=True),
         "para": html.escape(destino_seguro(para), quote=True),
-    }, codigo, mimetype="text/html")
+    }), codigo, mimetype="text/html")
 
 
 AVISO_DA_SESSAO_FECHADA = ("A sua sessão foi fechada porque entrou noutro aparelho: "
@@ -17303,7 +17326,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
                      % (subtitulo, mais_na_ajuda(titulo))
                      if subtitulo.strip() else ""))
         conteudo = abas + conteudo
-    return com_csrf(BASE % {
+    return com_csrf(desenhar("pagina.html", {
         "topo": "" if cabeca else TOPO % partes_do_topo,
         # «Ecrã — Mira Gov» em todas (segunda ronda, perfil 15): havia
         # «Hoje, Mira Gov», «Por ver, Concursos» sem a marca, e «Nova
@@ -17334,7 +17357,7 @@ def envolver(activo, titulo, subtitulo, conteudo, migalhas="",
         # thread poe sempre um estado terminal, por isso isto para.
         "script": script + ("<script>setTimeout(function(){location.reload()},"
                             "5000)</script>" if a_verificar else ""),
-    })
+    }))
 
 
 def pode_verificar():
@@ -36464,10 +36487,10 @@ def pedir_acesso():
         # dizia «Voltar ao Hoje»)
         # e o formulário volta ali mesmo, com o que se escreveu (5.ª
         # ronda: sem JavaScript, o erro obrigava a escrever tudo de novo)
-        return Response((PAGINA_ERRO % {"css": LIGACAO_CSS,
+        return Response((desenhar("erro.html", {"css": LIGACAO_CSS,
                                         "titulo": "Falta corrigir o pedido",
                                         "texto": html.escape(erro),
-                                        "logo": logotipo(tamanho=24)}).replace(
+                                        "logo": logotipo(tamanho=24)})).replace(
                             ACCAO_DA_PAGINA_DE_ERRO, _formulario_do_pedido_outra_vez()),
                         codigo, mimetype="text/html")
 
@@ -36589,8 +36612,8 @@ def estado_do_pedido(codigo):
     titulo, texto = ESTADO_DO_PEDIDO.get(p["estado"] or "", ESTADO_DO_PEDIDO[""])
     if "%s" in texto:
         texto = texto % "<b>%s</b>" % html.escape(p["email"] or "o seu e-mail")
-    return Response((PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": html.escape(titulo),
-                                    "texto": texto, "logo": logotipo(tamanho=24)}).replace(
+    return Response((desenhar("erro.html", {"css": LIGACAO_CSS, "titulo": html.escape(titulo),
+                                    "texto": texto, "logo": logotipo(tamanho=24)})).replace(
                         ACCAO_DA_PAGINA_DE_ERRO,
                         '<a class="mg-btn mg-btn--primary" href="/">Voltar ao site</a>'),
                     mimetype="text/html", headers={"Cache-Control": "no-store"})
@@ -36642,9 +36665,9 @@ TEXTO_DO_PEDIDO_RECEBIDO = (
 def pedido_recebido():
     """A confirmação do pedido sem JavaScript, depois do 303 (rota aberta,
     sem dados: é texto fixo)."""
-    return Response((PAGINA_ERRO % {"css": LIGACAO_CSS, "titulo": "Pedido recebido",
+    return Response((desenhar("erro.html", {"css": LIGACAO_CSS, "titulo": "Pedido recebido",
                                     "texto": TEXTO_DO_PEDIDO_RECEBIDO,
-                                    "logo": logotipo(tamanho=24)}).replace(
+                                    "logo": logotipo(tamanho=24)})).replace(
                         ACCAO_DA_PAGINA_DE_ERRO,
                         '<a class="mg-btn mg-btn--primary" href="/">Voltar ao site</a>'),
                     mimetype="text/html")

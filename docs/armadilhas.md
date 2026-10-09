@@ -3812,19 +3812,26 @@ botões ou no calendário.
   visita (G83). Numa procura dentro da peça, o `?procurar=` vai só nas
   páginas onde o termo está: nas outras mudava o endereço e o browser
   pedia outra vez páginas já desenhadas (G84, 2,2–2,4 s até ao `load`).
-- **O molde `BASE` é formatado com `%`, e o JavaScript dele também:
-  um `%` no guião escreve-se `%%`** (25/09/2026). As setas das abas
-  levavam um `(i + n) % n`, e a bateria inteira caiu — 160 testes, todos
-  com «not enough arguments for format string», porque todas as páginas
-  passam pelo `BASE`.
+- **Os três moldes são Jinja desde 9/10/2026, e o JavaScript deles
+  também passa pelo Jinja: um `{{`, `{%` ou `{#` no guião é lido como
+  dele** (fase 2 do `docs/plano-d1.md`). Até aí formatavam-se com `%`, e
+  a armadilha era a irmã desta: um `%` no guião escrevia-se `%%` — as
+  setas das abas levavam um `(i + n) % n`, e a bateria inteira caiu (160
+  testes, a 25/09/2026). Agora o `%` escreve-se normal; o que pede
+  cuidado é uma chaveta dupla ou um `{#` no JS, que se embrulha num
+  `{% raw %}`. Um nome que o molde use e o `desenhar()` não receba
+  **rebenta** (`StrictUndefined`), como rebentava o `%` com uma chave a
+  menos — não sai uma página com um buraco.
 - **Os moldes e o CSS antigo vivem em ficheiros desde o D1, e lêem-se
   tal e qual** (9/10/2026, fase 1 do `docs/plano-d1.md`). O `BASE`, a
   `PAGINA_ENTRAR` e a `PAGINA_ERRO` estão em `moldes/`, e o `CSS` e o
   `CSS_NOVO` em `estilo/radar-antigo.css` e `estilo/radar-novo.css`; os
-  nomes continuam no `radar.py`, lidos pelo `ler_molde()`. Três coisas
+  nomes continuam no `radar.py`, lidos pelo `ler_molde()` (para os
+  testes que procuram texto neles), e desenham-se pelo `desenhar()`, que
+  por agora recebe **tudo já em HTML** (`Markup`) — era o que o `%`
+  fazia, e o HTML tem de sair igual. Três coisas
   que não são óbvias: o ficheiro é o **valor** da string, já avaliado (um
-  `\\` do Python é uma `\` lá dentro, e o `%%` do `BASE` continua `%%`,
-  porque o molde ainda se formata com `%`); um molde que falte
+  `\\` do Python é uma `\` lá dentro); um molde que falte
   **rebenta o arranque**, ao contrário do `ler_estilo()`, porque sem o
   esqueleto não há página; e um teste que procura JS ou HTML «no código»
   procura pela função fonte_do_painel do `teste_radar.py`, que junta o
