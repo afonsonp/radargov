@@ -18105,7 +18105,8 @@ class TestOEmailDoConviteFicaNaConta(BaseTemporaria):
             self.assertEqual(c.execute("SELECT nome FROM utilizadores WHERE "
                                        "email='joana@nova.pt'").fetchone()[0],
                              "Joana Matos")
-        self.assertIn('name="nome"', radar.FORMULARIO_DO_CONVITE)
+        self.assertIn('name="nome"', radar.MOLDES_JINJA.loader.get_source(
+            radar.MOLDES_JINJA, "convite.html")[0])
 
     def _pelo_convite(self, utilizador, email=EMAIL, papel="admin"):
         with radar.liga() as c:
@@ -30352,6 +30353,16 @@ class TestOPortaoDaIgualdade(unittest.TestCase):
         _ficheiro, [(linha, _antes, depois)] = diferencas[0]
         self.assertEqual(linha, 1)
         self.assertIn("trabalha  para", depois)
+
+    def test_a_grafia_das_aspas_nao_conta_mas_um_escape_a_mais_conta(self):
+        # D1, fase 3: o `html.escape` dá `&quot;` e `&#x27;`, o Jinja `&#34;`
+        # e `&#39;` -- o mesmo carácter. Um escape a mais é outro texto.
+        self.assertEqual(self._gravacoes("<p>O&#x27;Neil &quot;x&quot;</p>",
+                                         "<p>O&#39;Neil &#34;x&#34;</p>"), [])
+        self.assertEqual(len(self._gravacoes("<p>O&#x27;Neil</p>",
+                                             "<p>O&amp;#39;Neil</p>")), 1)
+        self.assertEqual(len(self._gravacoes("<p>O&#x27;Neil</p>",
+                                             "<p>O'Neil</p>")), 1)
 
     def test_uma_data_que_nao_e_de_hoje_nao_se_normaliza(self):
         # a normalização das horas é só a das de hoje: uma data fixa da

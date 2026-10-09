@@ -131,11 +131,20 @@ corta release: a release continua a ser decisão dele.
 
 ### Fase 3 — os ecrãs, um lote de cada vez (~10 sessões)
 Do mais pequeno e isolado para o maior. Cada lote tem o seu plano curto
-quando lá chegarmos:
+quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
+1. grava-se a saída das funções do ecrã no `master`, com combinações dos
+   argumentos e texto com `'`, `"`, `<` e `&` (um script no scratchpad,
+   que importa o `demo.py` e chama as funções dentro de um
+   `test_request_context`) — apanha o que o portão A não visita (os
+   erros depois de um POST, os ecrãs que pedem um cookie);
+2. escreve-se o molde, e o Python passa ao `ecra()`, com o texto como
+   texto e o HTML feito como `Markup`;
+3. compara-se: as combinações e o portão A têm de dar «Iguais».
+
 
 | Lote | Ecrãs | Porquê nesta ordem |
 |---|---|---|
-| 3.1 | entrar, erro, convite, repor, esqueci-me, segundo factor | sem sessão, poucos dados, testam a mecânica |
+| 3.1 | entrar, convite, repor, esqueci-me, segundo factor — **feito a 9/10/2026** (o erro ficou com o `desenhar()`: os seus onze sítios passam com os ecrãs que os chamam) | sem sessão, poucos dados, testam a mecânica |
 | 3.2 | Configurações (as dez secções) | formulários parecidos uns com os outros |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |

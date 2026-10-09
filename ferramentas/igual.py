@@ -94,6 +94,12 @@ NORMALIZAR = [
      "HOJE hh:mm"),
     # o sitemap dá a data dos ficheiros do site, que é a do disco
     (re.compile(r"<lastmod>[^<]*</lastmod>"), "<lastmod>·</lastmod>"),
+    # as aspas escapadas (D1, fase 3): o `html.escape` escreve-as `&quot;`
+    # e `&#x27;`, o Jinja `&#34;` e `&#39;`. É o mesmo carácter para o
+    # browser; o que o portão tem de acusar é um escape A MAIS ou A MENOS
+    # (`&amp;quot;`, ou a aspa crua), e esse continua a ser diferente
+    (re.compile(r"&#34;"), "&quot;"),
+    (re.compile(r"&#39;"), "&#x27;"),
 ]
 
 # Os formatos que trazem a hora de agora dentro (um zip guarda a data de

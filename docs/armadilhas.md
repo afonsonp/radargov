@@ -3838,6 +3838,20 @@ botões ou no calendário.
   `radar.py` e os moldes — a ler só o `radar.py`, dois testes deixaram de
   encontrar o que estava no `BASE`. **Quem mexer nestes ficheiros passa
   o `ferramentas/igual.py`**: tem de dar «Iguais» contra o `master`.
+- **Um ecrã que passou a molde desenha-se pelo `ecra()`, não pelo
+  `desenhar()`, e aí o texto é TEXTO** (9/10/2026, lote 3.1 do D1: o
+  entrar, o convite, o repor, o «esqueci-me» e o código). O Jinja
+  escapa-o sozinho; só o HTML já feito (o logótipo, a `LIGACAO_CSS`, os
+  números da entrada) entra marcado com `Markup`. Os dois erros
+  possíveis: escapar no Python **e** no molde (`html.escape` antes do
+  `ecra()` dá `&amp;amp;`), e marcar com `Markup` o que veio de fora
+  (um e-mail, um nome) — é exactamente o buraco que o D1 fecha. A
+  grafia muda sem mudar o carácter: o Jinja escreve `&#34;` e `&#39;`
+  onde o `html.escape` escrevia `&quot;` e `&#x27;`, e o portão
+  normaliza só isso. Os moldes de um ecrã herdam de um esqueleto
+  (`moldes/_conta.html`) e as peças repetidas são macros em
+  `moldes/_pecas.html`,
+  importadas **dentro** do bloco que as usa.
 - **Abaixo de 900px as tabelas das listas são cartões, e a barra dobra**
   (`miragov-radar.css`, teste com utilizadores de 25/09/2026; o corte
   subiu de 600 para 900 a 26/09/2026, porque a 150 % de zoom a tabela

@@ -2870,7 +2870,6 @@ def janela_urgente(hoje):
             (hoje + timedelta(days=dias_urgente())).isoformat())
 
 
-
 def frag_de_texto(texto, coluna, norma=simplifica, palavras=False, indice=None):
     """(fragmento, valores) da procura por palavras: varias separadas
     por |, qualquer uma serve.
@@ -13302,8 +13301,6 @@ def entidade_do_anuncio(nif, nome):
     return r["chave"] if r else ""
 
 
-
-
 # --- o lado da EMPRESA de uma entidade (fase 2 do CICLOS.md, 17/09/2026)
 #
 # A ficha da entidade era só o Portal BASE: o que ela compra, o que ela
@@ -14763,7 +14760,6 @@ def consta_da_lista(linhas, cfg=None):
                               "contrato_id IN (%s)" % marcas, [nif] + ids).fetchone())
 
 
-
 # ---------------------------------------------------------------- painel
 
 app = Flask(__name__)
@@ -14810,6 +14806,16 @@ def desenhar(molde, valores):
     texto, e aí é o Jinja que o escapa."""
     return MOLDES_JINJA.get_template(molde).render(
         {k: Markup(v) for k, v in valores.items()})
+
+
+def ecra(molde, **valores):
+    """Um ecrã num molde de `moldes/` (fase 3 do D1). Ao contrário do
+    `desenhar()`, o texto entra como TEXTO e é o Jinja que o escapa; o
+    HTML que já vem feito (o logótipo, a folha de estilo) entra marcado
+    com `Markup` por quem chama. É assim que um escape esquecido deixa
+    de ser possível: esquece-se o `Markup`, e o pior que acontece é ver
+    `&lt;` no ecrã."""
+    return MOLDES_JINJA.get_template(molde).render(valores)
 
 
 # O relogio de cada pedido (lote 4 da segunda ronda, 26/09/2026): o
@@ -15852,21 +15858,15 @@ def frase_do_aviso_de_entrar(aviso):
 
 
 def pagina_entrar(aviso="", email="", para="/", codigo=200):
-    aviso = frase_do_aviso_de_entrar(aviso)
-    return Response(desenhar("entrar.html", {
-        "css": LIGACAO_CSS,
-        "logo": logotipo(tamanho=40, inverso=True),
-        "numeros": _numeros_da_entrada(),
-        # role=alert e ligado à palavra-passe (segunda ronda, 26/09/2026;
-        # WCAG 4.1.3): era um <div> mudo, e o leitor lia o rótulo do
-        # campo com o foco e não o erro
-        "aviso": ("<div class='mg-alert mg-alert--danger' id='e-erro' role='alert'>"
-                  "<span aria-hidden='true'>&#10005;</span> %s</div>" % html.escape(aviso)
-                  if aviso else ""),
-        "descrito": " aria-describedby='e-erro'" if aviso else "",
-        "email": html.escape(email, quote=True),
-        "para": html.escape(destino_seguro(para), quote=True),
-    }), codigo, mimetype="text/html")
+    # O aviso é role=alert e ligado à palavra-passe (segunda ronda,
+    # 26/09/2026; WCAG 4.1.3): era um <div> mudo, e o leitor lia o rótulo
+    # do campo com o foco e não o erro. Está no `moldes/entrar.html`.
+    return Response(ecra(
+        "entrar.html", css=Markup(LIGACAO_CSS),
+        logo=Markup(logotipo(tamanho=40, inverso=True)),
+        numeros=Markup(_numeros_da_entrada()),
+        aviso=frase_do_aviso_de_entrar(aviso), email=email,
+        para=destino_seguro(para)), codigo, mimetype="text/html")
 
 
 AVISO_DA_SESSAO_FECHADA = ("A sua sessão foi fechada porque entrou noutro aparelho: "
@@ -17478,7 +17478,6 @@ def linha(a, vista="", urgente=None, na_escada=None):
         # se lhes inventa um.
         if p["motivo"]:
             tags.append("<span class='mg-tag'>%s</span>" % html.escape(p["motivo"]))
-
 
 
     # Os botoes dependem do estado em que o anuncio esta. Eram sempre os
@@ -21336,8 +21335,6 @@ def exportar():
                            (a["na_empresa"] or "").partition(" (")[2].rstrip(")"),
                            a["url"]])
     return resposta_csv(saida, "anuncios")
-
-
 
 
 # -------------------------------------------------------- separador alertas
@@ -37447,60 +37444,21 @@ def aceitar_pedido(id_):
                        "Sem perfil: a empresa define-o no primeiro dia."))
 
 
-PAGINA_CONVITE = """<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Criar a conta — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">%(css)s</head>
-<body class="entrar-fundo"><main class="mg entrar">
- %(logo)s
- <h1>Criar a conta</h1>
- %(aviso)s
- %(formulario)s
-</main></body></html>"""
-
-FORMULARIO_DO_CONVITE = """<form method="post">
-  <div class="mg-field"><label class="mg-field__label" for="c-nome">O seu nome</label>
-   <input class="mg-field__input" id="c-nome" type="text" name="nome" value="%(nome)s" autocomplete="name" maxlength="80" required></div>
-  <div class="mg-field"><label class="mg-field__label" for="c-utilizador">E-mail</label>
-   <input class="mg-field__input" id="c-utilizador" type="email" name="utilizador" value="%(utilizador)s" autocomplete="username" autocapitalize="off" required autofocus></div>
-  <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
-   <input class="mg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
-  <div class="mg-field"><label class="mg-field__label" for="c-outra">Repetir a palavra-passe</label>
-   <input class="mg-field__input" id="c-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
-  <button type="submit" class="mg-btn mg-btn--primary">Criar a conta e entrar</button>
- </form>"""
-
-
-def _de_quem_e_o_convite(convite_):
-    """«Convite para a X, com o papel de gestor.» e os termos (G55 da 3.ª
-    ronda): o ecrã não dizia onde se entrava nem com que papel, e com um
-    convite «sem endereço» quem o recebia não sabia de onde vinha."""
-    legal = ("<p class='entrar-nota'>Ao criar a conta aceita os "
-             "<a href='/termos'>termos de utilização</a> e a "
-             "<a href='/privacidade'>política de privacidade</a>.</p>"
-             if operador_completo() else "")
-    return ("<p class='nota'>Convite para <b>%s</b>, com o papel de <b>%s</b>.</p>"
-            % (html.escape(_nome_da_empresa_n(convite_["empresa_id"])),
-               html.escape(papel_no_ecra(convite_["papel"]).lower())), legal)
-
-
 def pagina_convite(aviso="", utilizador=None, codigo=200, erro=True, convite_=None):
-    antes, depois = _de_quem_e_o_convite(convite_) if convite_ else ("", "")
-    return Response(PAGINA_CONVITE % {
-        "css": LIGACAO_CSS,
-        "logo": logotipo(tamanho=28),
-        # anunciado ao leitor de ecrã quando é erro (5.ª ronda)
-        "aviso": ("<div class='mg-alert mg-alert--%s'%s>%s</div>"
-                  % ("danger" if erro else "info",
-                     " role='alert'" if erro else "", html.escape(aviso))
-                  if aviso else ""),
-        "formulario": (antes + FORMULARIO_DO_CONVITE
-                       % {"utilizador": html.escape(utilizador, quote=True),
-                          "nome": html.escape(request.form.get("nome") or "",
-                                              quote=True)} + depois
-                       if utilizador is not None else
-                       "<p><a href='/entrar'>Ir para a entrada</a></p>"),
-    }, codigo, mimetype="text/html")
+    """O ecrã do convite (`moldes/convite.html`). Diz para que empresa e
+    com que papel, e os termos (G55 da 3.ª ronda): não dizia onde se
+    entrava nem com que papel, e com um convite «sem endereço» quem o
+    recebia não sabia de onde vinha. O aviso é anunciado ao leitor de
+    ecrã quando é erro (5.ª ronda)."""
+    return Response(ecra(
+        "convite.html", css=Markup(LIGACAO_CSS),
+        logo=Markup(logotipo(tamanho=28)), titulo="Criar a conta",
+        aviso=aviso, erro=erro, utilizador=utilizador,
+        nome=request.form.get("nome") or "", convite=bool(convite_),
+        empresa=_nome_da_empresa_n(convite_["empresa_id"]) if convite_ else "",
+        papel=papel_no_ecra(convite_["papel"]).lower() if convite_ else "",
+        legal=bool(convite_) and operador_completo()),
+        codigo, mimetype="text/html")
 
 
 @app.route("/convite/<codigo>", methods=["GET", "POST"])
@@ -37555,32 +37513,13 @@ def convite(codigo):
     return resposta
 
 
-# D17 (26/09/2026): o ecra da ligacao de repor, no molde do convite.
-PAGINA_REPOR = PAGINA_CONVITE.replace("Criar a conta", "Repor a palavra-passe")
-
-FORMULARIO_DE_REPOR = """<form method="post">
-  <p class="nota">Conta: <b>%(utilizador)s</b></p>
-  <div class="mg-field"><label class="mg-field__label" for="r-senha">Palavra-passe nova</label>
-   <input class="mg-field__input" id="r-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required autofocus></div>
-  <div class="mg-field"><label class="mg-field__label" for="r-outra">Repetir a nova palavra-passe</label>
-   <input class="mg-field__input" id="r-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
-  <button type="submit" class="mg-btn mg-btn--primary">Guardar e entrar</button>
- </form>"""
-
-
 def pagina_repor(aviso="", utilizador=None, codigo=200, erro=True):
-    return Response(PAGINA_REPOR % {
-        "css": LIGACAO_CSS,
-        "logo": logotipo(tamanho=28),
-        "aviso": ("<div class='mg-alert mg-alert--%s'%s>%s</div>"
-                  % ("danger" if erro else "info",
-                     " role='alert'" if erro else "", html.escape(aviso))
-                  if aviso else ""),
-        "formulario": (FORMULARIO_DE_REPOR
-                       % {"utilizador": html.escape(utilizador)}
-                       if utilizador is not None else
-                       "<p><a href='/entrar'>Ir para a entrada</a></p>"),
-    }, codigo, mimetype="text/html")
+    """O ecrã da ligação de repor (D17, `moldes/repor.html`)."""
+    return Response(ecra(
+        "repor.html", css=Markup(LIGACAO_CSS),
+        logo=Markup(logotipo(tamanho=28)), titulo="Repor a palavra-passe",
+        aviso=aviso, erro=erro, utilizador=utilizador),
+        codigo, mimetype="text/html")
 
 
 def _chave_do_trinco_de_repor():
@@ -37652,17 +37591,6 @@ def repor(codigo):
     return resposta
 
 
-# O «esqueci-me» por e-mail (J7, 1/10/2026), no molde do convite.
-PAGINA_ESQUECI = PAGINA_CONVITE.replace("Criar a conta", "Repor a palavra-passe")
-
-FORMULARIO_ESQUECI = """<form method="post" action="/esqueci-me">
-  <div class="mg-field"><label class="mg-field__label" for="q-email">E-mail da conta</label>
-   <input class="mg-field__input" id="q-email" type="email" name="email" value="%(email)s" autocomplete="username" autocapitalize="off" maxlength="200" required autofocus></div>
-  <button type="submit" class="mg-btn mg-btn--primary">Enviar a ligação</button>
- </form>
- <p class="entrar-nota">Se entra com um nome de utilizador e não com um e-mail, peça a ligação ao gestor da sua empresa.</p>
- <p class="entrar-nota"><a href="/entrar">Voltar a entrar</a></p>"""
-
 # A mesma frase para quem tem conta, para quem nao tem e para o dono: e
 # ela que nao deixa enumerar. So o endereco muda (o que a pessoa escreveu).
 RESPOSTA_DO_ESQUECI = ("Se houver uma conta com o e-mail %s, segue para lá "
@@ -37672,17 +37600,12 @@ RESPOSTA_DO_ESQUECI = ("Se houver uma conta com o e-mail %s, segue para lá "
 
 
 def pagina_esqueci(aviso="", email="", codigo=200, erro=True, formulario=True):
-    return Response(PAGINA_ESQUECI % {
-        "css": LIGACAO_CSS,
-        "logo": logotipo(tamanho=28),
-        "aviso": ("<div class='mg-alert mg-alert--%s'%s>%s</div>"
-                  % ("danger" if erro else "info",
-                     " role='alert'" if erro else " role='status'",
-                     html.escape(aviso)) if aviso else ""),
-        "formulario": (FORMULARIO_ESQUECI % {"email": html.escape(email, quote=True)}
-                       if formulario else
-                       "<p class='entrar-nota'><a href='/entrar'>Voltar a entrar</a></p>"),
-    }, codigo, mimetype="text/html")
+    """O ecrã do «esqueci-me» (J7, `moldes/esqueci.html`)."""
+    return Response(ecra(
+        "esqueci.html", css=Markup(LIGACAO_CSS),
+        logo=Markup(logotipo(tamanho=28)), titulo="Repor a palavra-passe",
+        aviso=aviso, erro=erro, email=email, formulario=formulario),
+        codigo, mimetype="text/html")
 
 
 @app.route("/esqueci-me", methods=["GET", "POST"])
@@ -37728,47 +37651,19 @@ def esqueci_me():
         erro=False, formulario=False)
 
 
-# O segundo ecra de entrar (28/09/2026), no molde do convite.
-PAGINA_DO_CODIGO = PAGINA_CONVITE.replace("Criar a conta", "Código de entrada")
-
-FORMULARIO_DO_CODIGO = """<form method="post" action="/entrar/codigo">
-  <input type="hidden" name="para" value="%(para)s">
-  <div class="mg-field"><label class="mg-field__label" for="f-codigo">%(rotulo)s</label>
-   <input class="mg-field__input" id="f-codigo" type="text" name="codigo" %(tipo)s required autofocus%(descrito)s></div>
-  <label class="dist-cx"><input type="checkbox" name="confiar" value="1"> Confiar neste aparelho durante %(dias)d dias</label>
-  <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
- </form>
- <p class="entrar-nota"><a href="/entrar/codigo?%(outro)s">%(outro_rotulo)s</a></p>
- <p class="entrar-nota"><a href="/entrar">Voltar a entrar com outra conta</a></p>"""
-
-
 def pagina_do_codigo(aviso="", recuperacao=False, para="/", codigo=200):
-    """O ecra do codigo: seis digitos da app, ou um codigo de recuperacao.
-    O `one-time-code` deixa o telemovel oferecer o codigo; o `numeric`
-    abre o teclado dos numeros."""
+    """O ecra do codigo: seis digitos da app, ou um codigo de recuperacao
+    (`moldes/codigo.html`). O `one-time-code` deixa o telemovel oferecer
+    o codigo; o `numeric` abre o teclado dos numeros."""
     para = destino_seguro(para)
-    return Response(PAGINA_DO_CODIGO % {
-        "css": LIGACAO_CSS,
-        "logo": logotipo(tamanho=28),
-        "aviso": ("<div class='mg-alert mg-alert--danger' id='f-aviso' "
-                  "role='alert'>%s</div>" % html.escape(aviso) if aviso else ""),
-        "formulario": FORMULARIO_DO_CODIGO % {
-            "para": html.escape(para, quote=True),
-            "rotulo": ("Código de recuperação" if recuperacao
-                       else "Código da app de autenticação"),
-            "tipo": ('autocomplete="off" autocapitalize="off" spellcheck="false"'
-                     if recuperacao else
-                     'autocomplete="one-time-code" inputmode="numeric" '
-                     'pattern="[0-9 ]*" maxlength="7"'),
-            "descrito": " aria-describedby='f-aviso'" if aviso else "",
-            "dias": contas.DIAS_DE_APARELHO,
-            "outro": html.escape(urlencode(
-                {"recuperacao": "1", "para": para} if not recuperacao
-                else {"para": para}), quote=True),
-            "outro_rotulo": ("Usar o código da app" if recuperacao
-                             else "Usar um código de recuperação"),
-        },
-    }, codigo, mimetype="text/html")
+    return Response(ecra(
+        "codigo.html", css=Markup(LIGACAO_CSS),
+        logo=Markup(logotipo(tamanho=28)), titulo="Código de entrada",
+        aviso=aviso, recuperacao=recuperacao, para=para,
+        dias=contas.DIAS_DE_APARELHO,
+        outro=urlencode({"recuperacao": "1", "para": para}
+                        if not recuperacao else {"para": para})),
+        codigo, mimetype="text/html")
 
 
 @app.route("/entrar/codigo", methods=["GET", "POST"])
@@ -37935,8 +37830,6 @@ def tipo(nome):
     # a pedir a cada pagina
     resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resposta
-
-
 
 
 # A /amostra do desenho (16/09/2026) saiu a 24/09/2026, com as pontes:

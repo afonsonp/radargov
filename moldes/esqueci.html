@@ -1,0 +1,19 @@
+{#- O «esqueci-me» por e-mail (J7). O texto é texto. -#}
+{% extends "_conta.html" %}
+{% block aviso %}
+{% import "_pecas.html" as p %}
+{% if aviso %}{{ p.aviso(aviso, "danger" if erro else "info", "alert" if erro else "status") }}{% endif %}
+{%- endblock %}
+{% block formulario %}
+{% if formulario %}
+<form method="post" action="/esqueci-me">
+  <div class="mg-field"><label class="mg-field__label" for="q-email">E-mail da conta</label>
+   <input class="mg-field__input" id="q-email" type="email" name="email" value="{{ email }}" autocomplete="username" autocapitalize="off" maxlength="200" required autofocus></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Enviar a ligação</button>
+ </form>
+ <p class="entrar-nota">Se entra com um nome de utilizador e não com um e-mail, peça a ligação ao gestor da sua empresa.</p>
+ <p class="entrar-nota"><a href="/entrar">Voltar a entrar</a></p>
+{%- else %}
+<p class='entrar-nota'><a href='/entrar'>Voltar a entrar</a></p>
+{%- endif %}
+{%- endblock %}

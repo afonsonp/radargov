@@ -1,0 +1,13 @@
+{#- As peças que os moldes partilham (D1, docs/plano-d1.md). Importa-se
+    DENTRO do bloco que a usa ({% import "_pecas.html" as p %}): um bloco
+    de um molde filho não vê o que o pai importou.
+
+    Cada macro fica numa linha só, com o {% endmacro %} colado ao fim: o
+    que está entre as duas marcas é o que sai, e uma quebra de linha a
+    mais mudava o HTML. -#}
+
+{#- O aviso de um ecrã: `tom` é a cor (danger, info, success), `papel` o
+    role (alert para o erro, status para o que só informa, vazio para
+    nenhum), `id` para o campo o citar no aria-describedby, e `cruz` o ✕
+    à frente (o da página de entrar). O texto é texto: o Jinja escapa-o. -#}
+{% macro aviso(texto, tom="danger", papel="alert", id="", cruz=False) %}<div class='mg-alert mg-alert--{{ tom }}'{% if id %} id='{{ id }}'{% endif %}{% if papel %} role='{{ papel }}'{% endif %}>{% if cruz %}<span aria-hidden='true'>&#10005;</span> {% endif %}{{ texto }}</div>{% endmacro %}

@@ -1,0 +1,14 @@
+{#- O esqueleto dos ecrãs da conta sem sessão (lote 3.1 do D1): o
+    convite, o repor, o «esqueci-me» e o código do segundo factor. Era o
+    PAGINA_CONVITE, que os outros três copiavam trocando o título. Os
+    `+` nas marcas guardam o espaço e o fim de linha que o HTML tinha. -#}
+<!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{ titulo }} — Mira Gov</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">{{ css }}</head>
+<body class="entrar-fundo"><main class="mg entrar">
+ {{ logo }}
+ <h1>{{ titulo }}</h1>
+ {%+ block aviso %}{% endblock +%}
+ {%+ block formulario %}{% endblock +%}
+</main></body></html>

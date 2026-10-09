@@ -507,7 +507,9 @@ A ordem do ficheiro é a ordem do fluxo:
    lote (`docs/plano-d1.md`): o `BASE`, a `PAGINA_ENTRAR` e a
    `PAGINA_ERRO` já vivem em `moldes/`, e o `CSS` e o `CSS_NOVO` em
    `estilo/`, lidos pelo `ler_molde()`, e desde a fase 2 os moldes são
-   Jinja, desenhados pelo `desenhar()` (`MOLDES_JINJA`). Abre com **a porta** (`porta_de_entrada()`,
+   Jinja, desenhados pelo `desenhar()` (`MOLDES_JINJA`); os ecrãs que já
+   passaram (fase 3) desenham-se pelo `ecra()`, com o texto escapado pelo
+   Jinja. Abre com **a porta** (`porta_de_entrada()`,
    `/entrar`, `/sair`, `/sair-de-todos`, `com_csrf()`), que exige
    sessão em tudo; as tabelas e a criptografia dessa porta estão no
    **`contas.py`**, que não importa o radar. A banda `pessoas`, antes
@@ -664,7 +666,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **462 pontos** (contados a 9/10/2026), cada um de um erro que
+São **463 pontos** (contados a 9/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·
