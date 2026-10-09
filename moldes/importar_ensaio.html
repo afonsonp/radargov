@@ -1,0 +1,12 @@
+{#- O ensaio de um ficheiro do modelo: nada se grava antes de confirmar.
+    O que muda no que já existe diz-se em cima (E17: «quase apaguei um
+    Ganho de 362 mil euros de um colega e o ensaio disse-me que estava
+    tudo bem»). Cada linha tem um veredicto só, antes dos avisos (segunda
+    ronda, 26/09/2026), e a data da decisão à vista (E16). -#}
+{%- macro s(n) %}{{ "" if n == 1 else "s" }}{% endmacro -%}
+<div class='mg-card conf-cx'><div class='mg-field__label'>Ensaio de {{ nome_original }}</div><div class='nota' style='margin:6px 0 12px'>{{ c.total }} linha{{ s(c.total) }} lida{{ s(c.total) }}: <b>{{ c.ok }} entra{{ "" if c.ok == 1 else "m" }}</b> em {{ c.anuncios }} anúncio{{ s(c.anuncios) }}, <b>{{ c.com_erro }} com erro</b>. Nada foi gravado ainda.</div>
+{%- for frase in avisos %}<div class='mg-alert mg-alert--warning'>{{ frase }}</div>{% endfor -%}
+<div class='mercado-tab'><table class='mg-table tab-mercado tab-ensaio'><thead><tr><th>Linha</th><th>Referência</th><th>Anúncio</th><th>Lote</th><th>Estado</th><th class='p'>Proposta</th><th>Decisão</th><th>BASE diz</th><th>Ensaio</th></tr></thead><tbody>
+{%- for l in linhas %}<tr class='{{ "ok" if l.ok else "erro" }}'><td class='d'>{{ l.linha }}</td><td class='n'>{{ l.ref }}</td><td class='o'>{{ l.titulo }}</td><td class='d'>{{ l.lote }}</td><td>{{ l.status }}</td><td class='p'>{{ l.preco }}</td><td class='d'>{{ l.decisao }}</td><td>{% if l.base %}<span class='{{ "mau" if l.base_mau else "" }}'>{{ l.base }}</span>{% else %}—{% endif %}</td><td>
+{%- if l.ok %}<b class='ok'>entra</b>{% else %}<b class='mau'>não entra</b>{% endif %}{% if l.efeito %}<div>{{ l.efeito }}</div>{% endif %}{% for pr in l.problemas %}<div class='mau'>{{ pr }}</div>{% endfor %}{% for av in l.avisos %}<div class='aviso'>{{ av }}</div>{% endfor %}</td></tr>
+{%- endfor %}</tbody></table></div><form method='post' action='/configuracoes/importar/confirmar' class='conf-form' style='margin-top:16px'><input type='hidden' name='ficheiro' value='{{ ficheiro }}'><button type='submit' class='mg-btn mg-btn--primary'{% if not c.ok %} disabled{% endif %}>Gravar {{ c.ok }} proposta{{ s(c.ok) }}</button><small>As linhas com erro ficam de fora. Uma referência que já entrou por outra importação fica com o que esta traz. Depois de gravar, a importação desfaz-se aqui, enquanto ninguém mexer nas propostas que ela tocou.</small></form></div>

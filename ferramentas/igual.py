@@ -100,6 +100,11 @@ NORMALIZAR = [
     # (`&amp;quot;`, ou a aspa crua), e esse continua a ser diferente
     (re.compile(r"&#34;"), "&quot;"),
     (re.compile(r"&#39;"), "&#x27;"),
+    # o tamanho das peças da demo (lote 3.2d-ii): o `demo.py` gera os PDF
+    # na hora, e o PDF leva a data de criação dentro -- 849 B numa
+    # gravação, 850 na seguinte. Só os tamanhos em bytes, que são os
+    # destes PDF de uma página; um tamanho em KB ou MB é uma peça a sério
+    (re.compile(r"(<span class='n'>)\d+ B(</span>)"), r"\1· B\2"),
 ]
 
 # Os formatos que trazem a hora de agora dentro (um zip guarda a data de

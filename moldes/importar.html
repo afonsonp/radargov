@@ -1,0 +1,14 @@
+{#- Configurações › Importar: o registo da empresa entra pelo modelo
+    (decisão dele, 8/09/2026 -- o Excel antigo deixou de contar). A frase
+    de abertura vem antes dos dois passos: a primeira etiqueta de um
+    cartão com faixa escondia-se, e o «1. O modelo» sumia-se (E58). -#}
+{%- import "_pecas.html" as p -%}
+<div class='mg-card conf-cx'><div class='nota' style='margin-bottom:14px'>Dois passos: descarregar o modelo e preenchê-lo, e depois carregar o ficheiro preenchido.</div><div class='mg-field__label'>1. O modelo</div><div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o Mira Gov precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. <code>1947/2026</code>), tal como a ficha a mostra.</div><a class='mg-btn mg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>
+{#- -#}<div class='mg-field__label' style='margin:26px 0 6px'>2. O ficheiro preenchido</div><div class='nota' style='margin-bottom:12px'>Primeiro vê-se um ensaio: o que liga a que anúncio, o que não liga e porquê. Só se grava depois de confirmar.</div><form method='post' action='/configuracoes/importar' enctype='multipart/form-data' class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span><input type='file' name='ficheiro' accept='.xlsx' required></label><button type='submit' class='mg-btn mg-btn--primary'>Ver o ensaio</button></form>
+{#- -#}<div class='mg-field__label' style='margin:26px 0 6px'>O que já está</div><div class='nota'>
+{%- if linhas %}{{ linhas_txt }} linha{{ "" if linhas == 1 else "s" }} do modelo, em {{ anuncios_txt }} anúncio{{ "" if anuncios == 1 else "s" }}; última importação a {{ ultima }}.
+{%- else %}Ainda não entrou nenhuma linha pelo modelo.{% endif %}</div>
+{%- if importacoes %}<div class='saude' style='margin-top:10px'>
+{%- for imp in importacoes %}<div class='l'><span class='t'>{{ imp.quando }}, por {{ imp.quem }}: {{ imp.refs|length }} anúncio{{ "" if imp.refs|length == 1 else "s" }} ({% for url, ref in imp.refs[:12] %}{% if not loop.first %}, {% endif %}<a href='/anuncio/{{ url }}'>{{ ref }}</a>{% else %}nenhum{% endfor %}{% if imp.refs|length > 12 %} e mais {{ imp.refs|length - 12 }}{% endif %})</span><span class='v'>
+{%- if imp.desfeita %}desfeita a {{ imp.desfeita }}{% else %}{{ p.accao("/configuracoes/importar/desfazer", "desfazer", "mini", "Desfazer esta importação? As propostas que ela tocou voltam a como estavam antes dela.", campos={"ficheiro": imp.ficheiro}) }}{% endif %}</span></div>
+{%- endfor %}</div>{% endif %}</div>
