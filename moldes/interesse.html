@@ -1,0 +1,15 @@
+{#- Configurações › Interesse: a árvore dos CPV, os distritos e o valor
+    mínimo, com um «Guardar o perfil» só no fim (3.ª ronda, G95). A
+    árvore fica fora do <form> e o botão chega-lhe pelo `form=`. O membro
+    vê o perfil e não o muda (D7): fica dentro de um fieldset desligado,
+    e a porta recusa o POST na mesma (ROTAS_SO_ADMIN). -#}
+{%- if admin %}<p class='nota' style='margin:0 0 12px'>O perfil vale para toda a empresa: o que se grava aqui recorta os concursos de toda a equipa.</p>
+{%- else %}<div class='mg-alert mg-alert--info' style='margin:0 0 12px'>O perfil vale para toda a empresa, e só o gestor{{ gestores }} o muda. Se precisa de outro recorte, peça-lhe.</div><fieldset disabled style='border:0;padding:0;margin:0;min-width:0'>
+{%- endif -%}
+<div class='mg-card novo-filtro'>
+{%- if apanha_ver is none %}<div class='nota' style='margin:0 0 12px'>Ainda sem perfil: a <a href='{{ lista }}'>lista de anúncios</a> mostra tudo. Marque os CPV e carregue em «Guardar o perfil».</div>
+{%- else %}<div class='nota' style='margin:0 0 12px'>Em vigor: <b>{{ descricao }}</b>{% if fora %}, sem <b>{{ fora }}</b>{% endif %} &mdash; apanha <b>{{ apanha_ver }}</b> dos anúncios por ver e <b>{{ apanha_tudo }}</b> de todos os concursos. A <a href='{{ lista }}'>lista</a> mostra só isto, em todas as abas.</div>
+{%- endif %}<p class='nota dica-do-perfil'>{{ dica }}</p>{{ arvore }}<form method='post' action='/alertas/interesse' class='filtros' id='form-perfil'><input type='hidden' id='filtro-cpv' name='cpv' value='{{ dentro }}'><input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='{{ fora }}'>
+{#- -#}<fieldset class='dist-interesse'><legend>Distritos do local de execução <span class='nota'>(nenhum marcado = todos; um concurso nacional entra sempre)</span></legend>{{ distritos }}</fieldset>
+{#- -#}<label class='conf-campo'><span>Preço base a partir de</span><input type='text' name='pbmin' value='{{ pbmin }}' inputmode='decimal' placeholder='€, ex. 20 000'></label></form><div class='perfil-guardar'><button type='submit' form='form-perfil' class='mg-btn mg-btn--primary'>Guardar o perfil</button></div></div>{{ listas }}
+{%- if not admin %}</fieldset>{% endif -%}

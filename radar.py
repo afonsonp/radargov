@@ -21406,26 +21406,6 @@ def caixas_dos_distritos(escolhidos):
     return "".join(grupos) + DISTRITOS_JS
 
 
-def _local_e_valor_do_interesse(cfg):
-    """Os distritos (caixas) e o valor minimo do interesse, dentro do
-    formulario que a arvore grava -- e com o botao dele, para se poder
-    guardar so isto (25/09/2026)."""
-    escolhidos = set((cfg.get("interesse_distritos") or "").split("|"))
-    caixas = caixas_dos_distritos(escolhidos)
-    # sem botão próprio (3.ª ronda, G95): eram dois «Guardar» na mesma
-    # página, e não se percebia que eram duas coisas; grava o «Guardar o
-    # perfil» do fim, que leva também a árvore
-    return ("<fieldset class='dist-interesse'><legend>Distritos do local de "
-            "execução <span class='nota'>(nenhum marcado = todos; um concurso "
-            "nacional entra sempre)</span></legend>%s</fieldset>"
-            # com o rótulo por cima, como os outros campos (5.ª ronda: colado
-            # à caixa, na mesma linha)
-            "<label class='conf-campo'><span>Preço base a partir de</span>"
-            "<input type='text' name='pbmin' "
-            "value='%s' inputmode='decimal' placeholder='€, ex. 20 000'></label>"
-            % (caixas, html.escape(cfg.get("interesse_pbmin") or "", quote=True)))
-
-
 DICA_DO_PERFIL = ("Marque as áreas em que um comprador publicaria o que a "
                   "empresa faz — duas a quatro chegam.")
 
@@ -21453,66 +21433,26 @@ def _conteudo_interesse():
                                  valores).fetchone()["n"]
             apanha_ver = conta(ENTRADA_DA_ESCADA[0])
             apanha_tudo = conta("")
-    # So a arvore, ja aberta (13/09/2026): o que esta guardado vem
-    # semeado nela, e o botao da arvore grava. Uma linha diz o que esta
-    # em vigor -- sem ela, "Guardar" nao deixava rasto nenhum no ecra.
-    if apanha_ver is None:
-        estado = ("<div class='nota' style='margin:0 0 12px'>Ainda sem "
-                  "perfil: a <a href='" + LISTA + "'>lista de anúncios</a> mostra "
-                  "tudo. Marque os CPV e carregue em «Guardar o perfil».</div>")
-    else:
-        # o endereco vai no TUPLO e nao concatenado ao molde: o `%` tem
-        # precedencia sobre o `+`, e `"a" + LISTA + "b %s" % x` aplica a
-        # formatacao so ao ultimo pedaco (armadilha ja escrita, cometida
-        # outra vez a corrigir isto -- deu 500 no /configuracoes/interesse)
-        estado = ("<div class='nota' style='margin:0 0 12px'>Em vigor: "
-                  "<b>%s</b>%s &mdash; apanha <b>%s</b> dos anúncios por ver "
-                  "e <b>%s</b> de todos os concursos. A <a href='%s'>lista</a> mostra só "
-                  "isto, em todas as abas.</div>"
-                  % (descricao_do_interesse(cfg),
-                     (", sem <b>%s</b>" % html.escape(fora)) if fora else "",
-                     mil_pt(apanha_ver), mil_pt(apanha_tudo), LISTA))
-    # Um «Guardar o perfil» só, no fim, para os distritos, o valor e a
-    # árvore (3.ª ronda, G95). A árvore fica fora do <form> (o filtro dela
-    # não é um campo a enviar) e o botão chega-lhe pelo `form=`; ao enviar,
-    # o JS da árvore escreve nos campos escondidos o que está marcado.
-    formulario = (
-        "<div class='mg-card novo-filtro'>%s"
-        # a dica (L7 do plano de Outubro, da exploração dos concorrentes):
-        # quem começa marca áreas a mais, e a lista enche-se do que não faz
-        "<p class='nota dica-do-perfil'>%s</p>"
-        # a árvore dos CPV primeiro, e os distritos e o valor depois
-        # (6/10/2026, a verificação antes do anúncio): o perfil é o primeiro
-        # passo de uma empresa nova, e abria com ~30 caixas de distritos
-        # antes do que importa
-        "%s"
-        "<form method='post' action='/alertas/interesse' class='filtros' "
-        "id='form-perfil'>"
-        "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
-        "%s"
-        "</form><div class='perfil-guardar'><button type='submit' "
-        "form='form-perfil' class='mg-btn mg-btn--primary'>Guardar o perfil"
-        "</button></div></div>"
-        % (estado, html.escape(DICA_DO_PERFIL),
-           # fechada quando o perfil ja tem CPV (UX-7-LEIS H7, 30/09/2026):
-           # 9 454 codigos abertos por cima de um «Em vigor: 72000000»
-           arvore_html(n_cpv, "anuncios", submeter=False, aberta=not dentro,
-                       botao=None, rodape=False),
-           html.escape(dentro, quote=True),
-           html.escape(fora, quote=True), _local_e_valor_do_interesse(cfg)))
-    conteudo = formulario + _cartao_das_listas_da_proposta(cfg)
-    if sou_admin():
-        return ("<p class='nota' style='margin:0 0 12px'>O perfil vale para "
-                "toda a empresa: o que se grava aqui recorta os concursos de "
-                "toda a equipa.</p>" + conteudo)
-    # O utilizador vê o perfil e não o muda (D7): os campos ficam
-    # desligados, e a porta recusa o POST na mesma (ROTAS_SO_ADMIN).
-    return ("<div class='mg-alert mg-alert--info' style='margin:0 0 12px'>O "
-            "perfil vale para toda a empresa, e só o gestor%s o muda. Se "
-            "precisa de outro recorte, peça-lhe.</div>"
-            "<fieldset disabled style='border:0;padding:0;margin:0;min-width:0'>"
-            "%s</fieldset>" % (html.escape(gestores_da_empresa()), conteudo))
+    # Só a árvore, já aberta (13/09/2026): o que está guardado vem
+    # semeado nela, e o botão da árvore grava. Uma linha diz o que está em
+    # vigor -- sem ela, «Guardar» não deixava rasto nenhum no ecrã. A
+    # árvore abre fechada quando o perfil já tem CPV (UX-7-LEIS H7,
+    # 30/09/2026: 9 454 códigos abertos por cima de um «Em vigor»), e vem
+    # antes dos distritos e do valor (6/10/2026: o perfil é o primeiro
+    # passo de uma empresa nova). A dica é a L7 do plano de Outubro.
+    escolhidos = set((cfg.get("interesse_distritos") or "").split("|"))
+    return ecra(
+        "interesse.html", admin=sou_admin(), gestores=gestores_da_empresa(),
+        apanha_ver=None if apanha_ver is None else mil_pt(apanha_ver),
+        apanha_tudo=None if apanha_tudo is None else mil_pt(apanha_tudo),
+        descricao=Markup(descricao_do_interesse(cfg)), fora=fora,
+        dentro=dentro, lista=LISTA, dica=DICA_DO_PERFIL,
+        arvore=Markup(arvore_html(n_cpv, "anuncios", submeter=False,
+                                  aberta=not dentro, botao=None,
+                                  rodape=False)),
+        distritos=Markup(caixas_dos_distritos(escolhidos)),
+        pbmin=cfg.get("interesse_pbmin") or "",
+        listas=Markup(_cartao_das_listas_da_proposta(cfg)))
 
 
 def _cartao_das_listas_da_proposta(cfg):
@@ -21520,36 +21460,9 @@ def _cartao_das_listas_da_proposta(cfg):
     tipologia e a unidade de negócio, com o nome que ela lhe der. Uma por
     linha; sem lista, o campo não aparece na proposta."""
     tipologias, unidades, rotulo = listas_da_proposta(cfg)
-    # Os campos do sistema (`mg-field`, rótulo por cima e nota por baixo)
-    # em duas colunas, e não o `filtros`, que é uma linha de filtros
-    # compactos: punha as três caixas lado a lado com o rótulo encostado
-    # a cada uma (30/09/2026, ele: «isto está horrível»). O nome das
-    # unidades vai por cima da lista delas, porque é o nome dessa lista.
-    return (
-        "<div class='mg-card novo-filtro'><h3>As propostas</h3>"
-        "<p class='nota'>Como a empresa arruma as suas propostas. Uma lista "
-        "vazia tira o campo da proposta.</p>"
-        "<form method='post' action='/configuracoes/propostas' "
-        "class='listas-da-proposta'>"
-        "<div class='colunas'>"
-        "<label class='mg-field'><span class='mg-field__label'>Tipologias</span>"
-        "<textarea class='mg-field__input' name='tipologias' rows='6'>%s"
-        "</textarea><span class='mg-field__hint'>Uma por linha</span></label>"
-        "<div class='coluna'>"
-        "<label class='mg-field'><span class='mg-field__label'>Nome das "
-        "unidades</span><input class='mg-field__input' type='text' "
-        "name='rotulo_da_unidade' value='%s' maxlength='40' placeholder='%s'>"
-        "<span class='mg-field__hint'>Como a empresa lhes chama</span></label>"
-        "<label class='mg-field'><span class='mg-field__label'>Unidades</span>"
-        "<textarea class='mg-field__input' name='unidades' rows='4'>%s"
-        "</textarea><span class='mg-field__hint'>Uma por linha</span></label>"
-        "</div></div>"
-        "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar as listas"
-        "</button></form></div>"
-        % (html.escape("\n".join(tipologias)),
-           html.escape("" if rotulo == ROTULO_DA_UNIDADE else rotulo, quote=True),
-           html.escape(ROTULO_DA_UNIDADE, quote=True),
-           html.escape("\n".join(unidades))))
+    return ecra("interesse_listas.html", tipologias="\n".join(tipologias),
+                unidades="\n".join(unidades), omissao=ROTULO_DA_UNIDADE,
+                rotulo="" if rotulo == ROTULO_DA_UNIDADE else rotulo)
 
 
 def _linhas_do_formulario(nome):
@@ -24727,10 +24640,6 @@ def _ligacao_otpauth(utilizador, segredo):
     que todas seguem): o emissor no rótulo e no parâmetro."""
     return ("otpauth://totp/Mira%%20Gov:%s?secret=%s&issuer=Mira%%20Gov"
             % (quote(utilizador["email"], safe="@."), segredo))
-
-
-
-
 
 
 def _bloco_do_segundo_factor(utilizador):
