@@ -2,7 +2,7 @@
 {%- import "_pecas.html" as p -%}
 <form method='post' action='/configuracoes/copias' class='conf-form'>
 {{- p.interruptor("Cópia diária das bases", "copia_de_seguranca", copia, nota="a plataforma e o ficheiro de cada empresa; o trabalho das empresas não se recupera de mais lado nenhum") }}
-{{- p.campo("Cópias a guardar", "copias_a_guardar", a_guardar, numerico=True, nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso") -}}
+{{- p.campo("Cópias a guardar", "copias_a_guardar", a_guardar, attrs=[("inputmode", "numeric")], nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso") -}}
 <button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form><div class='mg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div><div class='nota' style='margin-bottom:10px'>Última: {{ ultima }}</div>
 {#- -#}<div class='nota' style='margin-bottom:10px'>Fora deste PC: {{ fora }} <span style='color:var(--ink-muted)'>(o destino configura-se uma vez com o copias_fora.sh)</span></div>
 {#- -#}<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: {% for x in ensaio %}{% if not loop.first %}<br>{% endif %}{{ x }}{% endfor %}

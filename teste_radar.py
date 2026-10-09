@@ -10240,7 +10240,8 @@ class TestPeleNova(unittest.TestCase):
         vermelho sem querer, o botão que apaga uma conta ficava igual ao
         «desfazer». O que o marca agora é a classe, não um acidente."""
         self.assertIn('"Remover", "mini perigo"',
-                      inspect.getsource(radar._bloco_utilizadores))
+                      radar.MOLDES_JINJA.loader.get_source(
+                          radar.MOLDES_JINJA, "conta_utilizadores.html")[0])
 
     def test_abandonar_e_neutro(self):
         """Abandonar **não apaga nada** -- a própria aplicação o diz no
@@ -26205,8 +26206,9 @@ class TestAcessibilidadeETelemovelDaTerceiraRonda(BaseTemporaria):
         html_ = self.cliente.get("/anuncio/70%2F2026").get_data(as_text=True)
         self.assertIn("aria-label='Apagar o contacto «Eng.ª Maria»'", html_)
         self.assertIn("aria-label='Tirar a etiqueta «urgente»'", html_)
-        self.assertIn('rotulo="Remover %s da empresa" % u["email"]',
-                      inspect.getsource(radar))
+        self.assertIn('rotulo="Remover " ~ u.email ~ " da empresa"',
+                      radar.MOLDES_JINJA.loader.get_source(
+                          radar.MOLDES_JINJA, "conta_utilizadores.html")[0])
 
     def test_g68_as_paginas_da_peca_focam_se(self):
         """A zona das páginas rola por si e não se focava: com o teclado

@@ -1,0 +1,5 @@
+{#- Os convites da empresa que ninguém usou, com o «anular». -#}
+{%- import "_pecas.html" as p -%}
+{%- if convites %}<div class='mg-field__label' id='convites' style='margin:22px 0 6px'>Convites por usar</div><div class='saude'>
+{%- for cv in convites %}<div class='l'><span class='t'>{{ cv.email or "sem endereço" }}, de {{ cv.papel }}, criado a {{ cv.criado }}</span><span class='v'>{% if cv.acabou %}acabou{% else %}vale até {{ cv.expira }}{% endif %} &middot; {{ p.accao("/configuracoes/conta/utilizadores/convites/" ~ cv.id ~ "/anular", "anular", "mini cuidado", "Anular este convite? A ligação deixa de servir.", rotulo="Anular o convite de " ~ (cv.email or "sem endereço")) }}</span></div>
+{%- endfor %}</div>{% endif -%}

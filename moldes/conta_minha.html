@@ -1,0 +1,22 @@
+{#- Configurações › Conta: o que é de quem está (a palavra-passe, o
+    contacto, as sessões). O aspecto e o segundo factor são moldes seus. -#}
+{%- import "_pecas.html" as p -%}
+{%- if modo == "sem_conta" -%}
+<div class='mg-card conf-cx'><div class='nota'>Ainda não há conta. Na pasta do radar: <code>python radar.py --criar-utilizador NOME</code>.</div></div>
+{%- elif modo == "vercomo" -%}
+<div class='mg-alert mg-alert--info'>A palavra-passe, as sessões e o aspecto são de cada pessoa: no modo de suporte seriam os seus, e não os da empresa, e por isso não se mostram. O resto é o que o gestor da empresa vê.</div>
+{%- else -%}
+<form method='post' action='/configuracoes/conta' class='conf-form'>
+{{- p.campo("Utilizador", "utilizador", email, attrs=[("disabled", none)]) }}
+{{- p.campo("E-mail de contacto", "contacto", contacto, tipo="email", nota="é para aqui que vai a ligação do «esqueci-me da palavra-passe»", attrs=[("autocomplete", "email")]) }}
+{{- p.campo("Palavra-passe actual", "actual", "", tipo="password", nota="pede-se para mudar a palavra-passe ou o e-mail", attrs=[("autocomplete", "current-password")]) }}
+{{- p.campo("Nova palavra-passe", "nova", "", tipo="password", nota="8 caracteres ou mais; vazia, fica a que está", attrs=[("autocomplete", "new-password")]) }}
+{{- p.campo("Repetir a nova palavra-passe", "outra", "", tipo="password", attrs=[("autocomplete", "new-password")]) -}}
+<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form><div class='mg-field__label' style='margin:22px 0 6px'>Sessões abertas</div><div class='saude'>
+{%- for s in sessoes %}<div class='l'><span class='ponto' style='background:{{ "var(--success)" if s.esta else "var(--line-strong)" }}'></span><span class='t'>{{ s.aparelho }}{% if s.esta %} (esta){% endif %}</span><span class='v'>usada {{ s.usada }} &middot; até {{ s.expira }}
+{%- if not s.esta %} &middot; {{ p.accao("/configuracoes/conta/sessoes/terminar", "terminar", "mini", campos={"n": s.n}, rotulo="Terminar a sessão de " ~ s.aparelho) }}{% endif %}</span></div>
+{%- else %}<div class='nota'>nenhuma sessão: a entrada é pelo acesso livre local</div>
+{%- endfor %}</div>
+{%- if sessoes %}<div style='margin-top:14px'>{{ p.accao("/sair-de-todos", "Sair de todos os aparelhos", "bt", "Sair de todos os aparelhos? As " ~ (sessoes|length) ~ " sessões desta conta fecham-se, esta também, e volta à entrada.") }}</div>{% endif %}
+{%- if actividade %}<p class='nota' style='margin-top:14px'><a href='/actividade'>Actividade da empresa</a>: quem entrou, de onde, e o que mudou.</p>{% endif %}
+{%- endif -%}

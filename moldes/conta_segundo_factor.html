@@ -1,0 +1,17 @@
+{#- O segundo factor da conta (28/09/2026), nos três estados: ligado
+    (o «Desligar», que pede um código), a meio (a chave e o primeiro
+    código) e desligado (o botão «Ligar»). -#}
+{%- import "_pecas.html" as p -%}
+{%- macro senha_actual() %}{{ p.campo("Palavra-passe actual", "actual", "", tipo="password", attrs=[("autocomplete", "current-password"), ("required", none)]) }}{% endmacro -%}
+{%- macro codigo(nota="") %}{{ p.campo("Código", "codigo", "", nota=nota, attrs=[("autocomplete", "one-time-code"), ("autocapitalize", "off"), ("spellcheck", "false"), ("required", none)]) }}{% endmacro -%}
+<div class='mg-field__label' id='segundo-factor' style='margin:22px 0 6px'>Segundo factor</div>
+{%- if ligado %}<p class='nota'>Está <b>ligado</b>. Num aparelho novo, depois da palavra-passe, o Mira Gov pede o código da app de autenticação. Códigos de recuperação por usar: <b>{{ faltam }}</b>.</p><form method='post' action='/configuracoes/conta/segundo-factor/desligar' class='conf-form'>
+{{- senha_actual() }}{{ codigo("o da app, ou um código de recuperação") -}}
+<button type='submit' class='mg-btn'>Desligar o segundo factor</button></form>
+{%- elif segredo %}<ol class='nota'><li>Abra a app de autenticação do telemóvel (Google Authenticator, Microsoft Authenticator, ou outra) e acrescente uma conta.</li><li>No telemóvel, <a href='{{ ligacao }}'>toque aqui para a acrescentar</a>. No computador, escolha «introduzir uma chave» e escreva esta: <code>{{ grupos }}</code></li><li>Escreva aqui o código de seis dígitos que a app mostra.</li></ol><form method='post' action='/configuracoes/conta/segundo-factor/confirmar' class='conf-form'>
+{{- codigo() -}}
+<button type='submit' class='mg-btn mg-btn--primary'>Ligar</button></form><div class='nota' style='margin-top:10px'>Só fica ligado depois deste código. Até lá, entra como sempre.</div>
+{%- else %}<p class='nota'>Com o segundo factor, entrar de um aparelho novo pede, além da palavra-passe, o código de seis dígitos de uma app de autenticação no telemóvel. Quem souber a palavra-passe não entra sem o telemóvel.</p><form method='post' action='/configuracoes/conta/segundo-factor/ligar' class='conf-form'>
+{{- senha_actual() -}}
+<button type='submit' class='mg-btn mg-btn--primary'>Ligar o segundo factor</button></form>
+{%- endif -%}

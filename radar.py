@@ -16515,6 +16515,12 @@ def botao(classe):
     return " ".join([BOTOES.get(variante, variante)] + fora).strip()
 
 
+# Os dois filtros dos moldes que precisam do que vive aqui (D1, lote
+# 3.2b): o `botao`, que traduz a classe da casa na do sistema, e o `js`,
+# que faz de um texto uma cadeia de JavaScript (o `confirm()` do `accao`).
+MOLDES_JINJA.filters.update(botao=botao, js=json.dumps)
+
+
 def tom(classe):
     """O tom antigo de uma pílula, no do sistema. Desconhecido passa
     como está -- e sem tom nenhum é uma pílula neutra, que existe."""
@@ -24518,10 +24524,7 @@ def config_importar_confirmar():
 def config_conta():
     utilizador = g.get("utilizador")
     if not utilizador:
-        return pagina_config("conta", "<div class='mg-card conf-cx'><div class='nota'>"
-                             "Ainda não há conta. Na pasta do radar: "
-                             "<code>python radar.py --criar-utilizador NOME</code>."
-                             "</div></div>")
+        return pagina_config("conta", ecra("conta_minha.html", modo="sem_conta"))
     if request.method == "POST":
         # A palavra-passe e o e-mail de contacto (1/10/2026), os dois com
         # a actual: o "nome a mostrar" saiu a 13/09/2026 (o utilizador
@@ -24592,62 +24595,30 @@ def config_conta():
         suporte = [dict(r) for r in c.execute(
             "SELECT quem, detalhe, quando FROM historico WHERE accao='suporte' "
             "ORDER BY id DESC LIMIT 10")] if da_empresa else []
-    # "iPhone até 10/10/2026 14:35", nao o User-Agent inteiro (13/09/2026);
-    # e o ultimo uso e «terminar» em cada uma (G58 da 3.ª ronda)
-    linhas = "".join(
-        "<div class='l'><span class='ponto' style='background:%s'></span>"
-        "<span class='t'>%s%s</span><span class='v'>usada %s &middot; até %s%s</span></div>"
-        % ("var(--success)" if s_["token"] == g.get("sessao") else "var(--line-strong)",
-           aparelho_do_agente(s_["agente"]),
-           " (esta)" if s_["token"] == g.get("sessao") else "",
-           html.escape(ha_quanto(s_["usada_em"])),
-           html.escape(data_hora_pt(s_["expira"][:16])),
-           "" if s_["token"] == g.get("sessao") else " &middot; " + accao(
-               "/configuracoes/conta/sessoes/terminar", "terminar", "mini",
-               campos={"n": s_["n"]},
-               rotulo="Terminar a sessão de %s" % aparelho_do_agente(s_["agente"])))
-        for s_ in sessoes) or "<div class='nota'>nenhuma sessão: a entrada é pelo acesso livre local</div>"
     if g.get("ver_como") is not None:
         # No «ver como» (G52 e G54 da 3.ª ronda): a palavra-passe, as
         # sessões, o aspecto e o segundo factor que aqui estavam eram os do
         # DONO, e o «Sair de todos» fechava-lhe as sessões com um 500. O
         # que fica é o que o gestor da empresa vê, e diz porquê.
-        corpo = ("<div class='mg-alert mg-alert--info'>A palavra-passe, as "
-                 "sessões e o aspecto são de cada pessoa: no modo de suporte "
-                 "seriam os seus, e não os da empresa, e por isso não se "
-                 "mostram. O resto é o que o gestor da empresa vê.</div>")
+        corpo = ecra("conta_minha.html", modo="vercomo")
         if da_empresa:
             return pagina_config("conta", corpo + _cartoes_da_empresa(
                 todos, utilizador["id"], convites, suporte))
         return pagina_config("conta", "<div class='mg-card conf-cx'>" + corpo + "</div>")
-    corpo = (
-        "<form method='post' action='/configuracoes/conta' class='conf-form'>"
-        + _campo("Utilizador", "utilizador", utilizador["email"], extra="disabled")
-        + _campo("E-mail de contacto", "contacto", contacto, tipo="email",
-                 nota="é para aqui que vai a ligação do «esqueci-me da "
-                      "palavra-passe»", extra="autocomplete='email'")
-        + _campo("Palavra-passe actual", "actual", "", tipo="password",
-                 nota="pede-se para mudar a palavra-passe ou o e-mail",
-                 extra="autocomplete='current-password'")
-        + _campo("Nova palavra-passe", "nova", "", tipo="password",
-                 nota="8 caracteres ou mais; vazia, fica a que está",
-                 extra="autocomplete='new-password'")
-        + _campo("Repetir a nova palavra-passe", "outra", "", tipo="password",
-                 extra="autocomplete='new-password'")
-        # secundario: o primario da Conta e o «Criar convite» (UX-7-LEIS V2)
-        + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>"
-        + "<div class='mg-field__label' style='margin:22px 0 6px'>Sessões abertas</div>"
-        + "<div class='saude'>%s</div>" % linhas
-        + ("<div style='margin-top:14px'>%s</div>"
-           % accao("/sair-de-todos", "Sair de todos os aparelhos", "bt",
-                   # G58 da 3.ª ronda: fechava tudo, esta incluída, sem perguntar
-                   "Sair de todos os aparelhos? As %d sessões desta conta "
-                   "fecham-se, esta também, e volta à entrada." % len(sessoes))
-           if sessoes else "")
-        # o registo de actividade, só do gestor (2R-§7 (11))
-        + ("<p class='nota' style='margin-top:14px'><a href='/actividade'>Actividade "
-           "da empresa</a>: quem entrou, de onde, e o que mudou.</p>"
-           if da_empresa and sou_admin() else ""))
+    # As sessões dizem «iPhone até 10/10/2026 14:35», e não o User-Agent
+    # inteiro (13/09/2026), com o último uso e o «terminar» em cada uma
+    # (G58 da 3.ª ronda). O «Guardar» é secundário: o primário da Conta é
+    # o «Criar convite» (UX-7-LEIS V2). O «Sair de todos» pergunta antes
+    # (G58: fechava tudo, esta incluída, sem perguntar). O registo de
+    # actividade é só do gestor (2R-§7 (11)).
+    corpo = ecra(
+        "conta_minha.html", modo="normal", email=utilizador["email"],
+        contacto=contacto, actividade=da_empresa and sou_admin(),
+        sessoes=[{"n": s_["n"], "esta": s_["token"] == g.get("sessao"),
+                  "aparelho": aparelho_do_agente(s_["agente"]),
+                  "usada": ha_quanto(s_["usada_em"]),
+                  "expira": data_hora_pt(s_["expira"][:16])}
+                 for s_ in sessoes])
     corpo += _bloco_do_aspecto(utilizador)
     if contas.pode_ter_segundo_factor(utilizador):
         corpo += _bloco_do_segundo_factor(utilizador)
@@ -24693,21 +24664,8 @@ def _bloco_do_aspecto(utilizador):
     browser -- quem precisa do contraste precisa dele no telemóvel e no
     computador do escritório, e não tem de o voltar a escolher em cada
     um."""
-    actual = utilizador.get("aspecto") or "normal"
-    opcoes = "".join(
-        "<label class='dist-cx'><input type='radio' name='aspecto' value='%s'%s> %s</label>"
-        % (chave, " checked" if chave == actual else "", html.escape(rotulo))
-        for chave, rotulo in ROTULOS_DO_ASPECTO)
-    return ("<form method='post' action='/configuracoes/conta/aspecto' "
-            "class='conf-form' id='aspecto' style='margin-top:22px'>"
-            "<fieldset class='dist-interesse'><legend>Aspecto</legend>%s</fieldset>"
-            "<div class='nota' style='margin-bottom:10px'>O alto contraste "
-            "escurece o texto e as linhas, e tira as sombras. «Como o "
-            "sistema» segue o claro ou o escuro que o computador ou o "
-            "telemóvel tiverem. Vale para esta conta, em todos os "
-            "aparelhos.</div>"
-            "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar o aspecto</button>"
-            "</form>" % opcoes)
+    return ecra("conta_aspecto.html", opcoes=ROTULOS_DO_ASPECTO,
+                actual=utilizador.get("aspecto") or "normal")
 
 
 @app.route("/configuracoes/conta/sessoes/terminar", methods=["POST"])
@@ -24771,15 +24729,8 @@ def _ligacao_otpauth(utilizador, segredo):
             % (quote(utilizador["email"], safe="@."), segredo))
 
 
-def _campo_da_senha_actual():
-    return _campo("Palavra-passe actual", "actual", "", tipo="password",
-                  extra="autocomplete='current-password' required")
 
 
-def _campo_do_codigo(nota=""):
-    return _campo("Código", "codigo", "", nota=nota,
-                  extra="autocomplete='one-time-code' autocapitalize='off' "
-                        "spellcheck='false' required")
 
 
 def _bloco_do_segundo_factor(utilizador):
@@ -24790,51 +24741,12 @@ def _bloco_do_segundo_factor(utilizador):
         ligado = contas.segundo_factor_ligado(c, utilizador["id"])
         segredo = None if ligado else contas.segredo_por_confirmar(c, utilizador["id"])
         faltam = contas.codigos_por_usar(c, utilizador["id"]) if ligado else 0
-    cabeca = ("<div class='mg-field__label' id='segundo-factor' "
-              "style='margin:22px 0 6px'>Segundo factor</div>")
-    if ligado:
-        return (cabeca
-                + "<p class='nota'>Está <b>ligado</b>. Num aparelho novo, depois "
-                  "da palavra-passe, o Mira Gov pede o código da app de "
-                  "autenticação. Códigos de recuperação por usar: <b>%d</b>.</p>"
-                  % faltam
-                + "<form method='post' action='/configuracoes/conta/segundo-factor/"
-                  "desligar' class='conf-form'>"
-                + _campo_da_senha_actual()
-                + _campo_do_codigo("o da app, ou um código de recuperação")
-                + "<button type='submit' class='mg-btn'>Desligar o segundo "
-                  "factor</button></form>")
-    if segredo:
-        grupos = " ".join(segredo[i:i + 4] for i in range(0, len(segredo), 4))
-        return (cabeca
-                + "<ol class='nota'>"
-                  "<li>Abra a app de autenticação do telemóvel (Google "
-                  "Authenticator, Microsoft Authenticator, ou outra) e "
-                  "acrescente uma conta.</li>"
-                  "<li>No telemóvel, <a href='%s'>toque aqui para a "
-                  "acrescentar</a>. No computador, escolha «introduzir uma "
-                  "chave» e escreva esta: <code>%s</code></li>"
-                  "<li>Escreva aqui o código de seis dígitos que a app "
-                  "mostra.</li></ol>"
-                  % (html.escape(_ligacao_otpauth(utilizador, segredo), quote=True),
-                     html.escape(grupos))
-                + "<form method='post' action='/configuracoes/conta/segundo-factor/"
-                  "confirmar' class='conf-form'>"
-                + _campo_do_codigo()
-                + "<button type='submit' class='mg-btn mg-btn--primary'>Ligar</button>"
-                  "</form>"
-                + "<div class='nota' style='margin-top:10px'>Só fica ligado "
-                  "depois deste código. Até lá, entra como sempre.</div>")
-    return (cabeca
-            + "<p class='nota'>Com o segundo factor, entrar de um aparelho "
-              "novo pede, além da palavra-passe, o código de seis dígitos de "
-              "uma app de autenticação no telemóvel. Quem souber a "
-              "palavra-passe não entra sem o telemóvel.</p>"
-            + "<form method='post' action='/configuracoes/conta/segundo-factor/"
-              "ligar' class='conf-form'>"
-            + _campo_da_senha_actual()
-            + "<button type='submit' class='mg-btn mg-btn--primary'>Ligar o "
-              "segundo factor</button></form>")
+    return ecra(
+        "conta_segundo_factor.html", ligado=ligado, faltam=faltam,
+        segredo=segredo,
+        grupos=(" ".join(segredo[i:i + 4] for i in range(0, len(segredo), 4))
+                if segredo else ""),
+        ligacao=_ligacao_otpauth(utilizador, segredo) if segredo else "")
 
 
 def _quem_pode_ter_segundo_factor():
@@ -24929,19 +24841,7 @@ def _bloco_da_empresa(cfg=None):
     if has_request_context() and request.args.get("tom") == "erro":
         nome = request.args.get("nome_da_empresa", nome)
         nif = request.args.get("nif_da_empresa", nif)
-    return ("<div class='mg-field__label' id='empresa' style='margin:22px 0 6px'>A nossa empresa</div>"
-            "<div class='nota' style='margin-bottom:10px'>Para o Mira Gov saber, "
-            "ao cruzar com o Portal BASE, se a adjudicação foi nossa. "
-            "Enquanto estiver vazio, a ficha mostra a quem foi e pergunta."
-            "</div>"
-            "<form method='post' action='/configuracoes/conta/empresa' "
-            "class='conf-form'>"
-            + _campo("Nome", "nome_da_empresa", nome,
-                     nota="como aparece nos contratos", extra="maxlength='120'")
-            + _campo("NIF", "nif_da_empresa", nif,
-                     nota="nove dígitos; é por aqui que a ligação é certa",
-                     extra="inputmode='numeric' maxlength='14' autocomplete='off'")
-            + "<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>")
+    return ecra("conta_empresa.html", nome=nome, nif=nif)
 
 
 @app.route("/configuracoes/conta/empresa", methods=["POST"])
@@ -25123,116 +25023,45 @@ def _bloco_utilizadores(todos, eu):
     tipo, e o formulario para criar outra. Tirar uma conta e um botao
     com confirmacao; o ultimo admin nao se tira (contas.apagar_utilizador
     recusa)."""
-    linhas = "".join(
+    # O convite vem primeiro (teste com utilizadores, 25/09/2026): criar a
+    # conta obrigava o admin a inventar a palavra-passe do colega. E o
+    # «criar sem convite» fica recolhido (UX-7-LEIS, H2 e V2, 30/09/2026).
+    pessoas = [{
+        "id": u["id"], "email": u["email"], "admin": u["papel"] == "admin",
+        "papel": papel_no_ecra(u["papel"]), "eu": u["id"] == eu,
         # o nome da pessoa ao lado do utilizador, e a bolinha diz o que é
         # (5.ª ronda: só o «qa4-03», e um ponto verde sem legenda)
-        "<div class='l'><span class='ponto' style='background:%s' title='%s' "
-        "aria-hidden='true'></span>"
-        "<span class='t'>%s%s</span><span class='v'>%s%s</span></div>"
-        % ("var(--success)" if u["papel"] == "admin" else "var(--line-strong)",
-           html.escape(papel_no_ecra(u["papel"]), quote=True),
-           html.escape(("%s · %s" % (u["nome"], u["email"]))
-                       if (u["nome"] or "").strip() and u["nome"] != u["email"]
-                       else u["email"]),
-           " (eu)" if u["id"] == eu else "",
-           html.escape(papel_no_ecra(u["papel"])),
-           "" if u["id"] == eu else
-           (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/repor" % u["id"],
-                                 "repor palavra-passe", "mini",
-                                 rotulo="Gerar a ligação para repor a "
-                                 "palavra-passe de %s" % u["email"])
-            if contas.pode_repor(g.get("utilizador"), u) else "")
-           # o «tirar» so a quem o pode fazer: a conta do dono so o
-           # dono a tira (contas.apagar_utilizador recusa na mesma)
-           + (" &middot; " + accao("/configuracoes/conta/utilizadores/%d/apagar" % u["id"],
-                                   "Remover", "mini perigo",
-                                   "Remover a conta %s? As sessões dela fecham já."
-                                   % html.escape(u["email"], quote=True),
-                                   # onze «Remover» seguidos não diziam de
-                                   # quem (3.ª ronda, G67)
-                                   rotulo="Remover %s da empresa" % u["email"])
-              if contas.pode_repor(g.get("utilizador"), u) else ""))
-        for u in todos)
-    return (
-        "<div class='mg-field__label' style='margin:26px 0 6px'>Utilizadores</div>"
-        "<div class='nota' style='margin-bottom:10px'><b>Gestor</b>: "
-        "gere as contas e os dados da empresa. <b>Utilizador</b>: trabalha "
-        "nos concursos e nas propostas, sem mexer nas contas.</div>"
-        "<div class='saude contas-da-empresa'>%s</div>"
-        # O convite primeiro (teste com utilizadores, 25/09/2026): criar a
-        # conta obrigava o admin a inventar a palavra-passe do colega e a
-        # manda-la por algum lado. Com o convite, e o colega que a escolhe.
-        "<form method='post' action='/configuracoes/conta/utilizadores/convite' "
-        "class='conf-form' id='convidar' style='margin-top:16px'>"
-        "<div class='nota' style='flex:1 1 100%%'><b>Convidar um colega</b>: "
-        "cria-se uma ligação, manda-se ao colega, e é ele que escolhe o nome "
-        "e a palavra-passe. Vale %d dias, e só uma vez. Com o e-mail dele, "
-        "o convite segue por e-mail.</div>"
-        "<label class='conf-campo'><span>E-mail <span class='nota'>(opcional)"
-        "</span></span><input type='email' name='email' autocomplete='off' "
-        "placeholder='nome@empresa.pt'></label>"
-        "<label class='conf-campo'><span>Papel</span><select name='papel'>"
-        "<option value='tester'>Membro</option>"
-        "<option value='admin'>Gestor</option></select></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Criar convite</button></form>"
-        # O segundo caminho recolhido (UX-7-LEIS, H2 e V2, 30/09/2026):
-        # eram dois caminhos a vista para a mesma coisa, e dois botoes
-        # cheios; o convite e o caminho, e este fica para quem o procura.
-        "<details class='mg-disc' style='margin-top:18px'><summary class='nota'>"
-        "Criar sem convite, já com a palavra-passe</summary>"
-        "<form method='post' action='/configuracoes/conta/utilizadores' "
-        "class='conf-form' style='margin-top:8px'>"
-        "%s%s"
-        "<label class='conf-campo'><span>Papel</span><select name='papel'>"
-        "<option value='tester'>Membro</option>"
-        "<option value='admin'>Gestor</option></select></label>"
-        "<button type='submit' class='mg-btn mg-btn--secondary'>Criar utilizador</button>"
-        "</form></details>"
-        % (linhas, contas.DIAS_DE_CONVITE,
-           _campo("E-mail", "email", "", tipo="email",
-                  extra="autocomplete='off' placeholder='nome@empresa.pt' required"),
-           _campo("Palavra-passe", "senha", "", tipo="password",
-                  nota="8 caracteres ou mais",
-                  extra="autocomplete='new-password'")))
+        "quem": ("%s · %s" % (u["nome"], u["email"])
+                 if (u["nome"] or "").strip() and u["nome"] != u["email"]
+                 else u["email"]),
+        # o «repor» e o «tirar» só a quem o pode fazer: a conta do dono só
+        # o dono a tira (contas.apagar_utilizador recusa na mesma); e o
+        # «Remover» diz de quem (3.ª ronda, G67)
+        "pode": contas.pode_repor(g.get("utilizador"), u)} for u in todos]
+    return ecra("conta_utilizadores.html", pessoas=pessoas,
+                dias=contas.DIAS_DE_CONVITE)
 
 
 def _bloco_dos_convites(convites):
     """Os convites da empresa que ninguem usou, com o «anular» (a pagina
     do dono, 26/09/2026): um convite que foi para o endereco errado
     esperava sete dias. O dono ve e anula os de todas, na /plataforma."""
-    if not convites:
-        return ""
     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return ("<div class='mg-field__label' id='convites' style='margin:22px 0 6px'>"
-            "Convites por usar</div><div class='saude'>%s</div>" % "".join(
-                "<div class='l'><span class='t'>%s, de %s, criado a %s</span>"
-                "<span class='v'>%s &middot; %s</span></div>"
-                % (html.escape(cv["email"] or "sem endereço"),
-                   html.escape(papel_no_ecra(cv["papel"]).lower()),
-                   html.escape(data_hora_pt(cv["criado_em"][:16])),
-                   "acabou" if cv["expira"] <= agora else
-                   "vale até %s" % html.escape(data_hora_pt(cv["expira"][:16])),
-                   accao("/configuracoes/conta/utilizadores/convites/%d/anular" % cv["id"],
-                         "anular", "mini cuidado",
-                         "Anular este convite? A ligação deixa de servir.",
-                         rotulo="Anular o convite de %s" % (cv["email"] or "sem endereço")))
-                for cv in convites))
+    return ecra("conta_convites.html", convites=[{
+        "id": cv["id"], "email": cv["email"],
+        "papel": papel_no_ecra(cv["papel"]).lower(),
+        "criado": data_hora_pt(cv["criado_em"][:16]),
+        "acabou": cv["expira"] <= agora,
+        "expira": data_hora_pt(cv["expira"][:16])} for cv in convites])
 
 
 def _bloco_do_suporte(linhas):
     """Quando o dono da plataforma entrou para ver a empresa, e saiu (o
     modo de suporte, 26/09/2026): o admin tem de saber quem viu o
     trabalho da empresa, e quando."""
-    if not linhas:
-        return ""
-    return ("<div class='mg-field__label' style='margin:22px 0 6px'>Acessos do "
-            "suporte</div><div class='nota' style='margin-bottom:8px'>O dono da "
-            "plataforma pode ver a aplicação como a empresa a vê, só para ler, "
-            "para responder a um pedido de ajuda. Cada entrada fica aqui.</div>"
-            "<div class='saude'>%s</div>" % "".join(
-                "<div class='l'><span class='t'>%s</span><span class='v'>%s</span></div>"
-                % (html.escape(l["detalhe"] or ""), html.escape(data_hora_pt(l["quando"])))
-                for l in linhas))
+    return ecra("conta_suporte.html", linhas=[
+        {"detalhe": l["detalhe"] or "", "quando": data_hora_pt(l["quando"])}
+        for l in linhas])
 
 
 @app.route("/configuracoes/conta/utilizadores/convites/<int:convite_id>/anular",
