@@ -147,7 +147,8 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.1 | entrar, convite, repor, esqueci-me, segundo factor — **feito a 9/10/2026** (o erro ficou com o `desenhar()`: os seus onze sítios passam com os ecrãs que os chamam) | sem sessão, poucos dados, testam a mecânica |
 | 3.2a | o esqueleto das Configurações (o índice e a secção) e as quatro secções do sistema (recolha, leitura, capturas, cópias) — **feito a 9/10/2026**; as macros `campo` e `interruptor` nasceram aqui | só o dono as vê |
 | 3.2b | a Conta — **feito a 9/10/2026**: sete moldes `conta_*.html`; as funções `_bloco_*` ficam com o nome e desenham o seu molde; nasce a macro `accao` | a maior das secções da empresa |
-| 3.2c | os Alertas e o Interesse | partilham a árvore dos CPV |
+| 3.2c-i | o Interesse — **feito a 9/10/2026** (`interesse.html`, `interesse_listas.html`); a árvore dos CPV entra feita (`arvore_html()`, partilhada com os Concursos: passa no 3.8) | o mais pequeno dos dois |
+| 3.2c-ii | os Alertas | 177 linhas e quatro auxiliares de ~90 |
 | 3.2d | o Importar, os Documentos e os Indicadores | |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |

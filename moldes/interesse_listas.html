@@ -1,0 +1,8 @@
+{#- As listas com que a empresa arruma as propostas (28/09/2026): a
+    tipologia e a unidade de negócio, com o nome que ela lhe der. Os
+    campos do sistema (`mg-field`) em duas colunas, e não a linha de
+    filtros compactos (30/09/2026, ele: «isto está horrível»). -#}
+<div class='mg-card novo-filtro'><h3>As propostas</h3><p class='nota'>Como a empresa arruma as suas propostas. Uma lista vazia tira o campo da proposta.</p><form method='post' action='/configuracoes/propostas' class='listas-da-proposta'><div class='colunas'>
+{#- -#}<label class='mg-field'><span class='mg-field__label'>Tipologias</span><textarea class='mg-field__input' name='tipologias' rows='6'>{{ tipologias }}</textarea><span class='mg-field__hint'>Uma por linha</span></label><div class='coluna'>
+{#- -#}<label class='mg-field'><span class='mg-field__label'>Nome das unidades</span><input class='mg-field__input' type='text' name='rotulo_da_unidade' value='{{ rotulo }}' maxlength='40' placeholder='{{ omissao }}'><span class='mg-field__hint'>Como a empresa lhes chama</span></label>
+{#- -#}<label class='mg-field'><span class='mg-field__label'>Unidades</span><textarea class='mg-field__input' name='unidades' rows='4'>{{ unidades }}</textarea><span class='mg-field__hint'>Uma por linha</span></label></div></div><button type='submit' class='mg-btn mg-btn--secondary'>Guardar as listas</button></form></div>
