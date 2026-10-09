@@ -496,6 +496,11 @@ def bandeiras_do_programa():
         for raiz, _, ficheiros in os.walk(os.path.join(RAIZ, pasta)):
             fontes += [os.path.join(raiz, f) for f in ficheiros
                        if f.endswith(".py")]
+    # os moldes (D1, 9/10/2026): o JS que lá vive cita as variáveis CSS
+    # que mede, como o `--barra-h`, e antes vivia dentro do radar.py
+    pasta = os.path.join(RAIZ, "moldes")
+    if os.path.isdir(pasta):
+        fontes += [os.path.join(pasta, f) for f in sorted(os.listdir(pasta))]
     for p in fontes:
         if not os.path.exists(p):
             continue

@@ -40,6 +40,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import radar
 import empresa
 
+
+def fonte_do_painel():
+    """O `radar.py` e os moldes juntos: o HTML e o JS que viviam dentro
+    do radar.py estão a sair para `moldes/` (D1, 9/10/2026), e um teste
+    que procura no código tem de procurar nos dois."""
+    pasta = os.path.join(os.path.dirname(radar.__file__), "moldes")
+    textos = []
+    for caminho in [radar.__file__] + [os.path.join(pasta, f)
+                                       for f in sorted(os.listdir(pasta))]:
+        with open(caminho, encoding="utf-8") as f:
+            textos.append(f.read())
+    return "\n".join(textos)
+
 # A bateria inteira corre numa base e num config.json temporarios
 # (23/09/2026). As classes antigas, que nao herdam da BaseTemporaria,
 # abriam o painel com a base verdadeira atras: a porta lia as contas
@@ -22970,8 +22983,7 @@ class TestOFocoProgramaticoNaoPintaOMagenta(unittest.TestCase):
         with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
                                "miragov-radar.css"), encoding="utf-8") as f:
             folha = f.read()
-        with open(radar.__file__, encoding="utf-8") as f:
-            codigo = f.read()
+        codigo = fonte_do_painel()
         # quem recebe tabindex=-1 são estes dois; um terceiro pede a regra dele
         self.assertEqual(len(re.findall(r"tabindex=\"-1\"|'tabindex', '-1'", codigo)), 2)
         self.assertIn("main#conteudo:focus{outline:none}", folha)
@@ -27557,8 +27569,7 @@ class TestAQuartaRondaDeTestes(BaseTemporaria):
         """Quatro perfis: `h is not defined` em todas as páginas que voltam
         com aviso sem âncora -- o leitor de ecrã não o lia, o foco caía no
         body e o × não fechava."""
-        with open(radar.__file__, encoding="utf-8") as f:
-            js = f.read()
+        js = fonte_do_painel()
         bloco = js.split("var t = document.querySelector('.aviso-da-vez');", 1)[1][:1500]
         self.assertLess(bloco.index("var h ="), bloco.index("h.indexOf('desfazer')"))
 
