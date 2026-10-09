@@ -40,6 +40,7 @@ pede.**
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | **O arquivo**: vinte e três instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `CONCORRENTES-2026-09` (a segunda passagem, com a SWOT) e `CONCORRENTES-2026-09-exploracao` (a prova, por dentro das contas), `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`, `SETORES`, `CADERNOS`, `MAPA`, `LEITURA-VALIDADA`, `PLANO-2026-10` (os planos pagos e os seis gaps, 30/09/2026), `TERMOS-2026-10` (o rascunho dos termos e da privacidade para os planos pagos), `MULTIDAO` (o ensaio do lançamento de 5/10 com 500 fornecedores simulados e o dono a decidir os pedidos, 30/09/2026), `UX-7-LEIS`, `UX-ICONES-DICAS-PESOS` e `UX-ECRAS-EM-FALTA-E-ESCURO` (as três auditorias do mesmo dia), `UX-AUDITORIA-1-10` e `LANCAMENTO-2026-10` (o dia do anúncio, 5/10/2026: os textos do LinkedIn e do WhatsApp, e os vídeos, a série e o funil que ficaram em pausa). **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
+| `docs/plano-d1.md` | O plano do D1: o HTML sai do `radar.py` para moldes Jinja, lote a lote, sem mudar uma letra do que o browser recebe | **Antes de mexer no HTML de um ecrã** enquanto o D1 estiver a meio |
 | `LEIA-ME.md` | O manual do Afonso | Ao mexer no que ele opera |
 
 **Nenhum destes é leitura obrigatória, e isso mudou a 19/09/2026.**
@@ -195,6 +196,11 @@ python ferramentas/demo.py         # os ecrãs da visita guiada (/demo):
 python ferramentas/valida_docs.py  # o que a documentação cita existe? e as
                                    # contagens deriváveis batem? (também corre
                                    # na bateria de testes, e trava o commit)
+python ferramentas/igual.py --gravar PASTA [--codigo DIR]  # o HTML de todas
+                                   # as rotas GET, com quatro perfis, sobre a
+                                   # empresa inventada do demo.py (D1)
+python ferramentas/igual.py --comparar A B  # duas gravações iguais ao byte?
+                                   # sai com 1 e mostra onde, se não
 python ferramentas/repetido.py     # o que está escrito duas vezes, com
                                    # ficheiro e linha dos dois lados
 python ferramentas/antes_da_release.py vX.Y.Z   # o portão antes de cortar

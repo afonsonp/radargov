@@ -30292,6 +30292,75 @@ class TestAFichaPeloPapel(_CicloDoTesteComUtilizadores):
         h = self._ver("/entidade/510000001")
         self.assertIn("Contra nós <i>1</i>", h)
 
+
+class TestOPortaoDaIgualdade(unittest.TestCase):
+    """D1, fase 0 (9/10/2026): o HTML sai do `radar.py` para moldes, e
+    a regra dele é que nada muda ao que o browser recebe. O
+    `ferramentas/igual.py` mede-o; isto prova que o portão acusa o que
+    deve e só normaliza o que tem razão escrita para normalizar."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "ferramentas", "igual.py")
+        spec = importlib.util.spec_from_file_location("igual", caminho)
+        cls.igual = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.igual)
+
+    def _gravacoes(self, a, b, nome="gestor/raiz"):
+        pasta = tempfile.mkdtemp(prefix="igual-")
+        self.addCleanup(shutil.rmtree, pasta, ignore_errors=True)
+        for lado, texto in (("a", a), ("b", b)):
+            if texto is None:
+                os.makedirs(os.path.join(pasta, lado, "gestor"), exist_ok=True)
+                continue
+            ficheiro = os.path.join(pasta, lado, nome)
+            os.makedirs(os.path.dirname(ficheiro), exist_ok=True)
+            with open(ficheiro, "w", encoding="utf-8") as f:
+                f.write(texto)
+        return self.igual.comparar(os.path.join(pasta, "a"),
+                                   os.path.join(pasta, "b"))
+
+    def test_o_que_muda_de_pedido_para_pedido_nao_conta(self):
+        hoje = datetime.date.today().strftime("%d/%m/%Y")
+        molde = ("<input type='hidden' name='csrf' value='%s'>"
+                 "<input type='hidden' name='envio' value='%s'>"
+                 "<input type='hidden' name='versao' value='%s'>"
+                 "<script>(function(){var V=\"%s\",vis=0})()</script>"
+                 "<td>" + hoje + " %s</td>")
+        self.assertEqual(self._gravacoes(
+            molde % ("tok1", "ab12", "cd34", "ef56", "15:45"),
+            molde % ("tok2", "9f9f", "0e0e", "7a7a", "15:46")), [])
+
+    def test_um_espaco_a_mais_acusa_e_mostra_onde(self):
+        diferencas = self._gravacoes(
+            "<p>Como o Mira Gov trabalha para a empresa.</p>",
+            "<p>Como o Mira Gov trabalha  para a empresa.</p>")
+        self.assertEqual(len(diferencas), 1)
+        _ficheiro, [(linha, _antes, depois)] = diferencas[0]
+        self.assertEqual(linha, 1)
+        self.assertIn("trabalha  para", depois)
+
+    def test_uma_data_que_nao_e_de_hoje_nao_se_normaliza(self):
+        # a normalização das horas é só a das de hoje: uma data fixa da
+        # base que mude é uma diferença verdadeira
+        self.assertEqual(len(self._gravacoes(
+            "<td>01/03/2025 09:00</td>", "<td>01/03/2025 09:01</td>")), 1)
+
+    def test_um_pedido_que_so_existe_de_um_lado_acusa(self):
+        self.assertEqual(len(self._gravacoes("<p>ola</p>", None)), 1)
+
+    def test_nenhuma_rota_com_parametros_fica_por_medir(self):
+        # uma rota nova com parâmetros precisa de um exemplo no
+        # `EXEMPLOS` (ou de uma lista vazia com a razão), senão o portão
+        # deixava-a de fora sem ninguém saber
+        _lista, sem_exemplo = self.igual.pedidos(radar, {
+            "pombal": "x", "empresa": 1, "proposta": 1, "etiqueta": "x",
+            "tipo": "x"})
+        self.assertEqual(sem_exemplo, [])
+
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
