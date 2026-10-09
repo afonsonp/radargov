@@ -145,7 +145,10 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | Lote | Ecrãs | Porquê nesta ordem |
 |---|---|---|
 | 3.1 | entrar, convite, repor, esqueci-me, segundo factor — **feito a 9/10/2026** (o erro ficou com o `desenhar()`: os seus onze sítios passam com os ecrãs que os chamam) | sem sessão, poucos dados, testam a mecânica |
-| 3.2 | Configurações (as dez secções) | formulários parecidos uns com os outros |
+| 3.2a | o esqueleto das Configurações (o índice e a secção) e as quatro secções do sistema (recolha, leitura, capturas, cópias) — **feito a 9/10/2026**; as macros `campo` e `interruptor` nasceram aqui | só o dono as vê |
+| 3.2b | a Conta | a maior das secções da empresa |
+| 3.2c | os Alertas e o Interesse | partilham a árvore dos CPV |
+| 3.2d | o Importar, os Documentos e os Indicadores | |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |
 | 3.5 | Calendário e indicadores | |

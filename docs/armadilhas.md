@@ -3852,6 +3852,14 @@ botões ou no calendário.
   (`moldes/_conta.html`) e as peças repetidas são macros em
   `moldes/_pecas.html`,
   importadas **dentro** do bloco que as usa.
+  **Um molde reproduz uma linha comprida sem a escrever numa linha só**
+  (lote 3.2a): cada linha que continua a anterior começa por `{{-` ou
+  `{%-`, que comem o fim de linha antes delas, e uma que começa por HTML
+  leva à frente um `{#- -#}`. Um fim de linha a mais entre dois
+  elementos em linha é um espaço que se vê. Enquanto houver secções em
+  Python, o `_campo()` e o `_interruptor()` vivem ao lado das macros
+  `campo` e `interruptor` — uma mudança a um tem de ir ao outro, até o
+  último ecrã que os chama passar a molde.
 - **Abaixo de 900px as tabelas das listas são cartões, e a barra dobra**
   (`miragov-radar.css`, teste com utilizadores de 25/09/2026; o corte
   subiu de 600 para 900 a 26/09/2026, porque a 150 % de zoom a tabela

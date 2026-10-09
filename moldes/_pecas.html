@@ -11,3 +11,12 @@
     nenhum), `id` para o campo o citar no aria-describedby, e `cruz` o ✕
     à frente (o da página de entrar). O texto é texto: o Jinja escapa-o. -#}
 {% macro aviso(texto, tom="danger", papel="alert", id="", cruz=False) %}<div class='mg-alert mg-alert--{{ tom }}'{% if id %} id='{{ id }}'{% endif %}{% if papel %} role='{{ papel }}'{% endif %}>{% if cruz %}<span aria-hidden='true'>&#10005;</span> {% endif %}{{ texto }}</div>{% endmacro %}
+
+{#- Um campo das Configurações (era o `_campo()`). `numerico` dá o
+    teclado dos números; `autocomplete` diz ao browser o que é. Os dois
+    são parâmetros e não um «extra» livre: um atributo escrito no molde
+    também seria escapado, e um `|safe` aqui era a porta que o D1 fecha. -#}
+{% macro campo(rotulo, nome, valor, tipo="text", nota="", numerico=False, autocomplete="") %}<label class='conf-campo'><span>{{ rotulo }}</span><input type='{{ tipo }}' name='{{ nome }}' value='{{ valor }}'{% if numerico %} inputmode='numeric'{% endif %}{% if autocomplete %} autocomplete='{{ autocomplete }}'{% endif %}>{% if nota %}<small>{{ nota }}</small>{% endif %}</label>{% endmacro %}
+
+{#- Um interruptor das Configurações (era o `_interruptor()`). -#}
+{% macro interruptor(rotulo, nome, ligado, nota="") %}<label class='conf-campo conf-check'><input type='checkbox' name='{{ nome }}' value='1'{% if ligado %} checked{% endif %}><span>{{ rotulo }}</span>{% if nota %}<small>{{ nota }}</small>{% endif %}</label>{% endmacro %}

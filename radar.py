@@ -22177,23 +22177,6 @@ def pagina_config(seccao, conteudo, script=""):
     # que os Indicadores sao uma coisa que se afina, e nao sao.
     seccoes = sorted(seccoes_da_plataforma() if da_plataforma
                      else seccoes_visiveis(), key=lambda sc: not sc[4])
-    itens = []
-    for c, t, _, _, grava in seccoes:
-        d = descricao_da_seccao(c)
-        if not grava and (not itens or "so-le" not in itens[-1]):
-            itens.append("<div class='mg-secnav__sep'></div>"
-                         "<div class='mg-secnav__note'>Só leitura</div>")
-        itens.append("<a class='%s' href='/configuracoes/%s' title='%s'%s>%s</a>"
-                     % ("" if grava else "so-le", c, html.escape(d, quote=True),
-                        " aria-current='page'" if c == seccao else "",
-                        html.escape(t)))
-    if da_plataforma or empresa_activa() == SEM_EMPRESA:
-        itens.insert(0, "<a href='/plataforma' title='o resumo, as empresas "
-                        "e os pedidos'>Plataforma</a>")
-    # o `.conf-indice` leva as regras do `SectionNav` na nossa folha: a
-    # classe fica a que era, que e por ela que os testes o encontram
-    indice = ("<nav class='conf-indice' aria-label='Secções'>%s</nav>"
-              % "".join(itens))
     # A seccao e um cartao com faixa (o `EcraConfiguracoes`): o nome e o
     # que ela e na cabeca. As que vem num `conf-cx` so passam a ser o
     # corpo dele; as que trazem varios blocos ficam por baixo da cabeca.
@@ -22207,8 +22190,16 @@ def pagina_config(seccao, conteudo, script=""):
     else:
         seccao_html = (cartao(html.escape(titulo), "", meta=html.escape(descricao))
                        + conteudo)
-    corpo = ("<div class='conf'>%s<div class='conf-corpo'>%s</div></div>"
-             % (indice, seccao_html))
+    # o índice e a secção (`moldes/configuracoes.html`); o `.conf-indice`
+    # leva as regras do `SectionNav` na nossa folha: a classe fica a que
+    # era, que é por ela que os testes o encontram
+    corpo = ecra(
+        "configuracoes.html",
+        plataforma=da_plataforma or empresa_activa() == SEM_EMPRESA,
+        seccoes=[{"codigo": c, "titulo": t, "descricao": descricao_da_seccao(c),
+                  "grava": grava, "aceso": c == seccao}
+                 for c, t, _, _, grava in seccoes],
+        seccao=Markup(seccao_html))
     if da_plataforma:
         return envolver(
             "configuracoes", titulo, "", corpo,
@@ -23985,30 +23976,16 @@ def config_recolha():
                             "valem já, no painel e no temporizador do "
                             "sistema.")
     faltam = tarefas_em_falta()
-    corpo = (
-        "<form method='post' action='/configuracoes/recolha' class='conf-form'>"
-        + _campo("Horas da verificação", "horas",
-                 ", ".join(cfg.get("horas_verificacao") or []),
-                 nota="HH:MM, separadas por vírgula. O temporizador do sistema "
-                      "dispara de hora a hora, e só verifica nas horas desta lista.")
-        + _campo("Janela de recuperação (dias)", "dias_catchup", cfg.get("dias_catchup", 15), extra="inputmode='numeric'",
-                 nota="quantos dias para trás o radar volta a olhar quando falha um slot")
-        + _campo("Janela do detalhe (dias)", "detalhe_dias", cfg.get("detalhe_dias", 60), extra="inputmode='numeric'",
-                 nota="a rotina só lê o detalhe (CPV, prazo, preço) dos anúncios destes últimos dias")
-        + _campo("Detalhes por volta", "detalhes_por_volta", cfg.get("detalhes_por_volta", 40),
-                 extra="inputmode='numeric'")
-        + _campo("Relidos por volta", "relidos_por_volta", cfg.get("relidos_por_volta", 25), extra="inputmode='numeric'",
-                 nota="anúncios com interesse ou proposta em curso, de prazo aberto, que se releem para apanhar alterações")
-        + _interruptor("Trazer as consultas preliminares da Vortal", "vortal_preliminares",
-                       cfg.get("vortal_preliminares", True))
-        + _interruptor("Recuperar um slot falhado na verificação seguinte",
-                       "recuperar_slot_falhado", cfg.get("recuperar_slot_falhado", True))
-        + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
-        + ("<div class='mg-alert mg-alert--danger' style='margin-top:16px'>As tarefas agendadas "
-           "estão por criar (%s): corra o agendar.sh.</div>"
-           % html.escape(", ".join(faltam)) if faltam else
-           "<div class='nota' style='margin-top:16px'>As tarefas agendadas do "
-           "sistema estão criadas.</div>"))
+    corpo = ecra(
+        "config_recolha.html",
+        horas=", ".join(cfg.get("horas_verificacao") or []),
+        dias_catchup=cfg.get("dias_catchup", 15),
+        detalhe_dias=cfg.get("detalhe_dias", 60),
+        detalhes_por_volta=cfg.get("detalhes_por_volta", 40),
+        relidos_por_volta=cfg.get("relidos_por_volta", 25),
+        vortal=cfg.get("vortal_preliminares", True),
+        recuperar=cfg.get("recuperar_slot_falhado", True),
+        faltam=", ".join(faltam))
     return pagina_config("recolha", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
@@ -24062,37 +24039,21 @@ def config_leitura():
                                   ", ".join(escritas),
                                   "s" if len(escritas) > 1 else "")
                                if escritas else ""))
-    opcoes = "".join(
-        "<option value='%s'%s>%s</option>"
-        % (v, " selected" if v == (cfg.get("fornecedor_pecas") or "") else "", t)
-        for v, t in [("", "a cadeia, por ordem (%s)" % " → ".join(nomes_forn))]
-        + [(n, n) for n in nomes_forn])
-    linhas = []
+    fornecedores = []
     for nome, _, omissao, ficheiros, variavel, _ in FORNECEDORES:
         texto, bem, por_var = _estado_da_chave(ficheiros, variavel)
-        linhas.append(
-            "<div class='conf-forn'><div class='mg-field__label'>%s</div>"
-            "<div class='saude'>%s</div>%s%s</div>"
-            % (html.escape(nome),
-               linhas_de_saude([("Chave", html.escape(texto), bem)], "var(--warning)"),
-               _campo("Modelo", "modelo_" + nome,
-                      modelo_do_fornecedor(cfg, nome, omissao),
-                      nota="de origem: %s" % html.escape(omissao)),
-               "" if por_var else
-               _campo("Chave nova", "chave_" + nome, "", tipo="password",
-                      # sem o nome do ficheiro (E58, ronda em PC): a quem
-                      # usa, «groq_API_KEY.txt» não dizia nada de útil
-                      nota="só se grava se escrever uma; fica num ficheiro "
-                           "deste computador, nunca na base nem no git",
-                      extra="autocomplete='new-password'")))
-    corpo = (
-        "<form method='post' action='/configuracoes/leitura' class='conf-form'>"
-        "<label class='conf-campo'><span>Fornecedor em uso</span>"
-        "<select name='fornecedor_pecas'>%s</select>"
-        "<small>Cada pedido desce a cadeia até alguém responder; escolher "
-        "um fixa-o como primeiro.</small></label>%s"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
-        % (opcoes, "".join(linhas)))
+        fornecedores.append({
+            "nome": nome, "omissao": omissao, "por_variavel": por_var,
+            "modelo": modelo_do_fornecedor(cfg, nome, omissao),
+            "saude": Markup(linhas_de_saude([("Chave", html.escape(texto), bem)],
+                                            "var(--warning)"))})
+    # a chave nova vai sem o nome do ficheiro (E58, ronda em PC): a quem
+    # usa, «groq_API_KEY.txt» não dizia nada de útil
+    corpo = ecra(
+        "config_leitura.html",
+        opcoes=[("", "a cadeia, por ordem (%s)" % " → ".join(nomes_forn))]
+        + [(n, n) for n in nomes_forn],
+        escolhido=cfg.get("fornecedor_pecas") or "", fornecedores=fornecedores)
     return pagina_config("leitura", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
@@ -24146,20 +24107,11 @@ def config_capturas():
             ("curl_detalhe", "curl_detalhe.txt — o detalhe",
              "o pedido da página de um anúncio")):
         texto, bem = _estado_da_captura(nome_base)
-        blocos.append(
-            "<div class='conf-forn'><div class='mg-field__label'>%s</div>"
-            "<div class='nota' style='margin:6px 0 10px'>%s. Como se faz a "
-            "captura está no LEIA-ME, secção 3.</div>"
-            "<div class='saude'>%s</div>"
-            "<form method='post' action='/configuracoes/capturas' class='conf-form'>"
-            "<input type='hidden' name='qual' value='%s'>"
-            "<textarea name='texto' rows='5' placeholder='cola aqui o Copy as cURL'></textarea>"
-            "<button type='submit' class='mg-btn mg-btn--primary'>Gravar esta captura</button>"
-            "</form></div>"
-            % (html.escape(titulo), html.escape(nota),
-               linhas_de_saude([("Estado", html.escape(texto), bem)]),
-               nome_base))
-    return pagina_config("capturas", "<div class='mg-card conf-cx'>" + "".join(blocos) + "</div>")
+        blocos.append({"nome": nome_base, "titulo": titulo, "nota": nota,
+                       "saude": Markup(linhas_de_saude(
+                           [("Estado", html.escape(texto), bem)]))})
+    corpo = ecra("config_capturas.html", blocos=blocos)
+    return pagina_config("capturas", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 
 @app.route("/configuracoes/copias", methods=["GET", "POST"])
@@ -24183,31 +24135,15 @@ def config_copias():
             if nome.endswith(".db") and os.path.isfile(caminho):
                 # pelo formatador único: a cópia de uma empresa pequena
                 # dizia «0 MB» (E46), e uma cópia de 0 MB lê-se vazia
-                existentes.append(
-                    "<div class='l'><span class='t'>%s</span><span class='v'>%s</span></div>"
-                    % (html.escape(nome), tamanho_legivel(os.path.getsize(caminho))))
-    ultima = le_marca("ultima_copia", "ainda nenhuma")
-    corpo = (
-        "<form method='post' action='/configuracoes/copias' class='conf-form'>"
-        + _interruptor("Cópia diária das bases", "copia_de_seguranca",
-                       cfg.get("copia_de_seguranca", True),
-                       nota="a plataforma e o ficheiro de cada empresa; o trabalho das empresas não se recupera de mais lado nenhum")
-        + _campo("Cópias a guardar", "copias_a_guardar", cfg.get("copias_a_guardar", 7), extra="inputmode='numeric'",
-                 nota="uma por dia; as mais velhas apagam-se. A base tem 1,3 GB — conta com isso")
-        + "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
-        + "<div class='mg-field__label' style='margin:22px 0 6px'>O que existe em copias/</div>"
-        + "<div class='nota' style='margin-bottom:10px'>Última: %s</div>" % html.escape(ultima)
-        + "<div class='nota' style='margin-bottom:10px'>Fora deste PC: %s "
-          "<span style='color:var(--ink-muted)'>(o destino configura-se uma vez com o "
-          "copias_fora.sh)</span></div>"
-          % html.escape(le_marca("ultima_copia_fora", "ainda nenhuma"))
-        + "<div class='nota' style='margin-bottom:10px'>Ensaio de restauro: %s%s</div>"
-          % ("<br>".join(html.escape(x) for x in
-                         le_marca("ultimo_ensaio_copia", "ainda nenhum").split(" · ")),
-             " <span style='color:var(--ink-muted)'>(python radar.py "
-             "--ensaiar-copia)</span>" if sou_dono() else "")
-        + "<div class='saude'>%s</div>" % ("".join(existentes) or
-                                           "<div class='nota'>nenhuma ainda</div>"))
+                existentes.append((nome, tamanho_legivel(os.path.getsize(caminho))))
+    corpo = ecra(
+        "config_copias.html",
+        copia=cfg.get("copia_de_seguranca", True),
+        a_guardar=cfg.get("copias_a_guardar", 7),
+        ultima=le_marca("ultima_copia", "ainda nenhuma"),
+        fora=le_marca("ultima_copia_fora", "ainda nenhuma"),
+        ensaio=le_marca("ultimo_ensaio_copia", "ainda nenhum").split(" · "),
+        dono=sou_dono(), existentes=existentes)
     return pagina_config("copias", "<div class='mg-card conf-cx'>" + corpo + "</div>")
 
 

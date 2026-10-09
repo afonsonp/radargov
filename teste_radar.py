@@ -18277,6 +18277,11 @@ class TestPesquisaGeralERepor(BaseTemporaria):
         with open(os.path.join(os.path.dirname(radar.__file__), "icones.py"),
                   encoding="utf-8") as f:
             cadeias.append(f.read())
+        # e os moldes (D1): o HTML que sai do radar.py leva as classes
+        pasta = os.path.join(os.path.dirname(radar.__file__), "moldes")
+        for nome in os.listdir(pasta):
+            with open(os.path.join(pasta, nome), encoding="utf-8") as f:
+                cadeias.append(f.read())
         palavras = set(re.findall(r"[A-Za-z_][\w-]*", "\n".join(cadeias)))
         for nome in ("CSS", "CSS_NOVO"):
             classes = self._classes_das_regras(getattr(radar, nome))
