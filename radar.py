@@ -24546,63 +24546,26 @@ def config_documentos():
                          "COALESCE(validade, '9999'), id").fetchall()
     hoje = datetime.now().date().isoformat()
 
-    def opcoes(actual):
-        return "".join("<option%s>%s</option>"
-                       % (" selected" if t == actual else "", html.escape(t))
-                       for t in TIPOS_DE_DOCUMENTO)
-
     def estado(d):
+        """(o estado, a cor) de um documento: sem validade, caducado, a
+        caducar (já com a tarefa do aviso) ou válido."""
         if not d["validade"]:
-            return "<span class='mg-tag'>sem validade</span>"
+            return "sem validade", ""
         if d["validade"] < hoje:
-            return "<span class='mg-tag mg-tag--danger'>caducado</span>"
-        aviso = tarefa_do_documento(d)[0]
-        if aviso <= hoje:
-            return "<span class='mg-tag mg-tag--warning'>a caducar</span>"
-        return "<span class='mg-tag mg-tag--success'>válido</span>"
-    linhas = "".join(
-        "<tr><td>%s</td><td><form class='doc-linha' method='post' "
-        "action='/configuracoes/documentos/%d'>"
-        "<select name='tipo' aria-label='Tipo'>%s</select>"
-        "<input type='text' name='descricao' value='%s' maxlength='120' "
-        "aria-label='Número ou descrição' placeholder='n.º ou descrição'>"
-        "<input type='text' name='validade' value='%s' inputmode='numeric' "
-        "maxlength='10' placeholder='dd/mm/aaaa' aria-label='Válido até' "
-        "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
-        "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
-        "Guardar</button></form></td><td>%s</td></tr>"
-        % (estado(d), d["id"], opcoes(d["tipo"]),
-           html.escape(d["descricao"] or "", quote=True),
-           html.escape(data_pt(d["validade"], ""), quote=True),
-           accao("/configuracoes/documentos/%d/apagar" % d["id"], "Remover",
-                 "mini perigo", "Remover «%s %s»? A tarefa dele sai também."
-                 % (d["tipo"], d["descricao"] or ""),
-                 rotulo="Remover «%s %s»" % (d["tipo"], d["descricao"] or "")))
-        for d in docs)
-    tabela = ("<table class='mg-table tab-docs'><thead><tr><th>Estado</th>"
-              "<th>Documento e validade</th><th></th></tr></thead>"
-              "<tbody>%s</tbody></table>" % linhas) if docs else (
-        "<p class='nota'>Ainda não há documentos na lista.</p>")
-    novo = ("<form method='post' class='conf-form' style='margin-top:18px'>"
-            "<label class='conf-campo'><span>Tipo</span><select name='tipo'>"
-            "%s</select></label>%s%s"
-            # «Adicionar», como nos contactos e nas tarefas (5.ª ronda; era
-            # «Acrescentar», e antes «Juntar», E14)
-            "<button type='submit' class='mg-btn mg-btn--primary'>Adicionar"
-            "</button></form>"
-            % (opcoes(""), _campo("Número ou descrição", "descricao", "",
-                                  extra="maxlength='120'"),
-               _campo("Válido até", "validade", "",
-                      nota="dd/mm/aaaa; vazio se não caduca",
-                      extra="inputmode='numeric' maxlength='10' "
-                            "placeholder='dd/mm/aaaa'")))
-    return pagina_config("documentos", (
-        # sem a primeira frase, que repetia o subtitulo da banda (E14)
-        "<div class='mg-card conf-cx'><p class='nota'>Os ficheiros "
-        "ficam onde a empresa os tem: aqui fica o que caduca. %d dias "
-        "antes de cada validade nasce uma tarefa no Hoje, e mudar a "
-        "validade troca-a pela da data nova.</p>%s%s</div>"
-        % (DIAS_ANTES_DA_VALIDADE, tabela, novo)))
+            return "caducado", " mg-tag--danger"
+        if tarefa_do_documento(d)[0] <= hoje:
+            return "a caducar", " mg-tag--warning"
+        return "válido", " mg-tag--success"
+    linhas = []
+    for d in docs:
+        rotulo, tom_ = estado(d)
+        linhas.append({"id": d["id"], "tipo": d["tipo"], "estado": rotulo,
+                       "tom": tom_, "descricao": d["descricao"] or "",
+                       "validade": data_pt(d["validade"], "")})
+    # sem a primeira frase, que repetia o subtítulo da banda (E14)
+    return pagina_config("documentos", ecra(
+        "documentos.html", dias=DIAS_ANTES_DA_VALIDADE, docs=linhas,
+        tipos=TIPOS_DE_DOCUMENTO))
 
 
 @app.route("/configuracoes/documentos/<int:id_>", methods=["POST"])

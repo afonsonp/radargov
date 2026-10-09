@@ -149,7 +149,9 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.2b | a Conta — **feito a 9/10/2026**: sete moldes `conta_*.html`; as funções `_bloco_*` ficam com o nome e desenham o seu molde; nasce a macro `accao` | a maior das secções da empresa |
 | 3.2c-i | o Interesse — **feito a 9/10/2026** (`interesse.html`, `interesse_listas.html`); a árvore dos CPV entra feita (`arvore_html()`, partilhada com os Concursos: passa no 3.8) | o mais pequeno dos dois |
 | 3.2c-ii | os Alertas — **feito a 9/10/2026** (`alertas.html`; saem o `_linha_filtro`, o `_caixa_email`, o `_caixa_urgente` e o `_caixa_alerta_do_perfil`; nasce a macro `rotulado`, com `{% call %}`). Entram feitos o `arvore_html()`, o `campos_do_local_e_valor()` e o `envios_html()`, partilhados | 177 linhas e quatro auxiliares de ~90 |
-| 3.2d | o Importar, os Documentos e os Indicadores | |
+| 3.2d-i | os Documentos — **feito a 9/10/2026** (`documentos.html`) | o mais pequeno dos três |
+| 3.2d-ii | o Importar | o assistente de três passos |
+| 3.2d-iii | os Indicadores | 197 linhas |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |
 | 3.5 | Calendário e indicadores | |
