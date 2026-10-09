@@ -1,0 +1,4 @@
+{#- Configurações › Capturas (do sistema): as duas capturas cURL. -#}
+{%- for b in blocos %}<div class='conf-forn'><div class='mg-field__label'>{{ b.titulo }}</div><div class='nota' style='margin:6px 0 10px'>{{ b.nota }}. Como se faz a captura está no LEIA-ME, secção 3.</div><div class='saude'>{{ b.saude }}</div>
+{#- -#}<form method='post' action='/configuracoes/capturas' class='conf-form'><input type='hidden' name='qual' value='{{ b.nome }}'><textarea name='texto' rows='5' placeholder='cola aqui o Copy as cURL'></textarea><button type='submit' class='mg-btn mg-btn--primary'>Gravar esta captura</button></form></div>
+{%- endfor -%}

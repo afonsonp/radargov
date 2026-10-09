@@ -1,0 +1,11 @@
+{#- Configurações › Leitura das peças (do sistema): o fornecedor em uso
+    e, por fornecedor, o estado da chave, o modelo e a chave nova. -#}
+{%- import "_pecas.html" as p -%}
+<form method='post' action='/configuracoes/leitura' class='conf-form'><label class='conf-campo'><span>Fornecedor em uso</span><select name='fornecedor_pecas'>
+{%- for valor, texto in opcoes %}<option value='{{ valor }}'{% if valor == escolhido %} selected{% endif %}>{{ texto }}</option>{% endfor -%}
+</select><small>Cada pedido desce a cadeia até alguém responder; escolher um fixa-o como primeiro.</small></label>
+{%- for f in fornecedores %}<div class='conf-forn'><div class='mg-field__label'>{{ f.nome }}</div><div class='saude'>{{ f.saude }}</div>
+{{- p.campo("Modelo", "modelo_" ~ f.nome, f.modelo, nota="de origem: " ~ f.omissao) }}
+{%- if not f.por_variavel %}{{ p.campo("Chave nova", "chave_" ~ f.nome, "", tipo="password", nota="só se grava se escrever uma; fica num ficheiro deste computador, nunca na base nem no git", autocomplete="new-password") }}{% endif %}</div>
+{%- endfor -%}
+<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>

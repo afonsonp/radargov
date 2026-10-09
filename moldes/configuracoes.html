@@ -1,0 +1,10 @@
+{#- O esqueleto das Configurações (o `pagina_config()`): o índice das
+    secções à esquerda e a secção à direita. As que gravam vêm primeiro;
+    as que só lêem ficam apartadas por um risco e uma nota. -#}
+{%- set ns = namespace(sep=False) -%}
+<div class='conf'><nav class='conf-indice' aria-label='Secções'>
+{%- if plataforma %}<a href='/plataforma' title='o resumo, as empresas e os pedidos'>Plataforma</a>{% endif %}
+{%- for s in seccoes %}
+{%- if not s.grava and not ns.sep %}{% set ns.sep = True %}<div class='mg-secnav__sep'></div><div class='mg-secnav__note'>Só leitura</div>{% endif -%}
+<a class='{{ "" if s.grava else "so-le" }}' href='/configuracoes/{{ s.codigo }}' title='{{ s.descricao }}'{% if s.aceso %} aria-current='page'{% endif %}>{{ s.titulo }}</a>
+{%- endfor %}</nav><div class='conf-corpo'>{{ seccao }}</div></div>
