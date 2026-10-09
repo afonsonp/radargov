@@ -1615,7 +1615,7 @@ ainda não tem conta, e a guarda está na própria rota — o código (32
 bytes aleatórios, que na base só existe em resumo), a origem do POST e
 o uso único com prazo (`DIAS_DE_CONVITE`, sete). O ecrã diz **para que
 empresa e com que papel** é o convite, e liga aos termos e à privacidade
-quando existem (`_de_quem_e_o_convite()`, G55 da 3.ª ronda); um convite
+quando existem (`pagina_convite()`, no `moldes/convite.html`; G55 da 3.ª ronda); um convite
 que não serve diz «peça outro ao gestor da sua empresa».
 
 **Do pedido de acesso à empresa a trabalhar** (F5). Em «pedidos de

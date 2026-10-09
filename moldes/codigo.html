@@ -1,0 +1,21 @@
+{#- O código do segundo factor (28/09/2026). O texto é texto. -#}
+{% extends "_conta.html" %}
+{% block aviso %}
+{% import "_pecas.html" as p %}
+{% if aviso %}{{ p.aviso(aviso, id="f-aviso") }}{% endif %}
+{%- endblock %}
+{% block formulario %}
+<form method="post" action="/entrar/codigo">
+  <input type="hidden" name="para" value="{{ para }}">
+  <div class="mg-field"><label class="mg-field__label" for="f-codigo">{{ "Código de recuperação" if recuperacao else "Código da app de autenticação" }}</label>
+{% if recuperacao %}
+   <input class="mg-field__input" id="f-codigo" type="text" name="codigo" autocomplete="off" autocapitalize="off" spellcheck="false" required autofocus{% if aviso %} aria-describedby='f-aviso'{% endif %}></div>
+{% else %}
+   <input class="mg-field__input" id="f-codigo" type="text" name="codigo" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" required autofocus{% if aviso %} aria-describedby='f-aviso'{% endif %}></div>
+{% endif %}
+  <label class="dist-cx"><input type="checkbox" name="confiar" value="1"> Confiar neste aparelho durante {{ dias }} dias</label>
+  <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
+ </form>
+ <p class="entrar-nota"><a href="/entrar/codigo?{{ outro }}">{{ "Usar o código da app" if recuperacao else "Usar um código de recuperação" }}</a></p>
+ <p class="entrar-nota"><a href="/entrar">Voltar a entrar com outra conta</a></p>
+{%- endblock %}

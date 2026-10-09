@@ -1,0 +1,24 @@
+{#- A ligação do convite (F5). O texto é texto; o Jinja escapa-o. -#}
+{% extends "_conta.html" %}
+{% block aviso %}
+{% import "_pecas.html" as p %}
+{% if aviso %}{{ p.aviso(aviso, "danger" if erro else "info", "alert" if erro else "") }}{% endif %}
+{%- endblock %}
+{% block formulario %}
+{% if utilizador is not none %}
+{% if convite %}<p class='nota'>Convite para <b>{{ empresa }}</b>, com o papel de <b>{{ papel }}</b>.</p>{% endif %}<form method="post">
+  <div class="mg-field"><label class="mg-field__label" for="c-nome">O seu nome</label>
+   <input class="mg-field__input" id="c-nome" type="text" name="nome" value="{{ nome }}" autocomplete="name" maxlength="80" required></div>
+  <div class="mg-field"><label class="mg-field__label" for="c-utilizador">E-mail</label>
+   <input class="mg-field__input" id="c-utilizador" type="email" name="utilizador" value="{{ utilizador }}" autocomplete="username" autocapitalize="off" required autofocus></div>
+  <div class="mg-field"><label class="mg-field__label" for="c-senha">Palavra-passe</label>
+   <input class="mg-field__input" id="c-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required></div>
+  <div class="mg-field"><label class="mg-field__label" for="c-outra">Repetir a palavra-passe</label>
+   <input class="mg-field__input" id="c-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Criar a conta e entrar</button>
+ </form>
+{%- if convite and legal %}<p class='entrar-nota'>Ao criar a conta aceita os <a href='/termos'>termos de utilização</a> e a <a href='/privacidade'>política de privacidade</a>.</p>{% endif %}
+{% else %}
+<p><a href='/entrar'>Ir para a entrada</a></p>
+{%- endif %}
+{%- endblock %}

@@ -1,3 +1,4 @@
+{% import "_pecas.html" as p %}
 <!doctype html><html lang="pt" data-pele="novo" data-theme="sistema"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Entrar — Mira Gov</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml">{{ css }}</head>
@@ -11,13 +12,13 @@
  <section class="entrar-form"><div class="entrar-cx">
  <a class="entrar-voltar" href="/">&larr; Voltar ao início</a>
  <h1>Entrar</h1>
- {{ aviso }}
+ {%+ if aviso %}{{ p.aviso(aviso, id="e-erro", cruz=True) }}{% endif +%}
  <form method="post" action="/entrar">
   <input type="hidden" name="para" value="{{ para }}">
   <div class="mg-field"><label class="mg-field__label" for="e-utilizador">E-mail</label>
    <input class="mg-field__input" id="e-utilizador" type="text" name="email" value="{{ email }}" autocomplete="username" autocapitalize="off" required autofocus></div>
   <div class="mg-field"><label class="mg-field__label" for="e-senha">Palavra-passe</label>
-   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required{{ descrito }}></div>
+   <input class="mg-field__input" id="e-senha" type="password" name="senha" autocomplete="current-password" required{% if aviso %} aria-describedby='e-erro'{% endif %}></div>
   <button type="submit" class="mg-btn mg-btn--primary">Entrar</button>
  </form>
  <p class="entrar-nota">Esqueceu-se da palavra-passe? <a href="/esqueci-me">Receba uma ligação por e-mail</a>. Se entra com um nome de utilizador e não com um e-mail, peça ao gestor da sua empresa uma ligação para a repor.</p>

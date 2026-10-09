@@ -1,0 +1,20 @@
+{#- A ligação de repor a palavra-passe (D17). O texto é texto. -#}
+{% extends "_conta.html" %}
+{% block aviso %}
+{% import "_pecas.html" as p %}
+{% if aviso %}{{ p.aviso(aviso, "danger" if erro else "info", "alert" if erro else "") }}{% endif %}
+{%- endblock %}
+{% block formulario %}
+{% if utilizador is not none %}
+<form method="post">
+  <p class="nota">Conta: <b>{{ utilizador }}</b></p>
+  <div class="mg-field"><label class="mg-field__label" for="r-senha">Palavra-passe nova</label>
+   <input class="mg-field__input" id="r-senha" type="password" name="senha" autocomplete="new-password" minlength="8" required autofocus></div>
+  <div class="mg-field"><label class="mg-field__label" for="r-outra">Repetir a nova palavra-passe</label>
+   <input class="mg-field__input" id="r-outra" type="password" name="outra" autocomplete="new-password" minlength="8" required></div>
+  <button type="submit" class="mg-btn mg-btn--primary">Guardar e entrar</button>
+ </form>
+{%- else %}
+<p><a href='/entrar'>Ir para a entrada</a></p>
+{%- endif %}
+{%- endblock %}
