@@ -23825,6 +23825,22 @@ class TestLotePCBVerComoEAPaginaDoDono(_PlataformaComDuasEmpresas):
         self.assertNotRegex(self.ver(outro, radar.LIGACAO_UMA_VEZ).get_data(as_text=True),
                             r"/convite/[\w-]+")
 
+    def test_a_pagina_da_empresa_mostra_o_pedido_que_a_criou(self):
+        # 9/10/2026: aceite o pedido, o telemóvel de quem pediu só se via
+        # na lista dos pedidos, e não na página da empresa
+        with radar.liga() as c:
+            c.execute("UPDATE pedidos_acesso SET estado='aceite', empresa_id=?, "
+                      "telefone='+351 930 404 790', mensagem='CONTACT-CENTER' "
+                      "WHERE id=?", (self.beta, self.pedido))
+        dono = self.entrar("dono")
+        h = self.ver(dono, "/plataforma/empresa/%d" % self.beta).get_data(as_text=True)
+        self.assertIn("href='tel:+351930404790'", h)
+        self.assertIn("ze@gama.pt", h)
+        self.assertIn("CONTACT-CENTER", h)
+        # a outra empresa não leva o pedido
+        h = self.ver(dono, "/plataforma/empresa/1").get_data(as_text=True)
+        self.assertNotIn("ze@gama.pt", h)
+
     def test_v4_p5_suspender_diz_quantas_contas_e_sessoes_fecha(self):
         self.entrar("chefe")
         self.entrar("rita")

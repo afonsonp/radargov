@@ -25188,6 +25188,37 @@ def _cartao_da_nota(id_):
         "nota</button></form>" % (id_, html.escape(nota_da_empresa(id_))), id_="nota")
 
 
+def _cartao_do_pedido(id_):
+    """O que quem pediu escreveu no site (9/10/2026: aceite o pedido, o
+    telemóvel só se via na lista dos pedidos). Mais de um quando outros
+    se juntaram à empresa; nenhum quando ela nasceu pela consola."""
+    with liga() as c:
+        pedidos = c.execute("SELECT * FROM pedidos_acesso WHERE empresa_id=? "
+                            "ORDER BY id", (id_,)).fetchall()
+    if not pedidos:
+        return ""
+
+    def um(p):
+        tel = p["telefone"] or ""
+        campos = (
+            ("Nome", html.escape(p["nome"] or "")),
+            ("E-mail", "<a href='mailto:%s'>%s</a>" % (
+                html.escape(p["email"] or "", quote=True), html.escape(p["email"] or ""))),
+            ("Telemóvel", "<a href='tel:%s'>%s</a>" % (
+                html.escape(re.sub(r"[^\d+]", "", tel), quote=True), html.escape(tel))
+             if tel else ""),
+            ("Empresa", html.escape(p["empresa"] or "")),
+            ("NIF", html.escape(p["nif"] or "")),
+            ("Área", html.escape(p["sector"] or "")),
+            ("Plano pedido", html.escape(p["plano"] or "")),
+            ("Mensagem", html.escape(p["mensagem"] or "")),
+            ("Pedido", html.escape(data_hora_pt((p["criado_em"] or "")[:16]))),
+            ("Aceite", html.escape(data_hora_pt((p["decidido_em"] or "")[:16]))))
+        return "<p>%s</p>" % "<br>".join("<b>%s:</b> %s" % (r, v) for r, v in campos if v)
+    return cartao("Pedido de acesso" if len(pedidos) == 1 else "Pedidos de acesso",
+                  "".join(um(p) for p in pedidos), id_="pedido")
+
+
 def _cartao_da_actividade(id_):
     linhas = actividade_da_empresa(id_, limite=8)
     return cartao("Actividade", tabela_da_actividade(linhas),
@@ -25320,10 +25351,10 @@ def plataforma_empresa(id_):
             "o e-mail não sai: nenhum ligado" if not e["alertas"] else
             "o e-mail sai" if not e["email"] else "o e-mail não sai"))
     corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "%s%s%s%s%s%s%s%s%s%s</div>"
+             "%s%s%s%s%s%s%s%s%s%s%s</div>"
              % ("<div class='mg-alert mg-alert--danger'>Suspensa: as contas não entram "
                 "e não recebe alertas.</div>" if suspensa else "",
-                stats, _cartao_da_nota(id_), bloco_plano, bloco_contas, bloco_convites,
+                stats, _cartao_do_pedido(id_), _cartao_da_nota(id_), bloco_plano, bloco_contas, bloco_convites,
                 _cartao_da_actividade(id_) + _cartao_do_uso(id_), bloco_alertas,
                 bloco_perfil,
                 _cartao_de_apagar(e, fecha_contas, len(convites),

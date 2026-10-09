@@ -801,7 +801,8 @@ Fica um zip em `copias/exportacao-empresa-N-…zip`, só legível por ti: a
 base da empresa, a configuração, a triagem, os documentos dela, e as
 contas e o plano num `plataforma.json` — sem as palavras-passe.
 
-Na página de cada empresa tens também: os botões **suspender**,
+Na página de cada empresa tens também: o **pedido de acesso** de onde
+ela nasceu, com o telemóvel, o e-mail e a mensagem de quem pediu; os botões **suspender**,
 **reactivar** e **tirar** em cada conta (fica no histórico da empresa
 como feito «pelo suporte», e a pessoa suspensa não entra nem com a
 palavra-passe certa); a **nota interna**, que só tu lês; e a
