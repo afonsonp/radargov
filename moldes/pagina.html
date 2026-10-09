@@ -1,23 +1,23 @@
-<!doctype html><html lang="pt" data-pele="novo" data-theme="%(tema)s"><head><meta charset="utf-8">
+<!doctype html><html lang="pt" data-pele="novo" data-theme="{{ tema }}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="csrf" content="%(csrf)s">
-<title>%(titulo_aba)s</title>
+<meta name="csrf" content="{{ csrf }}">
+<title>{{ titulo_aba }}</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>document.documentElement.classList.add('com-js')</script>
-%(css)s</head><body>
+{{ css }}</head><body>
 <a class="saltar" href="#conteudo">Saltar para o conteúdo</a>
 <div class="app">
-<header class="mg mg-topbar">%(faixa)s
- <a class="mg-topbar__brand" href="/" %(inicio_on)s aria-label="Hoje &mdash; Mira Gov" title="Hoje &mdash; o estado do negócio e o que há para fazer">%(logo)s</a>
- <nav class="mg-topbar__nav" aria-label="Principal">%(nav)s</nav>
- %(procurar)s
- %(conta)s
+<header class="mg mg-topbar">{{ faixa }}
+ <a class="mg-topbar__brand" href="/" {{ inicio_on }} aria-label="Hoje &mdash; Mira Gov" title="Hoje &mdash; o estado do negócio e o que há para fazer">{{ logo }}</a>
+ <nav class="mg-topbar__nav" aria-label="Principal">{{ nav }}</nav>
+ {{ procurar }}
+ {{ conta }}
 </header>
 <main class="mg" id="conteudo" tabindex="-1">
- %(topo)s
- <div class="corpo">%(aviso)s%(conteudo)s</div>
+ {{ topo }}
+ <div class="corpo">{{ aviso }}{{ conteudo }}</div>
 </main>
-%(baixo)s
+{{ baixo }}
 </div>
 <script>
 /* A barra e o topo estavam os DOIS em sticky;top:0, e o topo ficava por
@@ -226,7 +226,7 @@
   b.className = 'data-cal';
   b.title = 'Escolher no calendário';
   b.setAttribute('aria-label', 'Escolher no calendário');
-  b.innerHTML = %(icone_cal)s;
+  b.innerHTML = {{ icone_cal }};
   cx.appendChild(b);
   b.addEventListener('click', function () {
    if (!escolha.parentNode) document.body.appendChild(escolha);
@@ -366,5 +366,5 @@ document.addEventListener('submit', function (e) {
  history.replaceState(history.state, '', location.pathname + (s ? '?' + s : '') + location.hash);
 })();
 </script>
-%(script)s
+{{ script }}
 </body></html>
