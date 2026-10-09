@@ -1,0 +1,16 @@
+{#- Configurações › Documentos (D5 da segunda ronda, 26/09/2026): o cofre
+    do que caduca, sem ficheiros. Só o gestor da empresa (ROTAS_SO_ADMIN).
+    O botão diz «Adicionar», como nos contactos e nas tarefas (5.ª
+    ronda; era «Acrescentar», e antes «Juntar», E14). -#}
+{%- import "_pecas.html" as p -%}
+{%- macro opcoes(tipos, actual) %}{% for t in tipos %}<option{% if t == actual %} selected{% endif %}>{{ t }}</option>{% endfor %}{% endmacro -%}
+<div class='mg-card conf-cx'><p class='nota'>Os ficheiros ficam onde a empresa os tem: aqui fica o que caduca. {{ dias }} dias antes de cada validade nasce uma tarefa no Hoje, e mudar a validade troca-a pela da data nova.</p>
+{%- if docs %}<table class='mg-table tab-docs'><thead><tr><th>Estado</th><th>Documento e validade</th><th></th></tr></thead><tbody>
+{%- for d in docs %}<tr><td><span class='mg-tag{{ d.tom }}'>{{ d.estado }}</span></td><td><form class='doc-linha' method='post' action='/configuracoes/documentos/{{ d.id }}'><select name='tipo' aria-label='Tipo'>{{ opcoes(tipos, d.tipo) }}</select><input type='text' name='descricao' value='{{ d.descricao }}' maxlength='120' aria-label='Número ou descrição' placeholder='n.º ou descrição'><input type='text' name='validade' value='{{ d.validade }}' inputmode='numeric' maxlength='10' placeholder='dd/mm/aaaa' aria-label='Válido até' pattern='\d{1,2}/\d{1,2}/\d{4}'><button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>Guardar</button></form></td><td>{{ p.accao("/configuracoes/documentos/" ~ d.id ~ "/apagar", "Remover", "mini perigo", "Remover «%s %s»? A tarefa dele sai também."|format(d.tipo, d.descricao), rotulo="Remover «%s %s»"|format(d.tipo, d.descricao)) }}</td></tr>
+{%- endfor %}</tbody></table>
+{%- else %}<p class='nota'>Ainda não há documentos na lista.</p>
+{%- endif -%}
+<form method='post' class='conf-form' style='margin-top:18px'><label class='conf-campo'><span>Tipo</span><select name='tipo'>{{ opcoes(tipos, "") }}</select></label>
+{{- p.campo("Número ou descrição", "descricao", "", attrs=[("maxlength", "120")]) }}
+{{- p.campo("Válido até", "validade", "", nota="dd/mm/aaaa; vazio se não caduca", attrs=[("inputmode", "numeric"), ("maxlength", "10"), ("placeholder", "dd/mm/aaaa")]) -}}
+<button type='submit' class='mg-btn mg-btn--primary'>Adicionar</button></form></div>
