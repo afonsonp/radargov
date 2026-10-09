@@ -37911,9 +37911,13 @@ def _tabela_das_visitas(titulo, cabecalhos, linhas):
     """Um cartão com uma tabela de contagens; vazio diz-se."""
     if not linhas:
         return cartao(titulo, "<p class='nota'>Nada neste período.</p>")
-    return cartao(titulo, "<table class='mg-table tab-plataforma'><thead><tr>%s</tr>"
-                  "</thead><tbody>%s</tbody></table>" % (
-                      "".join("<th>%s</th>" % h for h in cabecalhos),
+    # As colunas de contagens vão ao centro, cabeçalho e número (9/10/2026,
+    # pedido dele: à direita, com o rótulo à esquerda, ficava estranho)
+    return cartao(titulo, "<table class='mg-table tab-plataforma tab-visitas'><thead>"
+                  "<tr>%s</tr></thead><tbody>%s</tbody></table>" % (
+                      "".join("<th%s>%s</th>" % (
+                          " class='mg-num'" if isinstance(v, int) else "", h)
+                          for h, v in zip(cabecalhos, linhas[0])),
                       "".join("<tr>%s</tr>" % "".join(
                           _celula_da_tabela(h, html.escape(str(v)),
                                             "mg-num" if isinstance(v, int) else "")

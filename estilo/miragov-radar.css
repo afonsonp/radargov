@@ -142,6 +142,10 @@ main.entrar .mg-empty{border:0;padding:0;background:none;align-items:stretch;
 /* O cabecalho de uma coluna de numeros alinha a direita, mas e rotulo:
    em sans, como os outros. So as celulas vao em mono. */
 .mg-table th.mg-num{font-family:var(--font-sans);font-size:var(--text-xs)}
+/* As tabelas das visitas (9/10/2026, pedido dele): as contagens ao
+   centro, com o cabecalho por cima. No telemovel a regra da
+   `.tab-plataforma`, mais especifica, volta a pô-las a esquerda. */
+.mg-table.tab-visitas .mg-num{text-align:center}
 
 /* Os filtros do `EcraConcursos`: uma grelha de uma linha em
    `surface-sunken`, com o `Field` do sistema. O `#filtros-lista`
