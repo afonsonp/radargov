@@ -2,10 +2,10 @@
 {%- import "_pecas.html" as p -%}
 <form method='post' action='/configuracoes/recolha' class='conf-form'>
 {{- p.campo("Horas da verificação", "horas", horas, nota="HH:MM, separadas por vírgula. O temporizador do sistema dispara de hora a hora, e só verifica nas horas desta lista.") }}
-{{- p.campo("Janela de recuperação (dias)", "dias_catchup", dias_catchup, numerico=True, nota="quantos dias para trás o radar volta a olhar quando falha um slot") }}
-{{- p.campo("Janela do detalhe (dias)", "detalhe_dias", detalhe_dias, numerico=True, nota="a rotina só lê o detalhe (CPV, prazo, preço) dos anúncios destes últimos dias") }}
-{{- p.campo("Detalhes por volta", "detalhes_por_volta", detalhes_por_volta, numerico=True) }}
-{{- p.campo("Relidos por volta", "relidos_por_volta", relidos_por_volta, numerico=True, nota="anúncios com interesse ou proposta em curso, de prazo aberto, que se releem para apanhar alterações") }}
+{{- p.campo("Janela de recuperação (dias)", "dias_catchup", dias_catchup, attrs=[("inputmode", "numeric")], nota="quantos dias para trás o radar volta a olhar quando falha um slot") }}
+{{- p.campo("Janela do detalhe (dias)", "detalhe_dias", detalhe_dias, attrs=[("inputmode", "numeric")], nota="a rotina só lê o detalhe (CPV, prazo, preço) dos anúncios destes últimos dias") }}
+{{- p.campo("Detalhes por volta", "detalhes_por_volta", detalhes_por_volta, attrs=[("inputmode", "numeric")]) }}
+{{- p.campo("Relidos por volta", "relidos_por_volta", relidos_por_volta, attrs=[("inputmode", "numeric")], nota="anúncios com interesse ou proposta em curso, de prazo aberto, que se releem para apanhar alterações") }}
 {{- p.interruptor("Trazer as consultas preliminares da Vortal", "vortal_preliminares", vortal) }}
 {{- p.interruptor("Recuperar um slot falhado na verificação seguinte", "recuperar_slot_falhado", recuperar) -}}
 <button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>

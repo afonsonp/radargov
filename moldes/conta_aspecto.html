@@ -1,0 +1,4 @@
+{#- O aspecto do painel para esta pessoa (D14): guarda-se na conta. -#}
+<form method='post' action='/configuracoes/conta/aspecto' class='conf-form' id='aspecto' style='margin-top:22px'><fieldset class='dist-interesse'><legend>Aspecto</legend>
+{%- for chave, rotulo in opcoes %}<label class='dist-cx'><input type='radio' name='aspecto' value='{{ chave }}'{% if chave == actual %} checked{% endif %}> {{ rotulo }}</label>{% endfor -%}
+</fieldset><div class='nota' style='margin-bottom:10px'>O alto contraste escurece o texto e as linhas, e tira as sombras. «Como o sistema» segue o claro ou o escuro que o computador ou o telemóvel tiverem. Vale para esta conta, em todos os aparelhos.</div><button type='submit' class='mg-btn mg-btn--secondary'>Guardar o aspecto</button></form>

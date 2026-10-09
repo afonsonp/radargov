@@ -1,0 +1,4 @@
+{#- Quando o dono da plataforma entrou para ver a empresa, e saiu. -#}
+{%- if linhas %}<div class='mg-field__label' style='margin:22px 0 6px'>Acessos do suporte</div><div class='nota' style='margin-bottom:8px'>O dono da plataforma pode ver a aplicação como a empresa a vê, só para ler, para responder a um pedido de ajuda. Cada entrada fica aqui.</div><div class='saude'>
+{%- for l in linhas %}<div class='l'><span class='t'>{{ l.detalhe }}</span><span class='v'>{{ l.quando }}</span></div>{% endfor %}</div>
+{%- endif -%}

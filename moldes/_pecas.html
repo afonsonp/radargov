@@ -12,11 +12,19 @@
     à frente (o da página de entrar). O texto é texto: o Jinja escapa-o. -#}
 {% macro aviso(texto, tom="danger", papel="alert", id="", cruz=False) %}<div class='mg-alert mg-alert--{{ tom }}'{% if id %} id='{{ id }}'{% endif %}{% if papel %} role='{{ papel }}'{% endif %}>{% if cruz %}<span aria-hidden='true'>&#10005;</span> {% endif %}{{ texto }}</div>{% endmacro %}
 
-{#- Um campo das Configurações (era o `_campo()`). `numerico` dá o
-    teclado dos números; `autocomplete` diz ao browser o que é. Os dois
-    são parâmetros e não um «extra» livre: um atributo escrito no molde
-    também seria escapado, e um `|safe` aqui era a porta que o D1 fecha. -#}
-{% macro campo(rotulo, nome, valor, tipo="text", nota="", numerico=False, autocomplete="") %}<label class='conf-campo'><span>{{ rotulo }}</span><input type='{{ tipo }}' name='{{ nome }}' value='{{ valor }}'{% if numerico %} inputmode='numeric'{% endif %}{% if autocomplete %} autocomplete='{{ autocomplete }}'{% endif %}>{% if nota %}<small>{{ nota }}</small>{% endif %}</label>{% endmacro %}
+{#- Um campo das Configurações (era o `_campo()`). Os atributos a mais
+    vão em `attrs`, uma lista de pares (nome, valor) pela ordem em que
+    saem; um valor `none` dá o atributo sozinho (`required`). Não há um
+    «extra» livre: um atributo escrito no molde também seria escapado, e
+    um `|safe` aqui era a porta que o D1 fecha. -#}
+{% macro campo(rotulo, nome, valor, tipo="text", nota="", attrs=()) %}<label class='conf-campo'><span>{{ rotulo }}</span><input type='{{ tipo }}' name='{{ nome }}' value='{{ valor }}'{% for a in attrs %} {{ a[0] }}{% if a[1] is not none %}='{{ a[1] }}'{% endif %}{% endfor %}>{% if nota %}<small>{{ nota }}</small>{% endif %}</label>{% endmacro %}
 
 {#- Um interruptor das Configurações (era o `_interruptor()`). -#}
 {% macro interruptor(rotulo, nome, ligado, nota="") %}<label class='conf-campo conf-check'><input type='checkbox' name='{{ nome }}' value='1'{% if ligado %} checked{% endif %}><span>{{ rotulo }}</span>{% if nota %}<small>{{ nota }}</small>{% endif %}</label>{% endmacro %}
+
+{#- Um botão que faz POST (era o `accao()`, que continua a servir os
+    ecrãs ainda em Python: uma mudança a um vai ao outro). O `confirmar`
+    passa pelo filtro `js` (o `json.dumps`) e o Jinja escapa-o para o
+    atributo; a `classe` é a da casa («mini», «bt»), e o filtro `botao`
+    tradu-la na do sistema. -#}
+{% macro accao(destino, etiqueta, classe="bt", confirmar="", campos={}, rotulo="") %}<form class='accao' method='post' action='{{ destino }}'{% if confirmar %} onsubmit="return confirm({{ confirmar|js }})"{% endif %}>{% for k, v in campos.items() %}<input type='hidden' name='{{ k }}' value='{{ v }}'>{% endfor %}<button type='submit' class='{{ classe|botao }}'{% if rotulo %} aria-label='{{ rotulo }}'{% endif %}>{{ etiqueta }}</button></form>{% endmacro %}

@@ -3859,7 +3859,13 @@ botões ou no calendário.
   elementos em linha é um espaço que se vê. Enquanto houver secções em
   Python, o `_campo()` e o `_interruptor()` vivem ao lado das macros
   `campo` e `interruptor` — uma mudança a um tem de ir ao outro, até o
-  último ecrã que os chama passar a molde.
+  último ecrã que os chama passar a molde. O mesmo vale para o `accao()`
+  e a macro `accao` (lote 3.2b), que levam dois filtros registados no
+  `MOLDES_JINJA` ao lado do `botao()`: o `botao` (a classe da casa na do
+  sistema) e o `js` (o `json.dumps` do texto da confirmação, que o Jinja
+  escapa para o atributo). Os atributos a mais de um campo vão em
+  `attrs`, uma lista de pares pela ordem em que saem: a ordem mudava de
+  campo para campo, e uma macro com ordem fixa não a reproduzia.
 - **Abaixo de 900px as tabelas das listas são cartões, e a barra dobra**
   (`miragov-radar.css`, teste com utilizadores de 25/09/2026; o corte
   subiu de 600 para 900 a 26/09/2026, porque a 150 % de zoom a tabela

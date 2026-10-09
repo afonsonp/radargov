@@ -1,0 +1,6 @@
+{#- A nossa empresa: o nome e o NIF, para o cruzamento com o BASE. -#}
+{%- import "_pecas.html" as p -%}
+<div class='mg-field__label' id='empresa' style='margin:22px 0 6px'>A nossa empresa</div><div class='nota' style='margin-bottom:10px'>Para o Mira Gov saber, ao cruzar com o Portal BASE, se a adjudicação foi nossa. Enquanto estiver vazio, a ficha mostra a quem foi e pergunta.</div><form method='post' action='/configuracoes/conta/empresa' class='conf-form'>
+{{- p.campo("Nome", "nome_da_empresa", nome, nota="como aparece nos contratos", attrs=[("maxlength", "120")]) }}
+{{- p.campo("NIF", "nif_da_empresa", nif, nota="nove dígitos; é por aqui que a ligação é certa", attrs=[("inputmode", "numeric"), ("maxlength", "14"), ("autocomplete", "off")]) -}}
+<button type='submit' class='mg-btn mg-btn--secondary'>Guardar</button></form>

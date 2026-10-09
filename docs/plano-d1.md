@@ -146,7 +146,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 |---|---|---|
 | 3.1 | entrar, convite, repor, esqueci-me, segundo factor — **feito a 9/10/2026** (o erro ficou com o `desenhar()`: os seus onze sítios passam com os ecrãs que os chamam) | sem sessão, poucos dados, testam a mecânica |
 | 3.2a | o esqueleto das Configurações (o índice e a secção) e as quatro secções do sistema (recolha, leitura, capturas, cópias) — **feito a 9/10/2026**; as macros `campo` e `interruptor` nasceram aqui | só o dono as vê |
-| 3.2b | a Conta | a maior das secções da empresa |
+| 3.2b | a Conta — **feito a 9/10/2026**: sete moldes `conta_*.html`; as funções `_bloco_*` ficam com o nome e desenham o seu molde; nasce a macro `accao` | a maior das secções da empresa |
 | 3.2c | os Alertas e o Interesse | partilham a árvore dos CPV |
 | 3.2d | o Importar, os Documentos e os Indicadores | |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
@@ -166,6 +166,17 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 - Documentação no mesmo commit: a arquitectura do `CLAUDE.md` (a banda do
   painel), as armadilhas («A interface»), o `ESTADO.md` (linhas), e o D1
   riscado no `BACKLOG.md`.
+
+## Achados pelo caminho (não se corrigem dentro do D1)
+
+O D1 não muda comportamento: o que se encontra de errado fica aqui, e
+corrige-se num trabalho à parte, com o seu teste.
+
+- **A confirmação do «Remover» da Conta escapa o e-mail duas vezes**
+  (lote 3.2b): o texto da confirmação leva o e-mail já escapado, e o
+  `accao` escapa-o outra vez — um e-mail com `&` aparece no diálogo
+  como `&amp;`. O molde reproduz o defeito de propósito (`u.email|e`);
+  corrige-se tirando esse `|e`.
 
 ## 4. Riscos e como se tratam
 
