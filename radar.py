@@ -23831,43 +23831,22 @@ def _base_no_ensaio(linhas, cfg=None):
             l["base"] = "adjudicado a %s" % quem
 
 
-def _tabela_do_ensaio(linhas):
-    corpo = []
-    for l in linhas:
-        problemas = "".join("<div class='mau'>%s</div>" % html.escape(pr) for pr in l["problemas"])
-        avisos = "".join("<div class='aviso'>%s</div>" % html.escape(av) for av in l.get("avisos", []))
-        # Um veredicto só, antes dos avisos (segunda ronda, 26/09/2026:
-        # um erro a vermelho e um aviso a âmbar na mesma linha não diziam
-        # se ela entrava); e o que faz ao que já existe.
-        veredicto = ("<b class='ok'>entra</b>" if l["ok"]
-                     else "<b class='mau'>não entra</b>")
-        efeito = ("<div>%s</div>" % html.escape(l["efeito"])) if l.get("efeito") else ""
-        base = l.get("base", "")
-        corpo.append(
-            "<tr class='%s'><td class='d'>%d</td><td class='n'>%s</td><td class='o'>%s</td>"
-            "<td class='d'>%s</td><td>%s</td><td class='p'>%s</td><td class='d'>%s</td>"
-            "<td>%s</td><td>%s</td></tr>"
-            % ("ok" if l["ok"] else "erro", l["linha"],
-               # o que se escreveu, quando não se leu: «—» não deixava ver
-               # o que corrigir
-               html.escape(l["ref"] or l.get("ref_escrita") or "—"),
-               html.escape(corta(l["titulo"] or "", 90)),
-               "L%d" % l["lote"] if l["lote"] is not None else "—",
-               html.escape(l["status"] or "—"),
-               html.escape(preco_pt(_texto_do_preco(l["valor_proposta"]))) if l["valor_proposta"] else "—",
-               # a data da decisão à vista (E16, ronda em PC): lia-se e
-               # gravava-se, e o ensaio não a mostrava
-               data_pt(l.get("data_decisao") or "", "—"),
-               ("<span class='%s'>%s</span>" % ("mau" if base.startswith("não bate")
-                                                 else "", html.escape(base)))
-               if base else "—",
-               veredicto + efeito + problemas + avisos))
-    return ("<div class='mercado-tab'><table class='mg-table tab-mercado tab-ensaio'><thead><tr>"
-            "<th>Linha</th><th>Referência</th><th>Anúncio</th><th>Lote</th><th>Estado</th>"
-            "<th class='p'>Proposta</th><th>Decisão</th><th>BASE diz</th><th>Ensaio</th>"
-            "</tr></thead>"
-            "<tbody>%s</tbody></table></div>"
-            % "".join(corpo))
+def _linha_do_ensaio(l):
+    """Uma linha do ensaio de uma importação, já com o que o molde
+    mostra: o que se escreveu quando não se leu («—» não deixava ver o
+    que corrigir), e o «BASE diz» a vermelho quando não bate."""
+    base = l.get("base", "")
+    return {"ok": l["ok"], "linha": l["linha"],
+            "ref": l["ref"] or l.get("ref_escrita") or "—",
+            "titulo": corta(l["titulo"] or "", 90),
+            "lote": "L%d" % l["lote"] if l["lote"] is not None else "—",
+            "status": l["status"] or "—",
+            "preco": (preco_pt(_texto_do_preco(l["valor_proposta"]))
+                      if l["valor_proposta"] else "—"),
+            "decisao": data_pt(l.get("data_decisao") or "", "—"),
+            "base": base, "base_mau": base.startswith("não bate"),
+            "efeito": l.get("efeito") or "", "problemas": l["problemas"],
+            "avisos": l.get("avisos", [])}
 
 
 @app.route("/configuracoes/importar", methods=["GET", "POST"])
@@ -23905,73 +23884,34 @@ def config_importar():
             return volta_config_erro("importar", "O ficheiro não tem linhas preenchidas na folha «Registo».")
         _base_no_ensaio(linhas)
         ignoradas = empresa.colunas_ignoradas(caminho)
-        confirmar = (
-            "<form method='post' action='/configuracoes/importar/confirmar' class='conf-form' "
-            "style='margin-top:16px'><input type='hidden' name='ficheiro' value='%s'>"
-            "<button type='submit' class='mg-btn mg-btn--primary'%s>Gravar %d proposta%s</button>"
-            "<small>As linhas com erro ficam de fora. Uma referência que já entrou por "
-            "outra importação fica com o que esta traz. Depois de gravar, a importação "
-            "desfaz-se aqui, enquanto ninguém mexer nas propostas que ela tocou.</small></form>"
-            % (html.escape(nome, quote=True), "" if contagens["ok"] else " disabled",
-               contagens["ok"], "" if contagens["ok"] == 1 else "s"))
-        # O que muda no que já existe diz-se em cima (E17): «quase apaguei
-        # um Ganho de 362 mil euros de um colega e o ensaio disse-me que
-        # estava tudo bem».
-        topo = "".join(
-            "<div class='mg-alert mg-alert--warning'>%s</div>" % html.escape(frase)
-            for frase in (
-                ["%d linha%s vai alterar proposta%s que já existe%s — veja a coluna "
-                 "Ensaio." % (contagens["alteram"], "" if contagens["alteram"] == 1 else "s",
-                              "" if contagens["alteram"] == 1 else "s",
-                              "" if contagens["alteram"] == 1 else "m")]
-                if contagens["alteram"] else []) + (
-                ["%d linha%s não muda%s a proposta, que já está noutra fase."
-                 % (contagens["mantem"], "" if contagens["mantem"] == 1 else "s",
-                    "" if contagens["mantem"] == 1 else "m")]
-                if contagens["mantem"] else []) + [
-                "A coluna %s «%s» não é do modelo e é ignorada." % (letra, titulo)
-                for letra, titulo in ignoradas])
-        corpo = (
-            "<div class='mg-field__label'>Ensaio de %s</div>"
-            "<div class='nota' style='margin:6px 0 12px'>%d linha%s lida%s: <b>%d entra%s</b> "
-            "em %d anúncio%s, <b>%d com erro</b>. Nada foi gravado ainda.</div>%s%s%s"
-            % (html.escape(ficheiro.filename), contagens["total"],
-               "" if contagens["total"] == 1 else "s", "" if contagens["total"] == 1 else "s",
-               contagens["ok"], "" if contagens["ok"] == 1 else "m",
-               contagens["anuncios"], "" if contagens["anuncios"] == 1 else "s",
-               contagens["com_erro"], topo, _tabela_do_ensaio(linhas), confirmar))
-        return pagina_config("importar", "<div class='mg-card conf-cx'>" + corpo + "</div>")
+        alteram, mantem = contagens["alteram"], contagens["mantem"]
+        avisos = (["%d linha%s vai alterar proposta%s que já existe%s — veja a "
+                   "coluna Ensaio." % (alteram, "" if alteram == 1 else "s",
+                                      "" if alteram == 1 else "s",
+                                      "" if alteram == 1 else "m")]
+                  if alteram else []) + (
+            ["%d linha%s não muda%s a proposta, que já está noutra fase."
+             % (mantem, "" if mantem == 1 else "s", "" if mantem == 1 else "m")]
+            if mantem else []) + [
+            "A coluna %s «%s» não é do modelo e é ignorada." % (letra, titulo)
+            for letra, titulo in ignoradas]
+        return pagina_config("importar", ecra(
+            "importar_ensaio.html", nome_original=ficheiro.filename,
+            c=contagens, avisos=avisos, ficheiro=nome,
+            linhas=[_linha_do_ensaio(l) for l in linhas]))
     with liga() as c:
         n_modelo = c.execute("SELECT COUNT(*), COUNT(DISTINCT ref) FROM empresa "
                              "WHERE folha='modelo'").fetchone()
         ultima = c.execute("SELECT MAX(importado_em) FROM empresa WHERE folha='modelo'").fetchone()[0]
-    # A primeira etiqueta de um cartão com faixa esconde-se (a faixa já
-    # diz o título), e o «1. O modelo» sumia-se: ficava o «2.» sozinho
-    # (E58). A frase de abertura vem antes, e os dois passos vêem-se.
-    corpo = (
-        "<div class='nota' style='margin-bottom:14px'>Dois passos: descarregar "
-        "o modelo e preenchê-lo, e depois carregar o ficheiro preenchido.</div>"
-        "<div class='mg-field__label'>1. O modelo</div>"
-        "<div class='nota' style='margin:6px 0 12px'>Um Excel vazio com as colunas que o Mira Gov "
-        "precisa e listas de escolha no estado e na razão. Uma linha por concurso, ou por lote "
-        "quando o concurso tem lotes. A chave é a referência do anúncio no DR (ex. "
-        "<code>1947/2026</code>), tal como a ficha a mostra.</div>"
-        "<a class='mg-btn mg-btn--secondary' href='/configuracoes/importar/modelo.xlsx'>Descarregar o modelo</a>"
-        "<div class='mg-field__label' style='margin:26px 0 6px'>2. O ficheiro preenchido</div>"
-        "<div class='nota' style='margin-bottom:12px'>Primeiro vê-se um ensaio: o que liga a que "
-        "anúncio, o que não liga e porquê. Só se grava depois de confirmar.</div>"
-        "<form method='post' action='/configuracoes/importar' enctype='multipart/form-data' "
-        "class='conf-form'><label class='conf-campo'><span>Ficheiro .xlsx</span>"
-        "<input type='file' name='ficheiro' accept='.xlsx' required></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Ver o ensaio</button></form>"
-        "<div class='mg-field__label' style='margin:26px 0 6px'>O que já está</div>"
-        "<div class='nota'>%s</div>%s"
-        % ("%s linha%s do modelo, em %s anúncio%s; última importação a %s."
-           % (mil_pt(n_modelo[0]), "" if n_modelo[0] == 1 else "s", mil_pt(n_modelo[1]),
-              "" if n_modelo[1] == 1 else "s", html.escape(data_hora_pt(ultima)))
-           if n_modelo[0] else "Ainda não entrou nenhuma linha pelo modelo.",
-           _lista_das_importacoes()))
-    return pagina_config("importar", "<div class='mg-card conf-cx'>" + corpo + "</div>")
+    importacoes = [{
+        "quando": data_hora_pt(imp["quando"]), "quem": imp["quem"] or "—",
+        "refs": [(quote(r, safe=""), r) for r in sorted(imp["depois"])],
+        "desfeita": data_hora_pt(imp["desfeita_em"]) if imp.get("desfeita_em") else "",
+        "ficheiro": imp["ficheiro"]} for imp in _importacoes_guardadas()]
+    return pagina_config("importar", ecra(
+        "importar.html", linhas=n_modelo[0], linhas_txt=mil_pt(n_modelo[0]),
+        anuncios=n_modelo[1], anuncios_txt=mil_pt(n_modelo[1]),
+        ultima=data_hora_pt(ultima), importacoes=importacoes))
 
 
 # --- desfazer uma importação (E18 da segunda ronda, 26/09/2026)
@@ -24024,29 +23964,6 @@ def _importacoes_guardadas(limite=5):
         except (OSError, ValueError):
             continue
     return fora
-
-
-def _lista_das_importacoes():
-    linhas = []
-    for imp in _importacoes_guardadas():
-        refs = sorted(imp["depois"])
-        ligacoes = ", ".join("<a href='/anuncio/%s'>%s</a>"
-                             % (quote(r, safe=""), html.escape(r)) for r in refs[:12])
-        if len(refs) > 12:
-            ligacoes += " e mais %d" % (len(refs) - 12)
-        linhas.append(
-            "<div class='l'><span class='t'>%s, por %s: %d anúncio%s (%s)</span>"
-            "<span class='v'>%s</span></div>"
-            % (html.escape(data_hora_pt(imp["quando"])), html.escape(imp["quem"] or "—"),
-               len(refs), "" if len(refs) == 1 else "s", ligacoes or "nenhum",
-               ("desfeita a %s" % html.escape(data_hora_pt(imp["desfeita_em"])))
-               if imp.get("desfeita_em") else
-               accao("/configuracoes/importar/desfazer", "desfazer", "mini",
-                     "Desfazer esta importação? As propostas que ela tocou voltam "
-                     "a como estavam antes dela.",
-                     campos={"ficheiro": imp["ficheiro"]})))
-    return ("<div class='saude' style='margin-top:10px'>%s</div>" % "".join(linhas)
-            if linhas else "")
 
 
 def desfazer_importacao(nome):

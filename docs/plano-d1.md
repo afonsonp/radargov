@@ -150,7 +150,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.2c-i | o Interesse — **feito a 9/10/2026** (`interesse.html`, `interesse_listas.html`); a árvore dos CPV entra feita (`arvore_html()`, partilhada com os Concursos: passa no 3.8) | o mais pequeno dos dois |
 | 3.2c-ii | os Alertas — **feito a 9/10/2026** (`alertas.html`; saem o `_linha_filtro`, o `_caixa_email`, o `_caixa_urgente` e o `_caixa_alerta_do_perfil`; nasce a macro `rotulado`, com `{% call %}`). Entram feitos o `arvore_html()`, o `campos_do_local_e_valor()` e o `envios_html()`, partilhados | 177 linhas e quatro auxiliares de ~90 |
 | 3.2d-i | os Documentos — **feito a 9/10/2026** (`documentos.html`) | o mais pequeno dos três |
-| 3.2d-ii | o Importar | o assistente de três passos |
+| 3.2d-ii | o Importar — **feito a 9/10/2026** (`importar.html`, `importar_ensaio.html`; o `_tabela_do_ensaio()` passa a `_linha_do_ensaio()`, que só prepara os dados) | o assistente de três passos |
 | 3.2d-iii | os Indicadores | 197 linhas |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |
@@ -182,11 +182,13 @@ corrige-se num trabalho à parte, com o seu teste.
   corrige-se tirando esse `|e`.
 
 - **Um disco temporário cheio parece uma diferença**: no lote 3.2c-ii o
-  `/tmp` (memória, 3,6 GB, partilhado com as outras sessões) encheu, um
-  PDF da demo saiu com 852 B em vez de 856 e um teste caiu com
-  `Disk quota exceeded`. Com espaço, os dois passaram. Antes de procurar
-  a diferença no código, `df -h /tmp`; e as gravações dos lotes já
-  fundidos apagam-se.
+  `/tmp` (memória, 3,6 GB, partilhado com as outras sessões) encheu, e um
+  teste caiu com `Disk quota exceeded`; com espaço, passou. Antes de
+  procurar a diferença no código, `df -h /tmp`; e as gravações dos lotes
+  já fundidos apagam-se. **O PDF da demo com outro tamanho não era do
+  disco** (corrigido no 3.2d-ii): o `demo.py` gera os PDF na hora, com a
+  data dentro, e o tamanho varia um byte de gravação para gravação. O
+  portão normaliza os tamanhos em bytes.
 
 ## 4. Riscos e como se tratam
 
