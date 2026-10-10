@@ -22639,28 +22639,6 @@ def _empresa_ou_404(id_):
     return next(e for e in resumo_das_empresas() if e["id"] == id_)
 
 
-def _gestos_do_suporte(u):
-    """Os botões de uma conta na página da empresa: repor, e (2R-§7 (8))
-    suspender ou reactivar e tirar. A conta do dono só se repõe."""
-    gestos = [accao("/plataforma/contas/%d/repor" % u["id"], "repor palavra-passe",
-                    "mini", rotulo="Gerar a ligação para repor a palavra-passe "
-                    "de %s" % u["email"])]
-    if u["dono"]:
-        return gestos
-    if u["suspensa"]:
-        gestos.append(accao("/plataforma/contas/%d/reactivar" % u["id"], "reactivar",
-                            "mini", rotulo="Reactivar a conta de %s" % u["email"]))
-    else:
-        gestos.append(accao("/plataforma/contas/%d/suspender" % u["id"], "suspender",
-                            "mini cuidado", "Suspender a conta de %s? Fecham-se as "
-                            "sessões, e não entra até a reactivar." % u["email"],
-                            rotulo="Suspender a conta de %s" % u["email"]))
-    gestos.append(accao("/plataforma/contas/%d/tirar" % u["id"], "tirar", "mini cuidado",
-                        "Tirar a conta de %s? Não se desfaz." % u["email"],
-                        rotulo="Tirar a conta de %s" % u["email"]))
-    return gestos
-
-
 # O que o registo de actividade mostra do `historico` da empresa (2R-§7
 # (11), 4/10/2026): as mudanças de configuração, as triagens e o que se
 # fez às contas. As entradas vêm da tabela `entradas` da plataforma, com o
@@ -22709,19 +22687,10 @@ def actividade_da_empresa(id_, limite=200):
 
 
 def tabela_da_actividade(linhas):
-    if not linhas:
-        return ("<p class='nota'>Nada nos últimos %d dias.</p>" % DIAS_DA_ACTIVIDADE)
-    return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
-            "<thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th>"
-            "<th>IP</th><th>Aparelho</th></tr></thead><tbody>%s</tbody></table></div>"
-            % "".join("<tr>%s%s%s%s%s%s</tr>" % (
-                _celula_da_tabela("Quando", html.escape(data_hora_pt(l["quando"])), "mg-num"),
-                _celula_da_tabela("Quem", html.escape(l["quem"])),
-                _celula_da_tabela("O quê", html.escape(l["o_que"])),
-                _celula_da_tabela("Detalhe", html.escape(corta(l["detalhe"], 160))),
-                _celula_da_tabela("IP", html.escape(l["ip"]), "mg-num"),
-                _celula_da_tabela("Aparelho", html.escape(l["aparelho"])))
-                for l in linhas))
+    """A tabela do registo (moldes/actividade_tabela.html), já feita."""
+    return Markup(ecra("actividade_tabela.html", dias=DIAS_DA_ACTIVIDADE, linhas=[
+        dict(l, quando=data_hora_pt(l["quando"]), detalhe=corta(l["detalhe"], 160))
+        for l in linhas]))
 
 
 TEXTO_DA_ACTIVIDADE = ("As entradas nas contas da empresa (as boas e as falhadas, "
@@ -22774,53 +22743,31 @@ def plataforma_nota(id_):
     return _volta_a("/plataforma/empresa/%d#nota" % id_, "Nota gravada.")
 
 
-def _cartao_da_nota(id_):
-    return cartao(
-        "Nota interna",
-        "<form method='post' action='/plataforma/empresa/%d/nota' class='accao'>"
-        "<label class='mg-field'><span class='mg-field__label'>Só tu a vês: a "
-        "empresa nunca a lê</span><textarea class='mg-field__input' name='nota' "
-        "rows='3' maxlength='4000'>%s</textarea></label>"
-        "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>Gravar a "
-        "nota</button></form>" % (id_, html.escape(nota_da_empresa(id_))), id_="nota")
-
-
-def _cartao_do_pedido(id_):
+def _pedidos_da_empresa(id_):
     """O que quem pediu escreveu no site (9/10/2026: aceite o pedido, o
     telemóvel só se via na lista dos pedidos). Mais de um quando outros
-    se juntaram à empresa; nenhum quando ela nasceu pela consola."""
+    se juntaram à empresa; nenhum quando ela nasceu pela consola. Cada
+    pedido é a lista dos campos com valor, (rótulo, texto, ligação); o
+    e-mail sai sempre, mesmo vazio, como saía."""
     with liga() as c:
         pedidos = c.execute("SELECT * FROM pedidos_acesso WHERE empresa_id=? "
                             "ORDER BY id", (id_,)).fetchall()
-    if not pedidos:
-        return ""
 
     def um(p):
         tel = p["telefone"] or ""
         campos = (
-            ("Nome", html.escape(p["nome"] or "")),
-            ("E-mail", "<a href='mailto:%s'>%s</a>" % (
-                html.escape(p["email"] or "", quote=True), html.escape(p["email"] or ""))),
-            ("Telemóvel", "<a href='tel:%s'>%s</a>" % (
-                html.escape(re.sub(r"[^\d+]", "", tel), quote=True), html.escape(tel))
-             if tel else ""),
-            ("Empresa", html.escape(p["empresa"] or "")),
-            ("NIF", html.escape(p["nif"] or "")),
-            ("Área", html.escape(p["sector"] or "")),
-            ("Plano pedido", html.escape(p["plano"] or "")),
-            ("Mensagem", html.escape(p["mensagem"] or "")),
-            ("Pedido", html.escape(data_hora_pt((p["criado_em"] or "")[:16]))),
-            ("Aceite", html.escape(data_hora_pt((p["decidido_em"] or "")[:16]))))
-        return "<p>%s</p>" % "<br>".join("<b>%s:</b> %s" % (r, v) for r, v in campos if v)
-    return cartao("Pedido de acesso" if len(pedidos) == 1 else "Pedidos de acesso",
-                  "".join(um(p) for p in pedidos), id_="pedido")
-
-
-def _cartao_da_actividade(id_):
-    linhas = actividade_da_empresa(id_, limite=8)
-    return cartao("Actividade", tabela_da_actividade(linhas),
-                  pe="<a href='/plataforma/empresa/%d/actividade'>Ver tudo</a>" % id_,
-                  id_="actividade")
+            ("Nome", p["nome"] or "", ""),
+            ("E-mail", p["email"] or "", "mailto:%s" % (p["email"] or "")),
+            ("Telemóvel", tel, "tel:%s" % re.sub(r"[^\d+]", "", tel)),
+            ("Empresa", p["empresa"] or "", ""),
+            ("NIF", p["nif"] or "", ""),
+            ("Área", p["sector"] or "", ""),
+            ("Plano pedido", p["plano"] or "", ""),
+            ("Mensagem", p["mensagem"] or "", ""),
+            ("Pedido", data_hora_pt((p["criado_em"] or "")[:16]), ""),
+            ("Aceite", data_hora_pt((p["decidido_em"] or "")[:16]), ""))
+        return [x for x in campos if x[0] == "E-mail" or x[1]]
+    return [um(p) for p in pedidos]
 
 
 @app.route("/plataforma/empresa/<int:id_>")
@@ -22840,87 +22787,91 @@ def plataforma_empresa(id_):
             "GROUP BY utilizador_id",
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),)).fetchall())
         convites = contas.convites_por_usar(c, id_)
+        p = contas.plano_da_empresa(c, id_)
+        livres = contas.lugares_livres(c, id_)
+    with com_empresa(id_):
+        envios = envios_dos_alertas(limite=10)
+        with liga() as c:
+            n = {t: c.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0]
+                 for t in ("propostas", "tarefas", "contactos", "historico")}
     agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # o que o «Suspender» fecha, para a confirmação o dizer (V4 P5)
     fecha_contas = sum(1 for u in contas_ if not u["dono"])
     fecha_sessoes = sum(sessoes.get(u["id"], 0) for u in contas_ if not u["dono"])
-    linhas_contas = "".join(
-        "<tr>%s%s%s%s%s</tr>" % (
-            _celula_da_tabela("Utilizador", html.escape(u["email"]) + (
-                " <span class='mg-tag %s'>suspensa</span>" % tom("mau")
-                if u["suspensa"] else "")),
-            _celula_da_tabela("Papel", html.escape(papel_no_ecra(u["papel"])
-                                        + (" · dono" if u["dono"] else ""))),
-            _celula_da_tabela("Última entrada", html.escape(
-                data_hora_pt((u["ultimo_acesso"] or "")[:16], "nunca"))),
-            _celula_da_tabela("Sessões abertas", "%d" % sessoes.get(u["id"], 0), "mg-num"),
-            _celula_da_tabela("", "<div class='mg-row' style='gap:6px;flex-wrap:wrap'>%s</div>"
-                              % "".join(_gestos_do_suporte(u))))
-        for u in contas_)
-    bloco_contas = cartao(
-        "Contas", ("<table class='mg-table tab-plataforma'><thead><tr><th>Utilizador</th>"
-                   "<th>Papel</th><th>Última entrada</th><th>Sessões abertas</th>"
-                   "<th><span class='so-leitor'>Acções</span></th></tr></thead>"
-                   "<tbody>%s</tbody></table>" % linhas_contas)
-        if contas_ else "<p class='nota'>Ainda ninguém criou conta: está à espera "
-                        "de um convite.</p>", id_="contas")
-    linhas_convites = "".join(
-        "<tr>%s%s%s%s%s</tr>" % (
-            _celula_da_tabela("Para", html.escape(cv["email"] or "sem endereço")),
-            _celula_da_tabela("Papel", html.escape(papel_no_ecra(cv["papel"]))),
-            _celula_da_tabela("Criado", html.escape(data_hora_pt(cv["criado_em"][:16]))),
-            _celula_da_tabela("Vale até", ("<span class='mg-tag %s'>acabou</span>" % tom("mau")
-                                 if cv["expira"] <= agora else "")
-                    + html.escape(data_hora_pt(cv["expira"][:16]))),
-            _celula_da_tabela("", "<div class='mg-row' style='gap:6px;flex-wrap:wrap'>%s%s</div>"
-                    % (accao("/plataforma/convites/%d/renovar" % cv["id"], "gerar de novo",
-                             "mini", rotulo="Gerar uma ligação nova para este convite"),
-                       accao("/plataforma/convites/%d/anular" % cv["id"], "anular",
-                             "mini cuidado", "Anular este convite? A ligação deixa de servir.",
-                             rotulo=("Anular o convite para %s" % cv["email"] if cv["email"]
-                                     else "Anular o convite de %s criado a %s"
-                                     % (papel_no_ecra(cv["papel"]).lower(),
-                                        data_pt((cv["criado_em"] or "")[:10])))))))
-        for cv in convites)
-    bloco_plano = _cartao_do_plano(id_)
-    bloco_convites = cartao(
-        "Convites por usar",
-        ("<table class='mg-table tab-plataforma'><thead><tr><th>Para</th><th>Papel</th>"
-         "<th>Criado</th><th>Vale até</th><th><span class='so-leitor'>Acções</span></th>"
-         "</tr></thead><tbody>%s</tbody></table>" % linhas_convites
-         if convites else "<p class='nota'>Nenhum.</p>")
-        + "<form class='form-email' method='post' action='/plataforma/empresa/%d/convite' "
-          "style='margin-top:16px'><label>Para <span class='nota'>(opcional)</span>"
-          "<input class='mg-field__input' type='email' name='email' "
-          "autocomplete='off' placeholder='nome@empresa.pt'></label>"
-          "<label>Papel"
-          "<select class='mg-field__input' name='papel'>"
-          "<option value='admin'>Gestor</option><option value='tester'>Utilizador"
-          "</option></select></label><button type='submit' class='mg-btn mg-btn--secondary'>"
-          "Criar convite</button></form>" % id_,
-        meta="A ligação só se vê ao criá-la: «gerar de novo» anula a antiga e mostra "
-             "uma nova, para reenviar.", id_="convites")
-    # Sem alertas ligados não sai nada, e a página dizia «o e-mail sai»
-    # (3.ª ronda, G30)
-    envio = ("não sai: nenhum alerta ligado" if not e["alertas"]
-             else "sai para %s" % html.escape(e["para"]) if not e["email"]
-             else "não sai: %s" % html.escape(e["email"]))
-    with com_empresa(id_):
-        envios = envios_dos_alertas(limite=10)
-    bloco_alertas = cartao(
-        "Alertas e e-mail",
-        "<p>%s</p><p class='nota'>O resumo por e-mail %s.</p>%s"
-        % ("%d alerta%s ligado%s: %s" % (
-            len(e["alertas"]), "" if len(e["alertas"]) == 1 else "s",
-            "" if len(e["alertas"]) == 1 else "s",
-            html.escape(", ".join(e["alertas"])))
-           if e["alertas"] else "Nenhum alerta ligado.", envio,
-           envios_html(envios) if envios else
-           "<p class='nota'>Ainda não saiu nenhum envio.</p>"))
-    bloco_perfil = cartao(
-        "Perfil da empresa",
-        "<p>%s</p>" % (e["perfil"] or "Por definir: a empresa vê os concursos todos."))
     suspensa = e["suspensa"]
+    stats = "<div class='mg-stats'>%s%s%s%s</div>" % (
+        kpi("Contas", "%d" % e["contas"],
+            "última entrada %s" % ha_quanto(e["ultima"])),
+        kpi("Propostas em curso", "%d" % e["activas"]),
+        kpi("Leituras do modelo hoje", "%d / %d" % (e["leituras_hoje"], e["tecto"]),
+            "tecto por dia; %d este mês%s" % (
+                e["leituras_mes"],
+                " de %d" % e["tecto_mes"] if e["tecto_mes"] else "")),
+        kpi("Alertas ligados", "%d" % len(e["alertas"]),
+            "o e-mail não sai (suspensa)" if suspensa else
+            "o e-mail não sai: nenhum ligado" if not e["alertas"] else
+            "o e-mail sai" if not e["email"] else "o e-mail não sai"))
+    uso_contas, por_acabar = uso_da_empresa(id_)
+    n_al = len(e["alertas"])
+    corpo = ecra(
+        "plataforma_empresa.html", id=id_, nome=e["nome"], suspensa=suspensa,
+        stats=Markup(stats), pedidos=_pedidos_da_empresa(id_),
+        nota=nota_da_empresa(id_), tom_mau=tom("mau"),
+        # sem plano o selector não mostra o Solo como se fosse o escolhido
+        # (4.ª ronda); o número de utilizadores só se mostra no Corporate
+        plano=p and {
+            "plano": p["plano"], "nome": contas.PLANOS[p["plano"]][0],
+            "periodo": p["periodo"], "fundador": p["fundador"],
+            "desde": data_pt(p["desde"] or ""),
+            "livres": "Sem limite de utilizadores." if livres is None else
+                      "%s de %s." % (plural(livres, "lugar livre", "lugares livres"),
+                                     plural(p["utilizadores"], "utilizador", "utilizadores")),
+            "utilizadores": p["utilizadores"] if p["plano"] == "corporate"
+                            and p["utilizadores"] else ""},
+        planos=[(k, v[0]) for k, v in contas.PLANOS.items()], periodos=contas.PERIODOS,
+        contas=[{"id": u["id"], "email": u["email"], "dono": u["dono"],
+                 "suspensa": u["suspensa"],
+                 "papel": papel_no_ecra(u["papel"]) + (" · dono" if u["dono"] else ""),
+                 "ultima": data_hora_pt((u["ultimo_acesso"] or "")[:16], "nunca"),
+                 "sessoes": sessoes.get(u["id"], 0)} for u in contas_],
+        convites=[{"id": cv["id"], "para": cv["email"] or "sem endereço",
+                   "papel": papel_no_ecra(cv["papel"]),
+                   "criado": data_hora_pt(cv["criado_em"][:16]),
+                   "acabou": cv["expira"] <= agora,
+                   "expira": data_hora_pt(cv["expira"][:16]),
+                   "rotulo_anular": "Anular o convite para %s" % cv["email"] if cv["email"]
+                   else "Anular o convite de %s criado a %s" % (
+                       papel_no_ecra(cv["papel"]).lower(),
+                       data_pt((cv["criado_em"] or "")[:10]))} for cv in convites],
+        actividade=tabela_da_actividade(actividade_da_empresa(id_, limite=8)),
+        uso={"contas": [{"email": u["email"], "dias": u["dias"],
+                         "ultima": data_hora_pt(u["ultima"][:16]),
+                         "paginas": ", ".join(u["paginas"])} for u in uso_contas],
+             "por_acabar": [{"email": x["email"], "percurso": x["percurso"],
+                             "vezes": plural(x["vezes"], "vez", "vezes"),
+                             "ultima": data_hora_pt(x["ultima"][:16])}
+                            for x in por_acabar]},
+        alertas="%d alerta%s ligado%s: %s" % (
+            n_al, "" if n_al == 1 else "s", "" if n_al == 1 else "s",
+            ", ".join(e["alertas"])) if e["alertas"] else "Nenhum alerta ligado.",
+        # sem alertas ligados não sai nada, e a página dizia «o e-mail
+        # sai» (3.ª ronda, G30)
+        envio=("não sai: nenhum alerta ligado" if not e["alertas"]
+               else "sai para %s" % e["para"] if not e["email"]
+               else "não sai: %s" % e["email"]),
+        envios=Markup(envios_html(envios)) if envios else "",
+        perfil=Markup(e["perfil"]),
+        # o cartão de apagar (26/09/2026, pedido dele: «eu como dono não
+        # consigo apagar empresas»): diz o que sai, com os números, e o
+        # que fica; confirma-se escrevendo o nome
+        apagar={"propostas": plural(n["propostas"], "proposta"),
+                "tarefas": plural(n["tarefas"], "tarefa"),
+                "contactos": plural(n["contactos"], "contacto"),
+                "historico": plural(n["historico"], "linha"),
+                "contas": plural(fecha_contas, "conta"),
+                "tem_o_dono": any(u["dono"] for u in contas_),
+                "convites": plural(len(convites), "convite por usar",
+                                   "convites por usar")})
     accoes = (accao("/plataforma/empresa/%d/ver-como" % id_,
                     icone("ver") + " Ver como a empresa, só leitura", "bt",
                     rotulo="Ver a aplicação como a empresa %s, só para ler" % e["nome"])
@@ -22935,27 +22886,6 @@ def plataforma_empresa(id_):
                          "" if fecha_contas == 1 else "m",
                          "não há sessões abertas" if not fecha_sessoes else
                          "quem está dentro vê já «Acesso suspenso»")))
-    stats = "<div class='mg-stats'>%s%s%s%s</div>" % (
-        kpi("Contas", "%d" % e["contas"],
-            "última entrada %s" % ha_quanto(e["ultima"])),
-        kpi("Propostas em curso", "%d" % e["activas"]),
-        kpi("Leituras do modelo hoje", "%d / %d" % (e["leituras_hoje"], e["tecto"]),
-            "tecto por dia; %d este mês%s" % (
-                e["leituras_mes"],
-                " de %d" % e["tecto_mes"] if e["tecto_mes"] else "")),
-        kpi("Alertas ligados", "%d" % len(e["alertas"]),
-            "o e-mail não sai (suspensa)" if suspensa else
-            "o e-mail não sai: nenhum ligado" if not e["alertas"] else
-            "o e-mail sai" if not e["email"] else "o e-mail não sai"))
-    corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "%s%s%s%s%s%s%s%s%s%s%s</div>"
-             % ("<div class='mg-alert mg-alert--danger'>Suspensa: as contas não entram "
-                "e não recebe alertas.</div>" if suspensa else "",
-                stats, _cartao_do_pedido(id_), _cartao_da_nota(id_), bloco_plano, bloco_contas, bloco_convites,
-                _cartao_da_actividade(id_) + _cartao_do_uso(id_), bloco_alertas,
-                bloco_perfil,
-                _cartao_de_apagar(e, fecha_contas, len(convites),
-                                  any(u["dono"] for u in contas_))))
     return envolver(
         "configuracoes", e["nome"], "", corpo, titulo_aba="%s · Plataforma" % e["nome"],
         cabeca=cabecalho_de_pagina(
@@ -22965,54 +22895,6 @@ def plataforma_empresa(id_):
                 "chegou a %s" % html.escape(data_pt(e["desde"])) if e["desde"]
                 else "sem data de chegada"),
             [("Plataforma", "/plataforma"), (e["nome"], "")], accoes))
-
-
-def _cartao_do_plano(id_):
-    """O plano da empresa, para o dono o ver e mudar (L2.1 do plano de
-    Outubro, com os planos de 1/10/2026). Sem plano, avisa: a empresa nao
-    tem limites ate o dono o por."""
-    with liga() as c:
-        p = contas.plano_da_empresa(c, id_)
-        livres = contas.lugares_livres(c, id_)
-    if p:
-        nome = contas.PLANOS[p["plano"]][0]
-        frase = ("<p>%s, %s%s, desde %s. %s</p>" % (
-            nome, p["periodo"], " · fundador" if p["fundador"] else "",
-            data_pt(p["desde"] or ""),
-            "Sem limite de utilizadores." if livres is None else
-            "%s de %s." % (plural(livres, "lugar livre", "lugares livres"),
-                           plural(p["utilizadores"], "utilizador", "utilizadores"))))
-    else:
-        frase = ("<div class='mg-alert mg-alert--warning'>Esta empresa não tem "
-                 "plano: não tem limite de utilizadores nem a sessão única do "
-                 "Solo. Escolha-o aqui.</div>")
-    # sem plano, o selector não mostra o Solo como se fosse o escolhido
-    # (4.ª ronda)
-    opcoes = ("" if p else "<option value='' selected disabled>— escolha —</option>") + "".join(
-        "<option value='%s'%s>%s</option>" % (
-            k, " selected" if p and p["plano"] == k else "", html.escape(v[0]))
-        for k, v in contas.PLANOS.items())
-    periodos = "".join("<option value='%s'%s>%s</option>" % (
-        k, " selected" if p and p["periodo"] == k else "", k)
-        for k in contas.PERIODOS)
-    return cartao(
-        "Plano",
-        frase
-        + "<form class='form-email' method='post' action='/plataforma/empresa/%d/plano'>"
-          "<label>Plano<select class='mg-field__input' name='plano'>%s</select></label>"
-          "<label>Período<select class='mg-field__input' name='periodo'>%s</select></label>"
-          "<label>Utilizadores <span class='nota'>(só no Corporate)</span>"
-          "<input class='mg-field__input' type='number' name='utilizadores' min='1' "
-          "max='999' value='%s'></label>"
-          "<label><input type='checkbox' name='fundador' value='1'%s> Fundador</label>"
-          "<button type='submit' class='mg-btn mg-btn--secondary'>Gravar o plano</button>"
-          "</form>"
-        % (id_, opcoes, periodos,
-           p["utilizadores"] if p and p["plano"] == "corporate" and p["utilizadores"] else "",
-           " checked" if p and p["fundador"] else ""),
-        meta="Todos têm o mesmo; muda o número de pessoas: o Solo tem 1 e uma "
-             "sessão de cada vez, o Duo 2, o Corporate o número acordado.",
-        id_="plano")
 
 
 @app.route("/plataforma/empresa/<int:id_>/plano", methods=["POST"])
@@ -23244,40 +23126,6 @@ def _o_mesmo_nome(a, b):
     """O nome escrito para confirmar bate com o da empresa: sem contar
     espacos a mais nem maiusculas."""
     return " ".join((a or "").split()).casefold() == " ".join((b or "").split()).casefold()
-
-
-def _cartao_de_apagar(e, n_contas, n_convites, tem_o_dono=False):
-    """O cartao de perigo do fim da pagina da empresa (26/09/2026, pedido
-    dele: «eu como dono não consigo apagar empresas»; so havia o
-    `--apagar-empresa` da consola). Diz o que sai, com os numeros, e o
-    que fica; confirma-se escrevendo o nome."""
-    with com_empresa(e["id"]):
-        with liga() as c:
-            n = {t: c.execute("SELECT COUNT(*) FROM %s" % t).fetchone()[0]
-                 for t in ("propostas", "tarefas", "contactos", "historico")}
-    nome = html.escape(e["nome"], quote=True)
-    corpo = (
-        "<p>Sai da plataforma: %s, %s, %s, %s do histórico, a configuração, a "
-        "triagem, %s%s e %s.</p>"
-        "<p class='nota'>Fica guardado: uma cópia da base de antes e a pasta da "
-        "empresa em <code>copias/</code>, de onde se recupera.</p>"
-        "<form method='post' action='/plataforma/empresa/%d/apagar' "
-        "class='mg-row' style='gap:12px;flex-wrap:wrap;align-items:flex-end;"
-        "margin-top:16px'><div class='mg-field'>"
-        "<label class='mg-field__label' for='apagar-nome'>Para confirmar, "
-        "escreva o nome da empresa: <b>%s</b></label>"
-        "<input class='mg-field__input' id='apagar-nome' name='nome' type='text' "
-        "required autocomplete='off' spellcheck='false'></div>"
-        "<button type='submit' class='mg-btn mg-btn--danger'>Apagar a empresa"
-        "</button></form>"
-        % (plural(n["propostas"], "proposta"), plural(n["tarefas"], "tarefa"),
-           plural(n["contactos"], "contacto"), plural(n["historico"], "linha"),
-           plural(n_contas, "conta"),
-           " (a do dono fica, sem empresa)" if tem_o_dono else "",
-           plural(n_convites, "convite por usar",
-                                             "convites por usar"),
-           e["id"], nome))
-    return cartao("Apagar a empresa", corpo, id_="apagar")
 
 
 @app.route("/plataforma/empresa/<int:id_>/apagar", methods=["POST"])
@@ -35103,33 +34951,6 @@ def uso_da_empresa(id_, dias=30):
                 por_acabar.append({"email": email, "percurso": nome,
                                    "vezes": len(abertos), "ultima": abertos[-1]})
     return contas_, por_acabar
-
-
-def _cartao_do_uso(id_):
-    """O uso da aplicação na página da empresa: só o dono a vê."""
-    contas_, por_acabar = uso_da_empresa(id_)
-    if not contas_:
-        return cartao("Uso da aplicação", "<p class='nota'>Ninguém da empresa usou a "
-                      "aplicação nos últimos 30 dias.</p>", id_="uso")
-    tabela = ("<table class='mg-table tab-plataforma'><thead><tr><th>Conta</th>"
-              "<th>Dias com uso</th><th>Última vez</th><th>O que mais abre</th></tr>"
-              "</thead><tbody>%s</tbody></table>" % "".join(
-                  "<tr>%s%s%s%s</tr>" % (
-                      _celula_da_tabela("Conta", html.escape(u["email"])),
-                      _celula_da_tabela("Dias com uso", "%d" % u["dias"], "mg-num"),
-                      _celula_da_tabela("Última vez", html.escape(data_hora_pt(u["ultima"][:16])),
-                                        "mg-num"),
-                      _celula_da_tabela("O que mais abre", html.escape(", ".join(u["paginas"]))))
-                  for u in contas_))
-    encravados = ("<div class='mg-field__label' style='margin:16px 0 6px'>Começados "
-                  "e não acabados</div><ul class='ficha-lista'>%s</ul>" % "".join(
-                      "<li><b>%s</b>: %s — abriu %s sem gravar, a última a %s</li>"
-                      % (html.escape(p["email"]), html.escape(p["percurso"]),
-                         plural(p["vezes"], "vez", "vezes"),
-                         html.escape(data_hora_pt(p["ultima"][:16])))
-                      for p in por_acabar)) if por_acabar else ""
-    return cartao("Uso da aplicação", tabela + encravados,
-                  meta="os últimos 30 dias; só tu vês", id_="uso")
 
 
 def _tabela_das_visitas(titulo, cabecalhos, linhas):
