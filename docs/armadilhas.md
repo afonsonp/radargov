@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 18
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 35
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 36
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 13
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **466** ao todo, contados a 10/10/2026. Contam-se por secção com
+São **467** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -580,6 +580,23 @@ Orçamento, cadeia de reserva, chaves.
   declaração. O recorte junta-os antes de ir ao modelo
   (`junta_numerais_partidos()`), só quando o resultado é um numeral que
   existe. É a mesma família dos «1 2 meses» das armadilhas já pagas.
+
+- **As perguntas dos sete juízes, e o tamanho do pedido** (Q3,
+  10/10/2026). Cada família pede o que os juízes disseram que falta
+  (`docs/FUNCIONAL.md` §3.6, a tabela do campo 11), e há quatro regras
+  para todas: «não exigida»/«não se fixa» é resposta (`PREAMBULO`); a
+  habilitação pelo título do artigo do Programa (peso 2 — no corpo, os
+  «seguintes documentos de habilitação» comiam a reserva do peso 0); as
+  penalidades e a revisão de preços no `pagamentos`, a peso 3 (o último,
+  para não tirar o local ao Caderno: ver a âncora do pagamento, em
+  cima); e o anúncio (§12, §14) à cabeça do pedido do Programa. **O
+  maior pedido passou de 13 933 a ~15 000 caracteres** (1,5 × o tecto,
+  a pergunta da proposta com 4 307 e o bloco do anúncio), ~5 500 tokens
+  a 2,75 por token: abaixo do 413 da Groq, que apareceu aos 7 400 com a
+  resposta. O `test_a_pergunta_da_equipa` guarda o tamanho; se uma
+  pergunta crescer mais, mede o pedido antes. **Mapear, não decidir**:
+  nenhuma pergunta pede ao modelo que diga se se concorre, e um teste
+  procura as palavras.
 
 - **O mesmo procedimento lê-se uma vez** (Q3, 10/10/2026). A 21295
   altera a 19129, que não está na base, e a 21925 altera a 21295: as

@@ -560,14 +560,14 @@ e o seu rótulo na ficha (`CAMPO_11`):
 
 | Tipo | Na ficha | O que se pede |
 |---|---|---|
-| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa, e o nível de serviço (tempos de resposta, horário, disponibilidade) desde 29/09/2026 |
-| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
-| Bens — e, desde 10/10/2026, o hardware com CPV de TI (`RX_HARDWARE`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
+| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa, e o nível de serviço (tempos de resposta, horário, disponibilidade) desde 29/09/2026; desde 10/10/2026 (Q3) também o exigido à empresa, como a equipa é avaliada (o factor, o peso e a escala, ou «só admissão»), a prova (na proposta ou na habilitação) e o «(exclui)» do que é sob pena de exclusão |
+| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação e, desde 10/10/2026, o peso quando pontua), equipamento a montar, o ficheiro do mapa de quantidades, a visita ao local, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
+| Bens — e, desde 10/10/2026, o hardware com CPV de TI (`RX_HARDWARE`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia; desde 10/10/2026 o total de lotes e artigos, o preço base do lote e o unitário máximo, as amostras, os requisitos legais do produto, e a quantidade da peça e não da «Lista» da plataforma |
 | Licenças, subscrições e suporte de fabricante (desde 10/10/2026): o CPV 48, e o 72 com `RX_LICENCAS` na designação, sem trabalho de equipa | Licenças e suporte | O total de produtos, cada produto ou part number com a quantidade, perpétua/subscrição/renovação e a duração, o contrato que se renova, o preço por lote, a parceria do fabricante, a entrega e o suporte |
 | Locação de bens (desde 10/10/2026; eram «bens») | Bens locados e condições | Os bens com as características, a duração, o uso incluído (km), o que a renda inclui, o bem de substituição, a entrega e a devolução, a renda máxima |
 | Concessão de serviços (desde 10/10/2026; o bar da 21877 era «mão-de-obra») | Renda e condições da concessão | A contrapartida, o prazo, o espaço e os encargos, o horário, os preços, o pessoal, os requisitos legais |
-| Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
-| Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
+| Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Por lote e local: trabalhadores (pessoas, não posições), função, horário e dias; desde 10/10/2026 as horas e a bolsa, a equipa mínima, a transmissão de pessoal (ou «as peças não falam disto»), a CCT e, nas refeições, o regime de produção e as refeições por ano; habilitações e equipamentos |
+| Outros serviços | Nível de serviço | Âmbito com a contagem, os níveis de serviço com a métrica, os meios mínimos (também os atributos da proposta, no Programa), as qualificações, o volume e o preço, o calendário (desde 10/10/2026) |
 
 Desde 10/10/2026 (Q3) o campo 11 acaba, quando é o caso, numa linha
 «Não lido: <ficheiro>, pág. N (imagem sem texto | texto ilegível)» — as
@@ -721,12 +721,22 @@ Excel — listam-se por nome, «Não lido» (`pecas_nao_lidas()`).
 **A caução e o alvará do Programa** (`analise.caucao`,
 `analise.habilitacao`) vão ao lado do que o anúncio diz, cada um com a
 fonte: quando se contradizem, vêem-se as duas versões, e o Mira Gov não
-escolhe.
+escolhe. Desde 10/10/2026 (Q3) o modelo também as vê: o pedido do
+Programa abre com «### Anúncio do DR», a caução e a habilitação do
+anúncio (`bloco_do_anuncio()`), e a pergunta manda escrever as duas
+quando o Programa diz outra coisa. A habilitação procura-se no artigo
+«Documentos de habilitação» (âncora de título, peso 2) e leva também as
+licenças e autorizações legais da actividade; «não exigida» e «não se
+fixa» são respostas, e não «não consta» (`PREAMBULO`). Um campo que diz
+«não consta» quando outro da mesma leitura tem a linha (os locais no
+campo 11, a localização vazia) leva essa linha
+(`negativos_que_a_ficha_responde()`).
 **As condições de pagamento** (`analise.pagamentos`, L4 do plano de
 Outubro, 1/10/2026) perguntam-se no pedido do objecto, que é o do Caderno
 de Encargos: a periodicidade, o prazo depois da fatura, o adiantamento,
-as retenções e a fatura eletrónica, copiados como estão e com os números
-conferidos como os outros. A ficha mostra-as na linha «Pagamento» de «O
+as retenções e a fatura eletrónica — e, desde 10/10/2026 (Q3), as
+penalidades com a fórmula e o tecto, e numa obra a revisão de preços —,
+copiados como estão e com os números conferidos como os outros. A ficha mostra-as na linha «Pagamento» de «O
 que as peças pedem»; uma leitura de antes da pergunta diz que é de
 antes, e não «não encontrado». **A âncora tem peso 1**, decisão dele:
 com o peso 0 chegavam ao modelo 4 das 5 passagens de pagamento medidas,

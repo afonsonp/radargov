@@ -7342,6 +7342,9 @@ ANCORAS_OBJECTO = (
         r"(efe(c)?tuad|realizad)|devem ser pag|fa(c)?tura(cao)? ele(c)?tronica"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
+    # as penalidades (Q3, 10/10/2026): estao em todos os CE, e nenhuma
+    # pergunta as pedia. Peso 3, o ultimo: so com o recorte que sobra.
+    (3, r"penalidades|sancoes (contratuais|pecuniarias)|multas contratuais"),
 )
 ANCORAS_EQUIPA = (
     (0, r"perfis? (minimos?|obrigatorios?|exigidos?|profissionais)|composta,? no minimo|"
@@ -7405,6 +7408,12 @@ ANCORAS_PROGRAMA = (
     # anúncio diz «Caução: Não» e o Programa exige 5 %, e a ficha só
     # mostrava o anúncio
     (2, r"caucao|alvara|titulo de registo"),
+    # o artigo da habilitacao pelo titulo (Q3, 10/10/2026): «nao consta»
+    # em 9 de 15, 15 de 21, 13 de 20 e 12 de 16, com o artigo no fim do
+    # Programa, fora do recorte. Como titulo, e nao no corpo (os
+    # «seguintes documentos de habilitacao» comiam a reserva do peso 0).
+    (2, r"(documentos|requisitos) de habilitacao|habilitacao (do|dos) "
+        r"(adjudicatario|concorrente)s?|habilitacoes (necessarias|profissionais)"),
     (3, r"habilitacao|criterio"),
 )
 
@@ -7420,7 +7429,12 @@ O texto marca «[pág. N]» onde cada página começa. Acaba cada linha da
 resposta com a página de onde a tiraste: "(pág. 12)"; com mais de uma
 peça (as linhas «### nome»), diz qual: "(Programa, pág. 5)". Sem
 marcas no texto, ou em "não consta" e "—", não ponhas página. Os
-números copiam-se das peças, sem contas."""
+números copiam-se das peças, sem contas.
+
+Quando as peças dizem que uma coisa não é exigida, é dispensada ou não
+se fixa ("não é exigida caução", "não se fixa preço anormalmente
+baixo"), isso é a resposta: escreve-a, com a página. "não consta" é só
+para o que o texto não diz."""
 
 INSTRUCOES_OBJECTO = PREAMBULO + """
 
@@ -7467,9 +7481,11 @@ Extrai duas coisas do Caderno de Encargos:
   documento as fixa, uma por linha: a periodicidade (mensal, por auto de
   medição, por entrega, no fim); o prazo de pagamento depois da fatura,
   em dias; se há adiantamento, e de quanto; as retenções ou descontos de
-  garantia; e se a fatura tem de ser eletrónica. Copia os números tal
-  como estão. Se o documento não fala de pagamento, responde "não
-  consta".
+  garantia; e se a fatura tem de ser eletrónica. Depois, as
+  penalidades ou sanções contratuais, uma por linha, com a fórmula (por
+  dia de atraso, em % do preço) e o tecto. Copia os números tal como
+  estão. Se o documento não fala de pagamento nem de penalidades,
+  responde "não consta".
 
 Responde SÓ com {"objecto": "...", "localizacao": "...", "pagamentos": "..."}."""
 
@@ -7484,11 +7500,21 @@ Formação: área e grau exigidos, ou —
 Experiência geral: X anos, ou —
 Experiência específica: tecnologia, sector ou dimensão, em linhas "- "
 Certificações: a lista exacta, ou —
-Outras condições: dedicação, presença, ou —
+Outras condições: dedicação, presença, língua, ou —
 Horas e preço: horas máximas e valor/hora do perfil, ou —
 
-Depois dos perfis, um bloco "Nível de serviço": tempos de resposta por
-prioridade, horário e disponibilidade exigidos; sem nenhum, não há bloco.
+Depois dos perfis, cada um destes blocos SÓ quando as peças o tiverem:
+"Em conjunto, a equipa deve deter": o exigido ao CONJUNTO
+(certificações espalhadas por várias pessoas, a DIMENSÃO MÍNIMA — "no
+mínimo por 2 elementos") — SÓ quando uma frase das peças o diz.
+"Exigido à empresa": certificações ou autorizações da empresa.
+"Como a equipa é avaliada": o factor e o peso no critério, e a escala
+tal como está (escalão → pontos), com quem é avaliado; se o critério
+é só o preço, "só admissão".
+"Prova:": CV, certificados ou declarações, e se vão na proposta ou na
+habilitação.
+"Nível de serviço": tempos de resposta por prioridade, horário e
+disponibilidade exigidos.
 
 Regras duras:
 - O nome do perfil TAL E QUAL, sem "sénior" nem "júnior" a mais.
@@ -7507,19 +7533,14 @@ Regras duras:
   não é equipa.
 - "preferencialmente" não é "obrigatório", e "ou" fica "ou": duas
   condições alternativas não são as duas exigidas.
-- O EXIGIDO ("mínimo", "obrigatório", "sob pena de exclusão") não é o
-  que só PONTUA: um escalão de uma grelha de avaliação ("≥ 20 anos -
-  100 pontos") fica de fora, ou a linha acaba em "(pontua)".
+- O EXIGIDO ("mínimo", "obrigatório") não é o que só PONTUA: um escalão
+  de uma grelha ("≥ 20 anos - 100 pontos") vai para "Como a equipa é
+  avaliada", ou a linha acaba em "(pontua)". Um requisito "sob pena de
+  exclusão" acaba em "(exclui)".
 
 Conta como perfil o pessoal que a lei obriga a ter qualificação
 (técnicos credenciados, TIM, gases fluorados), com a lei em
 "Certificações".
-
-O que o documento exige ao CONJUNTO da equipa (certificações espalhadas
-por várias pessoas, a DIMENSÃO MÍNIMA — "no mínimo por 2 elementos",
-"mínimo de 7 elementos com formação superior") vai num bloco final "Em
-conjunto, a equipa deve deter" — SÓ quando uma frase das peças o diz;
-sem ela, não há bloco. O exigido à EMPRESA (ISO, alvará) fica de fora.
 
 Responde SÓ com {"equipa": "..."}."""
 
@@ -7565,12 +7586,24 @@ Extrai duas coisas do Programa de Concurso:
   Programas não fixam nenhum: nesse caso responde "não consta". Não
   confundas com o preço base.
 - "caucao": a caução que o Programa exige ao adjudicatário, tal como lá
-  está ("5% do preço contratual"). Se diz que não há lugar a caução,
-  responde "não exigida"; se não fala de caução, "não consta".
-- "habilitacao": o alvará ou título de registo que o Programa exige —
-  TODAS as categorias e subcategorias, com as classes, tal como estão,
-  uma por linha; nunca pares numa frase que acaba em dois pontos. Se
-  não fala disso, "não consta".
+  está ("5% do preço contratual"), e a de um preço anormalmente baixo.
+  Se diz que não há lugar a caução, responde "não exigida"; se não fala
+  de caução, "não consta".
+- "habilitacao": procura-a no artigo «Documentos de habilitação» do
+  Programa. O alvará ou título de registo — TODAS as categorias e
+  subcategorias, com as classes, tal como estão, uma por linha; nunca
+  pares numa frase que acaba em dois pontos — e as licenças,
+  autorizações ou inscrições que a lei exige para a actividade (alvará
+  da PSP, licença de operador de resíduos, autorização da ASF,
+  inscrição numa Ordem), e o prazo para as entregar. Não são
+  habilitação os documentos da proposta nem as certidões de sempre
+  (Segurança Social, Finanças, registo criminal). Se não fala disso,
+  "não consta".
+
+O texto pode abrir com o bloco «### Anúncio do DR», com a caução e a
+habilitação que o anúncio publicou. Quando o Programa diz outra coisa,
+escreve as duas, cada uma com a fonte ("Programa: 5% (pág. 12)" e
+"Anúncio do DR: Não").
 
 ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
 (o que tu entregas) NÃO é o mesmo que "peças que constituem o
@@ -7618,7 +7651,7 @@ INSTRUCOES_OBRAS = PREAMBULO + """
 Programa do Concurso e anexos técnicos), com esta estrutura:
 
 Equipa técnica: um bloco por função (director de obra, técnico de
-segurança, e outras), cada um com:
+segurança, e as outras que as peças pedem), cada um com:
   Função exacta
   Formação ou inscrição (Ordem dos Engenheiros, OET, …); se o
   documento remete para a lei ("qualificação prevista na Lei n.º
@@ -7626,9 +7659,13 @@ segurança, e outras), cada um com:
   Experiência: a expressão exacta, com os anos, ou —
   Presença em obra ou percentagem de afectação ("presente sempre que
   convocado", "20 %"), ou —
+  Se pontua no critério, o factor e o peso
 Equipamento a fornecer e montar: qual, se a obra não for só civil, ou —
-Mapa de quantidades: onde está (nome do ficheiro ou anexo), ou —
-Condicionantes do local e do horário, ou —""" + _FIM_DO_CAMPO_11
+Mapa de quantidades: o ficheiro que o tem (as linhas «### nome»), ou —
+Visita ao local: se há, e as regras (prazo, marcação), ou —
+Condicionantes do local e do horário (trabalho nocturno, obra em
+funcionamento, faseamento), ou —""" + _FIM_DO_CAMPO_11
+
 
 ANCORAS_BENS = (
     # «2- O fornecimento compreende os seguintes itens: / Quantidade
@@ -7646,15 +7683,24 @@ INSTRUCOES_BENS = PREAMBULO + """
 É uma AQUISIÇÃO DE BENS. Não há equipa: extrai, das peças (Caderno de
 Encargos e anexos técnicos), com esta estrutura:
 
-Um bloco por artigo ou lote:
+Total: quantos lotes e quantos artigos há
+Um bloco por lote, com o preço base do lote, se a peça o fixar, e um
+por artigo ou lote:
   Designação exacta — quantidade (diz se é firme ou estimada)
+  Unidade ou embalagem, e o preço unitário máximo, ou —
   Características exigidas, uma por linha
   Marca ou modelo, e se admite «ou equivalente», ou —
+Amostras: se há, o prazo e a consequência, ou —
 Entrega: o prazo, e o local ou os locais
 Garantia e assistência: meses e tempo de resposta, ou —
 Instalação e formação, ou —
+Requisitos legais do produto (marcação CE, INFARMED, ADR), ou —
 
-Se há uma lista ou tabela de artigos, passa-a toda.""" + _FIM_DO_CAMPO_11
+Se há uma lista ou tabela de artigos, passa-a toda, copiada e não
+reescrita. A quantidade vem da peça, não da «Lista» da plataforma
+("1 UN"). A garantia vem da cláusula da garantia, não da vigência. Se
+as peças se contradizem, as duas versões, cada uma com a página.""" + _FIM_DO_CAMPO_11
+
 
 ANCORAS_MAO_DE_OBRA = (
     # «Servico de vigilancia - dias uteis 1 17:00-08:00» (23794): a
@@ -7669,14 +7715,23 @@ INSTRUCOES_MAO_DE_OBRA = PREAMBULO + """
 É um serviço de MÃO-DE-OBRA (limpeza, vigilância, refeições). Extrai,
 das peças (Caderno de Encargos e anexos técnicos), com esta estrutura:
 
-Um bloco por local ou posto:
-  Local — número de pessoas — horário — dias
-Equipas mínimas e supervisão, ou —
+Um bloco por lote e local ou posto:
+  Lote — local — número de trabalhadores — função — horário — dias
+  (com fins-de-semana e feriados)
+Horas por mês ou por ano, por lote, e a bolsa de horas extra, ou —
+Equipas mínimas e supervisão (encarregados, mínimo por turno), ou —
 Habilitações: alvará (tipo), título profissional, formação obrigatória
 Equipamentos e produtos a cargo do adjudicatário, ou —
-Regime dos trabalhadores e transmissão de trabalhadores, ou —
+Transmissão de pessoal (art. 285.º do Código do Trabalho, sucessão do
+prestador): onde está a lista e quantos; sem cláusula, "as peças não
+falam disto"
+Regime dos trabalhadores e CCT citada, ou —
+Nas refeições: regime de produção e refeições por tipo e por ano, ou —
 
-Se há uma tabela de postos, horas ou frequências, passa-a toda.""" + _FIM_DO_CAMPO_11
+O número de trabalhadores são pessoas, não posições, rádios nem
+equipamentos. Se há uma tabela de postos, horas ou frequências,
+passa-a toda.""" + _FIM_DO_CAMPO_11
+
 
 ANCORAS_SERVICOS = (
     # Os tempos de resposta a peso 0, e a «manutencao» a 2 (29/09/2026):
@@ -7693,19 +7748,29 @@ ANCORAS_SERVICOS = (
         r"no prazo maximo de \d+ ?(horas|h\b|minutos)|carteira profissional|"
         r"habilitacoes necessarias|tecnicos? executantes"),
     (1, r"\bsla\b|assistencia tecnica"),
+    # os SLA que sao atributos da proposta, no Programa (23370, Q3)
+    (2, r"atributos da proposta|meios (humanos|tecnicos) minimos"),
     (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas|manutencao"),
     (3, r"\btecnicos?\b|qualificac|credencia|certifica"),
 )
 INSTRUCOES_SERVICOS = PREAMBULO + """
 
 É uma PRESTAÇÃO DE SERVIÇOS. Extrai o NÍVEL DE SERVIÇO pedido, das
-peças (Caderno de Encargos e anexos técnicos), com esta estrutura:
+peças (Caderno de Encargos, Programa e anexos técnicos), com esta
+estrutura:
 
-Âmbito: os equipamentos, sistemas ou coberturas abrangidos, ou —
-Tempos de resposta, por prioridade ou por local, ou —
+Âmbito: os equipamentos, sistemas, locais ou coberturas, com a contagem
+(equipamentos, extensões, viaturas, m², pessoas), ou —
+Níveis de serviço, um por linha, com a métrica exacta: tempos de
+resposta, de resolução ou de reposição por prioridade; disponibilidade;
+prazos de relatórios ou orçamentos — ou —
+Meios mínimos: técnicos (número, vínculo, carteira), viaturas, oficina,
+piquete — também os que o Programa pede como atributo da proposta — ou —
 Qualificações legais exigidas aos técnicos, ou —
-Volume: bolsa de horas ou quantidades, ou —
-Datas fixas, ou —""" + _FIM_DO_CAMPO_11
+Volume e preço: bolsa de horas, quantidades estimadas, valor/hora ou
+tecto, ou —
+Calendário: duração, datas fixas, montagens e desmontagens, ou —""" + _FIM_DO_CAMPO_11
+
 
 # --- as tres familias que os juizes separaram (Q3, 10/10/2026). Nos 21
 # «bens» julgados, 11 eram licencas ou suporte de software e 2 eram
@@ -7801,6 +7866,10 @@ ANCORAS_OBJECTO_OBRAS = (
     (1, r"memoria descritiva|descricao|ambito|intervencao|trabalhos a realizar|"
         r"objec?to\b|localizacao|local da obra|enquadramento|introducao"),
     (2, r"solucao|caracterizacao|lotes?\b|trabalhos preparatorios|pavimenta"),
+    # o pagamento e a revisao de precos das obras (Q3, 10/10/2026): 19
+    # das 20 sem pagamento lido -- nao havia ancora nenhuma
+    (3, r"(condicoes|modo|forma|prazo) de pagamento|revisao de precos|"
+        r"penalidades|sancoes contratuais"),
 )
 INSTRUCOES_OBJECTO_OBRAS = PREAMBULO + """
 
@@ -7832,9 +7901,12 @@ descritiva, projecto, Caderno de Encargos):
   documento as fixa, uma por linha: a periodicidade (mensal, por auto de
   medição, por entrega, no fim); o prazo de pagamento depois da fatura,
   em dias; se há adiantamento, e de quanto; as retenções ou descontos de
-  garantia; e se a fatura tem de ser eletrónica. Copia os números tal
-  como estão. Se o documento não fala de pagamento, responde "não
-  consta".
+  garantia; e se a fatura tem de ser eletrónica. Numa obra, também a
+  revisão de preços (a fórmula ou o regime). Depois, as
+  penalidades ou sanções contratuais, uma por linha, com a fórmula (por
+  dia de atraso, em % do preço) e o tecto. Copia os números tal como
+  estão. Se o documento não fala de pagamento nem de penalidades,
+  responde "não consta".
 
 Responde SÓ com {"objecto": "...", "localizacao": "...", "pagamentos": "..."}."""
 
@@ -9697,6 +9769,47 @@ def nota_do_que_nao_se_leu(ref, docs):
     return ("Não lido: " + "; ".join(partes)) if partes else ""
 
 
+# --- o anuncio ao lado do Programa (Q3, 10/10/2026)
+#
+# A caucao e a habilitacao do DR (§14, §12) ja se mostram na ficha, mas
+# o modelo nao as via: quando o Programa diz 5% e o anuncio diz «Nao»
+# (23776, 23342, 23853), a ficha mostrava as duas sem dizer que se
+# contradizem. Entram a cabeca do pedido do Programa.
+def bloco_do_anuncio(texto):
+    """«### Anúncio do DR» com a caução e a habilitação do anúncio, ou ""."""
+    seccoes = seccoes_do_texto(texto or "")
+    linhas = [("Caução (§14)", caucao_do_anuncio(seccoes)),
+              ("Habilitação (§12)", habilitacao_do_anuncio(seccoes))]
+    linhas = ["%s: %s" % (r, v) for r, v in linhas if v]
+    return ("### Anúncio do DR\n" + "\n".join(linhas)) if linhas else ""
+
+
+# O campo que diz «não consta» quando outro campo da mesma ficha tem a
+# resposta (Q3, o gestor de servicos: 23010, os locais no campo 11 e a
+# localizacao «não consta»). Sem modelo: as linhas de outro campo que
+# comecam pelo nome deste. ponytail: so os nomes desta lista.
+NOMES_NOUTRO_CAMPO = {"localizacao": ("local", "locais", "entrega"),
+                      "pagamentos": ("pagamento",),
+                      "caucao": ("caucao",),
+                      "habilitacao": ("alvara", "habilitac")}
+
+
+def negativos_que_a_ficha_responde(campos):
+    """Os campos com as linhas de outro campo no lugar do «não consta»."""
+    fora = dict(campos)
+    for campo, nomes in NOMES_NOUTRO_CAMPO.items():
+        if simplifica(fora.get(campo) or "").strip(" .") != "nao consta":
+            continue
+        achadas = [l.strip() for outro, valor in campos.items() if outro != campo
+                   for l in (valor or "").split("\n")
+                   if simplifica(l).strip().startswith(nomes) and ":" in l
+                   and "nao consta" not in simplifica(l.partition(":")[2])
+                   and l.partition(":")[2].strip(" —-")]
+        if achadas:
+            fora[campo] = "\n".join(achadas)
+    return fora
+
+
 # --- o mesmo procedimento le-se uma vez (Q3, 10/10/2026)
 #
 # A 21295 altera a 19129 e a 21925 altera a 21295: o mesmo procedimento,
@@ -9765,6 +9878,7 @@ def analisar_pecas(ref):
     docs = documentos_com_texto(ref)
     recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
                 for nome, quais, ancoras, instrucao in leituras]
+    anuncio = bloco_do_anuncio(a["texto"] if a else "")
     if not any(texto for _, (texto, _), _ in recortes):
         # As pecas trazidas antes de haver extracao de texto ficaram sem
         # ele. Estao em disco: extrai-se agora, sem voltar a rede.
@@ -9799,6 +9913,8 @@ def analisar_pecas(ref):
             resposta, aviso, usado, texto, fontes = _perguntar_com_o_recorte_de_cada_um(
                 cadeia_do_campo_11(cadeia), instrucao, recorte)
         else:
+            if nome == "proposta" and anuncio:
+                texto = anuncio + "\n\n" + texto
             resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
         if resposta is None:
             falhas.append("%s: %s" % (nome, aviso))
@@ -9841,7 +9957,7 @@ def analisar_pecas(ref):
         dados["equipa"] = dados["equipa"].rstrip() + "\n\n" + nao_lido
 
     anterior = analise_de(ref)
-    campos = juntar_leituras(dados, anterior)
+    campos = negativos_que_a_ficha_responde(juntar_leituras(dados, anterior))
     fontes = juntar_fontes(usados, anterior["fontes"] if anterior else "",
                            bool(falhas))
     # Mesmo problema das fontes, e a mesma solucao: agora que esta coluna

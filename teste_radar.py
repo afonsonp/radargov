@@ -1499,8 +1499,15 @@ class TestSegundaRondaDaLeitura(unittest.TestCase):
         # e não cresce sem conta: o pedido inteiro fica debaixo do limite
         # da Groq. Eram 2 842; a 29/09/2026 passou a 2 939 com a página em
         # cada linha, o nível de serviço e o que só pontua (3.ª ronda), e
-        # o maior pedido de todos foi de 13 430 a 13 933 caracteres
-        self.assertLessEqual(len(i), 2939)
+        # o maior pedido de todos foi de 13 430 a 13 933 caracteres. A
+        # 10/10/2026 (Q3), com a avaliação, a empresa e a prova, 3 397
+        self.assertLessEqual(len(i), 3400)
+        for nome, instrucao in (("proposta", radar.INSTRUCOES_PROPOSTA),
+                                ("objecto", radar.INSTRUCOES_OBJECTO)):
+            # 1,5 x o tecto, a pergunta e o anúncio: abaixo dos 16 mil
+            # caracteres (~5 800 tokens a 2,75 por token)
+            self.assertLess(int(radar.TECTO_RECORTE * 1.5) + len(instrucao) + 400,
+                            16000, nome)
 
     def test_a_pergunta_das_obras_sem_alvara(self):
         # o alvará vem do anúncio, e a leitura só produzia negações
@@ -5585,6 +5592,113 @@ class TestOMesmoProcedimentoLeSeUmaVez(BaseTemporaria):
             evento = c.execute("SELECT detalhe FROM eventos WHERE ref='21925/2026'"
                                ).fetchone()
         self.assertIn("21295/2026", evento["detalhe"])
+
+
+class TestAsPerguntasDosJuizes(unittest.TestCase):
+    """Q3, 10/10/2026: sete juízes — o bid manager e o director de equipa
+    de TI, o director de obras, os gestores de bens e de serviços, o
+    director de operações e o jurista — julgaram 103 leituras e disseram
+    o que cada pergunta devia pedir. Mapear, não decidir: nenhuma pede
+    ao modelo que diga se se concorre."""
+
+    def junto(self, i):
+        return " ".join(i.split())
+
+    def test_dispensada_e_resposta_e_nao_nao_consta(self):
+        # caução dispensada lida como «não consta» (6 na equipa, 10 nas
+        # obras); «o PP diz expressamente que não fixa limiar» (21713)
+        p = self.junto(radar.PREAMBULO)
+        self.assertIn("não é exigida", p)
+        self.assertIn("não se fixa", p)
+        self.assertIn("é a resposta", p)
+
+    def test_a_equipa_diz_como_pontua_e_a_quem_se_exige(self):
+        i = self.junto(radar.INSTRUCOES_EQUIPA)
+        for pedaco in ("Como a equipa é avaliada", "escalão → pontos",
+                       "só admissão", "Exigido à empresa", "Prova:",
+                       "(exclui)", "na proposta ou na habilitação"):
+            self.assertIn(pedaco, i)
+
+    def test_as_obras_a_visita_e_o_mapa(self):
+        i = self.junto(radar.INSTRUCOES_OBRAS)
+        for pedaco in ("Visita ao local", "Mapa de quantidades", "### nome",
+                       "Programa"):
+            self.assertIn(pedaco, i)
+
+    def test_os_bens_contam_e_dao_o_preco_do_lote(self):
+        i = self.junto(radar.INSTRUCOES_BENS)
+        for pedaco in ("Total:", "preço base do lote", "Amostras",
+                       "não da vigência", "«Lista»", "as duas versões"):
+            self.assertIn(pedaco, i)
+
+    def test_a_mao_de_obra_pessoas_horas_e_transmissao(self):
+        i = self.junto(radar.INSTRUCOES_MAO_DE_OBRA)
+        for pedaco in ("número de trabalhadores", "não posições", "Horas",
+                       "bolsa", "Transmissão de pessoal", "as peças não falam disto",
+                       "CCT", "refeições"):
+            self.assertIn(pedaco, i)
+
+    def test_os_servicos_os_meios_e_a_contagem(self):
+        i = self.junto(radar.INSTRUCOES_SERVICOS)
+        for pedaco in ("com a contagem", "Meios mínimos", "atributo",
+                       "Calendário", "métrica exacta"):
+            self.assertIn(pedaco, i)
+        # os SLA que são atributos da proposta (23370): o Programa entra
+        self.assertTrue(any(re.search(r, "criterio e atributos da proposta")
+                            for _, r in radar.ANCORAS_SERVICOS))
+
+    def test_os_pagamentos_levam_as_penalidades_e_as_retencoes(self):
+        for i in (radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_OBJECTO_OBRAS):
+            i = self.junto(i)
+            for pedaco in ("penalidades", "tecto", "retenções"):
+                self.assertIn(pedaco, i)
+        self.assertIn("revisão de preços", self.junto(radar.INSTRUCOES_OBJECTO_OBRAS))
+        # as obras não tinham âncora de pagamento nenhuma
+        self.assertTrue(any(re.search(r, "condicoes de pagamento")
+                            for _, r in radar.ANCORAS_OBJECTO_OBRAS))
+        self.assertTrue(any(re.search(r, "penalidades contratuais")
+                            for _, r in radar.ANCORAS_OBJECTO))
+
+    def test_a_habilitacao_pelo_titulo_do_artigo(self):
+        # 9 de 15, 15 de 21, 13 de 20, 12 de 16 «não consta» com o
+        # artigo «Documentos de habilitação» no Programa
+        titulo = "artigo 19.o documentos de habilitacao"
+        pesos = [p for p, r in radar.ANCORAS_PROGRAMA if re.search(r, titulo)]
+        self.assertTrue(pesos and min(pesos) <= 2, pesos)
+        i = self.junto(radar.INSTRUCOES_PROPOSTA)
+        for pedaco in ("«Documentos de habilitação»", "licenças",
+                       "Anúncio do DR", "as duas, cada uma com a fonte"):
+            self.assertIn(pedaco, i)
+
+    def test_o_anuncio_entra_no_que_o_modelo_ve(self):
+        texto = ("12 - DOCUMENTOS DE HABILITAÇÃO\n"
+                 "Habilitação para o exercício da atividade profissional: Não\n"
+                 "14 - PRESTAÇÃO DE CAUÇÃO\nPrestação de caução: Não\n")
+        bloco = radar.bloco_do_anuncio(texto)
+        self.assertTrue(bloco.startswith("### Anúncio do DR\n"), bloco)
+        self.assertIn("Caução (§14): Não", bloco)
+        self.assertIn("Habilitação (§12): Não exigida no anúncio", bloco)
+        self.assertEqual(radar.bloco_do_anuncio(""), "")
+
+    def test_nenhuma_pergunta_pede_que_se_decida(self):
+        for familia, (_, _, _, i) in radar.CAMPO_11.items():
+            for instrucao in (i or "", radar.INSTRUCOES_PROPOSTA,
+                              radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_EQUIPA):
+                self.assertFalse(re.search(
+                    r"deve(s)? concorrer|vale a pena|go/no|recomend", instrucao, re.I),
+                    familia)
+
+    def test_o_nao_consta_que_outro_campo_responde(self):
+        # 23010: os locais estão no campo 11 e a localização diz «não consta»
+        campos = {"localizacao": "não consta",
+                  "equipa": "Âmbito: transporte de doentes\n"
+                            "Locais: Hospital Dr. Nélio Mendonça (pág. 4)",
+                  "pagamentos": "não consta",
+                  "caucao": "2% do preço contratual (pág. 13)"}
+        fora = radar.negativos_que_a_ficha_responde(campos)
+        self.assertEqual(fora["localizacao"], "Locais: Hospital Dr. Nélio Mendonça (pág. 4)")
+        self.assertEqual(fora["pagamentos"], "não consta")     # ninguém o diz
+        self.assertEqual(campos["localizacao"], "não consta")  # não muda o que recebe
 
 
 class TestAnexosTecnicos(unittest.TestCase):
