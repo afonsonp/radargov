@@ -34718,29 +34718,10 @@ def indicadores():
     saude_html = (linhas_de_saude(saude)
                   + linhas_de_saude(erros, "var(--warning)"))
 
-    # So o sistema: o negocio saiu para a abertura (numeros_do_negocio()).
-    conteudo = (
-        "<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-        "<div class='mg-stats'>%s</div>"
-        "<div class='mg-card' style='padding:22px 24px'>"
-        "<div class='mg-field__label' style='margin-bottom:16px'>Estado da recolha</div>"
-        "<div class='saude'>%s</div>"
-        "<div class='mg-field__label' style='margin:22px 0 16px'>Contratos do "
-        "Portal BASE</div><div class='saude'>%s</div>"
-        "<div class='nota' style='margin-top:14px'>Ficheiro à parte, "
-        "<code>contratos.db</code>. Actualiza-se em "
-        "<a href='/contratos'>Contratos</a>.</div></div>"
-        # o Hoje é de uma empresa: o dono sem empresa não o tem (E45)
-        "%s</div>" % (kpis_html, saude_html, corpus_html,
-                      "<div class='nota'>Os números do negócio &mdash; o que "
-                      "está em jogo, o funil da triagem, as propostas por "
-                      "fase &mdash; vivem em <a href='/'>Hoje</a>.</div>"
-                      if tem_empresa else
-                      "<div class='nota'>Os erros das últimas 24 horas, "
-                      "inteiros, estão em <a href='/plataforma/erros'>Erros"
-                      "</a>.</div>"))
-
-    return pagina_config("indicadores", conteudo)
+    # Só o sistema: o negócio saiu para a abertura (numeros_do_negocio()).
+    return pagina_config("indicadores", ecra(
+        "indicadores.html", kpis=Markup(kpis_html), saude=Markup(saude_html),
+        corpus=Markup(corpus_html), tem_empresa=tem_empresa))
 
 
 # --- a lista do "Em curso" fundiu-se na lista unica (15/09/2026)

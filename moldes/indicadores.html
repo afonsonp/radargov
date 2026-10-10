@@ -1,0 +1,11 @@
+{#- Configurações › Indicadores: a saúde da MÁQUINA -- as capturas, as
+    plataformas, a recolha do DR e o corpus do Portal BASE. Os números do
+    negócio saíram para o Hoje (16/09/2026). As linhas de saúde e os
+    números vêm feitos (`linhas_de_saude()`, `kpi()`): são peças de
+    muitos ecrãs. O Hoje é de uma empresa, e o dono sem empresa não o
+    tem (E45): a ele a nota manda para os Erros. -#}
+<div class='larg' style='display:flex;flex-direction:column;gap:18px'><div class='mg-stats'>{{ kpis }}</div><div class='mg-card' style='padding:22px 24px'><div class='mg-field__label' style='margin-bottom:16px'>Estado da recolha</div><div class='saude'>{{ saude }}</div>
+{#- -#}<div class='mg-field__label' style='margin:22px 0 16px'>Contratos do Portal BASE</div><div class='saude'>{{ corpus }}</div><div class='nota' style='margin-top:14px'>Ficheiro à parte, <code>contratos.db</code>. Actualiza-se em <a href='/contratos'>Contratos</a>.</div></div>
+{%- if tem_empresa %}<div class='nota'>Os números do negócio &mdash; o que está em jogo, o funil da triagem, as propostas por fase &mdash; vivem em <a href='/'>Hoje</a>.</div>
+{%- else %}<div class='nota'>Os erros das últimas 24 horas, inteiros, estão em <a href='/plataforma/erros'>Erros</a>.</div>
+{%- endif %}</div>
