@@ -19168,24 +19168,47 @@ class TestConectorMCP(BaseTemporaria):
         self.assertEqual(self.mcp.limpo("x" * 2000)[-1], "…")
         self.assertEqual(len(self.mcp.limpo("x" * 2000)), self.mcp.CORTE_DO_TEXTO + 1)
 
-    def test_ler_peca_da_as_paginas_certas_e_no_maximo_vinte(self):
+    def test_ler_peca_da_as_paginas_certas_e_a_peca_inteira_sem_pedir(self):
         t = self.tokens(self.ana)["access_token"]
         d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
                         de_pagina=3, ate_pagina=5)["structuredContent"]
         self.assertEqual([p["pagina"] for p in d["paginas"]], [3, 4, 5])
         self.assertEqual(d["paginas"][0]["texto"], "texto da pagina 3")
         self.assertEqual(d["seguinte"], 6)
-        d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
-                        ate_pagina=40)["structuredContent"]
-        self.assertEqual((d["de"], d["ate"], d["seguinte"]), (1, 20, 21))
-        d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
-                        de_pagina=21)["structuredContent"]
-        self.assertEqual((d["ate"], d["seguinte"]), (30, None))
+        # sem páginas pedidas, a peça inteira -- cabe no tecto -- e nada continua
+        d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf")["structuredContent"]
+        self.assertEqual((d["de"], d["ate"], d["seguinte"]), (1, 30, None))
+        self.assertNotIn("continua", d)
         self.assertTrue(self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
                                     de_pagina=31)["isError"])
         r = self.chamar(t, "ler_peca", ref="900/2026", peca="../radar.db")
         self.assertTrue(r["isError"])
         self.assertIn("Programa.pdf", r["content"][0]["text"])
+
+    def test_ler_peca_para_no_tecto_de_caracteres_e_diz_onde_continua(self):
+        """O tecto é de caracteres e não de páginas (pedido dele, 10/10/2026),
+        sempre em páginas inteiras; o resto pede-se pela continuação, até ao
+        fim, sem faltar nem repetir uma página."""
+        t = self.tokens(self.ana)["access_token"]
+        with unittest.mock.patch.object(self.mcp, "CARACTERES_POR_CHAMADA", 100):
+            d = self.chamar(t, "ler_peca", ref="900/2026",
+                            peca="Programa.pdf")["structuredContent"]
+            self.assertLessEqual(sum(len(p["texto"]) for p in d["paginas"]), 100)
+            self.assertTrue(all(p["texto"] == "texto da pagina %d" % p["pagina"]
+                                for p in d["paginas"]))
+            self.assertEqual(d["continua"], "continua na página %d — pede de_pagina=%d"
+                             % (d["seguinte"], d["seguinte"]))
+            lidas = [p["pagina"] for p in d["paginas"]]
+            while d["seguinte"]:
+                d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
+                                de_pagina=d["seguinte"])["structuredContent"]
+                lidas += [p["pagina"] for p in d["paginas"]]
+            self.assertEqual(lidas, list(range(1, 31)))
+        # uma página maior do que o tecto lê-se na mesma, sozinha
+        with unittest.mock.patch.object(self.mcp, "CARACTERES_POR_CHAMADA", 5):
+            d = self.chamar(t, "ler_peca", ref="900/2026",
+                            peca="Programa.pdf")["structuredContent"]
+        self.assertEqual((d["ate"], d["seguinte"]), (1, 2))
 
     def test_as_outras_ferramentas_respondem(self):
         t = self.tokens(self.ana)["access_token"]
@@ -19231,6 +19254,9 @@ class TestConectorMCP(BaseTemporaria):
         texto = r["result"]["messages"][0]["content"]["text"]
         self.assertIn("ver_concurso com ref=900/2026", texto)
         self.assertIn("Não digas se a empresa deve concorrer", texto)
+        # o Caderno e o Programa lêem-se inteiros, pelas continuações
+        self.assertIn("INTEIROS", texto)
+        self.assertIn("«continua»", texto)
         self.assertIn("error", self.mcp_pede(t, "prompts/get",
                                               {"name": "explicar_concurso"}).get_json())
 
