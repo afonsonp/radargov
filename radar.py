@@ -25902,8 +25902,11 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
             "</div><span class='l'>%s</span></div>"
             % (classes, fmt(l["v"]) if i in marcados else "",
                max(2.0, 100.0 * l["v"] / maior), html.escape(l["t"]),
-               # pelo mil_pt: saia «39562 contratos» (UX-ICONES B.2)
-               fmt(l["v"]), _contagem(l["k"]), unidade,
+               # pelo mil_pt: saia «39562 contratos» (UX-ICONES B.2); e
+               # no singular com um só (10/10/2026: «1 contratos» num
+               # trimestre da ficha da entidade, que o guia apanhou)
+               fmt(l["v"]), _contagem(l["k"]),
+               unidade[:-1] if l["k"] in (1, "1") else unidade,
                ", trimestre a decorrer" if meio else
                (", é aqui que cai a mediana" if realce else ""),
                html.escape(l["t"]) + (" ·" if meio else "")))
