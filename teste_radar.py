@@ -2328,7 +2328,8 @@ class TestOFimDoDiaDoGemini(unittest.TestCase):
 class TestACadeiaDoCampo11(unittest.TestCase):
     """O campo 11 (1/10/2026, decisão dele): a NVIDIA (nemotron) e o
     Cerebras à frente, com o dobro do recorte; quem cai na Groq leva o
-    recorte de sempre, que o dobro dava 413."""
+    recorte de sempre, que o dobro dava 413. E desde 10/10/2026 o Gemini
+    vai à frente de todos, com as peças inteiras (TECTO_INTEIRO)."""
 
     CADEIA = [("groq", "u", "m-groq", "k", {}), ("cerebras", "u", "m-cb", "k", {}),
               ("nvidia", "u", "m-nv", "k", {}), ("openrouter", "u", "m-or", "k", {}),
@@ -2336,11 +2337,11 @@ class TestACadeiaDoCampo11(unittest.TestCase):
 
     def test_a_ordem(self):
         self.assertEqual([f[0] for f in radar.cadeia_do_campo_11(self.CADEIA)],
-                         ["nvidia", "cerebras", "groq", "openrouter", "gemini",
+                         ["gemini", "nvidia", "cerebras", "groq", "openrouter",
                           "groq-reserva"])
 
     def test_sem_a_nvidia_o_cerebras_e_o_primeiro(self):
-        sem = [f for f in self.CADEIA if f[0] != "nvidia"]
+        sem = [f for f in self.CADEIA if f[0] not in ("nvidia", "gemini")]
         self.assertEqual(radar.cadeia_do_campo_11(sem)[0][0], "cerebras")
 
     def test_cada_troco_leva_o_seu_recorte_e_monta_se_uma_vez(self):
@@ -2358,11 +2359,12 @@ class TestACadeiaDoCampo11(unittest.TestCase):
         with unittest.mock.patch.object(radar, "_perguntar", perguntar):
             dados, aviso, usado, texto, fontes = radar._perguntar_com_o_recorte_de_cada_um(
                 radar.cadeia_do_campo_11(self.CADEIA), "i", recorte)
-        dobro, um = 2 * radar.TECTO_RECORTE, radar.TECTO_RECORTE
-        self.assertEqual(pedidos, [(["nvidia", "cerebras"], "recorte de %d" % dobro),
-                                   (["groq", "openrouter", "gemini", "groq-reserva"],
+        tudo, dobro, um = radar.TECTO_INTEIRO, 2 * radar.TECTO_RECORTE, radar.TECTO_RECORTE
+        self.assertEqual(pedidos, [(["gemini"], "recorte de %d" % tudo),
+                                   (["nvidia", "cerebras"], "recorte de %d" % dobro),
+                                   (["groq", "openrouter", "groq-reserva"],
                                     "recorte de %d" % um)])
-        self.assertEqual(montados, [dobro, um])
+        self.assertEqual(montados, [tudo, dobro, um])
         # o texto e as fontes são os de quem respondeu
         self.assertEqual((dados, usado, texto, fontes),
                          ({"equipa": "x"}, "groq:m-groq", "recorte de %d" % um,
@@ -2374,7 +2376,60 @@ class TestACadeiaDoCampo11(unittest.TestCase):
             dados, aviso, *_ = radar._perguntar_com_o_recorte_de_cada_um(
                 radar.cadeia_do_campo_11(self.CADEIA), "i", lambda t: ("r", []))
         self.assertIsNone(dados)
-        self.assertEqual(aviso, "nvidia: falhou; groq: falhou")
+        self.assertEqual(aviso, "gemini: falhou; nvidia: falhou; groq: falhou")
+
+    def test_o_objecto_e_a_proposta_nao_levam_o_dobro(self):
+        """Fora do campo 11 a NVIDIA e o Cerebras levam o recorte de
+        sempre: só o Gemini lê tudo."""
+        montados = []
+
+        def recorte(tecto):
+            montados.append(tecto)
+            return "r", []
+        with unittest.mock.patch.object(radar, "_perguntar", lambda c, i, t: (None, "x", "")):
+            radar._perguntar_com_o_recorte_de_cada_um(
+                radar.cadeia_da_leitura_inteira(self.CADEIA), "i", recorte, {})
+        self.assertEqual(montados, [radar.TECTO_INTEIRO, radar.TECTO_RECORTE])
+
+
+class TestALeituraInteira(unittest.TestCase):
+    """10/10/2026: o recorte levava ~28 mil caracteres das ~131 mil de um
+    concurso mediano, e o «não consta» falso era o dado numa página que
+    ficou de fora. Com o TECTO_INTEIRO vão todas as peças, inteiras, menos
+    o anúncio e o DEUCP; e as erratas vão em todas as leituras."""
+
+    def docs(self):
+        return [{"nome": "Caderno de Encargos.pdf", "texto": "Cláusula 1.ª Objeto\nlimpeza\f" + "x " * 20000},
+                {"nome": "Anuncio DR.pdf", "texto": "anúncio do DR " * 50},
+                {"nome": "ESPD-request.pdf", "texto": "formulário DEUCP " * 50},
+                {"nome": "Errata.pdf", "texto": "Onde se lê 30 dias, deve ler-se 45 dias."},
+                {"nome": "Relatorio de inspecao.pdf", "texto": "três técnicos com alvará"}]
+
+    def test_inteira_leva_tudo_menos_o_anuncio_e_o_deucp(self):
+        texto, usados = radar.pecas_para_analise(self.docs(), "encargos", (), radar.TECTO_INTEIRO)
+        self.assertIn("x " * 20000, texto)                  # o CE inteiro
+        self.assertIn("três técnicos com alvará", texto)    # a peça sem papel
+        self.assertIn("deve ler-se 45 dias", texto)
+        self.assertNotIn("anúncio do DR", texto)
+        self.assertNotIn("DEUCP", texto)
+        # a peça primeiro, a errata a seguir, o resto depois
+        self.assertEqual([u.split(" (")[0] for u in usados],
+                         ["Caderno de Encargos.pdf", "Errata.pdf", "Relatorio de inspecao.pdf"])
+        self.assertEqual(usados[0], "Caderno de Encargos.pdf (pág. 1–2)")
+
+    def test_no_recorte_a_errata_entra_e_a_peca_sem_papel_nao(self):
+        docs = self.docs()
+        docs[0]["texto"] = "Cláusula 1.ª Objeto\nlimpeza"
+        texto, usados = radar.pecas_para_analise(docs, "programa", ())
+        self.assertIn("deve ler-se 45 dias", texto)
+        self.assertNotIn("três técnicos", texto)
+
+    def test_o_que_nao_cabe_vai_pelo_recorte(self):
+        docs = self.docs()
+        docs.append({"nome": "Anexo grande.pdf", "texto": "y " * 300000})
+        texto, _ = radar.pecas_para_analise(docs, "encargos", (), radar.TECTO_INTEIRO)
+        self.assertLessEqual(len(texto), radar.TECTO_INTEIRO)
+        self.assertIn("x " * 20000, texto)
 
 
 class TestModeloGuardadoNaReleitura(unittest.TestCase):

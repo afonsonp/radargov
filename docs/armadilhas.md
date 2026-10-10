@@ -479,6 +479,16 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
 
 Orçamento, cadeia de reserva, chaves.
 
+- **O Gemini lê as peças inteiras; os outros, o recorte** (10/10/2026).
+  O `pecas_para_analise()` muda de regra quando o tecto chega ao
+  `TECTO_INTEIRO`: abre todas as peças menos o anúncio e o DEUCP, sem
+  tecto de secundária, e manda cada uma inteira enquanto couber. Um
+  fornecedor novo de janela grande entra em `PRIMEIROS_A_LER_TUDO`; não
+  lhe subas o tecto no `TECTO_DO_FORNECEDOR`, que esse é só do campo 11
+  e dava o dobro à NVIDIA e ao Cerebras também no objecto. Quem não
+  aguenta o pedido inteiro (a Groq dá 413 acima de ~8 mil tokens) fica
+  com o recorte: é por isso que o recorte se monta por tecto, e não uma
+  vez por leitura.
 - **A âncora do pagamento tem peso 1 de propósito, e subir-lho é
   trocar a localização pelo pagamento** (L4, 1/10/2026). Os dois vivem
   no recorte do Caderno de Encargos, que tem tecto: medido com a régua,

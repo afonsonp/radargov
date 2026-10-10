@@ -799,6 +799,21 @@ por confirmar conferem-se contra o recorte de quem respondeu. O objecto
 e a proposta ficam com a cadeia e o recorte de cima. Medido nesse dia
 sobre as frases-prova que faltavam ao campo 11 (`docs/diario/2026-10.md`).
 
+**O Gemini lê as peças inteiras, à frente nos três pedidos** (10/10/2026,
+decisão dele). O recorte levava ao modelo ~28 mil caracteres das ~131
+mil de um concurso mediano (os 103 do Q3, sem o anúncio, o DEUCP e os
+repetidos), e o «não consta» falso era quase sempre o dado numa página
+que ficou de fora. O Gemini aceita um milhão de tokens: com o
+`TECTO_INTEIRO` (400 mil caracteres, ~145 mil tokens) vão **todas as
+peças**, cada uma inteira enquanto couber — a da leitura primeiro, depois
+os anexos dela, as erratas, e o resto —, menos o anúncio (do DR e do
+JOUE) e o DEUCP (`RX_NAO_SE_LE_INTEIRO`). O que já não cabe vai pelo
+recorte, no espaço que sobra. Quando o Gemini falha, o pedido desce a
+cadeia de sempre com o recorte de sempre (`PRIMEIROS_A_LER_TUDO`,
+`TECTO_DE_QUEM_LE_TUDO`, `cadeia_da_leitura_inteira()`). **As erratas e os
+esclarecimentos** (`RX_RECTIFICACAO`) entram também no recorte, em todas
+as leituras, inteiros quando cabem; até aqui não iam a nenhuma.
+
 Três regras que decidem o que se vê:
 
 - **Uma leitura que ficou a meio volta a tentar-se sozinha.** Incompleta

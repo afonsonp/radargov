@@ -7443,6 +7443,9 @@ FORNECEDORES = (
     # Devolve o campo como lista em ~13 % das respostas e escreve a
     # pagina a meio da linha: as duas coisas tratam-se no
     # conferir_a_resposta(), para todos os fornecedores.
+    # Desde 10/10/2026 vai a frente nos tres pedidos, com as pecas
+    # inteiras (PRIMEIROS_A_LER_TUDO); aqui fica o lugar dele na cadeia
+    # de quem le o recorte.
     ("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
      "gemini-3.5-flash-lite", ("gemini_API_KEY.txt",), "GEMINI_API_KEY", {}),
     ("groq-reserva", GROQ_URL, "openai/gpt-oss-20b", NOMES_CHAVE, "GROQ_API_KEY",
@@ -7475,6 +7478,28 @@ TECTO_RECORTE = 7000
 # Os outros dois pedidos ficam com a cadeia e o recorte de hoje.
 PRIMEIROS_NO_CAMPO_11 = ("nvidia", "cerebras")
 TECTO_DO_FORNECEDOR = {"nvidia": 2 * TECTO_RECORTE, "cerebras": 2 * TECTO_RECORTE}
+
+# A leitura inteira (10/10/2026, decisao dele): o recorte levava ao modelo
+# ~28 mil caracteres das ~131 mil de um concurso mediano (medido nos 103
+# do Q3, sem o anuncio, o DEUCP e os repetidos) -- e o «nao consta» falso
+# era o dado numa pagina que o recorte nao apanhou. O Gemini aceita um
+# milhao de tokens: as pecas inteiras de um concurso mediano sao ~42 mil,
+# e responderam em 2 s; as de 300 mil caracteres, ~99 mil tokens, em 2 s.
+# Vai a frente nos tres pedidos; se falhar, desce-se a cadeia com o
+# recorte de sempre. ponytail: 400 mil caracteres (~145 mil tokens)
+# cobrem ~88% dos concursos inteiros; acima disso, as pecas por ordem e o
+# recorte no que ja nao cabe.
+TECTO_INTEIRO = 400000
+PRIMEIROS_A_LER_TUDO = ("gemini",)
+TECTO_DE_QUEM_LE_TUDO = {n: TECTO_INTEIRO for n in PRIMEIROS_A_LER_TUDO}
+# O que a leitura inteira nao leva: o anuncio (do DR e do JOUE, que a
+# ficha ja tem) e o DEUCP, que e um formulario.
+RX_NAO_SE_LE_INTEIRO = re.compile(r"anuncio|(?<![a-z0-9])ted(?![a-z0-9])|joue|espd|deucp")
+# As erratas e os esclarecimentos (10/10/2026): mudam prazos e requisitos
+# depois de o Programa sair, e o nome nao diz «programa» nem «caderno» --
+# ninguem as lia. Entram em todas as leituras, logo a seguir a peca.
+RX_RECTIFICACAO = re.compile(r"errata|rectific|retific|esclarec|erros.?e.?omiss|"
+                             r"aditamento|adenda")
 
 # Onde e que mora cada campo. O numero e a prioridade: quando o
 # orcamento acaba, corta-se pelos 3 antes de tocar nos 1.
@@ -8857,6 +8882,11 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     # o for e que vai o ZIP inteiro, como ate aqui.
     alvo = set(PAPEIS_DA_LEITURA.get(quais, (quais,)))
     secundarias = set(SECUNDARIAS_DA_LEITURA.get(quais, ())) - alvo
+    # A leitura inteira (TECTO_INTEIRO) leva todas as pecas, menos o
+    # anuncio e o DEUCP, e cada uma inteira enquanto couber; as erratas e
+    # os esclarecimentos vao em todas, depois da peca e dos anexos dela.
+    inteira = tecto >= TECTO_INTEIRO
+    extra = {"rectificacao", "outra"} if inteira else {"rectificacao"}
 
     # o papel pelo nome, e pelo cabecalho no «Lista.pdf» (papeis_da_peca)
     # O papel decide-se ao abrir, com o caminho de dentro do ZIP inteiro
@@ -8865,20 +8895,29 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     def papeis(d):
         return d["papeis"]
 
+    def com_papeis(nome, texto):
+        p = papeis_da_peca(nome, texto)
+        curto = simplifica(os.path.basename(nome))
+        if RX_RECTIFICACAO.search(curto):
+            return p | {"rectificacao"}
+        if not p and not RX_NAO_SE_LE_INTEIRO.search(curto):
+            return {"outra"}
+        return p
+
     def serve(d):
-        return bool((alvo | secundarias) & papeis(d))
+        return bool((alvo | secundarias | extra) & papeis(d))
 
     def e_secundaria(d):
-        return not (alvo & papeis(d))
+        return not inteira and not ((alvo | {"rectificacao"}) & papeis(d))
 
     abertos = []
     for d in docs:
         escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx,
-                       "papeis": papeis_da_peca(n, tx)}
+                       "papeis": com_papeis(n, tx)}
                       for n, tx in ficheiros_no_texto(d["texto"])]
         escolhidos = [e for e in escolhidos if serve(e)]
         abertos += escolhidos or [{"nome": d["nome"], "texto": d["texto"],
-                                   "papeis": papeis_da_peca(
+                                   "papeis": com_papeis(
                                        os.path.basename(d["nome"]), d["texto"])}]
     # Sem a peca da leitura, a outra faz as vezes dela, com o tecto
     # inteiro (29/09/2026): as «Pecas do procedimento» do 22005 sao o
@@ -8892,8 +8931,10 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     # A peca, depois os anexos, e as secundarias no fim.
     docs = sorted((d for d in abertos if serve(d)),
                   key=lambda d: (e_secundaria(d),
-                                 quais not in papeis(d)))
-    vistos, total = set(), int(tecto * 1.5)
+                                 quais not in papeis(d),
+                                 not (alvo & papeis(d)),
+                                 "rectificacao" not in papeis(d)))
+    vistos, total = set(), (tecto if inteira else int(tecto * 1.5))
     for d in docs:
         limpo = sem_indice(d["texto"])
         # O mesmo documento duas vezes -- o PDF e o que vem dentro do ZIP,
@@ -8922,6 +8963,13 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
         if teto < 200:
             continue
         if secundaria and not _janelas_do_recorte(limpo, ancoras, teto):
+            continue
+        # Inteira, quando cabe: na leitura inteira todas, e as erratas
+        # tambem no recorte (sao curtas, e uma zona nao chega).
+        if len(limpo) <= teto and (inteira or "rectificacao" in papeis(d)):
+            partes.append(cabeca + limpo)
+            usados.append(rotulo_com_paginas(
+                d["nome"], list(range(1, limpo.count("\f") + 2)) if "\f" in limpo else []))
             continue
         # O «limpo» ja vem do sem_indice(), que junta os numerais
         # partidos (G40): o recorte nao precisa de os juntar outra vez.
@@ -9826,14 +9874,24 @@ def _perguntar(cadeia, instrucao, texto):
     return None, "; ".join(avisos), ""
 
 
+def _a_frente(cadeia, primeiros):
+    return ([f for n in primeiros for f in cadeia if f[0] == n]
+            + [f for f in cadeia if f[0] not in primeiros])
+
+
 def cadeia_do_campo_11(cadeia):
-    """A cadeia do campo 11: a NVIDIA e o Cerebras a frente, o resto pela
-    ordem de sempre (PRIMEIROS_NO_CAMPO_11)."""
-    return ([f for n in PRIMEIROS_NO_CAMPO_11 for f in cadeia if f[0] == n]
-            + [f for f in cadeia if f[0] not in PRIMEIROS_NO_CAMPO_11])
+    """A cadeia do campo 11: quem le tudo, depois a NVIDIA e o Cerebras,
+    o resto pela ordem de sempre (PRIMEIROS_NO_CAMPO_11)."""
+    return _a_frente(cadeia, PRIMEIROS_A_LER_TUDO + PRIMEIROS_NO_CAMPO_11)
 
 
-def _perguntar_com_o_recorte_de_cada_um(cadeia, instrucao, recorte):
+def cadeia_da_leitura_inteira(cadeia):
+    """A cadeia do objecto e da proposta: quem le tudo a frente."""
+    return _a_frente(cadeia, PRIMEIROS_A_LER_TUDO)
+
+
+def _perguntar_com_o_recorte_de_cada_um(cadeia, instrucao, recorte,
+                                        tectos=TECTO_DO_FORNECEDOR):
     """O _perguntar(), com o recorte que cada fornecedor aguenta.
 
     `recorte(tecto)` devolve (texto, fontes). A cadeia parte-se em
@@ -9845,7 +9903,8 @@ def _perguntar_com_o_recorte_de_cada_um(cadeia, instrucao, recorte):
     conferem-se contra o que ele leu."""
     avisos, texto, fontes = [], "", []
     for tecto, troco in itertools.groupby(
-            cadeia, lambda f: TECTO_DO_FORNECEDOR.get(f[0], TECTO_RECORTE)):
+            cadeia, lambda f: TECTO_DE_QUEM_LE_TUDO.get(
+                f[0], tectos.get(f[0], TECTO_RECORTE))):
         texto, fontes = recorte(tecto)
         dados, aviso, usado = _perguntar(list(troco), instrucao, texto)
         if dados is not None:
@@ -10081,21 +10140,26 @@ def analisar_pecas(ref):
         if not texto:
             falhas.append("%s: falta o documento" % nome)
             continue
-        if nome == "equipa":
-            # o campo 11: a NVIDIA e o Cerebras primeiro, e com o recorte
-            # que cada um aguenta (TECTO_DO_FORNECEDOR, 1/10/2026)
-            feitos = {TECTO_RECORTE: (texto, fontes)}
+        # Cada fornecedor com o recorte que aguenta: quem le tudo, as pecas
+        # inteiras (TECTO_INTEIRO, 10/10/2026); no campo 11, a NVIDIA e o
+        # Cerebras o dobro (TECTO_DO_FORNECEDOR, 1/10/2026); o resto, o de
+        # sempre. O anuncio vai a cabeca do Programa, em todos.
+        feitos = {TECTO_RECORTE: (texto, fontes)}
 
-            def recorte(tecto):
-                if tecto not in feitos:
-                    feitos[tecto] = pecas_para_analise(docs, quais, ancoras, tecto)
-                return feitos[tecto]
-            resposta, aviso, usado, texto, fontes = _perguntar_com_o_recorte_de_cada_um(
-                cadeia_do_campo_11(cadeia), instrucao, recorte)
-        else:
+        def recorte(tecto, quais=quais, ancoras=ancoras, feitos=feitos,
+                    nome=nome):
+            if tecto not in feitos:
+                feitos[tecto] = pecas_para_analise(docs, quais, ancoras, tecto)
+            texto, fontes = feitos[tecto]
             if nome == "proposta" and anuncio:
                 texto = anuncio + "\n\n" + texto
-            resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
+            return texto, fontes
+        if nome == "equipa":
+            cadeia_desta, tectos = cadeia_do_campo_11(cadeia), TECTO_DO_FORNECEDOR
+        else:
+            cadeia_desta, tectos = cadeia_da_leitura_inteira(cadeia), {}
+        resposta, aviso, usado, texto, fontes = _perguntar_com_o_recorte_de_cada_um(
+            cadeia_desta, instrucao, recorte, tectos)
         if resposta is None:
             falhas.append("%s: %s" % (nome, aviso))
             modelo_falhou = True
