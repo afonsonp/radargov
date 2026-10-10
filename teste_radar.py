@@ -21723,8 +21723,10 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         self.assertIn("class='mg-table tab-contratos tab-plataforma'", decididas)
         for rotulo in ("Resultado", "Preço base", "Proposto", "Adjudicado", "Conta"):
             self.assertIn("data-r='%s'" % rotulo, decididas)
+        # o «em jogo» desenha-se no molde desde o D1 (lote 3.6)
         self.assertIn("class='mg-table tab-contratos tab-plataforma'",
-                      inspect.getsource(radar.tabela_em_jogo))
+                      radar.MOLDES_JINJA.loader.get_source(
+                          radar.MOLDES_JINJA, "situacao.html")[0])
         with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
                                "miragov-radar.css"), encoding="utf-8") as f:
             folha = f.read()

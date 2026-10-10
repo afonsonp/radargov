@@ -1,0 +1,25 @@
+{#- O ponto de situação (17/09/2026, §2 do redesenho): três abas e o
+    período, e o corpo de cada aba. Os números, o funil, o CPV, o
+    negócio, o «Quem nos ganha» e as ranhuras vêm feitos (servem também
+    os Indicadores e o Hoje); as listas que confirmam os números (os dois
+    «em jogo» e as decididas) desenham-se aqui. Os preços entram feitos
+    pelo `preco_pt()`, que deixa passar tal qual o que não lê (ver os
+    «Achados» do docs/plano-d1.md). -#}
+{%- macro em_jogo(g) -%}
+<div class='mg-card tab-cx' id='{{ g.ancora }}'><h2 class='mg-card__title' style='padding:16px 16px 0'>{{ g.rotulo }}</h2>{% if not g.linhas %}<div class='nota' style='padding:6px 16px 16px'>Nenhuma proposta em {{ g.nomes }}.</div></div>{% else -%}
+<table class='mg-table tab-contratos tab-plataforma'><thead><tr><th>Concurso</th><th>Fase</th><th class='p'>Preço base</th><th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead><tbody>{% for p in g.linhas %}<tr><td class='o'><a href='{{ p.href }}'>{{ p.titulo }}</a></td><td data-r='Fase'>{{ p.fase }}</td><td class='p' data-r='Preço base'>{{ p.base }}</td><td class='p' data-r='Proposto'>{{ p.proposto }}</td><td class='p' data-r='Conta'>{{ p.conta }}</td></tr>{% endfor %}</tbody><tfoot><tr><td><b>{{ g.quantas }}</b></td><td></td><td></td><td></td><td class='p'><b>{{ g.total }}</b></td></tr></tfoot></table></div>{% endif %}
+{%- endmacro -%}
+{%- macro decididas(d) -%}
+{% if not d.linhas %}<div class='mg-card' id='decididas' style='padding:22px 24px'><h2 class='mg-card__title'>Decididas {{ d.rotulo }}</h2><div class='nota' style='margin-top:6px'>Nenhuma proposta ganha ou perdida neste período.</div></div>{% else -%}
+<div class='mg-card tab-cx' id='decididas'><h2 class='mg-card__title' style='padding:16px 16px 0'>Decididas {{ d.rotulo }}</h2><table class='mg-table tab-contratos tab-plataforma'><thead><tr><th>Decidida em</th><th>Concurso</th><th>Resultado</th><th class='p'>Preço base</th><th class='p'>Proposto</th><th class='p'>Adjudicado</th><th class='p'>Conta</th></tr></thead><tbody>
+{%- for l in d.linhas %}<tr><td class='mg-num' data-r='Decidida em'>{{ l.data }}{% if l.marcada %} <span class='nota' title='sem data da adjudicação: é o dia em que se marcou no Mira Gov'>(marcada)</span>{% endif %}</td><td class='o'><a href='{{ l.href }}'>{{ l.titulo }}</a></td><td data-r='Resultado'>{{ l.resultado }}</td><td class='p' data-r='Preço base'>{{ l.base }}</td><td class='p' data-r='Proposto'>{{ l.proposto }}</td><td class='p' data-r='Adjudicado'>{% if l.ganho %}{{ l.adjudicado }}{% else %}—{% endif %}</td><td class='p' data-r='Conta'>{% if l.ganho %}{{ l.conta }} <span class='nota'>({{ l.origem }})</span>{% else %}—{% endif %}</td></tr>{% endfor -%}
+</tbody><tfoot><tr><td></td><td><b>{{ d.ganhas }}, {{ d.perdidas }}</b></td><td></td><td></td><td></td><td></td><td class='p'><b>{{ d.total }}</b></td></tr></tfoot></table><details class='como-se-conta' style='padding:0 16px 16px'><summary>Como se conta</summary><p class='nota'>A data é a da adjudicação; sem ela, a do dia em que a proposta se marcou como decidida no Mira Gov («marcada»). A coluna «Conta» é o que entra no total: {{ d.frase }}.</p></details></div>{% endif %}
+{%- endmacro -%}
+<nav class='mg-tabs' aria-label='Vistas da situação'>{% for chave, rotulo, consulta in abas %}<a class='mg-tab'{% if chave == ver %} aria-current='page'{% endif %} href='/situacao?{{ consulta }}'>{{ rotulo }}</a>{% endfor %}</nav><div class='larg'>
+{%- if ver == "triagem" %}<p class='nota'>A triagem conta tudo desde que a empresa chegou ao Mira Gov; o período não se aplica aqui.</p>
+{%- else %}<div class='periodos'><span>Período</span>{% for chave, rotulo, consulta in periodos %}<a class='{% if chave == periodo %}on' aria-current='true{% endif %}' href='/situacao?{{ consulta }}'>{{ rotulo }}</a>{% endfor %}</div>{% endif -%}
+<div style='display:flex;flex-direction:column;gap:18px'>
+{%- if ver == "triagem" %}{{ funil }}
+{%- elif ver == "cpv" %}<div class='mg-card' style='padding:22px 24px'><h2 class='mg-card__title'>Por área de CPV</h2><div class='nota' style='margin:6px 0 0'>A taxa de vitória por divisão do vocabulário CPV — as duas primeiras casas, que são a área do negócio. Uma taxa só aparece com {{ minimo }} decididas ou mais.</div>{% if cpv %}{{ cpv }}{% else %}<div class='nota' style='margin-top:14px'>Ainda não há decididas com CPV lido.</div>{% endif %}</div>
+{%- else %}<div class='mg-card' style='padding:22px 24px'><div class='mg-stats'>{{ numeros }}</div><details class='como-se-conta' style='margin:16px 0 0'><summary>Como se contam estes números</summary><p class='nota'>Os números do período contam pela <b>data da adjudicação</b>; sem ela, pelo dia em que a proposta se marcou como decidida no Mira Gov. «Por submeter» e «Em jogo» são uma fotografia de agora — o que está aberto não se decidiu em período nenhum. Uma taxa só aparece com {{ minimo }} decididas ou mais.{% if rotulo_antes %} A comparação é com {{ rotulo_antes }}.{% endif %}</p></details></div>
+{%- for g in em_jogo_ %}{{ em_jogo(g) }}{% endfor %}{{ decididas(decididas_) }}{{ negocio }}{{ quem_nos_ganha }}{{ ranhuras }}{% endif %}</div></div>

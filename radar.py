@@ -33675,61 +33675,32 @@ def desconto_ponderado(linhas):
 
 
 def tabela_das_decididas(linhas, rotulo_periodo):
-    """A lista que confirma os numeros do periodo, com o total. Cada
-    Stat liga para aqui (`#decididas`)."""
-    if not linhas:
-        return ("<div class='mg-card' id='decididas' style='padding:22px 24px'>"
-                "<h2 class='mg-card__title'>Decididas %s</h2>"
-                "<div class='nota' style='margin-top:6px'>Nenhuma proposta "
-                "ganha ou perdida neste período.</div></div>"
-                % html.escape(rotulo_periodo))
+    """A lista que confirma os numeros do periodo, com o total, para o
+    molde da Situação. Cada Stat liga para aqui (`#decididas`). Em cartão
+    no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela tinha
+    900 e só se via o título. Os preços vão feitos pelo `preco_pt()`,
+    como `Markup` (ver os «Achados» do docs/plano-d1.md)."""
     ganhas = [l for l in linhas if l["estado"] == "ganho"]
-    total = sum(valor_ganho(l) for l in ganhas)
-    # Em cartão no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela
-    # tinha 900 e só se via o título; o `data-r` é o rótulo de cada número
-    # no cartão, onde o cabeçalho não aparece.
-    corpo = "".join(
-        "<tr><td class='mg-num' data-r='Decidida em'>%s</td>"
-        "<td class='o'><a href='%s'>%s</a></td>"
-        "<td data-r='Resultado'>%s</td><td class='p' data-r='Preço base'>%s</td>"
-        "<td class='p' data-r='Proposto'>%s</td>"
-        "<td class='p' data-r='Adjudicado'>%s</td><td class='p' data-r='Conta'>%s</td></tr>"
-        % (data_pt((l["decidida"] or "")[:10], "—")
-           + ("" if l["data_adjudicacao"] else
-              " <span class='nota' title='sem data da adjudicação: é o dia "
-              "em que se marcou no Mira Gov'>(marcada)</span>"),
-           ("/anuncio/" + quote(l["ref"], safe="")) if l["ref"]
-           else "/proposta/%d" % l["id"],
-           html.escape(corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70)),
-           html.escape(estado_da_empresa(l["estado"])),
-           preco_pt(l["preco_base"]), preco_pt(l["valor_proposta"]),
-           preco_pt(l["valor_adjudicado"]) if l["estado"] == "ganho" else "—",
-           ("%s <span class='nota'>(%s)</span>"
-            % (html.escape(euros(valor_ganho(l))), de_onde_vem_o_ganho(l) or "—"))
-           if l["estado"] == "ganho" else "—")
-        for l in linhas)
-    return ("<div class='mg-card tab-cx' id='decididas'>"
-            "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
-            "Decididas %s</h2>"
-            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
-            "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
-            "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
-            "<th class='p'>Adjudicado</th><th class='p'>Conta</th>"
-            "</tr></thead><tbody>%s</tbody><tfoot><tr><td></td>"
-            "<td><b>%s ganha%s, %s perdida%s</b></td><td></td><td></td><td></td>"
-            "<td></td><td class='p'><b>%s</b></td></tr></tfoot></table>"
-            # a explicação fechada (uniformizar, 6/10/2026): fica na
-            # página, mas não empurra o resto
-            "<details class='como-se-conta' style='padding:0 16px 16px'>"
-            "<summary>Como se conta</summary><p class='nota'>A data é a da "
-            "adjudicação; sem ela, a do dia em que a proposta se marcou como "
-            "decidida no Mira Gov («marcada»). A coluna «Conta» é o que "
-            "entra no total: %s.</p></details></div>"
-            % (html.escape(rotulo_periodo), corpo,
-               mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s",
-               mil_pt(len(linhas) - len(ganhas)),
-               "" if len(linhas) - len(ganhas) == 1 else "s",
-               html.escape(euros(total)), html.escape(frase_do_ganho(linhas))))
+    perdidas = len(linhas) - len(ganhas)
+    return {
+        "rotulo": rotulo_periodo,
+        "linhas": [{
+            "data": data_pt((l["decidida"] or "")[:10], "—"),
+            "marcada": not l["data_adjudicacao"],
+            "href": ("/anuncio/" + quote(l["ref"], safe="")) if l["ref"]
+                    else "/proposta/%d" % l["id"],
+            "titulo": corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70),
+            "resultado": estado_da_empresa(l["estado"]),
+            "base": Markup(preco_pt(l["preco_base"])),
+            "proposto": Markup(preco_pt(l["valor_proposta"])),
+            "ganho": l["estado"] == "ganho",
+            "adjudicado": Markup(preco_pt(l["valor_adjudicado"])),
+            "conta": euros(valor_ganho(l)),
+            "origem": Markup(de_onde_vem_o_ganho(l) or "—")} for l in linhas],
+        "ganhas": "%s ganha%s" % (mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s"),
+        "perdidas": "%s perdida%s" % (mil_pt(perdidas), "" if perdidas == 1 else "s"),
+        "total": euros(sum(valor_ganho(l) for l in ganhas)),
+        "frase": frase_do_ganho(linhas)}
 
 
 # O «Em jogo» em dois (D10 da segunda ronda, 26/09/2026, decisao dele):
@@ -33758,38 +33729,26 @@ def valor_em_jogo(p):
 
 def tabela_em_jogo(ancora, rotulo, estados):
     """A lista que confirma um dos dois «em jogo», com o total: cada
-    numero abre a sua (a regra da casa)."""
+    numero abre a sua (a regra da casa). Os dados, para o molde da
+    Situação."""
     with liga() as c:
         linhas = c.execute(
             "SELECT * FROM propostas WHERE estado IN (%s) "
             "ORDER BY COALESCE(criada_em,'') DESC, id DESC"
             % ",".join("?" * len(estados)), list(estados)).fetchall()
-    cabeca = ("<h2 class='mg-card__title' style='padding:16px 16px 0'>%s"
-              "</h2>" % html.escape(rotulo))
-    if not linhas:
-        return ("<div class='mg-card tab-cx' id='%s'>%s<div class='nota' "
-                "style='padding:6px 16px 16px'>Nenhuma proposta em %s.</div>"
-                "</div>" % (ancora, cabeca, " nem em ".join(
-                    "«%s»" % estado_da_empresa(e) for e in estados)))
-    corpo = "".join(
-        "<tr><td class='o'><a href='%s'>%s</a></td><td data-r='Fase'>%s</td>"
-        "<td class='p' data-r='Preço base'>%s</td><td class='p' data-r='Proposto'>%s</td>"
-        "<td class='p' data-r='Conta'>%s</td></tr>"
-        % (("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
-           else "/proposta/%d" % p["id"],
-           html.escape(corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70)),
-           html.escape(estado_da_empresa(p["estado"])),
-           preco_pt(p["preco_base"]), preco_pt(p["valor_proposta"]),
-           euros(valor_em_jogo(p)))
-        for p in linhas)
-    return ("<div class='mg-card tab-cx' id='%s'>%s"
-            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
-            "<th>Concurso</th><th>Fase</th><th class='p'>Preço base</th>"
-            "<th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead>"
-            "<tbody>%s</tbody><tfoot><tr><td><b>%s</b></td><td></td><td></td>"
-            "<td></td><td class='p'><b>%s</b></td></tr></tfoot></table></div>"
-            % (ancora, cabeca, corpo, plural(len(linhas), "proposta"),
-               html.escape(euros(sum(valor_em_jogo(p) for p in linhas)))))
+    return {
+        "ancora": ancora, "rotulo": rotulo,
+        "nomes": " nem em ".join("«%s»" % estado_da_empresa(e) for e in estados),
+        "linhas": [{
+            "href": ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
+                    else "/proposta/%d" % p["id"],
+            "titulo": corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70),
+            "fase": estado_da_empresa(p["estado"]),
+            "base": Markup(preco_pt(p["preco_base"])),
+            "proposto": Markup(preco_pt(p["valor_proposta"])),
+            "conta": Markup(euros(valor_em_jogo(p)))} for p in linhas],
+        "quantas": plural(len(linhas), "proposta"),
+        "total": euros(sum(valor_em_jogo(p) for p in linhas))}
 
 
 @app.route("/situacao")
@@ -33809,41 +33768,20 @@ def situacao():
         periodo = PERIODO_DE_OMISSAO
     janela, antes, rotulo_antes = janelas_do_periodo(periodo, hoje)
 
-    abas = "<nav class='mg-tabs' aria-label='Vistas da situação'>%s</nav>" % "".join(
-        "<a class='mg-tab'%s href='/situacao?%s'>"
-        "%s</a>"
-        % (" aria-current='page'" if ver == chave else "",
-           urlencode([("ver", chave), ("periodo", periodo)]),
-           html.escape(rotulo))
-        for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),
-                              ("cpv", "Por área CPV")))
-
-    selector = ("<div class='periodos'><span>Período</span>%s</div>"
-                % "".join(
-                    "<a class='%s' href='/situacao?%s'>%s</a>"
-                    # o escolhido diz-se, e não só pela cor (G73)
-                    % ("on' aria-current='true" if periodo == chave else "",
-                       urlencode([("ver", ver), ("periodo", chave)]),
-                       html.escape(rotulo))
-                    for chave, rotulo in PERIODOS_DA_SITUACAO))
+    # as consultas vão feitas: o `&` do urlencode entra tal qual no href
+    abas = [(chave, rotulo, Markup(urlencode([("ver", chave), ("periodo", periodo)])))
+            for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),
+                                  ("cpv", "Por área CPV"))]
+    # o escolhido diz-se, e não só pela cor (G73)
+    periodos = [(chave, rotulo, Markup(urlencode([("ver", ver), ("periodo", chave)])))
+                for chave, rotulo in PERIODOS_DA_SITUACAO]
 
     if ver == "triagem":
         # o funil conta desde sempre: o período não lhe mexia e o selector
         # dizia o contrário (5.ª ronda) -- sai, e diz-se desde quando
-        selector = ("<p class='nota'>A triagem conta tudo desde que a empresa "
-                    "chegou ao Mira Gov; o período não se aplica aqui.</p>")
-        corpo = funil_cx_html()
+        pecas = {"funil": Markup(funil_cx_html())}
     elif ver == "cpv":
-        bloco = cpv_html_bloco()
-        corpo = ("<div class='mg-card' style='padding:22px 24px'>"
-                 "<h2 class='mg-card__title'>Por área de CPV</h2>"
-                 "<div class='nota' style='margin:6px 0 0'>A taxa de "
-                 "vitória por divisão do vocabulário CPV — as duas "
-                 "primeiras casas, que são a área do negócio. Uma taxa "
-                 "só aparece com %d decididas ou mais.</div>%s</div>"
-                 % (MINIMO_PARA_TAXA,
-                    bloco or "<div class='nota' style='margin-top:14px'>"
-                    "Ainda não há decididas com CPV lido.</div>"))
+        pecas = {"cpv": Markup(cpv_html_bloco())}
     else:
         pipeline = pipeline_em_euros()
 
@@ -33939,35 +33877,21 @@ def situacao():
         ))
 
         # «pela data em que se decidiu» lia-se como a da adjudicacao, e
-        # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23)
-        # fechada desde 6/10/2026 (uniformizar): eram quatro linhas por
-        # baixo dos números, todos os dias
-        nota_periodo = (
-            "<details class='como-se-conta' style='margin:16px 0 0'>"
-            "<summary>Como se contam estes números</summary><p class='nota'>"
-            "Os números do "
-            "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
-            "dia em que a proposta se marcou como decidida no Mira Gov. "
-            "«Por submeter» e «Em jogo» são uma fotografia de agora "
-            "— o que está aberto não se decidiu em período nenhum. Uma taxa só "
-            "aparece com %d decididas ou mais.%s</p></details>"
-            % (MINIMO_PARA_TAXA, "" if not rotulo_antes
-               else " A comparação é com %s." % rotulo_antes))
-
-        corpo = ("<div class='mg-card' style='padding:22px 24px'>"
-                 "<div class='mg-stats'>%s</div>%s</div>%s%s%s"
-                 % (numeros, nota_periodo,
-                    "".join(tabela_em_jogo(*g) for g in GRUPOS_EM_JOGO)
-                    + tabela_das_decididas(decididas, rotulo_periodo),
-                    negocio_cx() + quem_nos_ganha_cx(),
-                    ranhuras_cx_html(_propostas_por_estado())))
+        # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23);
+        # a nota está fechada desde 6/10/2026 (uniformizar), no molde
+        pecas = {"numeros": Markup(numeros), "rotulo_antes": rotulo_antes,
+                 "em_jogo_": [tabela_em_jogo(*g) for g in GRUPOS_EM_JOGO],
+                 "decididas_": tabela_das_decididas(decididas, rotulo_periodo),
+                 "negocio": Markup(negocio_cx()),
+                 "quem_nos_ganha": Markup(quem_nos_ganha_cx()),
+                 "ranhuras": Markup(ranhuras_cx_html(_propostas_por_estado()))}
 
     # o cabeçalho novo, com as abas no corpo, como o Mercado
     # (uniformizar, 6/10/2026)
     return envolver(
         "situacao", "Ponto de situação", "",
-        abas + "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
-        "gap:18px'>%s</div></div>" % (selector, corpo),
+        ecra("situacao.html", ver=ver, periodo=periodo, abas=abas, periodos=periodos,
+             minimo=MINIMO_PARA_TAXA, **pecas),
         titulo_aba="Ponto de situação",
         cabeca=cabecalho_de_pagina(
             "Ponto de situação",
