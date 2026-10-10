@@ -374,14 +374,17 @@ def listar_propostas(f, a):
     with f.liga() as c:
         total = c.execute("SELECT COUNT(*)" + base, valores).fetchone()[0]
         linhas = c.execute(
-            "SELECT p.id, p.ref, p.lote, p.estado, p.preco_base, p.valor_proposta, "
+            "SELECT p.id, p.codigo, p.ref, p.lote, p.estado, p.preco_base, p.valor_proposta, "
             "p.responsavel, COALESCE(NULLIF(p.titulo,''), a.titulo, '') titulo, "
             "COALESCE(NULLIF(p.entidade,''), a.entidade, '') entidade, "
             "COALESCE(NULLIF(a.prazo,''), p.prazo_entrega, '') prazo" + base
             + " ORDER BY COALESCE(p.fechada_em, p.criada_em) DESC, p.id DESC "
             "LIMIT ? OFFSET ?",
             valores + [LINHAS_POR_PAGINA, (pagina - 1) * LINHAS_POR_PAGINA]).fetchall()
-    propostas = [{"id": p["id"], "ref": p["ref"] or "", "lote": p["lote"],
+    # o código («RJI-26-0001», 10/10/2026) é o que a equipa diz; o `id`
+    # repete-se entre empresas
+    propostas = [{"id": p["id"], "codigo": p["codigo"] or "", "ref": p["ref"] or "",
+                  "lote": p["lote"],
                   "titulo": limpo(p["titulo"]), "entidade": limpo(p["entidade"], 300),
                   "fase": f.ROTULOS_DA_ESCADA.get(p["estado"], p["estado"]),
                   "preco_base": p["preco_base"] or "",
@@ -394,7 +397,7 @@ def listar_propostas(f, a):
 # O que a proposta mostra. De fora, de propósito (decisão 5): as notas
 # (texto livre da equipa, que também está no histórico -- por isso o
 # histórico só leva as ACCOES_QUE_SAEM), os contactos e os documentos do cofre.
-CAMPOS_DA_PROPOSTA = ("ref", "lote", "titulo", "entidade", "motivo", "tipologia",
+CAMPOS_DA_PROPOSTA = ("codigo", "ref", "lote", "titulo", "entidade", "motivo", "tipologia",
                       "preco_base", "valor_proposta", "valor_adjudicado",
                       "data_adjudicacao", "prazo_entrega", "criada_em", "fechada_em")
 # As acções do histórico que saem (revisão de 10/10/2026: era uma lista

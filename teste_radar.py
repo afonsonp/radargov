@@ -31,6 +31,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import unittest.mock
@@ -11976,7 +11977,7 @@ class TestOsOutrosErrosDoTesteComUtilizadores(_CicloDoTesteComUtilizadores):
         # nome e a cronologia dizia «prazo_entrega — 10/10/2026» (N4 da
         # UX-AUDITORIA-1-10).
         fora = {"id", "ref", "lote", "entidade_chave", "estado",
-                "criada_em", "fechada_em"}
+                "criada_em", "fechada_em", "codigo"}    # o código não se edita
         for col in set(radar.COLUNAS_DA_PROPOSTA) - fora:
             self.assertIn(col, radar._NOMES_ACCAO, col)
 
@@ -19394,6 +19395,18 @@ class TestConectorMCP(BaseTemporaria):
         # o n.º 1 da B existe e é outra proposta: a da A não aparece
         self.assertNotIn("TITULO-A", json.dumps(
             self.chamar(t, "ver_proposta", id=self.proposta_a), ensure_ascii=False))
+
+    def test_as_propostas_levam_o_codigo(self):
+        """O código («EMP-26-0002», 10/10/2026) é o que a equipa diz; o
+        `id` repete-se entre empresas."""
+        with radar.com_empresa(self.b):
+            codigo = radar.proposta(self.proposta_b)["codigo"]
+        self.assertRegex(codigo, r"^EMP-\d\d-0002$")
+        t = self.tokens(self.bruno)["access_token"]
+        self.assertIn('"codigo": "%s"' % codigo,
+                      json.dumps(self.chamar(t, "listar_propostas")))
+        self.assertIn('"codigo": "%s"' % codigo,
+                      json.dumps(self.chamar(t, "ver_proposta", id=self.proposta_b)))
 
     def test_com_a_empresa_forcada_a_b_o_teste_apanha_a_fuga(self):
         """O teste de cima só vale se falhar quando se estraga de
@@ -31595,6 +31608,199 @@ class TestOHookReconheceOCommit(unittest.TestCase):
                 "echo 'git commit'",
                 "grep -n commit radar.py"):
             self.assertFalse(self.rx.search(comando), comando)
+
+class TestOCodigoDaProposta(BaseTemporaria):
+    """O código legível de cada proposta, «ABC-26-0001» (pedido dele,
+    10/10/2026): três letras da empresa e um número que não recomeça.
+    O `propostas.id` repete-se entre empresas (cada empresa.db conta do
+    1), e é o código que se diz ao telefone."""
+
+    def setUp(self):
+        super().setUp()
+        # o ano da criação vai no código; o das propostas criadas agora
+        # é o de hoje
+        self.aa = radar.datetime.now().strftime("%y")
+
+    def _codigos(self, empresa=None):
+        with radar.com_empresa(empresa or radar.EMPRESA_ACTIVA), radar.liga() as c:
+            return [r["codigo"] for r in c.execute(
+                "SELECT codigo FROM propostas ORDER BY id")]
+
+    def _com_nome(self, nome):
+        radar.gravar_config({"nome_da_empresa": nome})
+        radar.iniciar_db()
+
+    def test_as_tres_letras_vem_do_nome_sem_acentos(self):
+        self.assertEqual(radar.prefixo_para("Érica, Lda.", set()), "ERI")
+        self.assertEqual(radar.prefixo_para("CHGroup", set()), "CHG")
+
+    def test_um_prefixo_tomado_da_outra_combinacao_do_nome(self):
+        # a regra: as combinações de três letras do nome, pela ordem em
+        # que aparecem; esgotadas, AAA..ZZZ
+        self.assertEqual(radar.prefixo_para("Alfândega", {"ALF"}), "ALA")
+        self.assertEqual(radar.prefixo_para("Ab", set()), "ABA")
+        self.assertEqual(radar.prefixo_para("123", set()), "AAA")
+        self.assertEqual(radar.prefixo_para("Abc", {"ABC"}), "AAA")
+
+    def test_duas_empresas_de_nomes_parecidos_nao_partilham_o_prefixo(self):
+        self._com_nome("Alfa")
+        b = radar.criar_empresa("Alfama, Lda")
+        self.assertEqual(radar.prefixo_da_empresa(radar.EMPRESA_ACTIVA), "ALF")
+        self.assertEqual(radar.prefixo_da_empresa(b), "ALA")
+        with self.assertRaises(sqlite3.IntegrityError):
+            with radar.liga() as c:
+                c.execute("INSERT INTO prefixos_das_empresas VALUES (99, 'ALF')")
+
+    def test_sem_nome_ainda_nao_ha_prefixo(self):
+        self.assertIsNone(radar.prefixo_da_empresa(radar.EMPRESA_ACTIVA))
+        radar.criar_proposta(titulo="Convite")
+        self.assertEqual(self._codigos(), [None])
+        self._com_nome("Gama")
+        self.assertEqual(self._codigos(), ["GAM-%s-0001" % self.aa])
+
+    def test_mudar_o_nome_nao_muda_o_prefixo(self):
+        self._com_nome("Alfa")
+        radar.gravar_config({"nome_da_empresa": "Zeta"})
+        radar.iniciar_db()
+        self.assertEqual(radar.prefixo_da_empresa(radar.EMPRESA_ACTIVA), "ALF")
+
+    def test_numera_por_empresa_e_nao_reutiliza(self):
+        self._com_nome("Alfa")
+        b = radar.criar_empresa("Beta")
+        for _ in range(2):
+            radar.criar_proposta(titulo="x")
+        with radar.com_empresa(b):
+            radar.criar_proposta(titulo="y")
+        self.assertEqual(self._codigos(), ["ALF-%s-0001" % self.aa, "ALF-%s-0002" % self.aa])
+        self.assertEqual(self._codigos(b), ["BET-%s-0001" % self.aa])
+        # apagada a última, o número dela não volta a sair
+        with radar.liga() as c:
+            radar.apagar_propostas(c, "codigo=?", ("ALF-%s-0002" % self.aa,))
+        radar.criar_proposta(titulo="z")
+        self.assertEqual(self._codigos(), ["ALF-%s-0001" % self.aa, "ALF-%s-0003" % self.aa])
+
+    def _cria_em(self, *datas):
+        with radar.liga() as c:
+            c.executemany("INSERT INTO propostas (titulo, criada_em) VALUES ('x', ?)",
+                          [(d,) for d in datas])
+
+    def test_o_numero_recomeca_na_passagem_do_ano(self):
+        """O ano é o da criação, e o número recomeça em cada um (decisão
+        dele, 10/10/2026): 2027 abre na ALF-27-0001, e uma de 2026
+        registada depois segue a numeração de 2026."""
+        self._com_nome("Alfa")
+        self._cria_em("2026-12-31 23:59", "2027-01-01 00:01", "2026-12-30 10:00")
+        self.assertEqual(self._codigos(),
+                         ["ALF-26-0001", "ALF-27-0001", "ALF-26-0002"])
+
+    def test_um_numero_apagado_nao_volta_a_sair_no_mesmo_ano(self):
+        self._com_nome("Alfa")
+        self._cria_em("2026-03-01 10:00", "2026-03-02 10:00")
+        with radar.liga() as c:
+            radar.apagar_propostas(c, "codigo=?", ("ALF-26-0002",))
+        self._cria_em("2026-03-03 10:00", "2027-01-05 10:00")
+        self.assertEqual(self._codigos(), ["ALF-26-0001", "ALF-26-0003", "ALF-27-0001"])
+
+    def test_depois_do_9999_vem_o_10000(self):
+        """Sem tecto: quatro algarismos no mínimo, e cresce."""
+        self._com_nome("Alfa")
+        with radar.liga() as c:
+            c.execute("INSERT INTO propostas (titulo, criada_em, codigo) "
+                      "VALUES ('x', '2026-01-01 10:00', 'ALF-26-9999')")
+        self._cria_em("2026-05-01 10:00", "2026-05-02 10:00")
+        self.assertEqual(self._codigos(), ["ALF-26-9999", "ALF-26-10000", "ALF-26-10001"])
+
+    def test_o_codigo_nao_se_repete_dentro_da_empresa(self):
+        self._com_nome("Alfa")
+        radar.criar_proposta(titulo="x")
+        with self.assertRaises(sqlite3.IntegrityError):
+            with radar.liga() as c:
+                c.execute("INSERT INTO propostas (titulo, codigo) "
+                          "VALUES ('y', ?)", ("ALF-%s-0001" % self.aa,))
+
+    def test_criacao_concorrente_nao_repete_codigo(self):
+        self._com_nome("Alfa")
+        erros = []
+
+        def cria():
+            try:
+                with radar.com_empresa(radar.EMPRESA_ACTIVA):
+                    radar.criar_proposta(titulo="convite")
+            except Exception as e:          # noqa: BLE001 -- o teste quer vê-lo
+                erros.append(e)
+        fios = [threading.Thread(target=cria) for _ in range(8)]
+        for f in fios:
+            f.start()
+        for f in fios:
+            f.join()
+        self.assertEqual(erros, [])
+        self.assertEqual(sorted(self._codigos()),
+                         ["ALF-%s-%04d" % (self.aa, n) for n in range(1, 9)])
+
+    def test_a_migracao_numera_as_antigas_por_ordem_de_criacao(self):
+        """Uma empresa.db de antes do código: a `propostas` sem a coluna,
+        e duas linhas cujo id não é a ordem de criação."""
+        pasta = os.path.join(radar.pasta_das_empresas(), "7")
+        os.makedirs(pasta)
+        with open(os.path.join(pasta, "config.json"), "w", encoding="utf-8") as f:
+            json.dump({"nome_da_empresa": "Ómega"}, f)
+        with sqlite3.connect(os.path.join(pasta, "empresa.db")) as c:
+            c.execute("CREATE TABLE propostas (id INTEGER PRIMARY KEY "
+                      "AUTOINCREMENT, ref TEXT, porque_sem_ref TEXT, lote INTEGER, "
+                      "entidade TEXT DEFAULT '', titulo TEXT DEFAULT '', "
+                      "estado TEXT DEFAULT 'analisar', motivo TEXT, "
+                      "responsavel TEXT, tipologia TEXT, coe TEXT, "
+                      "preco_base TEXT, valor_proposta TEXT, ebitda REAL, "
+                      "lugar INTEGER, top3 TEXT, cv TEXT, proposta_tecnica TEXT, "
+                      "notas TEXT, criada_em TEXT, fechada_em TEXT)")
+            c.executemany("INSERT INTO propostas (titulo, criada_em) VALUES (?,?)",
+                          [("segunda", "2026-09-02 10:00"),
+                           ("primeira", "2026-09-01 10:00")])
+        radar.iniciar_db()
+        radar.iniciar_db()                  # idempotente
+        self.assertEqual(self._codigos(7), ["OME-26-0002", "OME-26-0001"])
+        with radar.com_empresa(7):
+            radar.criar_proposta(titulo="nova")
+        self.assertEqual(self._codigos(7)[-1], "OME-26-0003" if self.aa == "26"
+                         else "OME-%s-0001" % self.aa)
+
+    def test_o_restauro_nao_apaga_a_proposta_que_ja_tem_o_codigo(self):
+        """O `repor_triagem()` grava por INSERT OR REPLACE, e com o índice
+        único do código apagava em silêncio a outra proposta que o tivesse."""
+        self._com_nome("Alfa")
+        radar.criar_proposta(titulo="de agora")
+        caminho = os.path.join(self.pasta, "triagem.jsonl")
+        with open(caminho, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"tabela": "propostas", "id": 5, "titulo": "de antes",
+                                "codigo": "ALF-%s-0001" % self.aa}) + "\n")
+        radar.repor_triagem(caminho)
+        with radar.liga() as c:
+            linhas = [tuple(r) for r in c.execute(
+                "SELECT titulo, codigo FROM propostas ORDER BY id")]
+        self.assertEqual(linhas, [("de agora", "ALF-%s-0001" % self.aa), ("de antes", "ALF-%s-0002" % self.aa)])
+
+    def test_a_pesquisa_encontra_pelo_codigo(self):
+        self._com_nome("Alfa")
+        radar.criar_proposta(titulo="convite um")
+        id_ = radar.criar_proposta(titulo="convite dois")
+        r = radar.resultados_da_pesquisa("alf-%s-0002" % self.aa)
+        self.assertEqual([p["id"] for p in r["propostas"]], [id_])
+
+    def test_a_exportacao_leva_o_prefixo_e_o_codigo(self):
+        self._com_nome("Alfa")
+        radar.criar_proposta(titulo="x")
+        caminho = radar.exportar_empresa(radar.EMPRESA_ACTIVA)
+        with zipfile.ZipFile(caminho) as z:
+            linhas = json.loads(z.read("plataforma.json"))["linhas"]
+            z.extract("empresa.db", self.pasta)
+        self.assertEqual(linhas["prefixos_das_empresas"][0]["prefixo"], "ALF")
+        with sqlite3.connect(os.path.join(self.pasta, "empresa.db")) as c:
+            self.assertEqual(c.execute("SELECT codigo FROM propostas").fetchall(),
+                             [("ALF-%s-0001" % self.aa,)])
+        n, ficheiro = radar.exportar_triagem()
+        with open(ficheiro, encoding="utf-8") as f:
+            self.assertIn('"codigo": "ALF-%s-0001"' % self.aa, f.read())
+
 
 if __name__ == "__main__":
 

@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 27 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 28 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -129,6 +129,7 @@ as exactas e salta as outras.
 | `visitas` | as dos últimos 13 meses | As visitas ao site público (ANL, 4/10/2026): a página, o dia, o domínio de onde veio, os UTM, o aparelho, o `visitante` (um resumo com o sal do dia, nunca o IP), o tempo, o scroll e os eventos (§4.9) |
 | `sugestoes` | as que quem usa envia | O que cada conta tem a dizer (4/10/2026, §4.8): o tipo, o texto, a página de onde partiu, a `captura` (a extensão da imagem, em `sugestoes/<id>.<ext>`), e o `estado` que o dono lhe dá |
 | `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
+| `prefixos_das_empresas` | uma por empresa com nome | As três letras do código das propostas de cada empresa (10/10/2026, §3.1): únicas entre empresas (o `UNIQUE`), dadas uma vez a partir do nome (`prefixo_para()`) e **fixas** — mudar o nome não as muda, e a linha fica quando a empresa sai, para não voltarem a servir |
 | `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
 | `clientes_oauth` | um por assistente registado | O conector MCP (10/10/2026, §4.11): cada assistente que se registou (o DCR do Claude), com os `redirect_uris` (só os da lista branca) e o IP, para o tecto do registo |
 | `codigos_oauth` | os do último dia | Os códigos de autorização do conector: só o resumo, a conta, a empresa, o desafio PKCE, o redirect e o `resource`; uso único, 60 s. Podam-se ao criar o seguinte |
@@ -193,7 +194,7 @@ comparadas antes de apagar.
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
 | `alertas_vistos` | **9 879** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
-| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`) |
+| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`); desde 10/10/2026, o prefixo do código das propostas e, por ano, o último número dado (`MARCA_DO_PREFIXO`; `MARCA_DO_ULTIMO_CODIGO` seguida de «:26») |
 | `alteracoes_avisadas` | uma por alteração recebida | O que esta empresa já recebeu da fila `alteracoes`, que é da plataforma (F2) |
 
 **As colunas de `propostas`, e quantas das 78 estão preenchidas:**
@@ -218,6 +219,7 @@ comparadas antes de apagar.
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
 | `lote` | 0 | Existe, ainda não se usou |
 | `porque_sem_ref` | 0 | Propostas sem anúncio: existe, ainda não se usou |
+| `codigo` | todas, numa empresa com nome | O código legível, «ABC-26-0001» (10/10/2026, §3.1): o ano é o da `criada_em`, e o número recomeça em cada ano. Único na empresa, o código inteiro (`ix_propostas_codigo`); **nenhum ecrã o mostra ainda** |
 | `prazo_entrega` | 0 | O prazo de entrega de uma proposta **sem anúncio** (1/10/2026): dá o «até …» dos quatro passos, a coluna «Prazo» da lista e a tarefa automática «entregar a proposta». Com anúncio fica vazia — o prazo é o do DR |
 
 ### 2.2 `contratos.db` — o mercado (2,66 GB, 6 tabelas)
@@ -308,6 +310,24 @@ Por ver → Por analisar → A preparar → Submetida
   antes não foi ela que o deixou passar, e fica só em «Todos». Sem essa
   data (as empresas anteriores a ela) conta tudo.
 - **As oito do meio** são **propostas** — o que a empresa decidiu fazer.
+  **Cada uma tem um código**, «ABC-26-0001» (10/10/2026, pedido dele):
+  as três letras da empresa, os dois últimos algarismos do ano em que a
+  proposta se criou (a `criada_em`), e um número que **recomeça em cada
+  ano** (2026: ABC-26-0001, ABC-26-0002…; 2027: ABC-27-0001), por empresa.
+  Tem quatro algarismos no mínimo e não tem tecto: a seguinte à
+  ABC-26-9999 é a ABC-26-10000. Dentro do ano, o número de uma proposta
+  apagada não volta a sair. É o que se
+  diz ao telefone; o `id` fica por baixo, e repete-se entre empresas
+  (cada `empresa.db` conta do 1). As letras saem do nome
+  (`prefixo_para()`): as três primeiras sem acentos; tomadas por outra
+  empresa, a combinação de três letras do nome seguinte, pela ordem em
+  que aparecem (com ALF tomado, «Alfândega» dá ALA); esgotadas, AAA…ZZZ.
+  Dão-se uma vez e não mudam com o nome. Uma empresa sem nome ainda não
+  as tem, e as propostas dela ficam sem código até ao arranque a seguir
+  ao nome. Encontra-se na pesquisa geral pelo texto do código:
+  «abc-26-0001», «abc-26» ou «0001» dão-no, «abc-0001» não. **Os ecrãs
+  ainda não o
+  mostram** (fica para depois do D1).
 - **Qualquer salto é permitido**, e voltar atrás é reabrir. **O salto
   pede o que pedem as ranhuras que implica** (D3 da 3.ª ronda,
   29/09/2026, decisão dele: «não vejo problema em meter diretamente no
@@ -2074,8 +2094,8 @@ até à 40.ª:
 | `ver_concurso` | O anúncio, a leitura das peças (com o «de onde vem»), as peças com **quantas páginas** tem cada uma, e a proposta da empresa |
 | `ler_peca` | O texto já extraído de uma peça, **com o número de cada página** (a mesma numeração da ficha), em páginas inteiras até ~120 mil caracteres por chamada (40 a 60 páginas de um caderno; uma página sozinha corta-se nos 30 mil). Sem `de_pagina` lê desde a primeira; quando a peça não cabe, a resposta diz «continua na página N — pede de_pagina=N», e o Claude pede o resto sozinho. **O texto vai só uma vez**, no `content`, com as marcas «— pág. N —»; o `structuredContent` leva só os metadados (as páginas devolvidas, o total, a `proxima_pagina`) |
 | `pesquisar` | A pesquisa geral (`resultados_da_pesquisa()`): concursos, propostas, entidades |
-| `listar_propostas` | As propostas da empresa, numa fase da escada ou em todas |
-| `ver_proposta` | Uma proposta, o histórico e as tarefas por fazer |
+| `listar_propostas` | As propostas da empresa, numa fase da escada ou em todas, cada uma com o código (§3.1) |
+| `ver_proposta` | Uma proposta (com o código), o histórico e as tarefas por fazer |
 | `situacao` | As propostas por fase, o que está em jogo, a taxa de vitória e o ganho no período, com o anterior ao lado |
 | `procurar_contratos` | Os contratos do Portal BASE (pede pelo menos um filtro) |
 | `ver_entidade` | Quanto uma entidade compra e a quem (24 meses), em que CPV, o que está a acabar, e o que a empresa já fez com ela |
