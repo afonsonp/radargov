@@ -30522,15 +30522,36 @@ class TestOCodigoDaProposta(BaseTemporaria):
         radar.criar_proposta(titulo="z")
         self.assertEqual(self._codigos(), ["ALF-%s-0001" % self.aa, "ALF-%s-0003" % self.aa])
 
-    def test_o_numero_continua_na_passagem_do_ano(self):
-        """O ano é o da criação, e o número não recomeça: em 2027 a
-        seguinte à ALF-26-0157 é a ALF-27-0158."""
+    def _cria_em(self, *datas):
+        with radar.liga() as c:
+            c.executemany("INSERT INTO propostas (titulo, criada_em) VALUES ('x', ?)",
+                          [(d,) for d in datas])
+
+    def test_o_numero_recomeca_na_passagem_do_ano(self):
+        """O ano é o da criação, e o número recomeça em cada um (decisão
+        dele, 10/10/2026): 2027 abre na ALF-27-0001, e uma de 2026
+        registada depois segue a numeração de 2026."""
+        self._com_nome("Alfa")
+        self._cria_em("2026-12-31 23:59", "2027-01-01 00:01", "2026-12-30 10:00")
+        self.assertEqual(self._codigos(),
+                         ["ALF-26-0001", "ALF-27-0001", "ALF-26-0002"])
+
+    def test_um_numero_apagado_nao_volta_a_sair_no_mesmo_ano(self):
+        self._com_nome("Alfa")
+        self._cria_em("2026-03-01 10:00", "2026-03-02 10:00")
+        with radar.liga() as c:
+            radar.apagar_propostas(c, "codigo=?", ("ALF-26-0002",))
+        self._cria_em("2026-03-03 10:00", "2027-01-05 10:00")
+        self.assertEqual(self._codigos(), ["ALF-26-0001", "ALF-26-0003", "ALF-27-0001"])
+
+    def test_depois_do_9999_vem_o_10000(self):
+        """Sem tecto: quatro algarismos no mínimo, e cresce."""
         self._com_nome("Alfa")
         with radar.liga() as c:
-            c.executemany("INSERT INTO propostas (titulo, criada_em) VALUES (?,?)",
-                          [("véspera", "2026-12-31 23:59"),
-                           ("ano novo", "2027-01-01 00:01")])
-        self.assertEqual(self._codigos(), ["ALF-26-0001", "ALF-27-0002"])
+            c.execute("INSERT INTO propostas (titulo, criada_em, codigo) "
+                      "VALUES ('x', '2026-01-01 10:00', 'ALF-26-9999')")
+        self._cria_em("2026-05-01 10:00", "2026-05-02 10:00")
+        self.assertEqual(self._codigos(), ["ALF-26-9999", "ALF-26-10000", "ALF-26-10001"])
 
     def test_o_codigo_nao_se_repete_dentro_da_empresa(self):
         self._com_nome("Alfa")
@@ -30583,7 +30604,8 @@ class TestOCodigoDaProposta(BaseTemporaria):
         self.assertEqual(self._codigos(7), ["OME-26-0002", "OME-26-0001"])
         with radar.com_empresa(7):
             radar.criar_proposta(titulo="nova")
-        self.assertEqual(self._codigos(7)[-1], "OME-%s-0003" % self.aa)
+        self.assertEqual(self._codigos(7)[-1], "OME-26-0003" if self.aa == "26"
+                         else "OME-%s-0001" % self.aa)
 
     def test_o_restauro_nao_apaga_a_proposta_que_ja_tem_o_codigo(self):
         """O `repor_triagem()` grava por INSERT OR REPLACE, e com o índice

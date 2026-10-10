@@ -2684,10 +2684,14 @@ pelo Afonso e nenhuma se reabre de passagem.
   código é o que se diz. Por isso fica fora da `versao_da_proposta()`
   (com ele, a versão de todas as propostas mudava no dia em que a coluna
   entrou, e os formulários abertos recusavam-se) e fora dos campos que a
-  ficha grava. E um número que se apagou **não volta a sair**: o
-  próximo é o maior entre a marca `MARCA_DO_ULTIMO_CODIGO` e o que está
-  na tabela — só a tabela dava outra vez o número da última apagada, e
-  um código dito ao telefone passava a ser de outra proposta.
+  ficha grava. E um número que se apagou **não volta a sair** dentro do
+  ano: o próximo é o maior entre a marca desse ano
+  (`MARCA_DO_ULTIMO_CODIGO` com «:26») e os códigos desse ano na tabela
+  — só a tabela dava outra vez o número da última apagada, e um código
+  dito ao telefone passava a ser de outra proposta. A marca é **por
+  ano** porque o número recomeça em cada um: uma marca só, a do último
+  dado, dava à primeira de 2027 o número seguinte ao de 2026, e a uma
+  proposta de 2026 registada em Janeiro o seguinte ao de 2027.
 
 ## O registo da empresa
 
@@ -3016,9 +3020,11 @@ SQLite, cópias, e a pen que manda nos números.
   verdade é o da `prefixos_das_empresas`, e o `prefixo_da_empresa()`
   copia-o para lá a cada arranque. Sem a marca (a empresa ainda sem
   nome) o gatilho não faz nada, e o `numerar_propostas()` dá os códigos
-  que faltam pela ordem de criação, quando ela existir. **O ano do código
-  é enfeite**: o número sai sempre do anterior, de qualquer ano
-  (`NUMERO_DO_CODIGO`), e por isso não recomeça a 1 de Janeiro.
+  que faltam pela ordem de criação, quando ela existir. Os dois passos
+  (a marca do ano, o código) são o mesmo SQL nos dois sítios
+  (`_sql_do_codigo()`). O número lê-se do 8.º carácter em diante e o
+  `printf('%04d')` só põe zeros à esquerda: sem tecto, a seguinte à
+  ABC-26-9999 é a ABC-26-10000.
 - **O `strftime('%y')` do SQLite devolve NULL** (10/10/2026, medido no
   3.46.1 do `.venv`): o `%y` não é dos formatos que ele conhece, e um
   NULL concatenado com `||` faz o resultado inteiro NULL — o código da

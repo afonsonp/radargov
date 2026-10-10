@@ -190,7 +190,7 @@ comparadas antes de apagar.
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
 | `alertas_vistos` | **9 879** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
-| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`); desde 10/10/2026, o prefixo do código das propostas e o último número dado (`MARCA_DO_PREFIXO`, `MARCA_DO_ULTIMO_CODIGO`) |
+| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`); desde 10/10/2026, o prefixo do código das propostas e, por ano, o último número dado (`MARCA_DO_PREFIXO`; `MARCA_DO_ULTIMO_CODIGO` seguida de «:26») |
 | `alteracoes_avisadas` | uma por alteração recebida | O que esta empresa já recebeu da fila `alteracoes`, que é da plataforma (F2) |
 
 **As colunas de `propostas`, e quantas das 78 estão preenchidas:**
@@ -215,7 +215,7 @@ comparadas antes de apagar.
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
 | `lote` | 0 | Existe, ainda não se usou |
 | `porque_sem_ref` | 0 | Propostas sem anúncio: existe, ainda não se usou |
-| `codigo` | todas, numa empresa com nome | O código legível, «ABC-26-0001» (10/10/2026, §3.1): o ano é o da `criada_em`. Único na empresa (`ix_propostas_codigo`); **nenhum ecrã o mostra ainda** |
+| `codigo` | todas, numa empresa com nome | O código legível, «ABC-26-0001» (10/10/2026, §3.1): o ano é o da `criada_em`, e o número recomeça em cada ano. Único na empresa, o código inteiro (`ix_propostas_codigo`); **nenhum ecrã o mostra ainda** |
 | `prazo_entrega` | 0 | O prazo de entrega de uma proposta **sem anúncio** (1/10/2026): dá o «até …» dos quatro passos, a coluna «Prazo» da lista e a tarefa automática «entregar a proposta». Com anúncio fica vazia — o prazo é o do DR |
 
 ### 2.2 `contratos.db` — o mercado (2,66 GB, 6 tabelas)
@@ -308,9 +308,11 @@ Por ver → Por analisar → A preparar → Submetida
 - **As oito do meio** são **propostas** — o que a empresa decidiu fazer.
   **Cada uma tem um código**, «ABC-26-0001» (10/10/2026, pedido dele):
   as três letras da empresa, os dois últimos algarismos do ano em que a
-  proposta se criou (a `criada_em`), e um número que **não recomeça** —
-  nem no ano novo (em 2027 a seguinte à ABC-26-0157 é a ABC-27-0158), nem
-  quando se apaga a última (o número dela não volta a sair). É o que se
+  proposta se criou (a `criada_em`), e um número que **recomeça em cada
+  ano** (2026: ABC-26-0001, ABC-26-0002…; 2027: ABC-27-0001), por empresa.
+  Tem quatro algarismos no mínimo e não tem tecto: a seguinte à
+  ABC-26-9999 é a ABC-26-10000. Dentro do ano, o número de uma proposta
+  apagada não volta a sair. É o que se
   diz ao telefone; o `id` fica por baixo, e repete-se entre empresas
   (cada `empresa.db` conta do 1). As letras saem do nome
   (`prefixo_para()`): as três primeiras sem acentos; tomadas por outra
