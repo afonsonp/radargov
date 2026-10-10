@@ -50,6 +50,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unicodedata
 import webbrowser
 import zipfile
@@ -60,6 +61,7 @@ from zoneinfo import ZoneInfo
 
 import empresa                      # o registo da empresa (empresa.py importa o radar por dentro)
 import contas                    # as contas e as sessoes (contas.py nao importa o radar)
+import mcp_servidor              # o conector MCP (nao importa o radar: recebe o FONTES_DO_MCP)
 
 # Os 49 icones do sistema de desenho, inline (fase 2, 21/09/2026). Se
 # faltar, o painel serve na mesma e os botoes ficam so com a palavra --
@@ -426,7 +428,27 @@ def liga():
         # linhas. E so de leitura -- um GET que tentasse gravar la da erro,
         # e nao grava em silencio num sitio que ninguem ve.
         c.execute("ATTACH DATABASE ? AS emp", (_empresa_vazia(),))
+    if _SO_DE_LEITURA.get():
+        # o conector MCP (10/10/2026): vale para a principal e para a `emp`
+        c.execute("PRAGMA query_only=ON")
     return c
+
+
+# As ligacoes abertas dentro de `so_de_leitura()` nao gravam nada: o
+# `PRAGMA query_only`. E a segunda guarda do conector MCP, alem de
+# nenhuma ferramenta escrever -- uma leitura que gravasse sem querer da
+# erro, em vez de mexer no trabalho de uma empresa a pedido de um robo.
+# Um ContextVar, como a `_EMPRESA`: vale para o fio que o pos.
+_SO_DE_LEITURA = contextvars.ContextVar("so_de_leitura", default=False)
+
+
+@contextlib.contextmanager
+def so_de_leitura():
+    marca_ = _SO_DE_LEITURA.set(True)
+    try:
+        yield
+    finally:
+        _SO_DE_LEITURA.reset(marca_)
 
 
 def _so_para_ler():
@@ -12059,6 +12081,8 @@ def liga_corpus():
     c.execute("PRAGMA recursive_triggers=ON")
     # Como na liga(): e com ela que a migracao enche objecto_norm.
     c.create_function("simplifica", 1, simplifica)
+    if _SO_DE_LEITURA.get():
+        c.execute("PRAGMA query_only=ON")
     return c
 
 
@@ -14973,6 +14997,16 @@ def volta_ao_referer(omissao):
 # ligacao de repor por e-mail. A guarda e dentro da rota
 # (`esqueci_me()`): a origem, o tecto por IP e por endereco, a mesma
 # resposta exista ou nao a conta, e nunca a conta do dono.
+# E o conector MCP (10/10/2026), por igualdade: quem chama é um servidor
+# do Claude, sem sessão do painel. A guarda de cada um é dentro da rota,
+# e NUNCA o cookie: o /mcp pede o bearer (`mcp()`, que põe a empresa do
+# token), o /oauth/token o código e o PKCE ou o refresh, e o
+# /oauth/register a lista branca dos redirects e o tecto por IP. Os
+# metadados (/.well-known/) são só GET e sem dados.
+ROTAS_DO_MCP = ("/mcp", "/oauth/register", "/oauth/token",
+                "/.well-known/oauth-protected-resource",
+                "/.well-known/oauth-protected-resource/mcp",
+                "/.well-known/oauth-authorization-server")
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
@@ -14985,7 +15019,7 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/visita",
                  # a visita guiada (5/10/2026): um ficheiro do `site/`,
                  # sem dados verdadeiros, só GET
-                 "/demo")
+                 "/demo") + ROTAS_DO_MCP
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -15248,6 +15282,10 @@ def nome_de_anfitriao(nome):
 # local ficam onde estao.
 DOMINIOS_DO_PAINEL = ("miragov.pt", "www.miragov.pt", "miragov.com",
                       "www.miragov.com", "radargov.pt", "www.radargov.pt")
+# O que responde no nome por onde chegou, sem saltar para o publico.
+NAO_SALTAM = ("/saude", "/mcp", "/.well-known/oauth-protected-resource",
+              "/.well-known/oauth-protected-resource/mcp",
+              "/.well-known/oauth-authorization-server")
 
 
 @app.before_request
@@ -15260,8 +15298,10 @@ def ao_endereco_certo():
     O proprio endereco publico nao se reencaminha -- era um ciclo."""
     anfitriao = (request.host or "").split(":")[0].lower()
     # o /saude responde em qualquer nome: a vigia de fora bate nele, e um
-    # 301 ou conta como «em baixo» ou esconde a falha que devia ver
-    if anfitriao not in DOMINIOS_DO_PAINEL or request.path == "/saude":
+    # 301 ou conta como «em baixo» ou esconde a falha que devia ver. E o
+    # /mcp com os metadados (10/10/2026): o `resource` tem de ser igual
+    # ao URL que a pessoa escreveu, e um salto a meio parte o conector.
+    if anfitriao not in DOMINIOS_DO_PAINEL or request.path in NAO_SALTAM:
         return None
     publico = endereco_do_painel()
     alvo = (urlparse(publico).hostname or "").lower()
@@ -38138,6 +38178,189 @@ def tarefas_adiar_fazer():
         [("aviso", "%s tarefa%s adiada%s para hoje."
           % (mil_pt(quantas), "" if quantas == 1 else "s",
              "" if quantas == 1 else "s"))])) + "#fazer")
+
+
+# ------------------------------------------------------- o conector MCP
+#
+# O Mira Gov como conector no Claude de cada empresa (10/10/2026; o
+# desenho e as decisões dele no BACKLOG, linha MCP; o que É no
+# docs/FUNCIONAL.md). O protocolo, as ferramentas e o OAuth vivem no
+# `mcp_servidor.py`, as tabelas e a criptografia no `contas.py`; aqui só
+# o pedido HTTP e a lista do que o conector pode tocar.
+#
+# Falta o ecrã do consentimento (o GET/POST /oauth/autorizar) e a linha
+# «Assistentes ligados» da Conta: são HTML, e o HTML está a passar para
+# moldes (o D1). A lógica deles está pronta e testada no `mcp_servidor`
+# (`validar_autorizacao()`, `emitir_codigo()`, `recusa_do_consentimento()`).
+
+def fontes_do_mcp():
+    """O que as ferramentas do conector podem chamar -- e só isto. A
+    empresa não está cá: é o `mcp()` que a põe, a do token."""
+    return types.SimpleNamespace(
+        base=endereco_do_painel(), hoje=lambda: datetime.now().date(),
+        liga=liga, liga_corpus=liga_corpus, ha_corpus=ha_corpus,
+        ler_config=ler_config, simplifica=simplifica, para_like=para_like,
+        ESCAPE_LIKE=ESCAPE_LIKE, DISTRITOS=DISTRITOS,
+        CHAVES_DA_EMPRESA=CHAVES_DA_EMPRESA, ROTULOS_DA_ESCADA=ROTULOS_DA_ESCADA,
+        MINIMO_PARA_TAXA=MINIMO_PARA_TAXA,
+        condicoes=condicoes, com_recorte=com_recorte,
+        condicao_do_interesse=condicao_do_interesse, analise_de=analise_de,
+        nome_da_pessoa=nome_da_pessoa, passos_do_anuncio=passos_do_anuncio,
+        resultados_da_pesquisa=resultados_da_pesquisa,
+        propostas_por_estado=_propostas_por_estado,
+        pipeline_em_euros=pipeline_em_euros, taxa_de_vitoria=taxa_de_vitoria,
+        ganho_no_periodo=ganho_no_periodo, janelas_do_periodo=janelas_do_periodo,
+        condicoes_contratos=condicoes_contratos,
+        entidades_da_pesquisa=entidades_da_pesquisa,
+        lado_da_empresa=lado_da_empresa,
+        a_acabar_por_entidade=a_acabar_por_entidade)
+
+
+def _json_do_mcp(corpo, estado=200, cabecalhos=None):
+    return Response(json.dumps(corpo, ensure_ascii=False), estado,
+                    mimetype="application/json",
+                    headers=dict({"Cache-Control": "no-store"}, **(cabecalhos or {})))
+
+
+@app.route("/.well-known/oauth-protected-resource")
+@app.route("/.well-known/oauth-protected-resource/mcp")
+def mcp_metadados_do_recurso():
+    return _json_do_mcp(mcp_servidor.metadados_do_recurso(endereco_do_painel()))
+
+
+@app.route("/.well-known/oauth-authorization-server")
+def mcp_metadados_do_servidor():
+    return _json_do_mcp(mcp_servidor.metadados_do_servidor(endereco_do_painel()))
+
+
+@app.route("/oauth/register", methods=["POST"])
+def oauth_registar():
+    """O registo dinâmico (DCR). Rota aberta: a guarda é a lista branca
+    dos redirects e o tecto por IP, no `contas.registar_cliente_oauth()`."""
+    c = liga()
+    try:
+        estado, corpo = mcp_servidor.registar_cliente(
+            c, request.get_json(silent=True), ip_de_quem_pede())
+        c.commit()
+    finally:
+        c.close()
+    return _json_do_mcp(corpo, estado)
+
+
+@app.route("/oauth/token", methods=["POST"])
+def oauth_token():
+    """O código por tokens, e o refresh rodado. Rota aberta: a guarda é o
+    código (uso único, 60 s, PKCE S256, o mesmo redirect) ou o refresh."""
+    ip = ip_de_quem_pede()
+    if mcp_servidor.token_fechado_ao_ip(ip):
+        return _json_do_mcp({"error": "slow_down"}, 429)
+    c = liga()
+    try:
+        estado, corpo = mcp_servidor.responder_token(c, request.form,
+                                                     endereco_do_painel())
+        c.commit()
+    finally:
+        c.close()
+    if estado != 200:
+        mcp_servidor.contar_falha_do_token(ip)
+    return _json_do_mcp(corpo, estado)
+
+
+def _origem_do_mcp_e_nossa(base):
+    """A especificação obriga: um `Origin` que venha tem de ser nosso (é o
+    que trava um site a falar com o /mcp pelo browser de alguém). Os
+    servidores do Claude não o mandam."""
+    origem = request.headers.get("Origin")
+    if not origem:
+        return True
+    nome = nome_de_anfitriao(urlparse(origem).hostname or "")
+    return nome in (nome_de_anfitriao(urlparse(base).hostname or ""),
+                    nome_de_anfitriao((request.host or "").split(":")[0]))
+
+
+@app.route("/mcp", methods=["POST"])
+def mcp():
+    """O conector. Rota aberta, e a guarda é esta, por esta ordem: o
+    `Origin`; o bearer (nunca o cookie do painel, nem o acesso livre
+    local), com a conta e a empresa relidas agora; a conta do dono fora
+    (403); e cada ferramenta dentro de `com_empresa(empresa do token)` e
+    de `so_de_leitura()` -- no `_chamada_do_mcp()`."""
+    base = endereco_do_painel()
+    if not _origem_do_mcp_e_nossa(base):
+        return _json_do_mcp({"error": "origem recusada"}, 403)
+    if (request.content_length or 0) > mcp_servidor.MAXIMO_DO_PEDIDO:
+        return _json_do_mcp({"error": "pedido grande demais"}, 413)
+    autorizacao = request.headers.get("Authorization") or ""
+    token = autorizacao[7:].strip() if autorizacao[:7].lower() == "bearer " else ""
+    c = liga()
+    try:
+        quem = contas.conta_do_token_mcp(c, token, mcp_servidor.recurso(base))
+        # a empresa suspensa, ou que já não existe: o token revoga-se
+        if quem and quem["empresa_id"] not in empresas_a_trabalhar():
+            contas.revogar_familia_mcp(c, quem["familia"])
+            quem = None
+        c.commit()
+    finally:
+        c.close()
+    if not quem:
+        desafio = 'Bearer resource_metadata="%s/.well-known/oauth-protected-resource"' % base
+        if token:
+            desafio += ', error="invalid_token"'
+        return _json_do_mcp({"error": "invalid_token" if token else "sem credencial"},
+                            401, {"WWW-Authenticate": desafio})
+    if contas.e_dono(quem["utilizador"]) or contas.sem_empresa(quem["utilizador"]):
+        return _json_do_mcp({"error": "a conta do dono da plataforma não usa o "
+                                      "conector"}, 403)
+    mensagem = request.get_json(silent=True)
+    if mensagem is None:
+        return _json_do_mcp(mcp_servidor.erro_jsonrpc(None, -32700, "JSON inválido"), 400)
+    resposta = mcp_servidor.responder(
+        mensagem, lambda nome, argumentos: _chamada_do_mcp(quem, nome, argumentos),
+        DISTRITOS, CHAVES_DA_EMPRESA)
+    if resposta is None:
+        return Response("", 202)
+    return _json_do_mcp(resposta)
+
+
+def _chamada_do_mcp(quem, nome, argumentos):
+    """Uma ferramenta: o tecto, a empresa do token, só de leitura, e uma
+    linha no registo. Um erro inesperado vai para os erros de sempre, e o
+    modelo recebe uma frase, não um 500."""
+    agora = datetime.now()
+    utilizador_id, empresa_id = quem["utilizador"]["id"], quem["empresa_id"]
+    c = liga()
+    try:
+        recado = mcp_servidor.tecto_da_chamada(c, utilizador_id, empresa_id, agora)
+        if recado:
+            mcp_servidor.registar_chamada(c, agora, utilizador_id, empresa_id,
+                                          quem["client_id"], nome, argumentos, 0, 0,
+                                          "tecto")
+            c.commit()
+            return mcp_servidor.resultado_de_erro(recado)
+    finally:
+        c.close()
+    inicio = time.monotonic()
+    try:
+        with com_empresa(empresa_id), so_de_leitura():
+            resultado, linhas, estado = mcp_servidor.executar(
+                fontes_do_mcp(), nome, argumentos)
+    except Exception as erro:
+        marca_erro("painel_ultimo_erro", "painel",
+                   "%s no conector MCP (%s): %s: %s"
+                   % (agora.strftime("%Y-%m-%d %H:%M"), nome,
+                      type(erro).__name__, str(erro)[:300]))
+        resultado, linhas, estado = mcp_servidor.resultado_de_erro(
+            "O Mira Gov não conseguiu responder a isto; o erro ficou "
+            "registado."), 0, "erro"
+    c = liga()
+    try:
+        mcp_servidor.registar_chamada(c, agora, utilizador_id, empresa_id,
+                                      quem["client_id"], nome, argumentos, linhas,
+                                      int((time.monotonic() - inicio) * 1000), estado)
+        c.commit()
+    finally:
+        c.close()
+    return resultado
 
 
 # ------------------------------------------------------------- arranque

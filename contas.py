@@ -189,6 +189,40 @@ def iniciar_tabelas(c):
     # Solo), para quem as tinha ver porque, e nao so o ecra de entrar.
     c.execute("""CREATE TABLE IF NOT EXISTS sessoes_fechadas (
         token TEXT PRIMARY KEY, quando TEXT)""")
+    # O conector MCP (10/10/2026): os assistentes registados (DCR), os
+    # códigos de autorização e os tokens. São da plataforma, como as
+    # sessões -- um token é de uma CONTA, e leva a empresa dela. Do
+    # código e dos tokens só o RESUMO, como os convites: quem lesse a
+    # base não podia usar nenhum. A `familia` junta os tokens que nascem
+    # do mesmo código: um refresh usado duas vezes revoga-a inteira.
+    c.execute("""CREATE TABLE IF NOT EXISTS clientes_oauth (
+        client_id TEXT PRIMARY KEY, nome TEXT, redirect_uris TEXT,
+        ip TEXT, criado_em TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS codigos_oauth (
+        resumo TEXT PRIMARY KEY, client_id TEXT, utilizador_id INTEGER,
+        empresa_id INTEGER, code_challenge TEXT, redirect_uri TEXT,
+        resource TEXT, expira TEXT, usado_em TEXT, familia TEXT)""")
+    c.execute("""CREATE TABLE IF NOT EXISTS tokens_mcp (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, resumo TEXT UNIQUE,
+        resumo_refresh TEXT UNIQUE, familia TEXT, utilizador_id INTEGER,
+        empresa_id INTEGER, client_id TEXT, resource TEXT, criado_em TEXT,
+        expira TEXT, refresh_expira TEXT, ultimo_uso TEXT, revogado_em TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_tokens_mcp_util "
+              "ON tokens_mcp(utilizador_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_tokens_mcp_familia "
+              "ON tokens_mcp(familia)")
+    # O registo das chamadas ao /mcp, DIAS_DO_REGISTO_MCP dias: é também
+    # o que o tecto conta. Sem a resposta e sem o token.
+    c.execute("""CREATE TABLE IF NOT EXISTS chamadas_mcp (
+        quando TEXT, utilizador_id INTEGER, empresa_id INTEGER,
+        client_id TEXT, ferramenta TEXT, argumentos TEXT, linhas INTEGER,
+        ms INTEGER, resultado TEXT)""")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_chamadas_mcp_util "
+              "ON chamadas_mcp(utilizador_id, quando)")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_chamadas_mcp_empresa "
+              "ON chamadas_mcp(empresa_id, quando)")
+    c.execute("CREATE INDEX IF NOT EXISTS ix_chamadas_mcp_quando "
+              "ON chamadas_mcp(quando)")
 
 
 # ------------------------------------------------------------------- planos
@@ -506,6 +540,11 @@ def criar_utilizador(c, email, senha, nome="", papel=None, empresa_id=None,
                   "WHERE id=?",
                   (hash_senha(senha), (nome or "").strip(), papel, empresa_id,
                    linha[0]))
+        # Trocar a palavra-passe desliga os assistentes (decisão 7 do
+        # conector MCP, 10/10/2026): é o gesto de quem desconfia. Aqui, e
+        # não na rota, porque a Conta, a consola e a ligação de repor
+        # passam todas por este UPDATE.
+        revogar_tokens_mcp(c, linha[0])
         return linha[0]
     # O primeiro admin criado PELA CONSOLA numa base sem dono e o dono da
     # plataforma -- a regra da migracao, que so corre quando a coluna
@@ -583,6 +622,7 @@ def apagar_utilizador(c, utilizador_id, empresa_id=None, quem=None):
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM reposicoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM segundo_factor WHERE utilizador_id=?", (utilizador_id,))
+    revogar_tokens_mcp(c, utilizador_id)
     c.execute("DELETE FROM utilizadores WHERE id=?", (utilizador_id,))
     return True
 
@@ -1482,6 +1522,9 @@ def sair_de_todos(c, utilizador_id):
     c.execute("DELETE FROM sessoes WHERE utilizador_id=?", (utilizador_id,))
     c.execute("DELETE FROM segundo_factor WHERE utilizador_id=? AND tipo='aparelho'",
               (utilizador_id,))
+    # E os assistentes ligados (conector MCP, 10/10/2026): a suspensão e
+    # a ligação de repor também passam por aqui.
+    revogar_tokens_mcp(c, utilizador_id)
     return n
 
 
@@ -1518,3 +1561,227 @@ def token_csrf(token_sessao):
 def csrf_bate(token_sessao, apresentado):
     return bool(apresentado) and hmac.compare_digest(
         token_csrf(token_sessao), str(apresentado))
+
+
+# ------------------------------------------------------------ o conector MCP
+#
+# O servidor de autorizacao OAuth do conector (10/10/2026, desenho e
+# decisoes dele no BACKLOG, linha MCP): o assistente (o Claude) regista-se
+# (DCR), a pessoa autoriza com a sessao do painel, o assistente troca o
+# codigo por um token com PKCE, e roda o refresh. Aqui so as tabelas e a
+# criptografia; o protocolo e o pedido HTTP vivem no `mcp_servidor.py` e
+# no radar. Tokens OPACOS e nao JWT: so nos os lemos, e revogar e marcar
+# uma linha.
+
+# A lista branca dos redirects (decisao 3): so o Claude na web. Sem o
+# localhost do Claude Code (abria a porta a qualquer programa local de
+# quem tem a conta) e sem o ChatGPT, que vem depois (decisao 2).
+REDIRECTS_DO_MCP = ("https://claude.ai/api/mcp/auth_callback",)
+SEGUNDOS_DO_CODIGO_OAUTH = 60
+SEGUNDOS_DO_TOKEN_MCP = 3600
+DIAS_DO_REFRESH_MCP = 30
+# o registo dinamico e aberto a quem quer que seja: um tecto por IP, como
+# o /pedir-acesso
+CLIENTES_OAUTH_POR_IP_POR_HORA = 10
+
+
+def _texto_da_hora(momento):
+    return momento.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def registar_cliente_oauth(c, nome, redirect_uris, ip="", agora=None):
+    """O registo dinamico de um assistente (RFC 7591). Devolve
+    (client_id, None) ou (None, (erro, descricao)), com os codigos de
+    erro da RFC. So aceita redirects da lista branca: um cliente com um
+    redirect seu era a porta de um phishing («autorize aqui»)."""
+    agora = agora or datetime.now()
+    if not isinstance(redirect_uris, list) or not redirect_uris \
+            or not all(isinstance(u, str) for u in redirect_uris):
+        return None, ("invalid_redirect_uri", "redirect_uris em falta")
+    fora = [u for u in redirect_uris if u not in REDIRECTS_DO_MCP]
+    if fora:
+        return None, ("invalid_redirect_uri",
+                      "redirect_uri não autorizado: %s" % fora[0][:200])
+    ip = (ip or "")[:64]
+    if ip and c.execute(
+            "SELECT COUNT(*) FROM clientes_oauth WHERE ip=? AND criado_em>=?",
+            (ip, _texto_da_hora(agora - timedelta(hours=1)))).fetchone()[0] \
+            >= CLIENTES_OAUTH_POR_IP_POR_HORA:
+        return None, ("too_many_requests", "demasiados registos; tente mais tarde")
+    client_id = secrets.token_urlsafe(16)
+    c.execute("INSERT INTO clientes_oauth (client_id, nome, redirect_uris, ip, "
+              "criado_em) VALUES (?,?,?,?,?)",
+              (client_id, (str(nome or "") or "Assistente")[:100],
+               "\n".join(redirect_uris), ip, _texto_da_hora(agora)))
+    return client_id, None
+
+
+def cliente_oauth(c, client_id):
+    """{client_id, nome, redirect_uris} de um assistente registado, ou None."""
+    linha = c.execute("SELECT client_id, nome, redirect_uris FROM clientes_oauth "
+                      "WHERE client_id=?", (str(client_id or ""),)).fetchone()
+    if not linha:
+        return None
+    return {"client_id": linha["client_id"], "nome": linha["nome"],
+            "redirect_uris": (linha["redirect_uris"] or "").split("\n")}
+
+
+def criar_codigo_oauth(c, client_id, utilizador_id, empresa_id, code_challenge,
+                       redirect_uri, resource, agora=None):
+    """O codigo de autorizacao, depois do consentimento. Devolve o CODIGO,
+    que so existe aqui: na base fica o resumo. Uso unico, 60 s."""
+    agora = agora or datetime.now()
+    # os de ontem já não servem para nada, nem para apanhar um reutilizado
+    c.execute("DELETE FROM codigos_oauth WHERE expira < ?",
+              (_texto_da_hora(agora - timedelta(days=1)),))
+    codigo = secrets.token_urlsafe(32)
+    c.execute("INSERT INTO codigos_oauth (resumo, client_id, utilizador_id, "
+              "empresa_id, code_challenge, redirect_uri, resource, expira) "
+              "VALUES (?,?,?,?,?,?,?,?)",
+              (_resumo(codigo), client_id, utilizador_id, empresa_id,
+               code_challenge, redirect_uri, resource,
+               _texto_da_hora(agora + timedelta(seconds=SEGUNDOS_DO_CODIGO_OAUTH))))
+    return codigo
+
+
+def _pkce_bate(verifier, challenge):
+    """O S256 da RFC 7636: base64url(sha256(verifier)), sem o `=`."""
+    if not verifier or not challenge:
+        return False
+    calculado = base64.urlsafe_b64encode(
+        hashlib.sha256(str(verifier).encode("utf-8")).digest()
+    ).decode("ascii").rstrip("=")
+    return hmac.compare_digest(calculado, str(challenge))
+
+
+def _conta_serve(c, utilizador_id, empresa_id):
+    """A conta ainda existe, nao esta suspensa e continua na empresa do
+    token. Relida a cada uso: um token nao sobrevive a uma mudanca."""
+    u = c.execute("SELECT empresa_id, suspensa FROM utilizadores WHERE id=?",
+                  (utilizador_id,)).fetchone()
+    return bool(u) and not u["suspensa"] and u["empresa_id"] == empresa_id
+
+
+def revogar_familia_mcp(c, familia, agora=None):
+    if familia:
+        c.execute("UPDATE tokens_mcp SET revogado_em=? WHERE familia=? "
+                  "AND revogado_em IS NULL",
+                  (_texto_da_hora(agora or datetime.now()), familia))
+
+
+def revogar_tokens_mcp(c, utilizador_id, agora=None):
+    """Desliga os assistentes da conta: os tokens e os codigos por usar.
+    Chamam-no o «sair de todos» (e por ele a suspensao e a ligacao de
+    repor), trocar a palavra-passe e apagar a conta (decisao 7)."""
+    c.execute("DELETE FROM codigos_oauth WHERE utilizador_id=? AND usado_em IS NULL",
+              (utilizador_id,))
+    return c.execute("UPDATE tokens_mcp SET revogado_em=? WHERE utilizador_id=? "
+                     "AND revogado_em IS NULL",
+                     (_texto_da_hora(agora or datetime.now()),
+                      utilizador_id)).rowcount
+
+
+def _par_de_tokens(c, familia, utilizador_id, empresa_id, client_id, resource,
+                   agora):
+    # um token cujo refresh já expirou não serve nem para revogar a
+    # família: sai, para a tabela não crescer sem fim
+    c.execute("DELETE FROM tokens_mcp WHERE refresh_expira < ?", (_texto_da_hora(agora),))
+    acesso, refresh = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    c.execute("INSERT INTO tokens_mcp (resumo, resumo_refresh, familia, "
+              "utilizador_id, empresa_id, client_id, resource, criado_em, expira, "
+              "refresh_expira) VALUES (?,?,?,?,?,?,?,?,?,?)",
+              (_resumo(acesso), _resumo(refresh), familia, utilizador_id,
+               empresa_id, client_id, resource, _texto_da_hora(agora),
+               _texto_da_hora(agora + timedelta(seconds=SEGUNDOS_DO_TOKEN_MCP)),
+               _texto_da_hora(agora + timedelta(days=DIAS_DO_REFRESH_MCP))))
+    return {"access_token": acesso, "token_type": "Bearer",
+            "expires_in": SEGUNDOS_DO_TOKEN_MCP, "refresh_token": refresh,
+            "scope": "ler"}
+
+
+def trocar_codigo_oauth(c, codigo, client_id, redirect_uri, verifier,
+                        resource="", agora=None):
+    """O `authorization_code` do /oauth/token. Devolve (tokens, None) ou
+    (None, erro da RFC 6749). O codigo gasta-se na primeira tentativa,
+    certa ou errada; um codigo usado outra vez revoga o que ele deu (RFC
+    6749 §4.1.2: e o sinal de que foi roubado)."""
+    agora = agora or datetime.now()
+    resumo = _resumo(codigo)
+    linha = c.execute("SELECT * FROM codigos_oauth WHERE resumo=?",
+                      (resumo,)).fetchone()
+    if not linha:
+        return None, "invalid_grant"
+    if linha["usado_em"] or not c.execute(
+            "UPDATE codigos_oauth SET usado_em=? WHERE resumo=? AND usado_em IS NULL",
+            (_texto_da_hora(agora), resumo)).rowcount:
+        revogar_familia_mcp(c, linha["familia"], agora)
+        return None, "invalid_grant"
+    if linha["expira"] <= _texto_da_hora(agora) \
+            or linha["client_id"] != client_id \
+            or linha["redirect_uri"] != redirect_uri \
+            or (resource and resource != linha["resource"]) \
+            or not _pkce_bate(verifier, linha["code_challenge"]) \
+            or not _conta_serve(c, linha["utilizador_id"], linha["empresa_id"]):
+        return None, "invalid_grant"
+    familia = secrets.token_hex(12)
+    c.execute("UPDATE codigos_oauth SET familia=? WHERE resumo=?", (familia, resumo))
+    return _par_de_tokens(c, familia, linha["utilizador_id"], linha["empresa_id"],
+                          linha["client_id"], linha["resource"], agora), None
+
+
+def rodar_refresh_mcp(c, refresh, client_id, resource="", agora=None):
+    """O `refresh_token` do /oauth/token, RODADO: o antigo deixa de valer
+    e nasce um par novo na mesma familia. Um refresh ja rodado que volte
+    a aparecer revoga a familia inteira -- um dos dois que o usaram nao e
+    quem devia (OAuth 2.1 §4.3.1)."""
+    agora = agora or datetime.now()
+    linha = c.execute("SELECT * FROM tokens_mcp WHERE resumo_refresh=?",
+                      (_resumo(refresh),)).fetchone()
+    if not linha:
+        return None, "invalid_grant"
+    if linha["revogado_em"]:
+        revogar_familia_mcp(c, linha["familia"], agora)
+        return None, "invalid_grant"
+    if linha["refresh_expira"] <= _texto_da_hora(agora) \
+            or linha["client_id"] != client_id \
+            or (resource and resource != linha["resource"]):
+        return None, "invalid_grant"
+    if not _conta_serve(c, linha["utilizador_id"], linha["empresa_id"]):
+        revogar_familia_mcp(c, linha["familia"], agora)
+        return None, "invalid_grant"
+    if not c.execute("UPDATE tokens_mcp SET revogado_em=? WHERE id=? "
+                     "AND revogado_em IS NULL",
+                     (_texto_da_hora(agora), linha["id"])).rowcount:
+        revogar_familia_mcp(c, linha["familia"], agora)
+        return None, "invalid_grant"
+    return _par_de_tokens(c, linha["familia"], linha["utilizador_id"],
+                          linha["empresa_id"], linha["client_id"],
+                          linha["resource"], agora), None
+
+
+def conta_do_token_mcp(c, token, resource, agora=None):
+    """A conta de um access token do /mcp, RELIDA AGORA, ou None.
+
+    None se o token nao existe, foi revogado, expirou ou e de outro
+    servidor (`resource`); e None, revogando a familia, se a conta saiu,
+    foi suspensa ou mudou de empresa. Devolve {utilizador, empresa_id,
+    client_id, familia}: a empresa e a do TOKEN, que acabou de se
+    confirmar igual a da conta -- nunca vem do pedido."""
+    if not token:
+        return None
+    agora = agora or datetime.now()
+    linha = c.execute("SELECT * FROM tokens_mcp WHERE resumo=? AND revogado_em IS NULL",
+                      (_resumo(token),)).fetchone()
+    if not linha or linha["expira"] <= _texto_da_hora(agora) \
+            or linha["resource"] != resource:
+        return None
+    if not _conta_serve(c, linha["utilizador_id"], linha["empresa_id"]):
+        revogar_familia_mcp(c, linha["familia"], agora)
+        return None
+    u = c.execute("SELECT id, email, nome, papel, empresa_id, dono FROM utilizadores "
+                  "WHERE id=?", (linha["utilizador_id"],)).fetchone()
+    c.execute("UPDATE tokens_mcp SET ultimo_uso=? WHERE id=?",
+              (_texto_da_hora(agora), linha["id"]))
+    return {"utilizador": dict(u), "empresa_id": linha["empresa_id"],
+            "client_id": linha["client_id"], "familia": linha["familia"]}
+

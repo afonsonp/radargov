@@ -21,7 +21,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 51
+- [Contas e a porta](#contas-e-a-porta) &middot; 55
 - [A interface](#a-interface) &middot; 131
 - [Convenções](#convencoes) &middot; 8
 
@@ -3191,6 +3191,40 @@ Nada espera dentro do pedido do browser.
 ---
 
 ## Contas e a porta
+
+- **No conector MCP a empresa vem do token, e a rota é que a põe**
+  (10/10/2026). O `/mcp` é rota aberta: a porta sai antes de fazer
+  `_EMPRESA.set()`, e a empresa activa ali é a de omissão (a 1). O
+  `mcp()` relê a conta do token (`contas.conta_do_token_mcp()`) e corre
+  cada ferramenta dentro de `com_empresa(empresa do token)` e de
+  `so_de_leitura()` — sem o primeiro, uma conta da B lia a 1 em
+  silêncio. **O teste de isolamento tem de olhar do lado da B**: a A é a
+  empresa de omissão, e um `com_empresa()` esquecido não se vê com o
+  token dela. E **os ids das propostas repetem-se entre empresas** (cada
+  ficheiro conta do 1): «pedir a proposta da B com o token da A» devolvia
+  a n.º 1 da A e o teste passava sem provar nada; o `TestConectorMCP`
+  dá à B uma proposta a mais para os ids não baterem.
+- **O `/mcp` não olha para o cookie, mas a porta já olhou** (10/10/2026).
+  A `porta_de_entrada()` lê a sessão e o acesso livre local em todos os
+  pedidos, antes de ver que a rota é aberta, e deixa o `g.utilizador`
+  posto. Uma ferramenta do conector que lesse o `g.utilizador` (o
+  `quem_sou()`, o `minha_conta()`) via a conta do browser, ou o dono no
+  computador dele — a credencial é **só** o bearer. O
+  `test_o_cookie_do_painel_e_o_acesso_livre_nao_servem` guarda-o.
+- **Os tokens do conector caem no `contas.py`, não nas rotas**
+  (decisão 7, 10/10/2026). O `revogar_tokens_mcp()` é chamado pelo
+  `sair_de_todos()` (e por ele pela suspensão e pela ligação de repor),
+  pelo ramo do `criar_utilizador()` que troca a palavra-passe (a Conta, a
+  consola e o repor passam todos por lá) e pelo `apagar_utilizador()`.
+  Um caminho novo que mude a palavra-passe ou feche as sessões sem
+  passar por estas três deixa o assistente ligado.
+- **O `/mcp` e os metadados não saltam de nome** (`NAO_SALTAM`). O
+  `resource` dos metadados tem de ser igual ao URL que a pessoa escreveu
+  no Claude, e o `ao_endereco_certo()` mandava o pedido de
+  `radargov.pt/mcp` para o `miragov.pt` — um POST com 308 até passava,
+  mas o cliente comparava os dois e recusava. E os endereços dos
+  metadados saem do `endereco_do_painel()`, **nunca do `Host`** do
+  pedido, pela mesma razão do «esqueci-me».
 
 - **A sessão única do Solo está no `_abrir_sessao()`, e não no
   `/entrar`** (L2.1, 1/10/2026). O convite, o repor e o segundo factor

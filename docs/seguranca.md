@@ -23,7 +23,7 @@ Afonso, na mesma pasta onde estão o `radar.db`, o `config.json`, a pasta
 `empresas/` (a base, a configuração e a triagem de cada empresa) e as
 capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
 
-## As seis, por ordem de gravidade
+## As sete, por ordem de gravidade
 
 1. **Caminhos de ficheiro montados a partir do URL.** As rotas que
    servem ficheiros recebem `<path:ref>`, que aceita barras. Qualquer
@@ -108,6 +108,24 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
 
 6. **SQL construído por concatenação** com valores vindos do pedido
    (o motor de filtros monta condições).
+
+7. **O conector MCP** (10/10/2026): a segunda porta para os dados de
+   uma empresa, aberta a servidores de fora. Quatro coisas a rever em
+   cada mudança: **a empresa vem só do token** — relido a cada chamada
+   contra a conta (`contas.conta_do_token_mcp()`), posto pelo
+   `com_empresa()` da rota, e nenhuma ferramenta recebe o número da
+   empresa; **a credencial é só o bearer** — nunca o cookie do painel
+   nem o acesso livre local, que a porta já leu antes de a rota correr;
+   **nada escreve** — as ferramentas só lêem, e correm em
+   `so_de_leitura()` (`PRAGMA query_only`); e **o que sai é a lista
+   fechada** — sem contactos, notas nem documentos do cofre, com o
+   texto de terceiros limpo e cortado (`mcp_servidor.limpo()`), porque
+   um anúncio pode trazer instruções para o modelo de quem pergunta. O
+   OAuth guarda só resumos, aceita só o redirect do Claude
+   (`REDIRECTS_DO_MCP`), exige o PKCE `S256`, e revoga a família de um
+   código ou de um refresh usado duas vezes. Os testes que provam o
+   isolamento (`TestConectorMCP`) falham quando se força a empresa
+   errada — se um deixar de falhar, é o teste que está estragado.
 
 ## O que não vale a pena rever aqui
 
