@@ -22258,49 +22258,16 @@ def _pagina_das_sugestoes(recado="", texto="", tipo="", pagina=""):
     with liga() as c:
         minhas = c.execute("SELECT * FROM sugestoes WHERE conta=? ORDER BY id "
                            "DESC LIMIT 50", (conta,)).fetchall() if conta else []
-    opcoes = "".join("<option value='%s'%s>%s</option>"
-                     % (k, " selected" if k == tipo else "", v)
-                     for k, v in TIPOS_DE_SUGESTAO.items())
-    formulario = cartao("O que nos quer dizer", (
-        ("<div class='mg-alert mg-alert--danger' role='alert'>%s</div>"
-         % html.escape(recado) if recado else "")
-        + "<form method='post' action='/sugestoes' enctype='multipart/form-data' "
-          "class='conf-form sugestao-form'>"
-          "<input type='hidden' name='pagina' value='%s'>"
-          "<label class='conf-campo'><span>Tipo</span>"
-          "<select name='tipo' required>%s</select></label>"
-          "<label class='conf-campo largo'><span>O que se passa</span>"
-          "<textarea name='texto' rows='6' maxlength='%d' required "
-          "placeholder='O que falta, o que não funciona, o que podia ser "
-          "melhor.'>%s</textarea><small>Até %d caracteres.</small></label>"
-          "<label class='conf-campo largo'><span>Captura de ecrã "
-          "<span class='nota'>(opcional)</span></span>"
-          "<input type='file' name='captura' accept='image/png,image/jpeg,image/webp'>"
-          "<small>PNG, JPG ou WebP, até 5 MB. Só a equipa do Mira Gov a vê."
-          "</small></label>"
-          "<button type='submit' class='mg-btn mg-btn--primary'>Enviar</button>"
-          "</form>"
-        % (html.escape(pagina, quote=True), opcoes, TECTO_DA_SUGESTAO,
-           html.escape(texto), TECTO_DA_SUGESTAO)),
-        meta="Lemos todas. Se for preciso, respondemos para o e-mail da sua conta.")
-    if minhas:
-        linhas = "".join(
-            "<tr>%s%s%s%s</tr>" % (
-                _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criada_em"]))),
-                _celula_da_tabela("Tipo", html.escape(TIPOS_DE_SUGESTAO.get(l["tipo"], ""))),
-                _celula_da_tabela("O que escreveu", html.escape(corta(l["texto"] or "", 140))),
-                _celula_da_tabela("Estado", "<span class='mg-tag %s'>%s</span>" % (
-                    tom(TOM_DO_ESTADO_DA_SUGESTAO.get(l["estado"], "")),
-                    html.escape(ESTADOS_DE_SUGESTAO.get(l["estado"], "")))))
-            for l in minhas)
-        enviadas = cartao("As que enviou", (
-            "<table class='mg-table tab-plataforma'><thead><tr><th>Quando</th>"
-            "<th>Tipo</th><th>O que escreveu</th><th>Estado</th></tr></thead>"
-            "<tbody>%s</tbody></table>" % linhas))
-    else:
-        enviadas = ""
     return envolver("ajuda", "Enviar uma sugestão", "",
-                    "<div class='larg'>%s%s</div>" % (formulario, enviadas),
+                    ecra("sugestoes.html", recado=recado, pagina=pagina, tipo=tipo,
+                         texto=texto, tecto=TECTO_DA_SUGESTAO,
+                         tipos=list(TIPOS_DE_SUGESTAO.items()), minhas=[{
+                             "quando": data_hora_pt(l["criada_em"]),
+                             "tipo": TIPOS_DE_SUGESTAO.get(l["tipo"], ""),
+                             "texto": corta(l["texto"] or "", 140),
+                             "tom": tom(TOM_DO_ESTADO_DA_SUGESTAO.get(l["estado"], "")),
+                             "estado": ESTADOS_DE_SUGESTAO.get(l["estado"], "")}
+                             for l in minhas]),
                     titulo_aba="Enviar uma sugestão",
                     cabeca=cabecalho_de_pagina(
                         "Enviar uma sugestão",
