@@ -33,9 +33,20 @@ def interpretador():
     venv = os.path.join(PASTA, ".venv", "bin", "python")
     return venv if os.path.exists(venv) else sys.executable
 
-# O `git commit` de que se fala aqui e o de gravar. O `git commit --help`
-# ou uma mensagem que por acaso contenha as palavras nao contam.
-RX_COMMIT = re.compile(r"(?:^|[|;&]\s*)git\s+(?:-\S+\s+)*commit\b")
+# O `git commit` de que se fala aqui e o de gravar. Uma mensagem que por
+# acaso contenha as palavras nao conta.
+#
+# Antes do `commit` pode vir uma opcao do git sozinha (`-q`,
+# `--git-dir=x`) ou com o valor a seguir (`-C pasta`, `-c chave=valor`,
+# `--git-dir pasta`), e o valor pode vir entre aspas. Ate 10/10/2026 so a
+# primeira forma era reconhecida, e um `git -C pasta commit` gravava sem
+# os testes correrem. E o `git` pode vir pelo caminho (`/usr/bin/git`) ou
+# dentro de parenteses.
+_VALOR = r"""(?:"[^"]*"|'[^']*'|\S+)"""
+_OPCAO = (r"(?:(?:-C|-c|--git-dir|--work-tree|--namespace|--config-env)"
+          r"\s+%s|-\S+)" % _VALOR)
+RX_COMMIT = re.compile(r"(?:^|[|;&(]\s*)(?:\S*/)?git\s+(?:%s\s+)*commit\b"
+                       % _OPCAO)
 
 
 def main():

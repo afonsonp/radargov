@@ -30408,6 +30408,48 @@ class TestOsMoldesJinja(unittest.TestCase):
     def test_o_ultimo_fim_de_linha_do_molde_nao_se_perde(self):
         self.assertEqual(radar.MOLDES_JINJA.from_string("a\n").render(), "a\n")
 
+
+class TestOHookReconheceOCommit(unittest.TestCase):
+    """10/10/2026: o hook que trava o commit com testes a falhar não
+    reconhecia `git -C pasta commit` -- as opções com o valor a seguir --,
+    e esse commit gravava sem os testes correrem. Isto guarda as formas
+    de escrever o commit, e as que não são commit."""
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        caminho = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               ".claude", "hooks", "testes_antes_do_commit.py")
+        spec = importlib.util.spec_from_file_location("hook_commit", caminho)
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+        cls.rx = modulo.RX_COMMIT
+
+    def test_as_formas_de_gravar_sao_reconhecidas(self):
+        for comando in (
+                "git commit -m 'x'",
+                "git -C /home/a/radar commit -am 'x'",
+                'git -C "/home/a/uma pasta" commit -m x',
+                "git -c user.name=x commit -m x",
+                "git --git-dir=/x/.git commit",
+                "git --git-dir /x/.git --work-tree /x commit",
+                "git -C /p -c a=b -q commit",
+                "cd /x && git commit -m x",
+                "ls; git commit",
+                "/usr/bin/git commit -m x",
+                "(git commit -m x)",
+                "git add -A && git -C /p commit -m x"):
+            self.assertTrue(self.rx.search(comando), comando)
+
+    def test_o_que_nao_grava_passa(self):
+        for comando in (
+                "git log -1",
+                "git -C /p log --grep commit",
+                "git status",
+                "echo 'git commit'",
+                "grep -n commit radar.py"):
+            self.assertFalse(self.rx.search(comando), comando)
+
 if __name__ == "__main__":
 
     unittest.main(verbosity=2)
