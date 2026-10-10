@@ -1351,7 +1351,15 @@ chamado `curl_ensaio_do_hook.txt` — nome que empresa com o padrão protegido
 - `proteger_dados.py` (PreToolUse) — recusa escritas em `curl_*.txt` e
   `radar.db*`. Sai com código 2 para travar a ferramenta.
 - `testes_antes_do_commit.py` (PreToolUse) — trava o `git commit` com
-  testes a falhar. Só o commit; o resto do git passa.
+  testes a falhar. Só o commit; o resto do git passa. Reconhece o commit
+  também com opções antes dele, com ou sem valor (`git -C pasta commit`,
+  `git -c chave=valor commit`), pelo caminho do `git` e dentro de
+  parênteses — até 10/10/2026 a forma com `-C pasta` passava sem os
+  testes correrem (`TestOHookReconheceOCommit`). E corre os testes da
+  **pasta da instalação**, e não os do worktree onde se grava: um defeito
+  só da instalação trava tudo (aconteceu a 10/10/2026, com um teste
+  dependente da data), e um só do worktree passa — por isso, num
+  worktree, a bateria corre-se à mão antes de gravar.
 
 Os três olham para o `file_path` das ferramentas de escrita **e para o
 texto dos comandos** do Bash e do PowerShell. Só pelo `file_path` eram
