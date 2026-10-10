@@ -7005,7 +7005,7 @@ def _texto_dos_ficheiros(dentro, papeis):
     if not dentro:
         return "", "não é PDF"
     proprios = [(n, d) for n, d in dentro
-                if papeis and papeis_da_peca(os.path.basename(n)) & papeis]
+                if papeis and papeis_da_peca(n) & papeis]
     partes, estados = [], []
     with tempfile.TemporaryDirectory() as temporaria:
         for nome, dados in (proprios or dentro):
@@ -8232,8 +8232,11 @@ def rotulo_com_paginas(nome, paginas):
 #
 # O \b do re nao serve, que trata o '_' como letra: em "_CE_" nao ha
 # fronteira nenhuma. Dai a espreitadela por caracteres alfanumericos.
+# A versao colada a sigla tambem e a sigla: «1_CEV24052024_42_2026.pdf» e
+# «2_PCV24052024_...» do 23591/2026 (Q3, 10/10/2026) -- sem o «v» e os
+# algarismos, nenhum dos dois era peca e so a Lista.pdf foi lida.
 def _sigla(letras):
-    return r"(?<![a-z0-9])" + letras + r"(?![a-z0-9])"
+    return r"(?<![a-z0-9])" + letras + r"(?:v\d+)?(?![a-z0-9])"
 
 
 # «CADE» e «Pograma» sao nomes do acervo (28/09/2026), um da Marinha e
@@ -8283,7 +8286,10 @@ RX_PECA_TECNICA = re.compile(
     # «Mem Descritiva» e «MQTEN249-3» (21999, a mesma IP)
     r"especifica|t.?cnic|mem(oria)?\.?.?descritiva|mapa|quantidades|(?<![a-z0-9])mqt|"
     r"cadastro|tarefas|pre.?os.?unit|\blpu\b|conformidade|caracteristicas|"
-    r"patrimonio|sinistralidade")
+    r"patrimonio|sinistralidade|"
+    # o orcamento e as medicoes sao o mapa das obras com outro nome
+    # («727.ORC_OBRAS...», 23834; «16_MEDIÇOES.pdf», 24004; Q3, 10/10/2026)
+    r"or.?amento|(?<![a-z0-9])orc(?![a-z0-9])|medi.?.?oes")
 # O que tem o nome de tecnico e e da proposta ou do procedimento: o
 # formulario da proposta tecnica, o DEUCP, a garantia, uma resposta a
 # esclarecimentos.
@@ -8303,10 +8309,39 @@ RX_LISTA_PELO_NOME = re.compile(r"^lista\b")
 RX_LISTA_DE_ARTIGOS = re.compile(r"lista de (artigos|todas as especies de trabalhos)")
 
 
+# A pasta, dentro de um ZIP, so decide quando o nome do ficheiro nao diz
+# nada (Q3, 10/10/2026, 23834/2026): o «727.ORC_...pdf» esta na pasta
+# «MAPA DE QUANTIDADES». E sem o «procedimento» do Programa: uma pasta
+# «Pecas do procedimento» fazia de cada anexo la dentro o Programa.
+RX_PASTA_DO_PROGRAMA = re.compile(r"programa|pograma|convite|prog.?conc")
+
+
+def _papeis_da_pasta(pasta):
+    p = simplifica(pasta)
+    if RX_PECA_TECNICA.search(p) and not RX_NAO_TECNICA.search(p):
+        return {"tecnico"}
+    papeis = set()
+    if RX_PECA_ENCARGOS_EXTENSO.search(p):
+        papeis.add("encargos")
+    if RX_PASTA_DO_PROGRAMA.search(p):
+        papeis.add("programa")
+    return papeis
+
+
 def papeis_da_peca(nome, texto=""):
     """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF.
 
-    Pelo nome; o `texto`, quando vem, so decide o «Lista.pdf»."""
+    Pelo nome; o `texto`, quando vem, so decide o «Lista.pdf». Um
+    caminho de dentro de um ZIP («pasta/ficheiro.pdf») decide-se pelo
+    nome do ficheiro e, so se ele nao disser nada, pela pasta onde esta."""
+    pastas, _, nome = (nome or "").replace("\\", "/").rpartition("/")
+    papeis = _papeis_do_nome(nome, texto)
+    if not papeis and pastas:
+        papeis = _papeis_da_pasta(pastas.rpartition("/")[2])
+    return papeis
+
+
+def _papeis_do_nome(nome, texto):
     n = simplifica(nome)
     if (texto and RX_LISTA_PELO_NOME.search(n)
             and RX_LISTA_DE_ARTIGOS.search(simplifica(texto[:600]))):
@@ -8410,34 +8445,40 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     secundarias = set(SECUNDARIAS_DA_LEITURA.get(quais, ())) - alvo
 
     # o papel pelo nome, e pelo cabecalho no «Lista.pdf» (papeis_da_peca)
-    def papeis(nome, texto):
-        return papeis_da_peca(os.path.basename(nome), texto)
+    # O papel decide-se ao abrir, com o caminho de dentro do ZIP inteiro
+    # (a pasta decide quando o nome nao diz; Q3, 23834/2026), e guarda-se:
+    # o nome que vai para as fontes ja so leva o do ficheiro.
+    def papeis(d):
+        return d["papeis"]
 
     def serve(d):
-        return bool((alvo | secundarias) & papeis(d["nome"], d["texto"]))
+        return bool((alvo | secundarias) & papeis(d))
 
     def e_secundaria(d):
-        return not (alvo & papeis(d["nome"], d["texto"]))
+        return not (alvo & papeis(d))
 
     abertos = []
     for d in docs:
-        escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx}
-                      for n, tx in ficheiros_no_texto(d["texto"])
-                      if serve({"nome": n, "texto": tx})]
-        abertos += escolhidos or [d]
+        escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx,
+                       "papeis": papeis_da_peca(n, tx)}
+                      for n, tx in ficheiros_no_texto(d["texto"])]
+        escolhidos = [e for e in escolhidos if serve(e)]
+        abertos += escolhidos or [{"nome": d["nome"], "texto": d["texto"],
+                                   "papeis": papeis_da_peca(
+                                       os.path.basename(d["nome"]), d["texto"])}]
     # Sem a peca da leitura, a outra faz as vezes dela, com o tecto
     # inteiro (29/09/2026): as «Pecas do procedimento» do 22005 sao o
     # Programa e o Caderno num PDF so, e pelo nome so passam por Programa
     # -- a leitura do objecto levava delas uma zona de 2 500 caracteres, e
     # o local de entrega, na pagina 14, ficava de fora.
-    if not any(alvo & papeis(d["nome"], d["texto"]) for d in abertos):
+    if not any(alvo & papeis(d) for d in abertos):
         alvo, secundarias = alvo | secundarias, set()
     # A peca antes dos anexos: o recorte e cortado no fim, e um anexo
     # nao pode tirar o lugar ao Caderno de Encargos.
     # A peca, depois os anexos, e as secundarias no fim.
     docs = sorted((d for d in abertos if serve(d)),
                   key=lambda d: (e_secundaria(d),
-                                 quais not in papeis(d["nome"], d["texto"])))
+                                 quais not in papeis(d)))
     vistos, total = set(), int(tecto * 1.5)
     for d in docs:
         limpo = sem_indice(d["texto"])

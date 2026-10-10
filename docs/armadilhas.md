@@ -529,7 +529,17 @@ Orçamento, cadeia de reserva, chaves.
   que se constrói e onde. E o Caderno da Infraestruturas de Portugal
   vem **partido por capítulos** («Cap7_CondicoesParticulares_L1.pdf»,
   21999), sem «caderno» em nenhum: a equipa técnica do Cap. 7 nunca
-  chegava ao modelo.
+  chegava ao modelo. **A versão colada à sigla e a pasta do ZIP** (Q3,
+  10/10/2026): «1_CEV24052024…» e «2_PCV24052024…» (23591) não eram
+  peça nenhuma — o `_sigla()` aceita agora um «v» e algarismos atrás —, e
+  o «727.ORC_…pdf» da 23834 está na pasta «MAPA DE QUANTIDADES» de um
+  ZIP. O `papeis_da_peca()` recebe o caminho de dentro do ZIP e, **só
+  quando o nome não diz nada**, decide pela pasta onde o ficheiro está
+  (`_papeis_da_pasta()`) — e sem o «procedimento», senão uma pasta
+  «Peças do procedimento» fazia de cada anexo o Programa. O
+  `pecas_para_analise()` decide o papel ao abrir o ZIP e guarda-o, porque
+  o nome que segue para as fontes já só leva o do ficheiro. O orçamento e
+  as medições são `tecnico`, como o mapa.
 
 - **O campo 11 é uma coluna e cinco perguntas** (28/09/2026). A
   resposta de todas vai para `analise.equipa`, e por isso todas pedem

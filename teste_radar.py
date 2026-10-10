@@ -882,6 +882,53 @@ class TestPapeisDaPeca(unittest.TestCase):
                      "419971092.pdf", "espd-request.zip", "Anuncio_JOUE.pdf"):
             self.assertEqual(radar.papeis_da_peca(nome), set(), nome)
 
+    def test_a_sigla_com_a_versao_colada(self):
+        # Q3, 10/10/2026 (o director de obras): o 23591/2026 traz o CE e
+        # o PC com a versão colada à sigla, e nenhum dos dois era peça --
+        # só a Lista.pdf foi lida, e os campos do CE e do PP saíram vazios
+        self.assertEqual(radar.papeis_da_peca("1_CEV24052024_42_2026.pdf"),
+                         {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("2_PCV24052024_42_2026.pdf"),
+                         {"programa"})
+        # mas uma palavra que só começa pela sigla continua a não ser
+        self.assertEqual(radar.papeis_da_peca("Certidao_Cevada.pdf"), set())
+
+    def test_a_pasta_do_zip_decide_quando_o_nome_nao_diz(self):
+        # Q3 (23834/2026): o ZIP da obra arruma as peças por pastas, e o
+        # orçamento chama-se «727.ORC_...» dentro de «MAPA DE QUANTIDADES»
+        dentro = "procº. 727/727_26.zip/727_26/"
+        self.assertEqual(radar.papeis_da_peca(
+            dentro + "MAPA DE QUANTIDADES/727.ORC_OBRAS DE REABILITAÇÃO NA "
+            "ESCOLA EB1 DO VINHAL SP.pdf"), {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca(
+            dentro + "MEMÓRIA DESCRITIVA/Escola EB1 do Vinhal_signed.pdf"),
+            {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca(dentro + "PSS/Plano de Segurança.pdf"),
+                         set())
+        # o nome manda sobre a pasta, e «procedimento» numa pasta não faz
+        # de cada anexo lá dentro o Programa
+        self.assertEqual(radar.papeis_da_peca(
+            "Peças do procedimento/Caderno de Encargos.pdf"), {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("Peças do procedimento/Anexo I.pdf"),
+                         set())
+
+    def test_o_orcamento_e_as_medicoes_sao_tecnicos(self):
+        for nome in ("727.ORC_OBRAS.pdf", "Orçamento.pdf", "16_MEDIÇOES.pdf"):
+            self.assertEqual(radar.papeis_da_peca(nome), {"tecnico"}, nome)
+
+    def test_a_leitura_le_o_ficheiro_pela_pasta(self):
+        marca = radar.MARCA_DO_FICHEIRO
+        texto = "\n".join((
+            marca % "procº. 727/727_26/MAPA DE QUANTIDADES/727.ORC_OBRAS.pdf",
+            "Artigo 1 Demolição de cobertura em fibrocimento 120 m2",
+            marca % "procº. 727/727_26/PSS/Plano de Segurança e Saúde.pdf",
+            "Plano de segurança da obra"))
+        docs = [{"nome": "procº. 727.zip", "texto": texto}]
+        recorte, usados = radar.pecas_para_analise(docs, "encargos", ())
+        self.assertIn("fibrocimento", recorte)
+        self.assertNotIn("Plano de segurança", recorte)
+        self.assertTrue(usados and "727.ORC_OBRAS.pdf" in usados[0], usados)
+
 
 class TestOrcamentoDoDia(unittest.TestCase):
     """A conta tem dois tectos e só um se vê nos cabeçalhos."""
