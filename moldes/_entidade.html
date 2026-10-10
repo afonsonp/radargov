@@ -1,0 +1,7 @@
+{#- As peças da ficha da entidade que o Python também desenha: o
+    cabeçalho da página (`cabecalho_de_pagina()`) ainda é Python e leva o
+    «seguir» à direita, e chama-o por `MOLDES_JINJA.get_template(
+    "_entidade.html").module.seguir(...)`. -#}
+{% import "_pecas.html" as p %}
+{#- O «seguir» (B10): o botão diz o estado e troca-o. -#}
+{% macro seguir(s) %}<div class='ent-atalhos'>{{ p.accao(s.destino, s.etiqueta, "bt") }}{% if s.seguida %}<span class='nota' style='align-self:center'>a seguir &mdash; os anúncios novos dela entram no resumo diário</span>{% endif %}</div>{% endmacro %}

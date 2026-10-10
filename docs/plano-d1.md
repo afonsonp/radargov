@@ -161,7 +161,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.6 | Situação (`/situacao`) — **feito a 10/10/2026** (`situacao.html`: as abas, o período, as três vistas e as duas listas que confirmam os números, o «em jogo» e as decididas; o `tabela_em_jogo()` e o `tabela_das_decididas()` passam a dar só os dados. Os números, o funil, o CPV, o negócio e as ranhuras servem também os Indicadores e o Hoje, e entram feitos; o «Quem nos ganha» passa com o Mercado) | |
 | 3.7a | Mercado: a lista das Entidades — **feito a 10/10/2026** (`entidades.html`, com a comparação de duas; o `_bloco_de_comparacao()` passa a dar só as duas colunas. O selo do papel, a fita do «connosco», a legenda e o paginador são partilhados e entram feitos) | o 3.7 partiu-se em quatro |
 | 3.7b | Mercado: os Concorrentes — **feito a 10/10/2026** (`concorrentes.html`; a faixa do interesse, a ligação de cada fornecedor e o paginador são passados feitos) | |
-| 3.7c | Mercado: a ficha da entidade | |
+| 3.7c | Mercado: a ficha da entidade — **feito a 10/10/2026** (`entidade.html`, nos dois ramos, com e sem o Portal BASE; o «seguir» em `_entidade.html`, porque o cabeçalho da página ainda o pede do Python; o `nosso_lado_cx()`, o `filtros_da_ficha()` e o `_seguir_cx()` passam a dar só os dados. Os seis factos, a concorrência, os gráficos, a árvore e os contactos entram feitos) | |
 | 3.7d | Mercado: os Contratos, o resumo e os gráficos | |
 | 3.8 | Concursos e Propostas: listas, fases, tabela | os mais vistos |
 | 3.9 | A ficha do anúncio e da proposta | o maior (~5 000 linhas) |

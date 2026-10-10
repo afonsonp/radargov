@@ -26404,11 +26404,9 @@ def periodos_rapidos():
     return fora
 
 
-def filtros_da_ficha(chave, d):
-    """A caixa de pesquisa da propria ficha, com atalhos de periodo."""
-    def v(nome):
-        return html.escape(request.args.get(nome, ""), quote=True)
-
+def filtros_da_ficha(chave):
+    """A caixa de pesquisa da propria ficha, com atalhos de periodo: os
+    valores do `filtros` do `moldes/entidade.html`."""
     de_agora = (request.args.get("de") or "").strip()
     ate_agora = (request.args.get("ate") or "").strip()
     chips = []
@@ -26421,10 +26419,11 @@ def filtros_da_ficha(chave, d):
             args.pop("ate", None)
         else:
             args["de"], args["ate"] = de, ate
-        # o escolhido diz-se, e não só pela cor (3.ª ronda, G73)
-        chips.append("<a class='%s' href='/entidade/%s?%s'>%s</a>"
-                     % ("on' aria-current='true" if activo else "", quote(chave, safe=""),
-                        urlencode(args), html.escape(etiqueta)))
+        # o escolhido diz-se, e não só pela cor (3.ª ronda, G73). O
+        # endereço sai com o `&` cru, como sempre saiu.
+        chips.append({"activo": activo, "etiqueta": etiqueta,
+                      "href": Markup("/entidade/%s?%s" % (quote(chave, safe=""),
+                                                          urlencode(args)))})
 
     limpar = ("/entidade/%s" % quote(chave, safe="")
               if ha_filtro_na_ficha(request.args) else "")
@@ -26439,45 +26438,18 @@ def filtros_da_ficha(chave, d):
 
     # O campo do CPV e escondido e quem escolhe e a arvore, como nas duas
     # listas: onde se pode procurar por CPV, pode-se escolher mais que um.
-    # Tudo entre parenteses antes do `%`: com `+` a meio, o `%` so
-    # formatava o ultimo pedaco (a armadilha das ligacoes, na interface).
-    return ((
-        # **O filtro da ficha é o do Mercado** (E40 da segunda ronda,
-        # 26/09/2026): eram sete campos sem rótulo empilhados ao centro,
-        # 410 px de altura, com o «de» e o «até» soltos entre eles.
-        "<form class='mg-card filtros ent-filtros' id='filtros-entidade' "
-        "method='get' action='/entidade/%s'>"
-        + campo_de_filtro("Objecto", "<input class='mg-field__input' type='text' "
-                          "name='q' value='%s' placeholder='Objecto do contrato'>",
-                          " f-q")
-        + campo_de_filtro("Excluir palavras", "<input class='mg-field__input' "
-                          "type='text' name='q_excl' value='%s'>")
-        + "<input type='hidden' id='filtro-cpv' name='cpv' value='%s'>"
-        + campo_de_filtro("Excluir CPV", "<input class='mg-field__input' "
-                          "type='text' id='filtro-cpv-excl' name='cpv_excl' "
-                          "value='%s' placeholder='Código'>")
-        + campo_de_filtro("Celebrado de", "<input class='mg-field__input campo-data' "
-                          "type='text' name='de' value='%s' inputmode='numeric' "
-                          "placeholder='dd/mm/aaaa' maxlength='10' "
-                          "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
-        + campo_de_filtro("Celebrado até", "<input class='mg-field__input campo-data' "
-                          "type='text' name='ate' value='%s' inputmode='numeric' "
-                          "placeholder='dd/mm/aaaa' maxlength='10' "
-                          "pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>")
-        + campo_de_filtro("Preço mínimo", "<input class='mg-field__input' "
-                          "type='text' name='min' value='%s' placeholder='€' "
-                          "inputmode='decimal'>")
-        + "%s"
-        "<div class='periodos'><span>Período:</span>%s</div>"
-        "</form>%s%s%s%s")
-        % (quote(chave, safe=""), v("q"), v("q_excl"), v("cpv"),
-           v("cpv_excl"),
-           html.escape(data_para_campo(request.args.get("de")), quote=True),
-           html.escape(data_para_campo(request.args.get("ate")), quote=True),
-           v("min"), botoes_de_filtro(html.escape(limpar, quote=True)),
-           "".join(chips),
-           faixa_de_avisos_de_datas(request.args), faixa,
-           arvore_html(n_cpv, "contratos"), ""))
+    # **O filtro da ficha é o do Mercado** (E40 da segunda ronda,
+    # 26/09/2026): eram sete campos sem rótulo empilhados ao centro,
+    # 410 px de altura, com o «de» e o «até» soltos entre eles.
+    valores = {c: request.args.get(c, "") for c in ("q", "q_excl", "cpv",
+                                                    "cpv_excl", "min")}
+    return dict(
+        valores, chave=quote(chave, safe=""), chips=chips,
+        de=data_para_campo(request.args.get("de")),
+        ate=data_para_campo(request.args.get("ate")),
+        botoes=Markup(botoes_de_filtro(html.escape(limpar, quote=True))),
+        avisos=Markup(faixa_de_avisos_de_datas(request.args)),
+        faixa=Markup(faixa), arvore=Markup(arvore_html(n_cpv, "contratos")))
 
 
 def campo_de_filtro(rotulo, dentro, classe=""):
@@ -26529,78 +26501,47 @@ def nosso_lado_cx(nosso, contra=None):
     # sem o perfil: o número conta todos, e a lista com o perfil posto
     # mostrava 361 de 1 628 (5.ª ronda)
     lista = LISTA + "?" + urlencode(dict(nosso["filtro"], estado="", interesse="nao"))
-    pedacos = ["<a class='ent-num' href='%s'><b>%s</b> %s no Diário da "
-               "República</a>"
-               % (html.escape(lista, quote=True), mil_pt(nosso["anuncios"]),
-                  "anúncio" if nosso["anuncios"] == 1 else "anúncios")]
+
+    def linha(p, preco):
+        return {"alvo": ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
+                else "/proposta/%d" % p["id"],
+                "titulo": corta(p["titulo"] or p["ref"] or "(sem título)", 90),
+                "preco": preco_pt(p[preco]),
+                "estado": estado_da_empresa(p["estado"])
+                + (" — lote %d" % p["lote"] if p["lote"] else "")}
+
     # Um concorrente (`contra`, 7/10/2026) não lança concursos: em vez dos
-    # anúncios dele, as propostas que nos ganhou.
-    if contra is not None:
-        pedacos = [
-            "<div class='ent-nossas'><div class='mg-field__label'>Contra nós "
-            "<i>%s</i></div><table class='mg-table tab-contratos'><tbody>%s"
-            "</tbody></table></div>"
-            % (mil_pt(len(contra)), "".join(
-                "<tr><td class='o'><a href='%s'>%s</a></td><td class='p'>%s</td></tr>"
-                % (html.escape(("/anuncio/" + quote(p["ref"], safe=""))
-                               if p["ref"] else "/proposta/%d" % p["id"], quote=True),
-                   html.escape(corta(p["titulo"] or p["ref"] or "(sem título)", 90)),
-                   html.escape(preco_pt(p["preco_vencedor"])))
-                for p in contra))
-            if contra else
-            "<p class='nota'>Nenhuma proposta nossa perdida para esta entidade. "
-            "Conta-se pelo «quem ganhou» do desfecho de cada proposta.</p>"]
-        if not nosso["propostas"]:
-            return ("<div class='mg-card lado-cx' id='nosso'>"
-                    + rot_com_porque("O nosso lado",
-                                     "O que esta entidade já nos ganhou, pelo "
-                                     "desfecho das nossas propostas.")
-                    + "".join(pedacos) + "</div>")
-    if nosso["propostas"]:
-        linhas = []
-        for p in nosso["propostas"]:
-            alvo = ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"] \
-                else "/proposta/%d" % p["id"]
-            linhas.append(
-                "<tr><td class='o'><a href='%s'>%s</a></td>"
-                "<td>%s</td><td class='p'>%s</td></tr>"
-                % (html.escape(alvo, quote=True),
-                   html.escape(corta(p["titulo"] or p["ref"] or "(sem título)",
-                                     90)),
-                   html.escape(estado_da_empresa(p["estado"])
-                               + (" — lote %d" % p["lote"] if p["lote"] else "")),
-                   html.escape(preco_pt(p["valor_proposta"]))))
-        taxa = ""
-        if nosso["taxa"] is not None:
-            taxa = (" &middot; ganhámos <b>%s</b> das %s decididas"
-                    % (pct_pt(nosso["taxa"], 0), mil_pt(nosso["decididos"])))
-        elif nosso["decididos"]:
-            # não se inventa uma taxa com dois concursos: diz-se de
-            # quantos é preciso, que é a mesma honestidade do
-            # taxa_de_vitoria() global
-            taxa = (" &middot; %s decidida%s — a taxa diz-se a partir de %d"
-                    % (mil_pt(nosso["decididos"]),
-                       "" if nosso["decididos"] == 1 else "s",
-                       MINIMO_COM_ENTIDADE))
-        pedacos.append(
-            "<div class='ent-nossas'><div class='mg-field__label'>As nossas propostas "
-            "<i>%s</i>%s</div><table class='mg-table tab-contratos'><tbody>%s</tbody>"
-            "</table></div>"
-            % (mil_pt(len(nosso["propostas"])), taxa, "".join(linhas)))
-    else:
-        pedacos.append("<p class='nota'>Ainda não lhe fizemos nenhuma "
-                       "proposta.</p>")
-    corpo = ("<div class='mg-card lado-cx' id='nosso'>"
-             + rot_com_porque(
-                 "O nosso lado",
-                 "O que o Mira Gov e a empresa sabem desta entidade, por "
-                 "oposição ao que o Portal BASE diz. O número dos anúncios "
-                 "abre exactamente essa lista.")
-             + "".join(pedacos) + "</div>")
+    # anúncios dele, as propostas que nos ganhou -- e, sem propostas
+    # nossas, o cartão fica só com isso (`fecha`), sem os contactos.
+    fecha = contra is not None and not nosso["propostas"]
+    rot = (rot_com_porque("O nosso lado",
+                          "O que esta entidade já nos ganhou, pelo "
+                          "desfecho das nossas propostas.") if fecha else
+           rot_com_porque(
+               "O nosso lado",
+               "O que o Mira Gov e a empresa sabem desta entidade, por "
+               "oposição ao que o Portal BASE diz. O número dos anúncios "
+               "abre exactamente essa lista."))
     # Os contactos são da ENTIDADE (etapa 6 do CRM), e até hoje só se
     # viam e criavam dentro de um anúncio dela. A caixa é a mesma.
-    return corpo + contactos_cx({"ref": "", "nif": chave if re.fullmatch(
-        r"\d{9}", chave or "") else "", "entidade": nome})
+    contactos = "" if fecha else contactos_cx(
+        {"ref": "", "nif": chave if re.fullmatch(r"\d{9}", chave or "") else "",
+         "entidade": nome})
+    # A taxa: não se inventa uma com dois concursos -- diz-se de quantos
+    # é preciso, que é a mesma honestidade do taxa_de_vitoria() global.
+    return {"rot": Markup(rot), "contactos": Markup(contactos), "fecha": fecha,
+            "lista": lista, "anuncios": mil_pt(nosso["anuncios"]),
+            "anuncios_um": nosso["anuncios"] == 1,
+            "contra": (None if contra is None
+                       else [linha(p, "preco_vencedor") for p in contra]),
+            "n_contra": mil_pt(len(contra or ())),
+            "propostas": [linha(p, "valor_proposta") for p in nosso["propostas"]],
+            "n_propostas": mil_pt(len(nosso["propostas"])),
+            "taxa": (pct_pt(nosso["taxa"], 0) if nosso["taxa"] is not None
+                     else ""),
+            "decididos": mil_pt(nosso["decididos"]) if nosso["decididos"] else "",
+            "s": "" if nosso["decididos"] == 1 else "s",
+            "minimo": MINIMO_COM_ENTIDADE}
 
 
 # --- a lista das entidades, com abas (17/09/2026, redesenho §3)
@@ -27209,15 +27150,11 @@ def _seguir_cx(chave):
     with liga() as c:
         seguida = c.execute("SELECT 1 FROM entidades_seguidas WHERE chave=?",
                             (chave,)).fetchone() is not None
-    return ("<div class='ent-atalhos'>%s%s</div>"
-            % (accao("/entidade/%s/seguir" % quote(chave, safe=""),
-                     "Deixar de seguir" if seguida else
-                     "Seguir esta entidade",
-                     # secundario: o primario da ficha e o «Filtrar» (E8)
-                     "bt"),
-               "<span class='nota' style='align-self:center'>"
-               "a seguir &mdash; os anúncios novos dela entram no resumo "
-               "diário</span>" if seguida else ""))
+    # o botão é secundário («bt», no molde): o primario da ficha e o
+    # «Filtrar» (E8)
+    return {"destino": "/entidade/%s/seguir" % quote(chave, safe=""),
+            "etiqueta": "Deixar de seguir" if seguida else "Seguir esta entidade",
+            "seguida": seguida}
 
 
 @app.route("/entidade/<path:chave>")
@@ -27238,20 +27175,15 @@ def entidade(chave):
         if not (nosso["anuncios"] or nosso["propostas"] or nosso["contactos"]
                 or (conc and conc["concorreu"])):
             return pagina_de_erro(404)
-        ident = ("<div class='mg-card ent-cab'><div class='n'>%s</div>"
-                 "<div class='m'>%s</div></div>"
-                 % (html.escape(nome),
-                    ("NIF %s &middot; " % html.escape(chave))
-                    if re.fullmatch(r"\d{9}", chave or "") else "")
-                 + "<p class='nota'>O Portal BASE não conhece esta entidade: "
-                   "não tem contratos celebrados guardados. O que se segue é "
-                   "o nosso lado.</p>")
         return envolver(
             "entidades", nome,
             "O que sabemos desta entidade. O Portal BASE não a conhece.",
-            "<div class='larg'>" + ident + _seguir_cx(chave)
-            + factos_da_entidade(chave, nosso)
-            + concorrencia_cx(chave, conc) + nosso_lado_cx(nosso) + "</div>",
+            ecra("entidade.html", sem_base=True, nome=nome,
+                 nif=chave if re.fullmatch(r"\d{9}", chave or "") else "",
+                 seguida=_seguir_cx(chave),
+                 factos=Markup(factos_da_entidade(chave, nosso)),
+                 concorrencia=Markup(concorrencia_cx(chave, conc)),
+                 nosso=nosso_lado_cx(nosso)),
             migalhas=migalhas_de("entidades", corta(nome, 44)),
             titulo_aba="%s" % corta(nome, 40))
 
@@ -27298,31 +27230,30 @@ def entidade(chave):
         args["interesse"] = "nao"
         return "/contratos?" + urlencode(args)
 
+    # As duas «ver os…» saem com o `&` cru (`Markup`), como sempre
+    # saíram; as do «a acabar» saíam escapadas, e o Jinja escapa-as.
+    fim = "&ver=fim&meses=%d" % MESES_A_ACABAR
     ligacoes = []
     if compra["k"]:
-        ligacoes.append("<a href='%s'>%s</a>"
-                        % (para_lista("entid"),
-                           "ver o contrato que adjudicou" if compra["k"] == 1 else
-                           "ver os %s contratos que adjudicou" % mil_pt(compra["k"])))
+        ligacoes.append({"href": Markup(para_lista("entid")),
+                         "texto": "ver o contrato que adjudicou" if compra["k"] == 1
+                         else "ver os %s contratos que adjudicou" % mil_pt(compra["k"])})
         # "o que desta entidade esta a acabar" e a pergunta comercial da
         # ficha (atalho da §5 do ESQUELETO): o modo fim com a mesma chave
-        ligacoes.append("<a href='%s&amp;ver=fim&amp;meses=%d'>o que está a "
-                        "acabar em %d meses (fim estimado)</a>"
-                        % (html.escape(para_lista("entid"), quote=True),
-                           MESES_A_ACABAR, MESES_A_ACABAR))
+        ligacoes.append({"href": para_lista("entid") + fim,
+                         "texto": "o que está a acabar em %d meses (fim estimado)"
+                         % MESES_A_ACABAR})
     if ganha["k"]:
-        ligacoes.append("<a href='%s'>%s</a>"
-                        % (para_lista("vencid"),
-                           "ver o que ganhou" if ganha["k"] == 1 else
-                           "ver os %s que ganhou" % mil_pt(ganha["k"])))
+        ligacoes.append({"href": Markup(para_lista("vencid")),
+                         "texto": "ver o que ganhou" if ganha["k"] == 1 else
+                         "ver os %s que ganhou" % mil_pt(ganha["k"])})
     if concorrente:
-        ligacoes.append("<a href='%s&amp;ver=fim&amp;meses=%d'>os contratos "
-                        "dele a acabar em %d meses (fim estimado)</a>"
-                        % (html.escape(para_lista("vencid"), quote=True),
-                           MESES_A_ACABAR, MESES_A_ACABAR))
-    atalhos = "<div class='ent-atalhos'>%s</div>" % "".join(ligacoes)
+        ligacoes.append({"href": para_lista("vencid") + fim,
+                         "texto": "os contratos dele a acabar em %d meses "
+                         "(fim estimado)" % MESES_A_ACABAR})
 
-    seguir_cx = _seguir_cx(chave)
+    seguir_cx = MOLDES_JINJA.get_template("_entidade.html").module.seguir(
+        _seguir_cx(chave))
 
     blocos = []
     if lado_compra:
@@ -27353,38 +27284,18 @@ def entidade(chave):
         blocos.append(evolucao_html(d["ganha_trim"],
                                     "Quanto ganhou, ao longo do tempo"))
 
-    if d["recentes"] and lado_venda:
-        linhas_r = "".join(
-            "<tr><td class='d'>%s</td><td class='o'>%s</td>"
-            "<td class='g'>%s</td><td>%s</td><td class='p'>%s</td></tr>"
-            % (data_pt(r["data_celebracao"]),
-               # corta(), nunca [:n] cru: "…as Base de Dado" le-se como
-               # dado estragado -- era o ultimo [:n] visivel que restava
-               html.escape(corta(r["objecto"] or "", 130)),
-               liga_entidade(r["adjudicante_chave"], r["outro"]),
-               html.escape(r["tipo_procedimento"] or ""),
-               euros(r["preco_contratual"]))
-            for r in d["recentes"])
-        # com titulo (UX-ECRAS-EM-FALTA-E-ESCURO E12, 1/10/2026): era a
-        # unica tabela da ficha sem nenhum, e nada dizia que eram os
-        # contratos que ELA ganhou, e nao os que adjudicou
-        recentes = ("<div class='mg-card tab-cx' style='margin-top:14px'>"
-                    "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
-                    "Os últimos contratos que ganhou%s</h2>"
-                    "<table class='mg-table tab-contratos'><thead><tr>"
-                    "<th>Celebrado</th><th>Objecto</th><th>De quem</th>"
-                    "<th>Procedimento</th><th class='p'>Preço</th></tr></thead>"
-                    "<tbody>%s</tbody></table></div>"
-                    % (html.escape(janela), linhas_r))
-    elif filtrada and not d["recentes"]:
-        # sem isto, um filtro que nao apanha nada deixava a pagina
-        # aparentemente na mesma, so com os numeros a zero
-        recentes = ("<div class='mg-empty'>Esta entidade não tem contratos que "
-                    "correspondam ao filtro. "
-                    "<a href='/entidade/%s'>ver tudo</a></div>"
-                    % quote(chave, safe=""))
-    else:
-        recentes = ""
+    # Os contratos que ELA ganhou, com título (UX-ECRAS-EM-FALTA-E-ESCURO
+    # E12, 1/10/2026): era a única tabela da ficha sem nenhum. corta(),
+    # nunca [:n] cru: "…as Base de Dado" le-se como dado estragado.
+    recentes = [{"data": data_pt(r["data_celebracao"]),
+                 "objecto": corta(r["objecto"] or "", 130),
+                 "quem": Markup(liga_entidade(r["adjudicante_chave"], r["outro"])),
+                 "proc": r["tipo_procedimento"] or "",
+                 "preco": Markup(euros(r["preco_contratual"]))}
+                for r in (d["recentes"] if lado_venda else ())]
+    # sem o vazio, um filtro que nao apanha nada deixava a pagina
+    # aparentemente na mesma, so com os numeros a zero
+    sem_nada = filtrada and not d["recentes"]
 
     # Os outros nomes por que assina. E o que explica porque e que somar
     # "a olho" pelo nome dava outro numero.
@@ -27427,21 +27338,16 @@ def entidade(chave):
     # e a árvore. O filtro vive agora no topo da coluna do Portal BASE,
     # que é o que ele filtra, recolhido em «Filtrar os contratos» -- e
     # aberto quando está em uso, como o «Mais filtros» dos Concursos.
-    filtro = ("<details class='ent-filtrar'%s><summary>Filtrar os contratos"
-              "</summary>%s</details>"
-              % (" open" if filtrada else "", filtros_da_ficha(chave, d)))
-    conteudo = ("<div class='larg'>"
-                + factos + atalhos
-                + "<div class='dois ent-dois'><div class='lado-nosso'>"
-                + nosso_lado_cx(nosso, contra) + "</div><div class='lado-base'>"
-                + filtro
-                + concorrencia_cx(chave, conc)
-                + "<div class='graf-corpo solto'>" + "".join(blocos)
-                # A tabela dos contratos recentes fica em LARGURA TODA,
-                # por baixo das duas colunas: são cinco colunas de texto
-                # e dentro de meia página rolava dentro de si a cada
-                # linha.
-                + "</div></div></div>" + recentes + "</div>")
+    # A tabela dos contratos recentes fica em LARGURA TODA, por baixo das
+    # duas colunas: são cinco colunas de texto e dentro de meia página
+    # rolava dentro de si a cada linha.
+    conteudo = ecra("entidade.html", sem_base=False, factos=Markup(factos),
+                    ligacoes=ligacoes, nosso=nosso_lado_cx(nosso, contra),
+                    filtrada=filtrada, filtro=filtros_da_ficha(chave),
+                    concorrencia=Markup(concorrencia_cx(chave, conc)),
+                    blocos=Markup("".join(blocos)), recentes=recentes,
+                    janela=janela, sem_nada=sem_nada,
+                    chave_q=quote(chave, safe=""))
 
     return envolver(
         "entidades", d["nome"], "", conteudo, script=ARVORE_JS,
