@@ -151,7 +151,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.2c-ii | os Alertas — **feito a 9/10/2026** (`alertas.html`; saem o `_linha_filtro`, o `_caixa_email`, o `_caixa_urgente` e o `_caixa_alerta_do_perfil`; nasce a macro `rotulado`, com `{% call %}`). Entram feitos o `arvore_html()`, o `campos_do_local_e_valor()` e o `envios_html()`, partilhados | 177 linhas e quatro auxiliares de ~90 |
 | 3.2d-i | os Documentos — **feito a 9/10/2026** (`documentos.html`) | o mais pequeno dos três |
 | 3.2d-ii | o Importar — **feito a 9/10/2026** (`importar.html`, `importar_ensaio.html`; o `_tabela_do_ensaio()` passa a `_linha_do_ensaio()`, que só prepara os dados) | o assistente de três passos |
-| 3.2d-iii | os Indicadores | 197 linhas |
+| 3.2d-iii | os Indicadores — **feito a 10/10/2026** (`indicadores.html`, só o esqueleto: as linhas de saúde e os números são o `linhas_de_saude()` e o `kpi()`, partilhados por muitos ecrãs, e passam a macros no lote que for dono deles). **Com este, as Configurações estão todas em moldes** | 197 linhas |
 | 3.3 | Plataforma (dono): semáforos, empresas, visitas, uso, erros | só tu os vês |
 | 3.4 | Alertas e sugestões | |
 | 3.5 | Calendário e indicadores | |
