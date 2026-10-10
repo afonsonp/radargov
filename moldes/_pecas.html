@@ -33,3 +33,8 @@
     `rotulado()`, que serve os ecrãs ainda em Python). O campo vem no
     corpo do `{% call %}`; o rótulo é texto. -#}
 {% macro rotulado(texto, classe="") %}<label class='rot{% if classe %} {{ classe }}{% endif %}'><span class='rot-t'>{{ texto }}</span>{{ caller() }}</label>{% endmacro %}
+
+{#- Uma célula das tabelas da plataforma (era o `_celula_da_tabela()`),
+    com o rótulo da coluna para o telemóvel (`data-r`). O conteúdo vem no
+    corpo do `{% call %}`. -#}
+{% macro celula(rotulo, classe="") %}<td{% if rotulo %} data-r='{{ rotulo }}'{% endif %}{% if classe %} class='{{ classe }}'{% endif %}>{{ caller() }}</td>{% endmacro %}

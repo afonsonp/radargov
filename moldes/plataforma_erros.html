@@ -1,0 +1,12 @@
+{#- Plataforma › Erros: os das últimas 24 horas, inteiros (ronda em PC,
+    V4 P2). Os trincos fechados vêm por cima, feitos. -#}
+{%- import "_pecas.html" as p -%}
+<div class='larg'>{{ trincos }}
+{%- if linhas %}<div class='mg-card tab-cx'><table class='mg-table tab-plataforma tab-erros'><thead><tr><th>Quando</th><th>Onde</th><th>O erro</th><th>Visto</th></tr></thead><tbody>
+{%- for l in linhas %}<tr{% if not l.visto %} class='por-ver'{% endif %}>
+{%- call p.celula("Quando") %}{{ l.quando }}{% endcall %}
+{%- call p.celula("Onde") %}{{ l.onde }}{% endcall %}
+{%- call p.celula("O erro") %}<span class='erro-texto'>{{ l.texto }}</span>{% endcall %}
+{%- call p.celula("Visto") %}{% if l.visto %}{{ l.visto }}{% else %}<span class='mg-tag {{ tom_aviso }}'>por ver</span>{% endif %}{% endcall %}</tr>
+{%- endfor %}</tbody></table></div>
+{%- else %}<div class='mg-empty'>Nenhum erro nas últimas 24 horas.</div>{% endif %}</div>

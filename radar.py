@@ -22107,30 +22107,20 @@ def plataforma_erros():
                            "WHERE quando >= ? ORDER BY id DESC",
                            (_desde_dos_erros(),)).fetchall()
     por_ver = [l for l in linhas if not l["visto_em"]]
-    corpo_tabela = "".join(
-        "<tr%s>%s%s%s%s</tr>" % (
-            "" if l["visto_em"] else " class='por-ver'",
-            _celula_da_tabela("Quando", html.escape(data_hora_pt(l["quando"]))),
-            _celula_da_tabela("Onde", html.escape(ONDE_FOI_O_ERRO.get(l["tipo"], l["tipo"] or "—"))),
-            _celula_da_tabela("O erro", "<span class='erro-texto'>%s</span>"
-                    % html.escape(l["texto"] or "")),
-            _celula_da_tabela("Visto", html.escape(data_hora_pt(l["visto_em"]))
-                    if l["visto_em"] else "<span class='mg-tag %s'>por ver</span>"
-                    % tom("aviso")))
-        for l in linhas)
-    tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma "
-              "tab-erros'><thead><tr><th>Quando</th><th>Onde</th><th>O erro</th>"
-              "<th>Visto</th></tr></thead><tbody>%s</tbody></table></div>"
-              % corpo_tabela if linhas else
-              "<div class='mg-empty'>Nenhum erro nas últimas 24 horas.</div>")
     accoes = (accao("/plataforma/erros/vistos",
                     "Dar %s por vistos" % ("o erro" if len(por_ver) == 1
                                            else "os %d" % len(por_ver)),
                     "bt", campos={"ate": str(por_ver[0]["id"])})
               if por_ver else "")
     return envolver(
-        "configuracoes", "Erros", "", "<div class='larg'>%s%s</div>"
-        % (_cartao_dos_trincos(), tabela),
+        "configuracoes", "Erros", "", ecra(
+            "plataforma_erros.html", trincos=Markup(_cartao_dos_trincos()),
+            tom_aviso=tom("aviso"), linhas=[{
+                "quando": data_hora_pt(l["quando"]),
+                "onde": ONDE_FOI_O_ERRO.get(l["tipo"], l["tipo"] or "—"),
+                "texto": l["texto"] or "",
+                "visto": data_hora_pt(l["visto_em"]) if l["visto_em"] else ""}
+                for l in linhas]),
         titulo_aba="Erros · Plataforma",
         cabeca=cabecalho_de_pagina(
             "Erros das últimas 24 horas",
@@ -22395,39 +22385,18 @@ def plataforma_sugestoes():
                                       if l["empresa_id"] in empresas_existentes()
                                       else "empresa %d (apagada)" % l["empresa_id"])
 
-    def estado(l):
-        opcoes = "".join("<option value='%s'%s>%s</option>"
-                         % (k, " selected" if k == l["estado"] else "", v)
-                         for k, v in ESTADOS_DE_SUGESTAO.items())
-        return ("<form method='post' action='/plataforma/sugestoes/%d/estado' "
-                "class='accao'><select name='estado' aria-label='Estado da "
-                "sugestão %d'>%s</select><button type='submit' class='mg-btn "
-                "mg-btn--sm mg-btn--secondary'>Guardar</button></form>"
-                % (l["id"], l["id"], opcoes))
-    corpo = "".join(
-        "<tr%s>%s%s%s%s%s</tr>" % (
-            " class='por-ver'" if l["estado"] == "nova" else "",
-            _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criada_em"]))),
-            _celula_da_tabela("Quem", "%s<br><span class='nota'>%s</span>" % (
-                html.escape(l["nome"] or l["conta"] or "—"),
-                html.escape(nomes.get(l["empresa_id"], "sem empresa")))),
-            _celula_da_tabela("Tipo", html.escape(TIPOS_DE_SUGESTAO.get(l["tipo"], ""))),
-            _celula_da_tabela("O que escreveu", "<span class='erro-texto'>%s</span>%s%s" % (
-                html.escape(l["texto"] or ""),
-                "<br><span class='nota'>em %s</span>" % html.escape(l["pagina"])
-                if l["pagina"] else "",
-                "<br><a href='/plataforma/sugestoes/%d/captura' target='_blank' "
-                "rel='noopener'>ver a captura</a>" % l["id"] if l["captura"] else "")),
-            _celula_da_tabela("Estado", estado(l)))
-        for l in linhas)
     novas = sum(1 for l in linhas if l["estado"] == "nova")
-    tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma "
-              "tab-erros'><thead><tr><th>Quando</th><th>Quem</th><th>Tipo</th>"
-              "<th>O que escreveu</th><th>Estado</th></tr></thead><tbody>%s"
-              "</tbody></table></div>" % corpo if linhas else
-              "<div class='mg-empty'>Ainda não chegou nenhuma sugestão.</div>")
     return envolver(
-        "configuracoes", "Sugestões", "", "<div class='larg'>%s</div>" % tabela,
+        "configuracoes", "Sugestões", "", ecra(
+            "plataforma_sugestoes.html",
+            estados=list(ESTADOS_DE_SUGESTAO.items()), linhas=[{
+                "id": l["id"], "estado": l["estado"],
+                "quando": data_hora_pt(l["criada_em"]),
+                "quem": l["nome"] or l["conta"] or "—",
+                "empresa": nomes.get(l["empresa_id"], "sem empresa"),
+                "tipo": TIPOS_DE_SUGESTAO.get(l["tipo"], ""),
+                "texto": l["texto"] or "", "pagina": l["pagina"] or "",
+                "captura": bool(l["captura"])} for l in linhas]),
         titulo_aba="Sugestões · Plataforma",
         cabeca=cabecalho_de_pagina(
             "Sugestões",
@@ -35289,15 +35258,11 @@ def _tabela_das_visitas(titulo, cabecalhos, linhas):
         return cartao(titulo, "<p class='nota'>Nada neste período.</p>")
     # As colunas de contagens vão ao centro, cabeçalho e número (9/10/2026,
     # pedido dele: à direita, com o rótulo à esquerda, ficava estranho)
-    return cartao(titulo, "<table class='mg-table tab-plataforma tab-visitas'><thead>"
-                  "<tr>%s</tr></thead><tbody>%s</tbody></table>" % (
-                      "".join("<th%s>%s</th>" % (
-                          " class='mg-num'" if isinstance(v, int) else "", h)
-                          for h, v in zip(cabecalhos, linhas[0])),
-                      "".join("<tr>%s</tr>" % "".join(
-                          _celula_da_tabela(h, html.escape(str(v)),
-                                            "mg-num" if isinstance(v, int) else "")
-                          for h, v in zip(cabecalhos, l)) for l in linhas)))
+    return cartao(titulo, ecra(
+        "visitas_tabela.html",
+        cabecalhos=[(h, isinstance(v, int)) for h, v in zip(cabecalhos, linhas[0])],
+        linhas=[[(h, str(v), isinstance(v, int)) for h, v in zip(cabecalhos, l)]
+                for l in linhas]))
 
 
 # O «hoje» e o «ontem» (7/10/2026, véspera do anúncio): para ver o dia
@@ -35387,29 +35352,26 @@ def plataforma_visitas():
                      "JOIN visitas v ON v.id = p.vista %s GROUP BY 1, 2 ORDER BY n DESC")
     contados = Counter(e for e in (eventos or "").split("|") if e)
     mediana = tempos[len(tempos) // 2] if tempos else 0
-    factos = "<div class='mg-stats'>%s%s%s%s</div>" % (
+    kpis = "".join((
         kpi("Visitas", mil_pt(total or 0), "%s com JavaScript" % mil_pt(com_js or 0)),
         kpi("Visitantes", mil_pt(visitantes),
             "únicos em cada dia, somados (de um dia para o outro não se reconhecem)"),
         kpi("Tempo na página", "%d s" % mediana, "a mediana, das com JavaScript"),
-        kpi("Até onde desceram", "%d%%" % round(scroll or 0), "a média do scroll"))
-    funil = _tabela_das_visitas(
-        "O que fizeram", ("Passo", "Visitas"),
-        [("Visitas com JavaScript", com_js or 0)]
-        + [(rotulo, contados.get(k, 0)) for k, rotulo in EVENTOS_DA_VISITA.items()])
-    escolha = " · ".join(
-        "<a href='?periodo=%s'%s>%s</a>" % (k, " aria-current='page'" if k == periodo
-                                            else "", html.escape(v))
-        for k, v in PERIODOS_DAS_VISITAS)
-    corpo = ("<div class='larg' style='display:flex;flex-direction:column;gap:18px'>"
-             "<p class='nota'>Período: %s</p>%s%s%s%s%s%s%s</div>"
-             % (escolha, factos, evolucao, funil,
-                _tabela_das_visitas("De onde vieram", ("Origem", "Visitas"), origens),
-                _tabela_das_visitas("Campanhas (utm)", ("Fonte", "Meio", "Campanha",
-                                                        "Visitas"), campanhas),
-                _tabela_das_visitas("Os pedidos, por origem", ("Origem", "Campanha",
-                                                              "Pedidos"), pedidos),
-                _tabela_das_visitas("Páginas", ("Página", "Visitas"), paginas)))
+        kpi("Até onde desceram", "%d%%" % round(scroll or 0), "a média do scroll")))
+    tabelas = [
+        _tabela_das_visitas(
+            "O que fizeram", ("Passo", "Visitas"),
+            [("Visitas com JavaScript", com_js or 0)]
+            + [(rotulo, contados.get(k, 0)) for k, rotulo in EVENTOS_DA_VISITA.items()]),
+        _tabela_das_visitas("De onde vieram", ("Origem", "Visitas"), origens),
+        _tabela_das_visitas("Campanhas (utm)", ("Fonte", "Meio", "Campanha",
+                                                "Visitas"), campanhas),
+        _tabela_das_visitas("Os pedidos, por origem", ("Origem", "Campanha",
+                                                      "Pedidos"), pedidos),
+        _tabela_das_visitas("Páginas", ("Página", "Visitas"), paginas)]
+    corpo = ecra("plataforma_visitas.html", periodos=PERIODOS_DAS_VISITAS,
+                 periodo=periodo, kpis=Markup(kpis), evolucao=Markup(evolucao),
+                 tabelas=[Markup(t) for t in tabelas])
     return envolver(
         "configuracoes", "Visitas ao site", "", corpo, titulo_aba="Visitas · Plataforma",
         cabeca=cabecalho_de_pagina(

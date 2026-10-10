@@ -1,0 +1,13 @@
+{#- Plataforma › Sugestões: todas, as mais recentes primeiro, com o
+    estado de cada uma. Só o dono (ROTAS_SO_DONO). -#}
+{%- import "_pecas.html" as p -%}
+<div class='larg'>
+{%- if linhas %}<div class='mg-card tab-cx'><table class='mg-table tab-plataforma tab-erros'><thead><tr><th>Quando</th><th>Quem</th><th>Tipo</th><th>O que escreveu</th><th>Estado</th></tr></thead><tbody>
+{%- for l in linhas %}<tr{% if l.estado == "nova" %} class='por-ver'{% endif %}>
+{%- call p.celula("Quando") %}{{ l.quando }}{% endcall %}
+{%- call p.celula("Quem") %}{{ l.quem }}<br><span class='nota'>{{ l.empresa }}</span>{% endcall %}
+{%- call p.celula("Tipo") %}{{ l.tipo }}{% endcall %}
+{%- call p.celula("O que escreveu") %}<span class='erro-texto'>{{ l.texto }}</span>{% if l.pagina %}<br><span class='nota'>em {{ l.pagina }}</span>{% endif %}{% if l.captura %}<br><a href='/plataforma/sugestoes/{{ l.id }}/captura' target='_blank' rel='noopener'>ver a captura</a>{% endif %}{% endcall %}
+{%- call p.celula("Estado") %}<form method='post' action='/plataforma/sugestoes/{{ l.id }}/estado' class='accao'><select name='estado' aria-label='Estado da sugestão {{ l.id }}'>{% for k, v in estados %}<option value='{{ k }}'{% if k == l.estado %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>Guardar</button></form>{% endcall %}</tr>
+{%- endfor %}</tbody></table></div>
+{%- else %}<div class='mg-empty'>Ainda não chegou nenhuma sugestão.</div>{% endif %}</div>
