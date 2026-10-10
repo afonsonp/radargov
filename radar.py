@@ -9704,10 +9704,10 @@ def e_falta_de_pecas(porque):
 # caracteres): a leitura dizia o que viu e calava o resto, e a ficha
 # parecia completa. O documento inteiro que nao se leu ja se lista
 # (`pecas_nao_lidas()`); isto e a PAGINA de um documento lido.
-# ponytail: uma imagem que cubra 40% da pagina com menos de 1500
+# ponytail: uma imagem que cubra 30% da pagina com menos de 1500
 # caracteres de texto; uma pagina com mais de 30% de caracteres de
 # controlo ou de alfabetos que o portugues nao usa. Afinar com casos.
-FRACCAO_EM_IMAGEM = 0.4
+FRACCAO_EM_IMAGEM = 0.3
 TEXTO_DE_UMA_PAGINA_EM_IMAGEM = 1500
 FRACCAO_ILEGIVEL = 0.3
 

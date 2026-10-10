@@ -614,13 +614,16 @@ Orçamento, cadeia de reserva, chaves.
   uma fonte sem tabela de caracteres): a leitura respondia com o que via
   e a ficha parecia completa. O `nota_do_que_nao_se_leu()` junta ao
   campo 11 «Não lido: <ficheiro>, pág. N (…)» — as imagens pelo PyMuPDF,
-  no PDF em disco (`paginas_em_imagem()`: 40 % da página e menos de 1500
+  no PDF em disco (`paginas_em_imagem()`: 30 % da página e menos de 1500
   caracteres), e a letra trocada pelo texto, também dentro dos ZIP
   (`paginas_ilegiveis()`: mais de 30 % de controlos e de alfabetos que o
   português não usa — o «€», o «—» e o «•» estão acima de U+2000 e não
   contam). Medido nos 138 textos dos bens julgados: uma página
-  apanhada, a verdadeira. Os limiares são palpites com um caso; afina-os
-  com mais.
+  apanhada, a verdadeira. A imagem começou nos 40 % e a tabela da 24922
+  ocupa 33 % da página: a 30 %, nas peças dos 103 concursos da Q3,
+  marcam-se 287 páginas (236 a 40 %) — muitas são plantas e fotografias
+  dos projectos das obras, que também não se leram. Afina-os com mais
+  casos.
 
 - **Uma peça que ninguém reconhece não é lida, e o «não encontrado»
   dela mente** (3.ª ronda, G37). O «2_ProgConc_…pdf» não era o Programa

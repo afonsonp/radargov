@@ -1,4 +1,138 @@
-pergunta 136a739fbf cadeia ['groq', 'cerebras', 'nvidia', 'openrouter', 'gemini', 'groq-reserva']
-  [1/103] 14680/2026     lido (20s)
-  [2/103] 21482/2026     lido (77s)
-  [3/103] 21647/2026     lido (13s)
+pergunta 77b9947a4e cadeia ['groq', 'cerebras', 'nvidia', 'openrouter', 'gemini', 'groq-reserva']
+  [1/103] 14680/2026     lido (72s)
+  [2/103] 21482/2026     lido (11s)
+  [3/103] 21647/2026     lido (14s)
+invalid pdf header: b'\x16Cl\xe1u'
+EOF marker not found
+invalid pdf header: b'\x16Cl\xe1u'
+EOF marker not found
+invalid pdf header: b'\x16Cl\xe1u'
+EOF marker not found
+invalid pdf header: b'\x16Cl\xe1u'
+EOF marker not found
+  [4/103] 21999/2026     lido (455s)
+  [5/103] 22796/2026     lido (11s)
+Multiple definitions in dictionary at byte 0x109336 for key /PageMode
+  [6/103] 23492/2026     lido (23s)
+  [7/103] 23496/2026     lido (13s)
+  [8/103] 23530/2026     lido (45s)
+Multiple definitions in dictionary at byte 0x2ca769 for key /PageMode
+  [9/103] 23577/2026     lido (93s)
+  [10/103] 23610/2026     lido (23s)
+  [11/103] 23612/2026     lido (19s)
+  [12/103] 23708/2026     lido (57s)
+  [13/103] 23723/2026     lido (72s)
+  [14/103] 23769/2026     lido (19s)
+Multiple definitions in dictionary at byte 0x10e98b4 for key /PageMode
+Multiple definitions in dictionary at byte 0x4b68f2 for key /PageMode
+Multiple definitions in dictionary at byte 0xabda2 for key /PageMode
+  [15/103] 23780/2026     lido (173s)
+  [16/103] 23781/2026     lido (42s)
+  [17/103] 23853/2026     lido (41s)
+  [18/103] 24004/2026     lido (21s)
+Multiple definitions in dictionary at byte 0x23735c for key /PageMode
+  [19/103] 24011/2026     lido (31s)
+  [20/103] 23446/2026     lido (22s)
+  [21/103] 20445/2026     lido (59s)
+  [22/103] 20666/2026     lido (14s)
+  [23/103] 21127/2026     lido (51s)
+  [24/103] 21295/2026     lido (91s)
+  [25/103] 21296/2026     lido (45s)
+  [26/103] 21508/2026     lido (22s)
+  [27/103] 21568/2026     lido (11s)
+  [28/103] 21593/2026     lido (24s)
+  [29/103] 21606/2026     lido (15s)
+  [30/103] 21631/2026     lido (81s)
+  [31/103] 21713/2026     lido (133s)
+  [32/103] 21724/2026     lido (29s)
+  [33/103] 21811/2026     lido (7s)
+  [34/103] 21924/2026     lido (49s)
+  [35/103] 21925/2026     lido (0s)
+  [36/103] 21969/2026     lido (35s)
+  [37/103] 21993/2026     lido (67s)
+  [38/103] 22001/2026     lido (35s)
+  [39/103] 22036/2026     lido (7s)
+  [40/103] 22458/2026     lido (99s)
+  [41/103] 22540/2026     lido (25s)
+  [42/103] 22721/2026     lido (62s)
+  [43/103] 22956/2026     lido (46s)
+  [44/103] 23174/2026     lido (39s)
+  [45/103] 23265/2026     lido (37s)
+  [46/103] 23486/2026     lido (39s)
+  [47/103] 23675/2026     lido (27s)
+  [48/103] 23804/2026     lido (85s)
+  [49/103] 24013/2026     lido (40s)
+  [50/103] 20875/2026     lido (9s)
+  [51/103] 21877/2026     lido (50s)
+  [52/103] 22071/2026     lido (21s)
+  [53/103] 23794/2026     lido (9s)
+  [54/103] 23664/2026     lido (41s)
+  [55/103] 23933/2026     lido (81s)
+  [56/103] 24653/2026     lido (11s)
+  [57/103] 24944/2026     lido (17s)
+  [58/103] 24120/2026     lido (53s)
+  [59/103] 24206/2026     lido (39s)
+  [60/103] 24908/2026     lido (28s)
+  [61/103] 25027/2026     lido (73s)
+  [62/103] 24646/2026     lido (96s)
+  [63/103] 23776/2026     lido (30s)
+  [64/103] 23881/2026     lido (23s)
+  [65/103] 24183/2026     lido (18s)
+  [66/103] 20968/2026     lido (34s)
+  [67/103] 21275/2026     lido (249s)
+  [68/103] 21618/2026     lido (32s)
+  [69/103] 21659/2026     lido (12s)
+  [70/103] 21764/2026     lido (17s)
+  [71/103] 21830/2026     lido (10s)
+  [72/103] 22005/2026     lido (63s)
+  [73/103] 22631/2026     lido (85s)
+  [74/103] 22682/2026     lido (36s)
+  [75/103] 22754/2026     lido (9s)
+  [76/103] 23513/2026     lido (12s)
+  [77/103] 23589/2026     lido (20s)
+  [78/103] 24550/2026     lido (29s)
+  [79/103] 24922/2026     lido (61s)
+  [80/103] 23382/2026     lido (188s)
+  [81/103] 23366/2026     lido (314s)
+  [82/103] 23358/2026     lido (65s)
+  [83/103] 23342/2026     lido (69s)
+  [84/103] 23537/2026     lido (12s)
+  [85/103] 23360/2026     lido (112s)
+  [86/103] 23468/2026     lido (109s)
+  [87/103] 21507/2026     lido (16s)
+  [88/103] 21666/2026     lido (29s)
+  [89/103] 22102/2026     lido (23s)
+  [90/103] 22460/2026     lido (27s)
+  [91/103] 22719/2026     lido (50s)
+Multiple definitions in dictionary at byte 0x29594 for key /PageMode
+Multiple definitions in dictionary at byte 0x836bf for key /PageMode
+Multiple definitions in dictionary at byte 0x4b8de for key /PageMode
+Multiple definitions in dictionary at byte 0x5e80e for key /PageMode
+Multiple definitions in dictionary at byte 0x9df84 for key /PageMode
+Multiple definitions in dictionary at byte 0x4938c for key /PageMode
+Multiple definitions in dictionary at byte 0x89df0 for key /PageMode
+Multiple definitions in dictionary at byte 0x6a9ad for key /PageMode
+Multiple definitions in dictionary at byte 0x5c796 for key /PageMode
+Multiple definitions in dictionary at byte 0x5751a for key /PageMode
+Multiple definitions in dictionary at byte 0x6fab5 for key /PageMode
+Multiple definitions in dictionary at byte 0x771ad for key /PageMode
+Multiple definitions in dictionary at byte 0x7a243 for key /PageMode
+Multiple definitions in dictionary at byte 0x3e41b for key /PageMode
+Multiple definitions in dictionary at byte 0x45ebd for key /PageMode
+Multiple definitions in dictionary at byte 0x3aa2b for key /PageMode
+Multiple definitions in dictionary at byte 0x29c71 for key /PageMode
+Multiple definitions in dictionary at byte 0x48fd0 for key /PageMode
+Multiple definitions in dictionary at byte 0x262b1 for key /PageMode
+  [92/103] 22949/2026     lido (59s)
+  [93/103] 23010/2026     lido (15s)
+  [94/103] 23351/2026     lido (9s)
+  [95/103] 23389/2026     lido (37s)
+  [96/103] 23728/2026     lido (50s)
+  [97/103] 23813/2026     lido (13s)
+  [98/103] PT1.NTC.3795542 lido (9s)
+  [99/103] 23370/2026     lido (30s)
+  [100/103] 23353/2026     lido (6s)
+  [101/103] 23385/2026     lido (74s)
+  [102/103] 23471/2026     lido (29s)
+  [103/103] 23786/2026     lido (72s)
+relidos nesta corrida: 103; com a pergunta de agora: 103 de 103; faltam: 
