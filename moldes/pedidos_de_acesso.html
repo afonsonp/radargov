@@ -1,0 +1,19 @@
+{#- Os pedidos de acesso que o site recebeu, para o dono (26/09/2026): os
+    por decidir em cima, num cartão seu, e por baixo os em espera e os
+    decididos (UX-7-LEIS M5, 30/09/2026). As etiquetas dos repetidos e a
+    decisão de cada linha vêm preparadas; os números vêm pelo `mil`. -#}
+{%- import "_pecas.html" as p -%}
+{%- macro tabela(linhas) -%}
+<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'><thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th><th>E-mail</th><th>Telemóvel</th><th>Área</th><th>Mensagem</th><th>Aviso por e-mail</th><th>Decisão</th></tr></thead><tbody>
+{%- for l in linhas %}<tr>{% call p.celula("Quando", "mg-num") %}{{ l.quando }}{% endcall %}{% call p.celula("Nome") %}{{ l.nome }}{% endcall %}{% call p.celula("Empresa") %}{{ l.empresa }}{% endcall -%}
+{%- call p.celula("E-mail") %}<a href='mailto:{{ l.email }}'>{{ l.email }}</a>{% for e in l.etiquetas %} <span class='mg-tag {{ tom_avisa }}'>{{ e.texto }}{% if e.empresa %} (<a href='/plataforma/empresa/{{ e.empresa }}'>empresa {{ e.empresa }}</a>){% endif %}</span>{% endfor %}{% endcall -%}
+{%- call p.celula("Telemóvel", "mg-num") %}{% if l.telefone %}<a href='tel:{{ l.tel }}'>{{ l.telefone }}</a>{% else %}—{% endif %}{% endcall -%}
+{%- call p.celula("Área") %}{{ l.sector }}{% endcall %}{% call p.celula("Mensagem") %}{{ l.mensagem }}{% endcall %}{% call p.celula("Aviso por e-mail") %}{{ l.avisado }}{% endcall -%}
+{%- call p.celula("Decisão") %}{% if l.estado == "aceite" -%}
+{%- if l.ligada %}<a href='/plataforma/empresa/{{ l.empresa_id }}'>aceite: empresa {{ l.empresa_id }}</a>{% else %}aceite: empresa {{ l.empresa_id }} (apagada{% if l.apagada %} a {{ l.apagada }}{% endif %}){% endif -%}
+{%- elif l.estado == "recusado" %}recusado a {{ l.dia }}: {{ l.motivo }}
+{%- else %}<div class='mg-row' style='gap:8px;flex-wrap:wrap;align-items:center'><a class='mg-btn mg-btn--sm mg-btn--secondary' href='/pedidos-de-acesso/{{ l.id }}/aceitar'>aceitar&hellip;</a><form class='accao' method='post' action='/pedidos-de-acesso/{{ l.id }}/recusar' onsubmit="return confirm({{ l.confirmar }})" style='display:flex;gap:6px;flex-wrap:wrap;align-items:center'><input class='mg-field__input' type='text' name='motivo' required maxlength='300' placeholder='motivo' aria-label='Motivo da recusa do pedido de {{ l.alvo }}' style='width:12em'><label class='nota'><input type='checkbox' name='avisar' value='1'> avisar por e-mail</label><button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>recusar</button></form>
+{%- if l.estado != "espera" %}<form class='accao' method='post' action='/pedidos-de-acesso/{{ l.id }}/espera'><button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary' title='Fica na lista de espera, e quem pediu recebe um e-mail a dizê-lo'>pôr em espera</button></form>{% endif %}</div>{% endif %}{% endcall %}</tr>{% endfor %}</tbody></table></div>
+{%- endmacro -%}
+{%- macro seccao(titulo, estes) %}<h2 class='mg-card__title pedidos-titulo'>{{ titulo }} &middot; {{ mil(estes|length) }}</h2>{{ tabela(estes) }}{% endmacro -%}
+<div class='larg'>{% if algum %}{% if por_decidir %}{{ seccao("Por decidir", por_decidir) }}{% else %}<p class='nota'>Nenhum pedido por decidir.</p>{% endif %}{% if em_espera %}{{ seccao("Em espera", em_espera) }}{% endif %}{% if decididos %}{{ seccao("Decididos", decididos) }}{% endif %}{% else %}<div class='mg-empty'>Ainda não chegou nenhum pedido pelo site.</div>{% endif %}</div>
