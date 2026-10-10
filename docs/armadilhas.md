@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 18
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 33
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 34
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 13
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **464** ao todo, contados a 10/10/2026. Contam-se por secção com
+São **465** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -580,6 +580,20 @@ Orçamento, cadeia de reserva, chaves.
   declaração. O recorte junta-os antes de ir ao modelo
   (`junta_numerais_partidos()`), só quando o resultado é um numeral que
   existe. É a mesma família dos «1 2 meses» das armadilhas já pagas.
+
+- **A página que não tem texto diz-se, com o número** (Q3,
+  10/10/2026). A lista das licenças da 24922 é uma imagem na pág. 15 do
+  CE, e o Anexo B da 23589 sai do PDF com a letra trocada (pág. 16–17,
+  uma fonte sem tabela de caracteres): a leitura respondia com o que via
+  e a ficha parecia completa. O `nota_do_que_nao_se_leu()` junta ao
+  campo 11 «Não lido: <ficheiro>, pág. N (…)» — as imagens pelo PyMuPDF,
+  no PDF em disco (`paginas_em_imagem()`: 40 % da página e menos de 1500
+  caracteres), e a letra trocada pelo texto, também dentro dos ZIP
+  (`paginas_ilegiveis()`: mais de 30 % de controlos e de alfabetos que o
+  português não usa — o «€», o «—» e o «•» estão acima de U+2000 e não
+  contam). Medido nos 138 textos dos bens julgados: uma página
+  apanhada, a verdadeira. Os limiares são palpites com um caso; afina-os
+  com mais.
 
 - **Uma peça que ninguém reconhece não é lida, e o «não encontrado»
   dela mente** (3.ª ronda, G37). O «2_ProgConc_…pdf» não era o Programa

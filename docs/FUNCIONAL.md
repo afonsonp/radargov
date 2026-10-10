@@ -569,6 +569,12 @@ e o seu rótulo na ficha (`CAMPO_11`):
 | Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
 | Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
 
+Desde 10/10/2026 (Q3) o campo 11 acaba, quando é o caso, numa linha
+«Não lido: <ficheiro>, pág. N (imagem sem texto | texto ilegível)» — as
+páginas de uma peça lida que o modelo não pôde ler
+(`nota_do_que_nao_se_leu()`); o ficheiro inteiro que não se leu continua
+na lista «Não lido» da ficha.
+
 Sem tipo nem CPV fica «Equipa», a pergunta de antes. A resposta vai
 sempre para a coluna `analise.equipa`; a afinação do `config.json` para
 a `equipa` vale só para a família «equipa».

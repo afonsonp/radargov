@@ -5483,6 +5483,57 @@ class TestExcelQueFicavaPorLer(BaseTemporaria):
         self.assertEqual(d, {"Mapa.xls": None, "PP.zip": None, "CE.pdf": "ok"})
 
 
+class TestPaginasQueNaoSeLeram(BaseTemporaria):
+    """Q3, 10/10/2026 (o gestor de bens): a lista das licenças da 24922 é
+    uma imagem na pág. 15 do CE, e o Anexo B da 23589 sai com a letra
+    trocada (pág. 16–17). A leitura calava-se -- o campo dizia o que viu,
+    e quem lia a ficha não sabia que faltava uma tabela."""
+
+    @staticmethod
+    def pdf_com_imagem(caminho):
+        import pymupdf
+        doc = pymupdf.open()
+        p = doc.new_page()
+        p.insert_text((72, 72), "Clausula 1.a Objecto do contrato " * 20)
+        p = doc.new_page()
+        p.insert_text((72, 72), "ANEXO I - Pretendem-se as licencas do quadro:")
+        imagem = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
+        imagem.clear_with(200)
+        p.insert_image(pymupdf.Rect(50, 100, 550, 700), pixmap=imagem)
+        doc.save(caminho)
+
+    def test_a_pagina_que_e_uma_imagem(self):
+        caminho = os.path.join(self.pasta, "CE.pdf")
+        self.pdf_com_imagem(caminho)
+        self.assertEqual(radar.paginas_em_imagem(caminho), [2])
+        self.assertEqual(radar.paginas_em_imagem(os.path.join(self.pasta, "x.pdf")), [])
+
+    def test_a_pagina_com_a_letra_trocada(self):
+        trocada = "\x03sŝƐƚŽ\x03ĚŽ\x03^ƵƉĞƌŝŶƚĞŶĚĞŶƚĞ\x03ĚĂ\x03/ŶĨŽƌŵĂĕĆŽ " * 5
+        texto = "\n\f\n".join(("Cláusula 1.ª Objecto " * 10, trocada,
+                                "Página 3 sem nada de estranho " * 5))
+        self.assertEqual(radar.paginas_ilegiveis(texto), [2])
+        # o português com acentos, o euro e os travessões não são «estranhos»
+        self.assertEqual(radar.paginas_ilegiveis(
+            "Preço base: 1 000 € — ação, função, Cláusula 3.ª • alínea " * 5), [])
+
+    def test_a_leitura_diz_o_que_nao_leu(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        self.pdf_com_imagem(os.path.join(pasta, "1_Caderno_de_Encargos.pdf"))
+        trocada = "\x03ĚŽ\x03^ƵƉĞƌŝŶƚĞŶĚĞŶƚĞ\x03ĚĂ " * 10
+        docs = [{"nome": "1_Caderno_de_Encargos.pdf",
+                 "texto": "Clausula 1.a\n\f\nANEXO I"},
+                {"nome": "3_Anexo_B_Tecnico.pdf",
+                 "texto": "Especificação\n\f\n" + trocada},
+                {"nome": "Anúncio DR.pdf", "texto": "\n\f\n" + trocada}]
+        nota = radar.nota_do_que_nao_se_leu("9/2026", docs)
+        self.assertEqual(nota, "Não lido: 1_Caderno_de_Encargos.pdf, pág. 2 "
+                               "(imagem sem texto); 3_Anexo_B_Tecnico.pdf, pág. 2 "
+                               "(texto ilegível)")
+        self.assertEqual(radar.nota_do_que_nao_se_leu("9/2026", docs[2:]), "")
+
+
 class TestAnexosTecnicos(unittest.TestCase):
     """28/09/2026: a leitura escolhia as peças pelo nome — «caderno» ou
     «programa» — e 88 de 235 documentos com texto não iam a pedido

@@ -9622,6 +9622,81 @@ def e_falta_de_pecas(porque):
     return (porque or "").strip() in SEM_NADA_PARA_LER
 
 
+# --- o que a leitura nao leu, dito com a pagina (Q3, 10/10/2026)
+#
+# A lista das licencas da 24922 e uma imagem na pag. 15 do CE, e o
+# Anexo B da 23589 sai com a letra trocada (uma fonte sem tabela de
+# caracteres): a leitura dizia o que viu e calava o resto, e a ficha
+# parecia completa. O documento inteiro que nao se leu ja se lista
+# (`pecas_nao_lidas()`); isto e a PAGINA de um documento lido.
+# ponytail: uma imagem que cubra 40% da pagina com menos de 1500
+# caracteres de texto; uma pagina com mais de 30% de caracteres de
+# controlo ou de alfabetos que o portugues nao usa. Afinar com casos.
+FRACCAO_EM_IMAGEM = 0.4
+TEXTO_DE_UMA_PAGINA_EM_IMAGEM = 1500
+FRACCAO_ILEGIVEL = 0.3
+
+
+def paginas_em_imagem(caminho):
+    """[n] das paginas de um PDF que sao sobretudo uma imagem, ou []."""
+    try:
+        import pymupdf
+        with pymupdf.open(caminho) as doc:
+            fora = []
+            for n, pagina in enumerate(doc, 1):
+                area = abs(pagina.rect)
+                imagens = sum(abs(r & pagina.rect)
+                              for img in pagina.get_images(full=True)
+                              for r in pagina.get_image_rects(img[0]))
+                if (area and imagens / area >= FRACCAO_EM_IMAGEM and
+                        len(pagina.get_text().strip()) < TEXTO_DE_UMA_PAGINA_EM_IMAGEM):
+                    fora.append(n)
+            return fora
+    except Exception:                  # nao e PDF, nao existe, nao abre
+        return []
+
+
+def _texto_ilegivel(pagina):
+    letras = [c for c in pagina if not c.isspace()]
+    if len(letras) < 40:
+        return False
+    estranhas = sum(1 for c in letras if ord(c) < 0x20 or 0x100 <= ord(c) < 0x2000)
+    return estranhas / len(letras) > FRACCAO_ILEGIVEL
+
+
+def paginas_ilegiveis(texto):
+    """[n] das paginas do texto extraido (separadas por \\f) que sairam
+    com a letra trocada."""
+    return [n for n, pagina in enumerate((texto or "").split("\f"), 1)
+            if _texto_ilegivel(pagina)]
+
+
+def _paginas_pt(paginas):
+    return ("pág. %d" % paginas[0] if len(paginas) == 1
+            else "págs. " + ", ".join(str(n) for n in paginas))
+
+
+def nota_do_que_nao_se_leu(ref, docs):
+    """«Não lido: <ficheiro>, pág. N (imagem sem texto); ...» das pecas
+    da leitura (as que tem papel), ou ""."""
+    partes = []
+    pasta = pasta_do_anuncio(ref)
+    for d in docs:
+        ficheiros = ficheiros_no_texto(d["texto"]) or [(d["nome"], d["texto"])]
+        for nome, texto in ficheiros:
+            if not papeis_da_peca(nome, texto):
+                continue
+            imagem = (paginas_em_imagem(os.path.join(pasta, nome))
+                      if nome == d["nome"] and nome.lower().endswith(".pdf") else [])
+            ilegiveis = [n for n in paginas_ilegiveis(texto) if n not in imagem]
+            curto = os.path.basename(nome)
+            if imagem:
+                partes.append("%s, %s (imagem sem texto)" % (curto, _paginas_pt(imagem)))
+            if ilegiveis:
+                partes.append("%s, %s (texto ilegível)" % (curto, _paginas_pt(ilegiveis)))
+    return ("Não lido: " + "; ".join(partes)) if partes else ""
+
+
 def analisar_pecas(ref):
     """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso).
 
@@ -9717,6 +9792,10 @@ def analisar_pecas(ref):
     if not dados:
         return False, (SEM_ORCAMENTO_HOJE if sem_orcamento
                        else "; ".join(falhas)[:200])
+    # O campo 11 e o das tabelas: diz as paginas que nao se leram (Q3)
+    nao_lido = nota_do_que_nao_se_leu(ref, docs) if dados.get("equipa") else ""
+    if nao_lido:
+        dados["equipa"] = dados["equipa"].rstrip() + "\n\n" + nao_lido
 
     anterior = analise_de(ref)
     campos = juntar_leituras(dados, anterior)
