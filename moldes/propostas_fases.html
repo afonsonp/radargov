@@ -1,0 +1,13 @@
+{#- As Propostas por fases (front end novo, 6/10/2026, as maquetes que
+    ele aprovou): uma coluna por fase em curso, com quantas e quanto, e
+    as decididas numa coluna de ligações para a tabela, com a procura
+    atrás. O cartão é magro: leva à ficha, e o trabalho vive lá. As
+    pílulas do prazo vêm feitas. -#}
+{% import "_propostas.html" as pr %}
+{#- Um cartão: o título, a entidade, o preço e a referência, e em baixo
+    as etiquetas, o responsável e o prazo. -#}
+{% macro cartao(c) %}<a class='fs-cartao' href='{{ c.alvo }}'><span class='fs-titulo'>{{ c.titulo }}</span><span class='fs-linha'>{% if c.entidade %}{{ c.entidade }}{% else %}&mdash;{% endif %}</span><span class='fs-linha'>{% if c.preco %}<b class='mg-num'>{{ c.preco }}</b> &middot; {% endif %}{% if c.ref %}{{ c.ref }}{% else %}sem anúncio{% endif %}</span>
+{%- if c.etiquetas or c.resp or c.entregue or c.pilula %}<span class='fs-pe'>{% for e in c.etiquetas %}<span class='mg-tag'>{{ e }}</span>{% endfor %}{% if c.resp %}<span class='mg-avatar' title='{{ c.resp }}'>{{ c.iniciais }}</span>{% endif %}{% if c.entregue %}<span class='fs-prazo'><span class='mg-tag'>entregue {{ c.entregue }}</span></span>{% elif c.pilula %}<span class='fs-prazo'>{{ c.pilula }}</span>{% endif %}</span>{% endif %}</a>{% endmacro %}
+<div class='larg'><div class='fs-topo'>{{ vistas }}{{ pr.procura(rota, procura) }}</div><div class='fs-quadro'>
+{%- for f in fases %}<section class='fs-coluna' aria-label='{{ f.rotulo }}'><header><h2><a href='{{ rota }}?estado={{ f.estado }}'>{{ f.rotulo }}</a></h2><span>{{ f.conta }}{% if f.soma %} &middot; <span class='mg-num'>{{ f.soma }}</span>{% endif %}</span></header>{% for c in f.cartoes %}{{ cartao(c) }}{% else %}<p class='fs-vazio'>Nada nesta fase.</p>{% endfor %}</section>{% endfor -%}
+<section class='fs-coluna fs-decididas' aria-label='Decididas'><header><h2>Decididas</h2><span>abrem a tabela</span></header>{% for d in decididas %}<a class='fs-decidida{% if not d.n %} zero{% endif %}' href='{{ rota }}?estado={{ d.estado }}{% if q_url %}&q={{ q_url }}{% endif %}'><span>{{ d.rotulo }}</span><b class='mg-num'>{{ d.n_pt }}</b></a>{% endfor %}</section></div></div>

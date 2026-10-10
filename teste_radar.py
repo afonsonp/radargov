@@ -29710,7 +29710,9 @@ class TestUXConcursosDe1Outubro(_CicloDoTesteComUtilizadores):
         self.assertEqual(radar.proposta(id_)["estado"], "proposta")
         # a seguinte do «A preparar» pede o preço proposto, pela caixa
         h = self._ver(radar.PROPOSTAS + "?estado=proposta")
-        self.assertIn("data-estado='submetido' data-falta='[&quot;valor_proposta&quot;]'", h)
+        # a aspa escapada é `&#34;` desde que a linha é um molde (D1, lote
+        # 3.8a): o Jinja escreve-a assim, e o browser lê o mesmo carácter
+        self.assertIn("data-estado='submetido' data-falta='[&#34;valor_proposta&#34;]'", h)
         self.assertIn("&rarr; Submetida</button>", h)
         # do relatório em diante não há uma seguinte só
         with radar.liga() as c:

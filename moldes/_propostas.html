@@ -1,0 +1,28 @@
+{#- As peças das Propostas. O Python chama algumas pelo `peca()`: as
+    vistas servem também o Calendário, a linha da tabela é o
+    `linha_da_pipeline()` que os testes pedem, e o «Nova proposta» vai no
+    cabeçalho da página, que ainda é Python. -#}
+{#- O interruptor «Fases | Tabela | Calendário» (front end novo,
+    6/10/2026). -#}
+{% macro vistas(actual, opcoes) %}<nav class='vistas-propostas' aria-label='Vista'>{% for chave, href, rotulo in opcoes %}<a href='{{ href }}'{% if chave == actual %} aria-current='page'{% endif %}>{{ rotulo }}</a>{% endfor %}</nav>{% endmacro %}
+{#- O botão principal das Propostas. -#}
+{% macro nova() %}<a class='mg-btn mg-btn--primary' href='/proposta/nova'>{{ icone("mais") }} Nova proposta</a>{% endmacro %}
+{#- A procura larga, como a dos Concursos (6/10/2026). Na tabela leva a
+    fase escondida, e o «Limpar» volta a ela. -#}
+{% macro procura(rota, q, estado="") %}<form class='procura-larga' id='procura-propostas' method='get' action='{{ rota }}'>{% if estado %}<input type='hidden' name='estado' value='{{ estado }}'>{% endif %}<label><span class='so-leitor'>Procurar nas propostas</span>{{ icone("pesquisar", 18) }}<input type='search' name='q' value='{{ q }}' placeholder='Procurar no título ou na entidade'></label>{% if q %}<a class='mg-btn mg-btn--subtle' href='{{ rota }}{% if estado %}?estado={{ estado }}{% endif %}'>Limpar</a>{% endif %}</form>{% endmacro %}
+{#- O «→ A preparar» ao lado do selector: vai pelo mesmo caminho do
+    selector, e pela caixa da escada quando a fase seguinte exige o que a
+    proposta ainda não tem (`desfecho-js`). -#}
+{% macro fase_seguinte(f) %}<form class='accao desfecho-js fase-seguinte' method='post' action='/proposta/{{ f.id }}/escada' data-estado='{{ f.seguinte }}' data-falta='{{ f.falta|js }}' data-titulo='{{ f.titulo }}'{% if f.base %} data-base='{{ f.base }}'{% endif %}><input type='hidden' name='estado' value='{{ f.seguinte }}'><input type='hidden' name='de' value='{{ f.estado }}'><button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary' aria-label='Passar «{{ f.curto }}» a {{ f.rotulo }}'>&rarr; {{ f.rotulo }}</button></form>{% endmacro %}
+{#- Uma proposta na tabela de uma fase. As células do lote e do
+    proposto saem com a coluna (`colunas_da_ranhura()`); o prazo diz-se
+    «entregue» a partir do Submetido e sem contagem numa decidida; a
+    última célula diz o que trava, ou o desfecho numa fase decidida. -#}
+{% macro linha(l) %}<tr><td class='o'><a href='{{ l.alvo }}' title='{{ l.titulo }}'>{{ l.nome }}</a>{% if not l.ref %} <span class='mg-tag mg-tag--brand' title='{{ l.porque_sem_ref }}'>sem anúncio</span>{% endif %}<small title='{{ l.entidade }}'>{{ l.entidade_curta }}{% if l.ref %} &middot; <span class='mg-code'>{{ l.ref }}</span>{% endif %}</small></td>
+{%- if l.com_lote %}<td class='curta'>{% if l.lote %}{{ l.lote }}{% else %}&mdash;{% endif %}</td>{% endif -%}
+<td class='curta'>{% if l.resp %}<span class='mg-avatar' title='{{ l.resp }}'><span aria-hidden='true'>{{ l.iniciais }}</span><span class='so-leitor'>{{ l.resp }}</span></span>{% else %}&mdash;{% endif %}</td><td class='mg-num p'>{{ l.preco_base }}</td>
+{%- if l.com_proposto %}<td class='mg-num p'><b>{% if l.proposto %}{{ l.proposto }}{% else %}&mdash;{% endif %}</b></td>{% endif -%}
+<td class='mg-num d'>{% if not l.prazo %}&mdash;{% else %}{{ l.prazo }}{% if l.prazo_tom == "entregue" %} <span class='mg-tag'>entregue</span>{% elif l.prazo_tom == "aberta" %} {{ l.pilula }}{% endif %}{% endif %}</td><td class='celula-ranhura'>{{ l.selector }}{% if l.seguinte %}{{ fase_seguinte(l.seguinte) }}{% endif %}</td><td class='falta'>
+{%- if l.ganho is not none %}{% if l.ganho %}<span class='mg-num'>{{ l.ganho }}</span> <span class='nota'>{{ l.de_onde }}</span>{% endif %}
+{%- elif l.fechada %}{{ l.motivo }}
+{%- else %}{% if l.falta %}<span class='falta-txt'>{{ l.falta.o_que }}</span>{% if l.falta.atrasada %} <span class='mg-tag {{ l.falta.tom }}'>atrasada · {{ l.falta.quando }}</span>{% elif l.falta.quando %} {{ l.falta.quando }}{% endif %}{% endif %}{% if l.docs %}{% if l.falta %} {% endif %}docs {{ l.docs }}{% endif %}{% endif %}</td></tr>{% endmacro %}

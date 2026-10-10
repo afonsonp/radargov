@@ -15494,6 +15494,15 @@ def ecra(molde, **valores):
     return MOLDES_JINJA.get_template(molde).render(valores)
 
 
+def peca(molde, macro, *args, **valores):
+    """Uma macro de um molde, para quem a pede a uma função: uma peça que
+    serve um ecrã ainda em Python, ou que os testes chamam pelo nome
+    (lote 3.8a). Sai como `str` e não `Markup`: um `+` de quem chama com
+    um `Markup` escapava o outro lado."""
+    return str(getattr(MOLDES_JINJA.get_template(molde).module, macro)(
+        *args, **valores))
+
+
 # O relogio de cada pedido (lote 4 da segunda ronda, 26/09/2026): o
 # cabecalho `Server-Timing` diz no DevTools de qualquer pessoa quanto do
 # tempo foi base de dados (`base`) e quanto foi o pedido inteiro
@@ -20351,130 +20360,86 @@ def _preco_da_proposta(p):
     """O numero que conta, e dito pelo que e. A partir do Submetido e o
     proposto; antes disso e o preco base -- e enquanto o proposto nao
     estiver preenchido mostra-se o base **dito como base**, que e
-    diferente de o mostrar como se fosse a proposta."""
+    diferente de o mostrar como se fosse a proposta. Vazio é o travessão
+    do molde."""
     if p["estado"] in ESTADOS_COM_PROPOSTO and p["valor_proposta"]:
         # como o resto do dinheiro: «412.000,00 EUR» é a forma guardada, e
         # saía ao lado de «395 146,78 €» na mesma linha (perfil 15)
-        return html.escape(preco_pt(p["valor_proposta"]))
-    return "&mdash;"
+        return preco_pt(p["valor_proposta"])
+    return ""
 
 
 def linha_da_pipeline(p, urgente, prazos, falta=None, com_lote=True,
                       docs=None):
-    """Uma proposta na tabela. A ligacao e para a ficha do anuncio
-    quando ha anuncio, e para a propria proposta quando nao ha (D2) --
-    uma consulta previa nao tem ficha do DR para abrir.
+    """Uma proposta na tabela (a `linha` do `moldes/_propostas.html`). A
+    ligacao e para a ficha do anuncio quando ha anuncio, e para a propria
+    proposta quando nao ha (D2) -- uma consulta previa nao tem ficha do DR
+    para abrir.
 
     `docs` e (prontos, pedidos) dos documentos que o Programa pede, ou
     None quando ainda nao foi lido (G1)."""
     # sem anuncio, o prazo e o que se escreveu na proposta (E6)
     prazo = prazos.get(p["ref"] or "") or _valor(p, "prazo_entrega")
+    pilula, prazo_tom = "", ""
     if prazo:
-        texto_prazo, classe_prazo = etiqueta_prazo(prazo, urgente)
         # A partir do Submetido o prazo ter passado e o estado normal: a
         # proposta foi entregue. A pilula vermelha e a cor de alarme da
         # lista, e nao pode estar a puxar o olho para uma coisa que nao
-        # pede accao nenhuma.
+        # pede accao nenhuma. Decidida sem entrega (Não fomos, Cancelada):
+        # a data, sem contagem nem «entregue» (G22, G28).
         if p["estado"] in ESTADOS_COM_PROPOSTO:
-            col_prazo = ("%s <span class='mg-tag'>entregue</span>"
-                         % data_pt(prazo))
+            prazo_tom = "entregue"
         elif p["estado"] in ESTADOS_FECHADOS:
-            # decidida sem entrega (Não fomos, Cancelada): a data, sem
-            # contagem nem «entregue» (G22, G28)
-            col_prazo = data_pt(prazo)
+            prazo_tom = "fechada"
         else:
-            col_prazo = "%s %s" % (data_pt(prazo),
-                                   pilula_do_prazo(texto_prazo, classe_prazo))
-    else:
-        col_prazo = "&mdash;"
-    if p["ref"]:
-        alvo = "/anuncio/" + quote(p["ref"], safe="")
-        nome = corta(p["titulo"] or p["ref"], 80)
-    else:
-        alvo = "/proposta/%d" % p["id"]
-        nome = corta(p["titulo"] or "(sem título)", 80)
-    # a celula do proposto sai com a coluna (ver colunas_da_ranhura)
-    cel_proposto = ("<td class='mg-num p'><b>%s</b></td>" % _preco_da_proposta(p)
-                    if p["estado"] in ESTADOS_COM_PROPOSTO else "")
+            prazo_tom = "aberta"
+            pilula = Markup(pilula_do_prazo(*etiqueta_prazo(prazo, urgente)))
     # O que trava: a proxima tarefa por fazer (`falta`, lida numa consulta
-    # so por quem faz o ciclo), com a data quando a tem.
+    # so por quem faz o ciclo), com a data quando a tem. A atrasada diz
+    # que o é, como no Hoje (segunda ronda, 26/09/2026: o daltónico não a
+    # distinguia das outras).
     if falta:
-        # A atrasada diz que o é, como no Hoje (segunda ronda, 26/09/2026:
-        # o daltónico não a distinguia das outras).
-        atrasada = bool(falta["quando"]) and \
-            falta["quando"][:10] < datetime.now().strftime("%Y-%m-%d")
-        cel_falta = ("<span class='falta-txt'>%s</span>%s"
-                     % (html.escape(corta(falta["o_que"] or "", 40)),
-                        (" <span class='mg-tag %s'>atrasada · %s</span>"
-                         % (tom("mau"), data_curta(falta["quando"])))
-                        if atrasada else
-                        " %s" % data_curta(falta["quando"])
-                        if falta["quando"] else ""))
-    else:
-        cel_falta = ""
-    # Quantos dos documentos que o Programa pede estão prontos (UX-7-LEIS,
-    # G1): o «3 de 7» só se via dentro da ficha. Só nas ranhuras onde
-    # ainda há o que preparar; depois de entregue já não é trabalho.
-    if docs and p["estado"] in ESTADOS_COM_TAREFAS:
-        cel_falta = " ".join(x for x in (
-            cel_falta, "docs %d/%d" % docs) if x)
-    if p["estado"] == "ganho":
-        cel_falta = ("<span class='mg-num'>%s</span> <span class='nota'>%s</span>"
-                     % (html.escape(euros(valor_ganho(p))),
-                        de_onde_vem_o_ganho(p) or "")) if valor_ganho(p) else ""
-    elif p["estado"] in ESTADOS_FECHADOS:
-        cel_falta = html.escape(p["motivo"] or "")
-    # O `title` leva o titulo INTEIRO: a celula corta-o a duas linhas
-    # (`.tab-lista td.o a`), e um corte sem forma de ver o resto e uma
-    # lista que esconde o que promete mostrar.
-    # Sem anúncio, a Ref.ª é «—» sem ligação: era um alvo de 8 × 18 px
-    # para o mesmo sítio que o título ao lado (N5 da UX-AUDITORIA-1-10).
-    cel_ref = ("<a href='%s'>%s</a>" % (alvo, html.escape(p["ref"]))
-               if p["ref"] else "&mdash;")
-    return ("<tr>"
-            "<td class='o'><a href='%s' title='%s'>%s</a>%s"
-            "<small title='%s'>%s%s</small></td>"
-            "%s"
-            "<td class='curta'>%s</td>"
-            "<td class='mg-num p'>%s</td>%s"
-            "<td class='mg-num d'>%s</td>"
-            "<td class='celula-ranhura'>%s</td><td class='falta'>%s</td></tr>"
-            % (alvo,
-               html.escape(p["titulo"] or p["ref"] or "(sem título)",
-                           quote=True),
-               html.escape(nome),
-               "" if p["ref"] else
-               " <span class='mg-tag mg-tag--brand' title='%s'>sem anúncio</span>"
-               % html.escape(p["porque_sem_ref"] or "não vem do DR", quote=True),
-               html.escape(p["entidade"] or "", quote=True),
-               html.escape(corta(p["entidade"] or "", 45)),
-               (" &middot; <span class='mg-code'>%s</span>"
-                % html.escape(p["ref"])) if p["ref"] else "",
-               # a celula do lote sai com a coluna (colunas_da_ranhura)
-               "<td class='curta'>%s</td>"
-               % ("L%d" % p["lote"] if p["lote"] else
-                  ("conjunto" if p["lote"] == 0 else "&mdash;"))
-               if com_lote else "",
-               # o nome inteiro tambem para o leitor de ecra: as iniciais
-               # so diziam «AF» (UX-ICONES-DICAS-PESOS, B.1 #5)
-               ("<span class='mg-avatar' title='%s'><span aria-hidden='true'>%s"
-                "</span><span class='so-leitor'>%s</span></span>"
-                % (html.escape(nome_da_pessoa(p["responsavel"]), quote=True),
-                   html.escape(iniciais(nome_da_pessoa(p["responsavel"]))),
-                   html.escape(nome_da_pessoa(p["responsavel"]))))
-               if p["responsavel"] else "&mdash;",
-               html.escape(preco_pt(p["preco_base"])),
-               # pelo tuplo e nao concatenada ao molde: o valor ja vem
-               # substituido, e um "%" la dentro rebentava o `%` de fora
-               cel_proposto,
-               col_prazo,
-               # a mesma escada da outra lista, e pela proposta: uma sem
-               # anuncio nao tem `ref` por onde lhe pegar
-               selector_de_ranhura("/proposta/%d/escada" % p["id"],
-                                   p["estado"],
-                                   titulo=p["titulo"] or p["entidade"] or "",
-                                   p=p) + botao_da_fase_seguinte(p),
-               cel_falta))
+        falta = {"o_que": corta(falta["o_que"] or "", 40),
+                 "atrasada": bool(falta["quando"]) and
+                 falta["quando"][:10] < datetime.now().strftime("%Y-%m-%d"),
+                 "tom": tom("mau"),
+                 "quando": data_curta(falta["quando"]) if falta["quando"] else ""}
+    resp = nome_da_pessoa(p["responsavel"]) if p["responsavel"] else ""
+    titulo = p["titulo"] or p["entidade"] or ""
+    return peca("_propostas.html", "linha", {
+        "alvo": ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
+        else "/proposta/%d" % p["id"],
+        # O `title` leva o titulo INTEIRO: a celula corta-o a duas linhas
+        # (`.tab-lista td.o a`), e um corte sem forma de ver o resto e uma
+        # lista que esconde o que promete mostrar.
+        "titulo": p["titulo"] or p["ref"] or "(sem título)",
+        "nome": corta(p["titulo"] or p["ref"] or "(sem título)", 80),
+        "ref": p["ref"], "porque_sem_ref": p["porque_sem_ref"] or "não vem do DR",
+        "entidade": p["entidade"] or "", "entidade_curta": corta(p["entidade"] or "", 45),
+        "com_lote": com_lote,
+        "lote": ("L%d" % p["lote"] if p["lote"] else
+                 ("conjunto" if p["lote"] == 0 else "")),
+        # o nome inteiro tambem para o leitor de ecra: as iniciais so
+        # diziam «AF» (UX-ICONES-DICAS-PESOS, B.1 #5)
+        "resp": resp, "iniciais": iniciais(resp),
+        "preco_base": preco_pt(p["preco_base"]),
+        "com_proposto": p["estado"] in ESTADOS_COM_PROPOSTO,
+        "proposto": _preco_da_proposta(p),
+        "prazo": data_pt(prazo) if prazo else "", "prazo_tom": prazo_tom,
+        "pilula": pilula,
+        # a mesma escada da outra lista, e pela proposta: uma sem anuncio
+        # nao tem `ref` por onde lhe pegar
+        "selector": Markup(selector_de_ranhura("/proposta/%d/escada" % p["id"],
+                                               p["estado"], titulo=titulo, p=p)),
+        "seguinte": botao_da_fase_seguinte(p),
+        "falta": falta,
+        # Quantos dos documentos que o Programa pede estão prontos
+        # (UX-7-LEIS, G1), só onde ainda há o que preparar.
+        "docs": "%d/%d" % docs if docs and p["estado"] in ESTADOS_COM_TAREFAS else "",
+        "ganho": ((euros(valor_ganho(p)) if valor_ganho(p) else "")
+                  if p["estado"] == "ganho" else None),
+        "de_onde": (de_onde_vem_o_ganho(p) or "") if p["estado"] == "ganho" else "",
+        "fechada": p["estado"] in ESTADOS_FECHADOS, "motivo": p["motivo"] or ""})
 
 
 # A fase que vem a seguir, na escada da empresa (H4 da UX-7-LEIS, feito a
@@ -20486,7 +20451,8 @@ FASE_SEGUINTE = {"analisar": "proposta", "proposta": "submetido",
 
 
 def botao_da_fase_seguinte(p):
-    """O «→ A preparar» ao lado do selector, na linha das Propostas.
+    """O «→ A preparar» ao lado do selector, na linha das Propostas: os
+    valores do `fase_seguinte` do `moldes/_propostas.html`, ou None.
 
     Vai pelo mesmo caminho do selector (`/proposta/<id>/escada`, com o
     `de` da fase que a página mostra) e pela caixa da escada quando a
@@ -20495,73 +20461,47 @@ def botao_da_fase_seguinte(p):
     Sem JS o pedido segue, e o servidor diz o que falta."""
     seguinte = FASE_SEGUINTE.get(p["estado"])
     if not seguinte:
-        return ""
-    falta = [n for n in falta_para_a_ranhura(p, seguinte) if n != "motivo"]
-    base = preco_base_da_proposta(p)
+        return None
     titulo = p["titulo"] or p["entidade"] or ""
-    rotulo = estado_da_empresa(seguinte)
-    return ("<form class='accao desfecho-js fase-seguinte' method='post' "
-            "action='/proposta/%d/escada' data-estado='%s' data-falta='%s' "
-            "data-titulo='%s'%s><input type='hidden' name='estado' value='%s'>"
-            "<input type='hidden' name='de' value='%s'>"
-            "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary' "
-            "aria-label='%s'>&rarr; %s</button></form>"
-            % (p["id"], seguinte, html.escape(json.dumps(falta), quote=True),
-               html.escape(titulo, quote=True),
-               " data-base='%s'" % base if base else "", seguinte, p["estado"],
-               html.escape("Passar «%s» a %s" % (corta(titulo, 80), rotulo),
-                           quote=True),
-               html.escape(rotulo)))
+    return {"id": p["id"], "seguinte": seguinte, "estado": p["estado"],
+            "falta": [n for n in falta_para_a_ranhura(p, seguinte) if n != "motivo"],
+            "base": preco_base_da_proposta(p), "titulo": titulo,
+            "curto": corta(titulo, 80), "rotulo": estado_da_empresa(seguinte)}
 
 
 def _vistas_das_propostas(actual):
     """O interruptor «Fases | Tabela» das Propostas (front end novo,
     6/10/2026). A tabela abre na primeira ranhura, como sempre."""
-    return ("<nav class='vistas-propostas' aria-label='Vista'>%s</nav>"
-            % "".join(
-                "<a href='%s'%s>%s</a>"
-                % (href, " aria-current='page'" if chave == actual else "", rotulo)
-                for chave, href, rotulo in (
-                    ("fases", PROPOSTAS, "Fases"),
-                    ("tabela", "%s?estado=%s" % (PROPOSTAS, CHAVES_DA_EMPRESA[0]),
-                     "Tabela"),
-                    # o Calendário é a terceira vista desde 6/10/2026
-                    ("calendario", "/calendario", "Calendário"))))
+    return peca("_propostas.html", "vistas", actual, (
+        ("fases", PROPOSTAS, "Fases"),
+        ("tabela", "%s?estado=%s" % (PROPOSTAS, CHAVES_DA_EMPRESA[0]), "Tabela"),
+        # o Calendário é a terceira vista desde 6/10/2026
+        ("calendario", "/calendario", "Calendário")))
 
 
 def _cartao_da_fase(p, prazo, etiquetas, urgente):
-    """Um cartão da vista por fases: o título, a entidade, o preço e a
-    referência, e em baixo as etiquetas, o responsável e o prazo. O
-    resto vive na ficha, para onde o cartão leva."""
-    alvo = ("/anuncio/" + quote(p["ref"], safe="") if p["ref"]
-            else "/proposta/%d" % p["id"])
+    """Um cartão da vista por fases: os valores do `cartao` do
+    `moldes/propostas_fases.html`. O prazo diz-se «entregue» a partir
+    do Submetido, e pela pílula antes disso."""
     if p["estado"] in ESTADOS_COM_PROPOSTO and p["valor_proposta"]:
-        preco = html.escape(preco_pt(p["valor_proposta"]))
+        preco = preco_pt(p["valor_proposta"])
     else:
         base = euros_do_texto(p["preco_base"] or "")
-        preco = html.escape(euros(base)) if base else ""
-    if not prazo:
-        quando = ""
-    elif p["estado"] in ESTADOS_COM_PROPOSTO:
-        quando = "<span class='mg-tag'>entregue %s</span>" % data_pt(prazo)[:5]
-    else:
-        quando = pilula_do_prazo(*etiqueta_prazo(prazo, urgente))
+        preco = euros(base) if base else ""
+    entregue = pilula = ""
+    if prazo and p["estado"] in ESTADOS_COM_PROPOSTO:
+        entregue = data_pt(prazo)[:5]
+    elif prazo:
+        pilula = Markup(pilula_do_prazo(*etiqueta_prazo(prazo, urgente)))
     resp = (p["responsavel"] or "").strip()
-    dono = ("<span class='mg-avatar' title='%s'>%s</span>"
-            % (html.escape(nome_da_pessoa(resp), quote=True),
-               _iniciais(nome_da_pessoa(resp))) if resp else "")
-    pe = "".join(("".join("<span class='mg-tag'>%s</span>" % html.escape(e)
-                          for e in etiquetas),
-                  dono, "<span class='fs-prazo'>%s</span>" % quando if quando else ""))
-    return ("<a class='fs-cartao' href='%s'><span class='fs-titulo'>%s</span>"
-            "<span class='fs-linha'>%s</span>"
-            "<span class='fs-linha'>%s%s</span>%s</a>"
-            % (alvo, html.escape(corta(p["titulo"] or p["ref"] or "(sem título)", 110)),
-               html.escape(p["entidade"] or "") or "&mdash;",
-               "<b class='mg-num'>%s</b>" % preco if preco else "",
-               (" &middot; " if preco else "")
-               + (html.escape(p["ref"]) if p["ref"] else "sem anúncio"),
-               "<span class='fs-pe'>%s</span>" % pe if pe else ""))
+    resp = nome_da_pessoa(resp) if resp else ""
+    return {"alvo": ("/anuncio/" + quote(p["ref"], safe="") if p["ref"]
+                     else "/proposta/%d" % p["id"]),
+            "titulo": corta(p["titulo"] or p["ref"] or "(sem título)", 110),
+            "entidade": p["entidade"] or "", "preco": preco, "ref": p["ref"],
+            "etiquetas": etiquetas, "resp": resp,
+            "iniciais": Markup(_iniciais(resp)) if resp else "",
+            "entregue": entregue, "pilula": pilula}
 
 
 def _fases_das_propostas():
@@ -20602,57 +20542,36 @@ def _fases_das_propostas():
     por_fase = {}
     for p in linhas:
         por_fase.setdefault(p["estado"], []).append(p)
-    colunas = []
+    fases = []
     for estado in ESTADOS_ABERTOS:
         dela = por_fase.get(estado, [])
         # o relatório preliminar só tem coluna quando tem alguém: é uma
         # fase de passagem, e uma coluna vazia ocupava o lugar de 300 px
         if not dela and estado == "relatorio":
             continue
-        conta = plural(len(dela), "proposta", "propostas")
         soma = _euros_da_ranhura(dela, estado)
-        colunas.append(
-            "<section class='fs-coluna' aria-label='%s'><header>"
-            "<h2><a href='%s?estado=%s'>%s</a></h2><span>%s%s</span></header>%s</section>"
-            % (html.escape(estado_da_empresa(estado), quote=True),
-               PROPOSTAS, estado, html.escape(estado_da_empresa(estado)), conta,
-               " &middot; <span class='mg-num'>%s</span>" % html.escape(euros(soma))
-               if soma else "",
-               "".join(_cartao_da_fase(p, prazos.get(p["ref"] or "")
-                                       or _valor(p, "prazo_entrega"),
-                                       etiquetas.get(p["ref"] or "", ()), urgente)
-                       for p in dela)
-               or "<p class='fs-vazio'>Nada nesta fase.</p>"))
-    mais_q = ("&q=" + quote(procura)) if procura else ""
-    decididas = "".join(
-        "<a class='fs-decidida%s' href='%s?estado=%s%s'><span>%s</span>"
-        "<b class='mg-num'>%s</b></a>"
-        % ("" if por_fase.get(estado) else " zero", PROPOSTAS, estado, mais_q,
-           html.escape(estado_da_empresa(estado)),
-           mil_pt(len(por_fase.get(estado, ()))))
-        for estado in ESTADOS_FECHADOS)
-    colunas.append(
-        "<section class='fs-coluna fs-decididas' aria-label='Decididas'><header>"
-        "<h2>Decididas</h2><span>abrem a tabela</span></header>%s</section>"
-        % decididas)
-    # a procura larga, como a dos Concursos (6/10/2026)
-    caixa = ("<form class='procura-larga' id='procura-propostas' method='get' "
-             "action='%s'><label><span class='so-leitor'>Procurar nas propostas"
-             "</span>%s<input type='search' name='q' value='%s' "
-             "placeholder='Procurar no título ou na entidade'></label>%s</form>"
-             % (PROPOSTAS, icone("pesquisar", 18), html.escape(procura, quote=True),
-                "<a class='mg-btn mg-btn--subtle' href='%s'>Limpar</a>" % PROPOSTAS
-                if procura else ""))
-    conteudo = ("<div class='larg'><div class='fs-topo'>"
-                + _vistas_das_propostas("fases") + caixa + "</div>"
-                "<div class='fs-quadro'>" + "".join(colunas) + "</div></div>")
+        fases.append({
+            "estado": estado, "rotulo": estado_da_empresa(estado),
+            "conta": plural(len(dela), "proposta", "propostas"),
+            "soma": euros(soma) if soma else "",
+            "cartoes": [_cartao_da_fase(p, prazos.get(p["ref"] or "")
+                                        or _valor(p, "prazo_entrega"),
+                                        etiquetas.get(p["ref"] or "", ()), urgente)
+                        for p in dela]})
+    conteudo = ecra(
+        "propostas_fases.html", rota=PROPOSTAS, procura=procura,
+        vistas=Markup(_vistas_das_propostas("fases")), fases=fases,
+        decididas=[{"estado": estado, "rotulo": estado_da_empresa(estado),
+                    "n": len(por_fase.get(estado, ())),
+                    "n_pt": mil_pt(len(por_fase.get(estado, ())))}
+                   for estado in ESTADOS_FECHADOS],
+        q_url=quote(procura) if procura else "")
     return envolver(
         "propostas", "Propostas", "", conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
             "O que a empresa tem em curso, por fase.", [],
-            "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
-            + icone("mais") + " Nova proposta</a>"),
+            peca("_propostas.html", "nova")),
         titulo_aba="Propostas")
 
 
@@ -20771,76 +20690,43 @@ def _lista_de_propostas():
 
     def cabecalho(coluna):
         if coluna not in que_ordenam:
-            return "<th>%s</th>" % html.escape(coluna)
+            return {"rotulo": coluna, "feito": ""}
         chave, sentido, convite = que_ordenam[coluna]
         activa = ordem == chave
-        return cabecalho_que_ordena(
+        return {"feito": Markup(cabecalho_que_ordena(
             html.escape(coluna), activa,
             PROPOSTAS + "?" + urlencode(
                 [("estado", estado_actual)] + ([("q", procura)] if procura else [])
                 + ([] if activa else [("ordem", chave)])),
-            sentido, convite, "Voltar à ordem de sempre, a mais recente primeiro")
+            sentido, convite, "Voltar à ordem de sempre, a mais recente primeiro"))}
     com_lote = any(p["lote"] is not None for p in linhas)
-    if linhas:
-        corpo = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos tab-lista'>"
-                 "<thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>"
-                 % ("".join(cabecalho(t) for t in colunas_da_ranhura(estado_actual, com_lote)),
-                    "".join(linha_da_pipeline(p, urgente, prazos,
-                                              falta.get(p["id"]), com_lote,
-                                              docs.get(p["id"]))
-                            for p in linhas)))
-    elif procura:
-        # A ranhura pode estar cheia: o que esta vazio e a RESPOSTA. Dizer
-        # "Nada em Ganho" por baixo de uma aba a dizer 13 e o ecra a
-        # discordar de si proprio a dois centimetros de distancia, e
-        # manda arrumar o que esta arrumado em vez de apagar a procura.
-        corpo = ("<div class='mg-empty'>Nada em «%s» com "
-                 "«%s». <a href='%s?estado=%s'>Ver as %s</a>."
-                 "</div>"
-                 % (html.escape(estado_da_empresa(estado_actual)),
-                    html.escape(procura), PROPOSTAS, estado_actual,
-                    mil_pt(contas.get(estado_actual, 0))))
-    else:
-        corpo = ("<div class='mg-empty'>Nada em «%s». "
-                 "Um concurso entra aqui a partir da ficha dele; ou "
-                 "<a href='/proposta/nova'>crie uma proposta sem anúncio</a> "
-                 "(consulta prévia, ajuste directo).</div>"
-                 % html.escape(estado_da_empresa(estado_actual)))
-    conta = "%s %s" % (mil_pt(len(linhas)),
-                       "proposta" if len(linhas) == 1 else "propostas")
-    if sem_anuncio:
-        conta += (" &middot; %s sem anúncio do DR" % mil_pt(sem_anuncio))
-    # O `action` e a LISTA, e ficou a apontar para "/" na mudanca de
-    # endereco da fase 4: procurar dentro de uma ranhura levava a
-    # abertura, com a pergunta escrita na barra de endereco e nenhuma
-    # resposta no ecra. Um `action` nao e um `href` e por isso escapou a
-    # varredura das nove ligacoes (16/09/2026).
-    # a procura larga, como a dos Concursos (6/10/2026)
-    caixa = ("<form class='procura-larga' id='procura-propostas' method='get' "
-             "action='%s'><input type='hidden' name='estado' value='%s'>"
-             "<label><span class='so-leitor'>Procurar nas propostas</span>%s"
-             "<input type='search' name='q' value='%s' "
-             "placeholder='Procurar no título ou na entidade'></label>%s</form>"
-             % (PROPOSTAS, html.escape(estado_actual, quote=True),
-                icone("pesquisar", 18), html.escape(procura, quote=True),
-                "<a class='mg-btn mg-btn--subtle' href='%s?estado=%s'>Limpar</a>"
-                % (PROPOSTAS, estado_actual) if procura else ""))
     # O `EcraPropostas`: o cabecalho com a «Nova proposta», as abas no
-    # corpo, a procura e a contagem, e a tabela.
-    conteudo = ("<div class='larg fs-topo'>" + _vistas_das_propostas("tabela")
-                + "</div>"
-                + barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)
-                + "<div class='larg'>" + caixa +
-                "<div class='linha-conta'>" + conta + "</div>"
-                + corpo + "</div>")
+    # corpo, a procura e a contagem, e a tabela. Sem linhas e com procura,
+    # a ranhura pode estar cheia: o que esta vazio e a RESPOSTA, e dizer
+    # "Nada em Ganho" por baixo de uma aba a dizer 13 era o ecra a
+    # discordar de si proprio. O `action` da procura e as PROPOSTAS, e
+    # nao "/" (16/09/2026: um `action` nao e um `href`, e escapou a
+    # varredura das nove ligacoes).
+    conteudo = ecra(
+        "propostas.html", rota=PROPOSTAS, estado=estado_actual, procura=procura,
+        rotulo=estado_da_empresa(estado_actual),
+        vistas=Markup(_vistas_das_propostas("tabela")),
+        abas=Markup(barra_das_abas(rota, estado_actual, contas, CHAVES_DA_EMPRESA)),
+        n=mil_pt(len(linhas)), n_um=len(linhas) == 1,
+        sem_anuncio=mil_pt(sem_anuncio) if sem_anuncio else "",
+        na_fase=mil_pt(contas.get(estado_actual, 0)),
+        cabecalhos=[cabecalho(t) for t in colunas_da_ranhura(estado_actual, com_lote)],
+        linhas=Markup("".join(linha_da_pipeline(p, urgente, prazos,
+                                                falta.get(p["id"]), com_lote,
+                                                docs.get(p["id"]))
+                              for p in linhas)))
     return envolver(
         "propostas", "Propostas", "",
         conteudo,
         cabeca=cabecalho_de_pagina(
             "Propostas",
             "O que a empresa tem em curso, por fase.", [],
-            "<a class='mg-btn mg-btn--primary' href='/proposta/nova'>"
-            + icone("mais") + " Nova proposta</a>"),
+            peca("_propostas.html", "nova")),
         script=caixa_do_motivo(),
         titulo_aba="%s · Propostas" % estado_da_empresa(estado_actual))
 

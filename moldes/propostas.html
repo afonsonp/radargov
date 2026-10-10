@@ -1,0 +1,9 @@
+{#- As Propostas de uma fase, em tabela (`?estado=`): as vistas, as abas
+    das oito fases da empresa, a procura, a contagem e a tabela — ou o
+    vazio, que com procura diz que o vazio é a resposta e não a fase. Os
+    cabeçalhos que ordenam e as linhas (`linha_da_pipeline()`) vêm feitos. -#}
+{% import "_propostas.html" as pr %}
+<div class='larg fs-topo'>{{ vistas }}</div>{{ abas }}<div class='larg'>{{ pr.procura(rota, procura, estado) }}<div class='linha-conta'>{{ n }} proposta{% if n_um %}{% else %}s{% endif %}{% if sem_anuncio %} &middot; {{ sem_anuncio }} sem anúncio do DR{% endif %}</div>
+{%- if linhas %}<div class='mg-card tab-cx'><table class='mg-table tab-contratos tab-lista'><thead><tr>{% for c in cabecalhos %}{% if c.feito %}{{ c.feito }}{% else %}<th>{{ c.rotulo }}</th>{% endif %}{% endfor %}</tr></thead><tbody>{{ linhas }}</tbody></table></div>
+{%- elif procura %}<div class='mg-empty'>Nada em «{{ rotulo }}» com «{{ procura }}». <a href='{{ rota }}?estado={{ estado }}'>Ver as {{ na_fase }}</a>.</div>
+{%- else %}<div class='mg-empty'>Nada em «{{ rotulo }}». Um concurso entra aqui a partir da ficha dele; ou <a href='/proposta/nova'>crie uma proposta sem anúncio</a> (consulta prévia, ajuste directo).</div>{% endif %}</div>
