@@ -50,6 +50,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unicodedata
 import webbrowser
 import zipfile
@@ -60,6 +61,7 @@ from zoneinfo import ZoneInfo
 
 import empresa                      # o registo da empresa (empresa.py importa o radar por dentro)
 import contas                    # as contas e as sessoes (contas.py nao importa o radar)
+import mcp_servidor              # o conector MCP (nao importa o radar: recebe o FONTES_DO_MCP)
 
 # Os 49 icones do sistema de desenho, inline (fase 2, 21/09/2026). Se
 # faltar, o painel serve na mesma e os botoes ficam so com a palavra --
@@ -426,7 +428,42 @@ def liga():
         # linhas. E so de leitura -- um GET que tentasse gravar la da erro,
         # e nao grava em silencio num sitio que ninguem ve.
         c.execute("ATTACH DATABASE ? AS emp", (_empresa_vazia(),))
+    if _SO_DE_LEITURA.get():
+        # o conector MCP (10/10/2026): vale para a principal e para a `emp`
+        c.execute("PRAGMA query_only=ON")
+        _com_prazo(c)
     return c
+
+
+# O tempo de uma ligação do conector MCP (revisão de 10/10/2026): uma
+# pergunta de um robô que levasse minutos prendia o painel de toda a
+# gente. Conta-se desde que a ligação abre -- as ferramentas abrem uma
+# ou duas --, e passado o prazo o SQLite pára a consulta com
+# «interrupted», que o `_chamada_do_mcp()` diz por palavras.
+SEGUNDOS_DA_CONSULTA_MCP = 10
+PASSOS_ENTRE_RELOGIOS = 10000
+
+
+def _com_prazo(c):
+    fim = time.monotonic() + SEGUNDOS_DA_CONSULTA_MCP
+    c.set_progress_handler(lambda: time.monotonic() > fim, PASSOS_ENTRE_RELOGIOS)
+
+
+# As ligacoes abertas dentro de `so_de_leitura()` nao gravam nada: o
+# `PRAGMA query_only`. E a segunda guarda do conector MCP, alem de
+# nenhuma ferramenta escrever -- uma leitura que gravasse sem querer da
+# erro, em vez de mexer no trabalho de uma empresa a pedido de um robo.
+# Um ContextVar, como a `_EMPRESA`: vale para o fio que o pos.
+_SO_DE_LEITURA = contextvars.ContextVar("so_de_leitura", default=False)
+
+
+@contextlib.contextmanager
+def so_de_leitura():
+    marca_ = _SO_DE_LEITURA.set(True)
+    try:
+        yield
+    finally:
+        _SO_DE_LEITURA.reset(marca_)
 
 
 def _so_para_ler():
@@ -1735,6 +1772,22 @@ def iniciar_db():
                               "WHERE id=?", (d["id"],))
             c.execute("INSERT OR REPLACE INTO estado "
                       "VALUES ('pecas_em_excel','1')")
+        # O .xls e os anexos tecnicos dos ZIP de Programa (Q3, 10/10/2026):
+        # o mesmo gesto, com a sua marca -- os .xls «não é PDF» e os ZIP
+        # ja lidos voltam a por ler, se estiverem em disco, sem ler aqui.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='pecas_xls_e_anexos'").fetchone():
+            for d in c.execute(
+                    "SELECT id, ref, nome FROM documentos WHERE "
+                    "(texto_estado='não é PDF' AND lower(nome) LIKE '%.xls') "
+                    "OR (texto_estado='ok' AND (lower(nome) LIKE '%.zip' "
+                    "OR lower(nome) LIKE '%.7z'))").fetchall():
+                if os.path.exists(os.path.join(pasta_do_anuncio(d["ref"]),
+                                               d["nome"])):
+                    c.execute("UPDATE documentos SET texto_estado=NULL "
+                              "WHERE id=?", (d["id"],))
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('pecas_xls_e_anexos','1')")
         # E os .7z, que chegaram no mesmo dia um pouco depois: voltam a
         # por ler, uma vez, com a sua marca -- mas NAO se leem aqui.
         # Medido nesse dia: um .7z de lote sao 46 PDF e 91 s de leitura;
@@ -2258,13 +2311,21 @@ def dias_restantes(prazo):
     return delta, delta < 0
 
 
-def prazo_de_esclarecimentos(data_pub, prazo):
+def prazo_de_esclarecimentos(data_pub, prazo, envio=""):
     """Data-limite para pedir esclarecimentos, ou None.
 
     Regra supletiva do artigo 50.º do CCP: os esclarecimentos pedem-se no
     primeiro terço do prazo fixado para a apresentacao das propostas.
     Encontrada literalmente em 4 dos 6 Programas de Concurso legiveis que
     se leram; os outros dois fixam prazo proprio.
+
+    O prazo das propostas conta-se do ENVIO do anuncio para publicacao
+    (art. 135.º, n.º 1, e 136.º, n.º 1 do CCP -- o mesmo texto antes e
+    depois do DL 177/2026; `docs/ccp.md` §2), e nao da publicacao, que
+    sai 2 a 4 dias depois (Q3, o jurista, 10/10/2026: 21 de 29 fichas
+    davam o fim do terco tarde). `envio` e o valor da «Data de Envio do
+    Anúncio» do §3, como o DR o escreve; sem ele, ou se nao fizer
+    sentido (depois da publicacao), conta-se da publicacao.
 
     Por isso isto e um calculo, nao uma leitura do documento -- e aparece
     sempre marcado como supletivo, para se confirmar no PC."""
@@ -2273,10 +2334,26 @@ def prazo_de_esclarecimentos(data_pub, prazo):
         fim = datetime.strptime(prazo or "", "%Y-%m-%d").date()
     except (ValueError, TypeError):
         return None
+    m = RX_DATA_DE_ENVIO.search(envio or "")
+    if m:
+        try:
+            inicio = datetime.strptime(m.group(1), "%d-%m-%Y").date()
+        except ValueError:
+            inicio = pub
+        pub = min(pub, inicio)
     dias = (fim - pub).days
     if dias <= 0:
         return None
     return pub + timedelta(days=dias // 3)
+
+
+# A «Data de Envio do Anúncio» do §3 do DR («19-08-2026», e desde
+# 1/10/2026 com a hora a seguir). Aceita o valor sozinho ou a linha
+# inteira, que é o que o SQL das tarefas recorta do texto.
+RX_DATA_DE_ENVIO = re.compile(r"(?:^|Data de Envio do Anúncio:)\s*(\d{2}-\d{2}-\d{4})")
+SQL_DO_ENVIO = ("CASE WHEN instr({t}, 'Data de Envio do Anúncio:') > 0 THEN "
+                "substr({t}, instr({t}, 'Data de Envio do Anúncio:'), 40) "
+                "END AS envio")
 
 
 # O prazo da audiência prévia: o art. 147.º do CCP manda o júri fixá-lo
@@ -3942,7 +4019,8 @@ def datas_automaticas(a):
     if not a:
         return {}
     datas = {}
-    esclarec = prazo_de_esclarecimentos(_valor(a, "data_pub"), _valor(a, "prazo"))
+    esclarec = prazo_de_esclarecimentos(_valor(a, "data_pub"), _valor(a, "prazo"),
+                                        _valor(a, "envio"))
     if esclarec:
         datas["esclarecimentos"] = esclarec.isoformat()
     if _valor(a, "prazo"):
@@ -3972,7 +4050,8 @@ def sincronizar_tarefas(ref=None):
             # só a linha do regime, para o `e_flexivel()`: o texto
             # inteiro de cada anúncio da escada era carga para nada
             "substr(a.texto, instr(a.texto, 'flexibilização do concurso "
-            "público:'), 45) AS regime "
+            "público:'), 45) AS regime, "
+            + SQL_DO_ENVIO.format(t="a.texto") + " "
             "FROM propostas p "
             "LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
             vals).fetchall()
@@ -6948,7 +7027,50 @@ def texto_do_docx(dados):
 # ponytail: corta cada folha a 5000 linhas -- um cadastro maior perde o
 # fim; subir o numero se aparecer um que o precise.
 LINHAS_POR_FOLHA = 5000
-EXTENSOES_EXCEL = (".xlsx", ".xlsm")
+# O .xls antigo (BIFF) desde a Q3 (10/10/2026): as horas da 24120 e a
+# bolsa da 24944 estavam la, e ficavam «não é PDF».
+EXTENSOES_EXCEL = (".xlsx", ".xlsm", ".xls")
+
+
+def texto_do_excel(nome, dados):
+    """(texto, estado) de um livro de Excel, pelo nome: o .xls antigo
+    pelo xlrd (`texto_do_xls()`), o resto pelo openpyxl."""
+    if nome.lower().endswith(".xls"):
+        return texto_do_xls(dados)
+    return texto_do_xlsx(dados)
+
+
+def texto_do_xls(dados):
+    """(texto, estado) de um .xls (BIFF), no formato do `texto_do_xlsx()`:
+    uma linha por linha, « | » entre celulas, uma folha por pagina. Pede
+    o xlrd (requirements.txt); sem ele e um erro, que se retenta."""
+    try:
+        import xlrd
+    except ImportError:
+        return "", "erro: falta o xlrd (python -m pip install xlrd)"
+    if xlrd is None:                   # posto a None, como nos testes
+        return "", "erro: falta o xlrd (python -m pip install xlrd)"
+    try:
+        livro = xlrd.open_workbook(file_contents=dados)
+    except Exception:                  # nao e um livro que se abra
+        return "", "não é PDF"
+    folhas = []
+    try:
+        for folha in livro.sheets():
+            linhas = []
+            for i in range(min(folha.nrows, LINHAS_POR_FOLHA)):
+                celulas = [_celula_do_excel(v if v != "" else None)
+                           for v in folha.row_values(i)]
+                while celulas and not celulas[-1]:
+                    celulas.pop()
+                if any(celulas):
+                    linhas.append(" | ".join(celulas))
+            if linhas:
+                folhas.append("Folha: %s\n%s" % (folha.name, "\n".join(linhas)))
+    except Exception as erro:
+        return "", "erro: %s" % str(erro)[:80]
+    texto = "\n\f\n".join(folhas)
+    return (texto, "ok") if texto else ("", "scan")
 
 
 def _celula_do_excel(valor):
@@ -6963,7 +7085,7 @@ def texto_do_xlsx(dados):
     """(texto, estado) de um .xlsx (28/09/2026): uma linha por linha da
     folha, as celulas separadas por « | », e cada folha com o nome a
     abrir e um \\f entre elas -- as «paginas» das fontes sao as folhas.
-    O .xls antigo (BIFF) nao: pedia o xlrd, e sao 2 em 24."""
+    O .xls antigo (BIFF) e o `texto_do_xls()`."""
     try:
         import openpyxl
     except ImportError:
@@ -7119,14 +7241,14 @@ def _texto_dos_ficheiros(dentro, papeis):
     if not dentro:
         return "", "não é PDF"
     proprios = [(n, d) for n, d in dentro
-                if papeis and papeis_da_peca(os.path.basename(n)) & papeis]
+                if papeis and papeis_da_peca(n) & papeis]
     partes, estados = [], []
     with tempfile.TemporaryDirectory() as temporaria:
         for nome, dados in (proprios or dentro):
             if nome.lower().endswith(".docx"):
                 texto, estado = texto_do_docx(dados)
             elif nome.lower().endswith(EXTENSOES_EXCEL):
-                texto, estado = texto_do_xlsx(dados)
+                texto, estado = texto_do_excel(nome, dados)
             else:
                 alvo = os.path.join(temporaria, nome_seguro(os.path.basename(nome)))
                 with open(alvo, "wb") as f:
@@ -7181,9 +7303,11 @@ def extrair_textos(ref):
     for d in docs:
         caminho = os.path.join(pasta, d["nome"])
         papeis = papeis_da_peca(d["nome"])
-        # Num ZIP de Caderno de Encargos, os anexos tecnicos de dentro sao
-        # da peca -- a especificacao, o mapa de quantidades (28/09/2026).
-        if "encargos" in papeis:
+        # Num ZIP de uma peca, os anexos tecnicos de dentro sao da peca --
+        # a especificacao, o mapa de quantidades (28/09/2026). E nao so no
+        # do Caderno: o «ANEXO I_LPU.xlsx» da 22071 vinha no ZIP do
+        # Programa, e ficava de fora (Q3, 10/10/2026).
+        if papeis:
             papeis = papeis | {"tecnico"}
         if not os.path.exists(caminho):
             estado, texto = "não é PDF", ""
@@ -7195,7 +7319,7 @@ def extrair_textos(ref):
         elif d["nome"].lower().endswith(EXTENSOES_EXCEL):
             # Antes do ZIP: um .xlsx e um ZIP por dentro (28/09/2026).
             with open(caminho, "rb") as f:
-                texto, estado = texto_do_xlsx(f.read())
+                texto, estado = texto_do_excel(d["nome"], f.read())
         elif d["nome"].lower().endswith(".7z"):
             texto, estado = texto_do_7z(caminho, papeis)
         elif zipfile.is_zipfile(caminho):
@@ -7395,6 +7519,9 @@ ANCORAS_OBJECTO = (
         r"(efe(c)?tuad|realizad)|devem ser pag|fa(c)?tura(cao)? ele(c)?tronica"),
     (2, r"requisitos|especificacoes|funcionalidades|servicos a prestar"),
     (3, r"niveis de servico|entregaveis|plano de trabalhos"),
+    # as penalidades (Q3, 10/10/2026): estao em todos os CE, e nenhuma
+    # pergunta as pedia. Peso 3, o ultimo: so com o recorte que sobra.
+    (3, r"penalidades|sancoes (contratuais|pecuniarias)|multas contratuais"),
 )
 ANCORAS_EQUIPA = (
     (0, r"perfis? (minimos?|obrigatorios?|exigidos?|profissionais)|composta,? no minimo|"
@@ -7458,6 +7585,12 @@ ANCORAS_PROGRAMA = (
     # anúncio diz «Caução: Não» e o Programa exige 5 %, e a ficha só
     # mostrava o anúncio
     (2, r"caucao|alvara|titulo de registo"),
+    # o artigo da habilitacao pelo titulo (Q3, 10/10/2026): «nao consta»
+    # em 9 de 15, 15 de 21, 13 de 20 e 12 de 16, com o artigo no fim do
+    # Programa, fora do recorte. Como titulo, e nao no corpo (os
+    # «seguintes documentos de habilitacao» comiam a reserva do peso 0).
+    (2, r"(documentos|requisitos) de habilitacao|habilitacao (do|dos) "
+        r"(adjudicatario|concorrente)s?|habilitacoes (necessarias|profissionais)"),
     (3, r"habilitacao|criterio"),
 )
 
@@ -7473,7 +7606,12 @@ O texto marca «[pág. N]» onde cada página começa. Acaba cada linha da
 resposta com a página de onde a tiraste: "(pág. 12)"; com mais de uma
 peça (as linhas «### nome»), diz qual: "(Programa, pág. 5)". Sem
 marcas no texto, ou em "não consta" e "—", não ponhas página. Os
-números copiam-se das peças, sem contas."""
+números copiam-se das peças, sem contas.
+
+Quando as peças dizem que uma coisa não é exigida, é dispensada ou não
+se fixa ("não é exigida caução", "não se fixa preço anormalmente
+baixo"), isso é a resposta: escreve-a, com a página. "não consta" é só
+para o que o texto não diz."""
 
 INSTRUCOES_OBJECTO = PREAMBULO + """
 
@@ -7520,9 +7658,11 @@ Extrai duas coisas do Caderno de Encargos:
   documento as fixa, uma por linha: a periodicidade (mensal, por auto de
   medição, por entrega, no fim); o prazo de pagamento depois da fatura,
   em dias; se há adiantamento, e de quanto; as retenções ou descontos de
-  garantia; e se a fatura tem de ser eletrónica. Copia os números tal
-  como estão. Se o documento não fala de pagamento, responde "não
-  consta".
+  garantia; e se a fatura tem de ser eletrónica. Depois, as
+  penalidades ou sanções contratuais, uma por linha, com a fórmula (por
+  dia de atraso, em % do preço) e o tecto. Copia os números tal como
+  estão. Se o documento não fala de pagamento nem de penalidades,
+  responde "não consta".
 
 Responde SÓ com {"objecto": "...", "localizacao": "...", "pagamentos": "..."}."""
 
@@ -7537,11 +7677,21 @@ Formação: área e grau exigidos, ou —
 Experiência geral: X anos, ou —
 Experiência específica: tecnologia, sector ou dimensão, em linhas "- "
 Certificações: a lista exacta, ou —
-Outras condições: dedicação, presença, ou —
+Outras condições: dedicação, presença, língua, ou —
 Horas e preço: horas máximas e valor/hora do perfil, ou —
 
-Depois dos perfis, um bloco "Nível de serviço": tempos de resposta por
-prioridade, horário e disponibilidade exigidos; sem nenhum, não há bloco.
+Depois dos perfis, cada um destes blocos SÓ quando as peças o tiverem:
+"Em conjunto, a equipa deve deter": o exigido ao CONJUNTO
+(certificações espalhadas por várias pessoas, a DIMENSÃO MÍNIMA — "no
+mínimo por 2 elementos") — SÓ quando uma frase das peças o diz.
+"Exigido à empresa": certificações ou autorizações da empresa.
+"Como a equipa é avaliada": o factor e o peso no critério, e a escala
+tal como está (escalão → pontos), com quem é avaliado; se o critério
+é só o preço, "só admissão".
+"Prova:": CV, certificados ou declarações, e se vão na proposta ou na
+habilitação.
+"Nível de serviço": tempos de resposta por prioridade, horário e
+disponibilidade exigidos.
 
 Regras duras:
 - O nome do perfil TAL E QUAL, sem "sénior" nem "júnior" a mais.
@@ -7560,19 +7710,14 @@ Regras duras:
   não é equipa.
 - "preferencialmente" não é "obrigatório", e "ou" fica "ou": duas
   condições alternativas não são as duas exigidas.
-- O EXIGIDO ("mínimo", "obrigatório", "sob pena de exclusão") não é o
-  que só PONTUA: um escalão de uma grelha de avaliação ("≥ 20 anos -
-  100 pontos") fica de fora, ou a linha acaba em "(pontua)".
+- O EXIGIDO ("mínimo", "obrigatório") não é o que só PONTUA: um escalão
+  de uma grelha ("≥ 20 anos - 100 pontos") vai para "Como a equipa é
+  avaliada", ou a linha acaba em "(pontua)". Um requisito "sob pena de
+  exclusão" acaba em "(exclui)".
 
 Conta como perfil o pessoal que a lei obriga a ter qualificação
 (técnicos credenciados, TIM, gases fluorados), com a lei em
 "Certificações".
-
-O que o documento exige ao CONJUNTO da equipa (certificações espalhadas
-por várias pessoas, a DIMENSÃO MÍNIMA — "no mínimo por 2 elementos",
-"mínimo de 7 elementos com formação superior") vai num bloco final "Em
-conjunto, a equipa deve deter" — SÓ quando uma frase das peças o diz;
-sem ela, não há bloco. O exigido à EMPRESA (ISO, alvará) fica de fora.
 
 Responde SÓ com {"equipa": "..."}."""
 
@@ -7618,12 +7763,26 @@ Extrai duas coisas do Programa de Concurso:
   Programas não fixam nenhum: nesse caso responde "não consta". Não
   confundas com o preço base.
 - "caucao": a caução que o Programa exige ao adjudicatário, tal como lá
-  está ("5% do preço contratual"). Se diz que não há lugar a caução,
-  responde "não exigida"; se não fala de caução, "não consta".
-- "habilitacao": o alvará ou título de registo que o Programa exige —
-  TODAS as categorias e subcategorias, com as classes, tal como estão,
-  uma por linha; nunca pares numa frase que acaba em dois pontos. Se
-  não fala disso, "não consta".
+  está ("5% do preço contratual"), e a de um preço anormalmente baixo.
+  Se diz que não há lugar a caução, responde "não exigida"; se não fala
+  de caução, "não consta".
+- "habilitacao": procura-a no artigo «Documentos de habilitação» do
+  Programa. O alvará ou título de registo — TODAS as categorias e
+  subcategorias, com as classes, tal como estão, uma por linha; nunca
+  pares numa frase que acaba em dois pontos — e as licenças,
+  autorizações ou inscrições que a lei exige para a actividade (alvará
+  da PSP, licença de operador de resíduos, autorização da ASF,
+  inscrição numa Ordem), e o prazo para as entregar. Não são
+  habilitação os documentos da proposta nem os de todos os concursos
+  (a declaração do Anexo II, as do art. 55.º, Segurança Social,
+  Finanças, registo criminal): esses ficam de fora. Se não fala disso,
+  "não consta".
+
+O texto pode abrir com o bloco «### Anúncio do DR», com a caução e a
+habilitação que o anúncio publicou. A resposta vem do Programa; o
+anúncio só entra quando o Programa não fala disso, ou quando diz outra
+coisa: aí escreve as duas, cada uma com a fonte ("Programa: 5% (pág.
+12)" e "Anúncio do DR: Não").
 
 ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
 (o que tu entregas) NÃO é o mesmo que "peças que constituem o
@@ -7671,7 +7830,7 @@ INSTRUCOES_OBRAS = PREAMBULO + """
 Programa do Concurso e anexos técnicos), com esta estrutura:
 
 Equipa técnica: um bloco por função (director de obra, técnico de
-segurança, e outras), cada um com:
+segurança, e as outras que as peças pedem), cada um com:
   Função exacta
   Formação ou inscrição (Ordem dos Engenheiros, OET, …); se o
   documento remete para a lei ("qualificação prevista na Lei n.º
@@ -7679,9 +7838,14 @@ segurança, e outras), cada um com:
   Experiência: a expressão exacta, com os anos, ou —
   Presença em obra ou percentagem de afectação ("presente sempre que
   convocado", "20 %"), ou —
+  Pontua: o factor e o peso no critério (quando as peças não o dizem,
+  esta linha não se escreve)
 Equipamento a fornecer e montar: qual, se a obra não for só civil, ou —
-Mapa de quantidades: onde está (nome do ficheiro ou anexo), ou —
-Condicionantes do local e do horário, ou —""" + _FIM_DO_CAMPO_11
+Mapa de quantidades: o ficheiro que o tem (as linhas «### nome»), ou —
+Visita ao local: se há, e as regras (prazo, marcação), ou —
+Condicionantes do local e do horário (trabalho nocturno, obra em
+funcionamento, faseamento), ou —""" + _FIM_DO_CAMPO_11
+
 
 ANCORAS_BENS = (
     # «2- O fornecimento compreende os seguintes itens: / Quantidade
@@ -7699,15 +7863,24 @@ INSTRUCOES_BENS = PREAMBULO + """
 É uma AQUISIÇÃO DE BENS. Não há equipa: extrai, das peças (Caderno de
 Encargos e anexos técnicos), com esta estrutura:
 
-Um bloco por artigo ou lote:
+Total: quantos lotes e quantos artigos há
+Um bloco por lote, com o preço base do lote, se a peça o fixar, e um
+por artigo ou lote:
   Designação exacta — quantidade (diz se é firme ou estimada)
+  Unidade ou embalagem, e o preço unitário máximo, ou —
   Características exigidas, uma por linha
   Marca ou modelo, e se admite «ou equivalente», ou —
+Amostras: se há, o prazo e a consequência, ou —
 Entrega: o prazo, e o local ou os locais
 Garantia e assistência: meses e tempo de resposta, ou —
 Instalação e formação, ou —
+Requisitos legais do produto (marcação CE, INFARMED, ADR), ou —
 
-Se há uma lista ou tabela de artigos, passa-a toda.""" + _FIM_DO_CAMPO_11
+Se há uma lista ou tabela de artigos, passa-a toda, copiada e não
+reescrita. A quantidade vem da peça, não da «Lista» da plataforma
+("1 UN"). A garantia vem da cláusula da garantia, não da vigência. Se
+as peças se contradizem, as duas versões, cada uma com a página.""" + _FIM_DO_CAMPO_11
+
 
 ANCORAS_MAO_DE_OBRA = (
     # «Servico de vigilancia - dias uteis 1 17:00-08:00» (23794): a
@@ -7722,14 +7895,23 @@ INSTRUCOES_MAO_DE_OBRA = PREAMBULO + """
 É um serviço de MÃO-DE-OBRA (limpeza, vigilância, refeições). Extrai,
 das peças (Caderno de Encargos e anexos técnicos), com esta estrutura:
 
-Um bloco por local ou posto:
-  Local — número de pessoas — horário — dias
-Equipas mínimas e supervisão, ou —
+Um bloco por lote e local ou posto:
+  Lote — local — número de trabalhadores — função — horário — dias
+  (com fins-de-semana e feriados)
+Horas por mês ou por ano, por lote, e a bolsa de horas extra, ou —
+Equipas mínimas e supervisão (encarregados, mínimo por turno), ou —
 Habilitações: alvará (tipo), título profissional, formação obrigatória
 Equipamentos e produtos a cargo do adjudicatário, ou —
-Regime dos trabalhadores e transmissão de trabalhadores, ou —
+Transmissão de pessoal (art. 285.º do Código do Trabalho, sucessão do
+prestador): onde está a lista e quantos; sem cláusula, "as peças não
+falam disto"
+Regime dos trabalhadores e CCT citada, ou —
+Nas refeições: regime de produção e refeições por tipo e por ano, ou —
 
-Se há uma tabela de postos, horas ou frequências, passa-a toda.""" + _FIM_DO_CAMPO_11
+O número de trabalhadores são pessoas, não posições, rádios nem
+equipamentos. Se há uma tabela de postos, horas ou frequências,
+passa-a toda.""" + _FIM_DO_CAMPO_11
+
 
 ANCORAS_SERVICOS = (
     # Os tempos de resposta a peso 0, e a «manutencao» a 2 (29/09/2026):
@@ -7746,19 +7928,106 @@ ANCORAS_SERVICOS = (
         r"no prazo maximo de \d+ ?(horas|h\b|minutos)|carteira profissional|"
         r"habilitacoes necessarias|tecnicos? executantes"),
     (1, r"\bsla\b|assistencia tecnica"),
+    # os SLA que sao atributos da proposta, no Programa (23370, Q3)
+    (2, r"atributos da proposta|meios (humanos|tecnicos) minimos"),
     (2, r"equipamentos|cadastro|ambito|coberturas|bolsa de horas|manutencao"),
     (3, r"\btecnicos?\b|qualificac|credencia|certifica"),
 )
 INSTRUCOES_SERVICOS = PREAMBULO + """
 
 É uma PRESTAÇÃO DE SERVIÇOS. Extrai o NÍVEL DE SERVIÇO pedido, das
-peças (Caderno de Encargos e anexos técnicos), com esta estrutura:
+peças (Caderno de Encargos, Programa e anexos técnicos), com esta
+estrutura:
 
-Âmbito: os equipamentos, sistemas ou coberturas abrangidos, ou —
-Tempos de resposta, por prioridade ou por local, ou —
+Âmbito: os equipamentos, sistemas, locais ou coberturas, com a contagem
+(equipamentos, extensões, viaturas, m², pessoas), ou —
+Níveis de serviço, um por linha, com a métrica exacta: tempos de
+resposta, de resolução ou de reposição por prioridade; disponibilidade;
+prazos de relatórios ou orçamentos — ou —
+Meios mínimos: técnicos (número, vínculo, carteira), viaturas, oficina,
+piquete — também os que o Programa pede como atributo da proposta — ou —
 Qualificações legais exigidas aos técnicos, ou —
-Volume: bolsa de horas ou quantidades, ou —
-Datas fixas, ou —""" + _FIM_DO_CAMPO_11
+Volume e preço: bolsa de horas, quantidades estimadas, valor/hora ou
+tecto, ou —
+Calendário: duração, datas fixas, montagens e desmontagens, ou —""" + _FIM_DO_CAMPO_11
+
+
+# --- as tres familias que os juizes separaram (Q3, 10/10/2026). Nos 21
+# «bens» julgados, 11 eram licencas ou suporte de software e 2 eram
+# viaturas alugadas; nas «equipas», um cluster de armazenamento; na
+# «mao-de-obra», a concessao de um bar, onde quem ganha paga renda. Cada
+# uma pergunta o que decide o preco dela, e nada que a empresa decide.
+ANCORAS_LICENCAS = (
+    (0, r"(fornecimento|aquisicao|contrato) (compreende|inclui|abrange) os seguintes|"
+        r"seguintes (itens|artigos|produtos|licencas|subscricoes)|"
+        r"lista de (artigos|produtos|licencas)|part ?numbers?|"
+        r"^quantidade (servico|descricao|artigo|designacao|produto)"),
+    (1, r"licenc|subscri|produtos?|sku|edicao|artigos?|quantidades|lotes?"),
+    (2, r"suporte|renova|parceir|partner|fabricante|ativacao|activacao|entrega"),
+    (3, r"garantia|instalacao|formacao|equivalente"),
+)
+INSTRUCOES_LICENCAS = PREAMBULO + """
+
+É uma compra de LICENÇAS, SUBSCRIÇÕES ou SUPORTE de software ou de
+fabricante. Não há equipa: extrai, das peças (Caderno de Encargos e
+anexos técnicos), com esta estrutura:
+
+Total: quantos produtos ou part numbers há
+Um bloco por produto ou lote:
+  Produto, edição ou part number — quantidade e unidade
+  Perpétua, subscrição ou renovação do suporte, e a duração, ou —
+  Contrato ou número de cliente que se renova, ou —
+Preço base do lote ou preço unitário máximo, ou —
+Parceria ou certificação do fabricante exigida ao concorrente, ou —
+Entrega e activação (electrónica, prazo), ou —
+Suporte: nível e tempo de resposta, ou —
+
+Se há uma lista ou tabela de produtos, passa-a toda.""" + _FIM_DO_CAMPO_11
+
+ANCORAS_LOCACAO = (
+    (0, r"quilometr|kms?|viaturas? de substituicao|renda (mensal|maxima)|"
+        r"(seguintes|lista de) (viaturas|veiculos|equipamentos)"),
+    (1, r"locacao|aluguer|viaturas?|veiculos?|caracteristicas|especifica|lotes?"),
+    (2, r"manutencao|seguro|pneus|assistencia|substituicao|devolucao|entrega"),
+    (3, r"garantia|quantidades?|consumiveis"),
+)
+INSTRUCOES_LOCACAO = PREAMBULO + """
+
+É uma LOCAÇÃO de bens (viaturas, equipamentos). Extrai, das peças
+(Caderno de Encargos e anexos técnicos), com esta estrutura:
+
+Um bloco por lote ou tipo de bem:
+  Bem exacto — quantidade
+  Características exigidas, uma por linha
+Duração e tipo da locação (operacional ou financeira), ou —
+Uso incluído (quilómetros, horas, cópias) e o preço do excesso, ou —
+O que a renda inclui (manutenção, seguro, pneus, assistência), ou —
+Bem de substituição e prazos, ou —
+Entrega e devolução: prazo, local e estado, ou —
+Preço base do lote ou renda máxima, ou —""" + _FIM_DO_CAMPO_11
+
+ANCORAS_CONCESSAO = (
+    (0, r"contrapartida|renda (mensal|anual)|precos? (maximos?|de venda)|"
+        r"tabela de precos|horario de funcionamento"),
+    (1, r"concessao|exploracao|espaco|instalacoes|equipamentos|horarios?|precos"),
+    (2, r"pessoal|haccp|higiene|limpeza|consumos|agua|electricidade|eletricidade"),
+    (3, r"prazo|renova|caucao"),
+)
+INSTRUCOES_CONCESSAO = PREAMBULO + """
+
+É uma CONCESSÃO DE SERVIÇOS (a exploração de um bar, um refeitório, um
+espaço): quem a ganha paga à entidade ou cobra a terceiros. Extrai, das
+peças (Caderno de Encargos, Programa e anexos), com esta estrutura:
+
+Contrapartida ou renda a pagar à entidade: valor, periodicidade e
+actualização, ou —
+Prazo da concessão e renovações, ou —
+Espaço e equipamentos entregues; o que fica a cargo do concessionário
+(obras, equipamento, consumos, limpeza), ou —
+Horário e dias de funcionamento obrigatórios, ou —
+Preços: tabela, preços máximos ou produtos obrigatórios, ou —
+Pessoal mínimo e qualificações, ou —
+Requisitos legais (HACCP, licenças), ou —""" + _FIM_DO_CAMPO_11
 
 # --- o objecto das obras (29/09/2026). A pergunta do objecto foi escrita
 # para os servicos de TI, e as ancoras dela apanham a Clausula 1.a do CE,
@@ -7777,6 +8046,10 @@ ANCORAS_OBJECTO_OBRAS = (
     (1, r"memoria descritiva|descricao|ambito|intervencao|trabalhos a realizar|"
         r"objec?to\b|localizacao|local da obra|enquadramento|introducao"),
     (2, r"solucao|caracterizacao|lotes?\b|trabalhos preparatorios|pavimenta"),
+    # o pagamento e a revisao de precos das obras (Q3, 10/10/2026): 19
+    # das 20 sem pagamento lido -- nao havia ancora nenhuma
+    (3, r"(condicoes|modo|forma|prazo) de pagamento|revisao de precos|"
+        r"penalidades|sancoes contratuais"),
 )
 INSTRUCOES_OBJECTO_OBRAS = PREAMBULO + """
 
@@ -7808,9 +8081,12 @@ descritiva, projecto, Caderno de Encargos):
   documento as fixa, uma por linha: a periodicidade (mensal, por auto de
   medição, por entrega, no fim); o prazo de pagamento depois da fatura,
   em dias; se há adiantamento, e de quanto; as retenções ou descontos de
-  garantia; e se a fatura tem de ser eletrónica. Copia os números tal
-  como estão. Se o documento não fala de pagamento, responde "não
-  consta".
+  garantia; e se a fatura tem de ser eletrónica. Numa obra, também a
+  revisão de preços (a fórmula ou o regime). Depois, as
+  penalidades ou sanções contratuais, uma por linha, com a fórmula (por
+  dia de atraso, em % do preço) e o tecto. Copia os números tal como
+  estão. Se o documento não fala de pagamento nem de penalidades,
+  responde "não consta".
 
 Responde SÓ com {"objecto": "...", "localizacao": "...", "pagamentos": "..."}."""
 
@@ -7831,6 +8107,13 @@ CAMPO_11 = {
                     ANCORAS_MAO_DE_OBRA, INSTRUCOES_MAO_DE_OBRA),
     "servicos": ("Nível de serviço", "o nível de serviço",
                  ANCORAS_SERVICOS, INSTRUCOES_SERVICOS),
+    "licencas": ("Licenças e suporte", "as licenças nem o suporte",
+                 ANCORAS_LICENCAS, INSTRUCOES_LICENCAS),
+    "locacao": ("Bens locados e condições", "os bens nem as condições da locação",
+                ANCORAS_LOCACAO, INSTRUCOES_LOCACAO),
+    "concessao": ("Renda e condições da concessão",
+                  "a renda nem as condições da concessão",
+                  ANCORAS_CONCESSAO, INSTRUCOES_CONCESSAO),
 }
 
 
@@ -7847,10 +8130,16 @@ RX_LICENCAS = re.compile(r"\blicen[cs]|subscri[cç]|renova\w* (d[oe] )?suporte|s
 RX_TRABALHO_DE_EQUIPA = re.compile(
     r"desenvolv|implementa|consultor|evolutiv|bolsa de horas|recursos|perfis|"
     r"alojamento|hosting|operacao")
+# O hardware com CPV de servicos de TI (Q3, 10/10/2026): a «Renovacao e
+# Expansao do Cluster de Armazenamento de Dados» do IPO (22540, 72300)
+# lia-se como equipa -- e o que se compra sao equipamentos HPE com
+# suporte. Como as licencas: pela designacao, e sem trabalho de equipa.
+RX_HARDWARE = re.compile(r"hardware|equipamentos? informatic|servidor|cluster|"
+                         r"storage|armazenamento de dados|datacenter")
 
 
 def familia_do_contrato(tipo, cpv, designacao=""):
-    """O tipo de contrato em cinco famílias, sem modelo
+    """O tipo de contrato em oito famílias, sem modelo
     (docs/historico/SETORES.md §2): o tipo do anúncio separa obras, bens
     e serviços, e a divisão do CPV separa os serviços entre si. **Sem
     tipo nem CPV fica «equipa»**, que é a pergunta de antes -- não se
@@ -7858,15 +8147,25 @@ def familia_do_contrato(tipo, cpv, designacao=""):
     as licenças dos serviços de TI (RX_LICENCAS)."""
     t = simplifica(tipo or "")
     codigo = re.sub(r"\D", "", (cpv or "").split(",")[0])
+    d = simplifica(designacao or "")
     if t.startswith("empreitada") or "concessao de obras" in t:
         return "obras"
-    if t.startswith(("aquisicao de bens", "locacao")):
+    # Q3, 10/10/2026: a concessao, a locacao e as licencas tem perguntas
+    # suas (as tres ANCORAS_/INSTRUCOES_ ao lado do CAMPO_11)
+    if t.startswith("concessao"):
+        return "concessao"
+    if t.startswith("locacao"):
+        return "locacao"
+    equipa = RX_TRABALHO_DE_EQUIPA.search(d)
+    if not equipa and (codigo[:2] == "48"
+                       or (codigo[:2] == "72" and RX_LICENCAS.search(d))):
+        return "licencas"
+    if t.startswith("aquisicao de bens"):
+        return "bens"
+    if codigo[:2] == "72" and RX_HARDWARE.search(d) and not equipa:
         return "bens"
     if codigo[:4] in ("9091", "7971") or codigo[:2] == "55":
         return "mao_de_obra"
-    d = simplifica(designacao or "")
-    if codigo[:2] == "72" and RX_LICENCAS.search(d) and not RX_TRABALHO_DE_EQUIPA.search(d):
-        return "bens"
     if codigo[:2] in ("72", "71", "73", "80") or codigo[:3] == "794":
         return "equipa"
     return "servicos" if (t or codigo) else "equipa"
@@ -8346,8 +8645,11 @@ def rotulo_com_paginas(nome, paginas):
 #
 # O \b do re nao serve, que trata o '_' como letra: em "_CE_" nao ha
 # fronteira nenhuma. Dai a espreitadela por caracteres alfanumericos.
+# A versao colada a sigla tambem e a sigla: «1_CEV24052024_42_2026.pdf» e
+# «2_PCV24052024_...» do 23591/2026 (Q3, 10/10/2026) -- sem o «v» e os
+# algarismos, nenhum dos dois era peca e so a Lista.pdf foi lida.
 def _sigla(letras):
-    return r"(?<![a-z0-9])" + letras + r"(?![a-z0-9])"
+    return r"(?<![a-z0-9])" + letras + r"(?:v\d+)?(?![a-z0-9])"
 
 
 # «CADE» e «Pograma» sao nomes do acervo (28/09/2026), um da Marinha e
@@ -8396,8 +8698,12 @@ RX_PECA_TECNICA = re.compile(
     r"(?<![a-z0-9])md[a-z]{0,4}(?![a-z0-9])|"
     # «Mem Descritiva» e «MQTEN249-3» (21999, a mesma IP)
     r"especifica|t.?cnic|mem(oria)?\.?.?descritiva|mapa|quantidades|(?<![a-z0-9])mqt|"
-    r"cadastro|tarefas|pre.?os.?unit|\blpu\b|conformidade|caracteristicas|"
-    r"patrimonio|sinistralidade")
+    # a «LPU» sem o \b, que trata o «_» como letra: «ANEXO I_LPU.xlsx» (22071)
+    r"cadastro|tarefas|pre.?os.?unit|(?<![a-z0-9])lpu(?![a-z0-9])|conformidade|caracteristicas|"
+    r"patrimonio|sinistralidade|"
+    # o orcamento e as medicoes sao o mapa das obras com outro nome
+    # («727.ORC_OBRAS...», 23834; «16_MEDIÇOES.pdf», 24004; Q3, 10/10/2026)
+    r"or.?amento|(?<![a-z0-9])orc(?![a-z0-9])|medi.?.?oes")
 # O que tem o nome de tecnico e e da proposta ou do procedimento: o
 # formulario da proposta tecnica, o DEUCP, a garantia, uma resposta a
 # esclarecimentos.
@@ -8417,10 +8723,39 @@ RX_LISTA_PELO_NOME = re.compile(r"^lista\b")
 RX_LISTA_DE_ARTIGOS = re.compile(r"lista de (artigos|todas as especies de trabalhos)")
 
 
+# A pasta, dentro de um ZIP, so decide quando o nome do ficheiro nao diz
+# nada (Q3, 10/10/2026, 23834/2026): o «727.ORC_...pdf» esta na pasta
+# «MAPA DE QUANTIDADES». E sem o «procedimento» do Programa: uma pasta
+# «Pecas do procedimento» fazia de cada anexo la dentro o Programa.
+RX_PASTA_DO_PROGRAMA = re.compile(r"programa|pograma|convite|prog.?conc")
+
+
+def _papeis_da_pasta(pasta):
+    p = simplifica(pasta)
+    if RX_PECA_TECNICA.search(p) and not RX_NAO_TECNICA.search(p):
+        return {"tecnico"}
+    papeis = set()
+    if RX_PECA_ENCARGOS_EXTENSO.search(p):
+        papeis.add("encargos")
+    if RX_PASTA_DO_PROGRAMA.search(p):
+        papeis.add("programa")
+    return papeis
+
+
 def papeis_da_peca(nome, texto=""):
     """Que peca(s) o ficheiro e. Ha quem junte as duas num so PDF.
 
-    Pelo nome; o `texto`, quando vem, so decide o «Lista.pdf»."""
+    Pelo nome; o `texto`, quando vem, so decide o «Lista.pdf». Um
+    caminho de dentro de um ZIP («pasta/ficheiro.pdf») decide-se pelo
+    nome do ficheiro e, so se ele nao disser nada, pela pasta onde esta."""
+    pastas, _, nome = (nome or "").replace("\\", "/").rpartition("/")
+    papeis = _papeis_do_nome(nome, texto)
+    if not papeis and pastas:
+        papeis = _papeis_da_pasta(pastas.rpartition("/")[2])
+    return papeis
+
+
+def _papeis_do_nome(nome, texto):
     n = simplifica(nome)
     if (texto and RX_LISTA_PELO_NOME.search(n)
             and RX_LISTA_DE_ARTIGOS.search(simplifica(texto[:600]))):
@@ -8524,34 +8859,40 @@ def pecas_para_analise(docs, quais, ancoras, tecto=TECTO_RECORTE):
     secundarias = set(SECUNDARIAS_DA_LEITURA.get(quais, ())) - alvo
 
     # o papel pelo nome, e pelo cabecalho no «Lista.pdf» (papeis_da_peca)
-    def papeis(nome, texto):
-        return papeis_da_peca(os.path.basename(nome), texto)
+    # O papel decide-se ao abrir, com o caminho de dentro do ZIP inteiro
+    # (a pasta decide quando o nome nao diz; Q3, 23834/2026), e guarda-se:
+    # o nome que vai para as fontes ja so leva o do ficheiro.
+    def papeis(d):
+        return d["papeis"]
 
     def serve(d):
-        return bool((alvo | secundarias) & papeis(d["nome"], d["texto"]))
+        return bool((alvo | secundarias) & papeis(d))
 
     def e_secundaria(d):
-        return not (alvo & papeis(d["nome"], d["texto"]))
+        return not (alvo & papeis(d))
 
     abertos = []
     for d in docs:
-        escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx}
-                      for n, tx in ficheiros_no_texto(d["texto"])
-                      if serve({"nome": n, "texto": tx})]
-        abertos += escolhidos or [d]
+        escolhidos = [{"nome": d["nome"] + "/" + os.path.basename(n), "texto": tx,
+                       "papeis": papeis_da_peca(n, tx)}
+                      for n, tx in ficheiros_no_texto(d["texto"])]
+        escolhidos = [e for e in escolhidos if serve(e)]
+        abertos += escolhidos or [{"nome": d["nome"], "texto": d["texto"],
+                                   "papeis": papeis_da_peca(
+                                       os.path.basename(d["nome"]), d["texto"])}]
     # Sem a peca da leitura, a outra faz as vezes dela, com o tecto
     # inteiro (29/09/2026): as «Pecas do procedimento» do 22005 sao o
     # Programa e o Caderno num PDF so, e pelo nome so passam por Programa
     # -- a leitura do objecto levava delas uma zona de 2 500 caracteres, e
     # o local de entrega, na pagina 14, ficava de fora.
-    if not any(alvo & papeis(d["nome"], d["texto"]) for d in abertos):
+    if not any(alvo & papeis(d) for d in abertos):
         alvo, secundarias = alvo | secundarias, set()
     # A peca antes dos anexos: o recorte e cortado no fim, e um anexo
     # nao pode tirar o lugar ao Caderno de Encargos.
     # A peca, depois os anexos, e as secundarias no fim.
     docs = sorted((d for d in abertos if serve(d)),
                   key=lambda d: (e_secundaria(d),
-                                 quais not in papeis(d["nome"], d["texto"])))
+                                 quais not in papeis(d)))
     vistos, total = set(), int(tecto * 1.5)
     for d in docs:
         limpo = sem_indice(d["texto"])
@@ -9533,6 +9874,159 @@ def e_falta_de_pecas(porque):
     return (porque or "").strip() in SEM_NADA_PARA_LER
 
 
+# --- o que a leitura nao leu, dito com a pagina (Q3, 10/10/2026)
+#
+# A lista das licencas da 24922 e uma imagem na pag. 15 do CE, e o
+# Anexo B da 23589 sai com a letra trocada (uma fonte sem tabela de
+# caracteres): a leitura dizia o que viu e calava o resto, e a ficha
+# parecia completa. O documento inteiro que nao se leu ja se lista
+# (`pecas_nao_lidas()`); isto e a PAGINA de um documento lido.
+# ponytail: uma imagem que cubra 30% da pagina com menos de 1500
+# caracteres de texto; uma pagina com mais de 30% de caracteres de
+# controlo ou de alfabetos que o portugues nao usa. Afinar com casos.
+FRACCAO_EM_IMAGEM = 0.3
+TEXTO_DE_UMA_PAGINA_EM_IMAGEM = 1500
+FRACCAO_ILEGIVEL = 0.3
+
+
+def paginas_em_imagem(caminho):
+    """[n] das paginas de um PDF que sao sobretudo uma imagem, ou []."""
+    try:
+        import pymupdf
+        with pymupdf.open(caminho) as doc:
+            fora = []
+            for n, pagina in enumerate(doc, 1):
+                area = abs(pagina.rect)
+                imagens = sum(abs(r & pagina.rect)
+                              for img in pagina.get_images(full=True)
+                              for r in pagina.get_image_rects(img[0]))
+                if (area and imagens / area >= FRACCAO_EM_IMAGEM and
+                        len(pagina.get_text().strip()) < TEXTO_DE_UMA_PAGINA_EM_IMAGEM):
+                    fora.append(n)
+            return fora
+    except Exception:                  # nao e PDF, nao existe, nao abre
+        return []
+
+
+def _texto_ilegivel(pagina):
+    letras = [c for c in pagina if not c.isspace()]
+    if len(letras) < 40:
+        return False
+    estranhas = sum(1 for c in letras if ord(c) < 0x20 or 0x100 <= ord(c) < 0x2000)
+    return estranhas / len(letras) > FRACCAO_ILEGIVEL
+
+
+def paginas_ilegiveis(texto):
+    """[n] das paginas do texto extraido (separadas por \\f) que sairam
+    com a letra trocada."""
+    return [n for n, pagina in enumerate((texto or "").split("\f"), 1)
+            if _texto_ilegivel(pagina)]
+
+
+def _paginas_pt(paginas):
+    return ("pág. %d" % paginas[0] if len(paginas) == 1
+            else "págs. " + ", ".join(str(n) for n in paginas))
+
+
+def nota_do_que_nao_se_leu(ref, docs):
+    """«Não lido: <ficheiro>, pág. N (imagem sem texto); ...» das pecas
+    da leitura (as que tem papel), ou ""."""
+    partes = []
+    pasta = pasta_do_anuncio(ref)
+    for d in docs:
+        ficheiros = ficheiros_no_texto(d["texto"]) or [(d["nome"], d["texto"])]
+        for nome, texto in ficheiros:
+            if not papeis_da_peca(nome, texto):
+                continue
+            imagem = (paginas_em_imagem(os.path.join(pasta, nome))
+                      if nome == d["nome"] and nome.lower().endswith(".pdf") else [])
+            ilegiveis = [n for n in paginas_ilegiveis(texto) if n not in imagem]
+            curto = os.path.basename(nome)
+            if imagem:
+                partes.append("%s, %s (imagem sem texto)" % (curto, _paginas_pt(imagem)))
+            if ilegiveis:
+                partes.append("%s, %s (texto ilegível)" % (curto, _paginas_pt(ilegiveis)))
+    return ("Não lido: " + "; ".join(partes)) if partes else ""
+
+
+# --- o anuncio ao lado do Programa (Q3, 10/10/2026)
+#
+# A caucao e a habilitacao do DR (§14, §12) ja se mostram na ficha, mas
+# o modelo nao as via: quando o Programa diz 5% e o anuncio diz «Nao»
+# (23776, 23342, 23853), a ficha mostrava as duas sem dizer que se
+# contradizem. Entram a cabeca do pedido do Programa.
+def bloco_do_anuncio(texto):
+    """«### Anúncio do DR» com a caução e a habilitação do anúncio, ou ""."""
+    seccoes = seccoes_do_texto(texto or "")
+    linhas = [("Caução (§14)", caucao_do_anuncio(seccoes)),
+              ("Habilitação (§12)", habilitacao_do_anuncio(seccoes))]
+    linhas = ["%s: %s" % (r, v) for r, v in linhas if v]
+    return ("### Anúncio do DR\n" + "\n".join(linhas)) if linhas else ""
+
+
+# O campo que diz «não consta» quando outro campo da mesma ficha tem a
+# resposta (Q3, o gestor de servicos: 23010, os locais no campo 11 e a
+# localizacao «não consta»). Sem modelo: as linhas de outro campo que
+# comecam pelo nome deste. ponytail: so os nomes desta lista.
+NOMES_NOUTRO_CAMPO = {"localizacao": ("local", "locais", "entrega"),
+                      "pagamentos": ("pagamento",),
+                      "caucao": ("caucao",),
+                      "habilitacao": ("alvara", "habilitac")}
+
+
+def negativos_que_a_ficha_responde(campos):
+    """Os campos com as linhas de outro campo no lugar do «não consta»."""
+    fora = dict(campos)
+    for campo, nomes in NOMES_NOUTRO_CAMPO.items():
+        if simplifica(fora.get(campo) or "").strip(" .") != "nao consta":
+            continue
+        achadas = [l.strip() for outro, valor in campos.items() if outro != campo
+                   for l in (valor or "").split("\n")
+                   if simplifica(l).strip().startswith(nomes) and ":" in l
+                   and "nao consta" not in simplifica(l.partition(":")[2])
+                   and l.partition(":")[2].strip(" —-")]
+        if achadas:
+            fora[campo] = "\n".join(achadas)
+    return fora
+
+
+# --- o mesmo procedimento le-se uma vez (Q3, 10/10/2026)
+#
+# A 21295 altera a 19129 e a 21925 altera a 21295: o mesmo procedimento,
+# as mesmas pecas, lido duas vezes -- e com duas equipas diferentes (uma
+# corrida do modelo nao e uma medida). A leitura de um anuncio da mesma
+# cadeia de alteracoes, feita com a pergunta de agora, copia-se em vez de
+# se pedir outra. A da pergunta antiga nao: essa volta a ler-se.
+COLUNAS_DA_LEITURA = ("objecto", "equipa", "documentos_proposta",
+                      "preco_anormalmente_baixo", "localizacao", "caucao",
+                      "habilitacao", "pagamentos", "modelo", "fontes", "quando",
+                      "pergunta")
+
+
+def reaproveitar_leitura(ref):
+    """Copia para `ref` a leitura de outro anuncio do mesmo procedimento
+    (a raiz e os membros da cadeia de alteracoes), se houver uma com a
+    pergunta de agora. Devolve o ref de onde veio, ou None."""
+    with liga() as c:
+        a = c.execute("SELECT altera FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        raiz = (raiz_da_alteracao(c, ref, a["altera"]) if a and a["altera"]
+                else None) or ref
+        irmaos = [x for x in [raiz] + [m["ref"] for m in membros_da_cadeia(c, raiz)]
+                  if x != ref]
+        if not irmaos:
+            return None
+        lida = c.execute(
+            "SELECT * FROM analise WHERE ref IN (%s) AND pergunta=? "
+            "ORDER BY quando DESC LIMIT 1" % ",".join("?" * len(irmaos)),
+            irmaos + [VERSAO_DA_PERGUNTA]).fetchone()
+        if not lida:
+            return None
+        c.execute("INSERT OR REPLACE INTO analise (ref, %s) VALUES (?%s)"
+                  % (", ".join(COLUNAS_DA_LEITURA), ",?" * len(COLUNAS_DA_LEITURA)),
+                  [ref] + [lida[k] for k in COLUNAS_DA_LEITURA])
+    return lida["ref"]
+
+
 def analisar_pecas(ref):
     """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso).
 
@@ -9544,6 +10038,12 @@ def analisar_pecas(ref):
     if not cadeia:
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
                        "na pasta do radar")
+
+    origem = reaproveitar_leitura(ref)
+    if origem:
+        registar_evento(ref, "leitura", "a mesma do %s: é o mesmo procedimento "
+                        "(uma alteração do anúncio)" % origem, quem="radar")
+        return True, ""
 
     # O que ficou por extrair extrai-se antes (28/09/2026): o Excel e os
     # ZIP que a migracao `pecas_em_excel` voltou a por ler. Sem nada por
@@ -9558,6 +10058,7 @@ def analisar_pecas(ref):
     docs = documentos_com_texto(ref)
     recortes = [(nome, pecas_para_analise(docs, quais, ancoras), instrucao)
                 for nome, quais, ancoras, instrucao in leituras]
+    anuncio = bloco_do_anuncio(a["texto"] if a else "")
     if not any(texto for _, (texto, _), _ in recortes):
         # As pecas trazidas antes de haver extracao de texto ficaram sem
         # ele. Estao em disco: extrai-se agora, sem voltar a rede.
@@ -9592,6 +10093,8 @@ def analisar_pecas(ref):
             resposta, aviso, usado, texto, fontes = _perguntar_com_o_recorte_de_cada_um(
                 cadeia_do_campo_11(cadeia), instrucao, recorte)
         else:
+            if nome == "proposta" and anuncio:
+                texto = anuncio + "\n\n" + texto
             resposta, aviso, usado = _perguntar(cadeia, instrucao, texto)
         if resposta is None:
             falhas.append("%s: %s" % (nome, aviso))
@@ -9628,9 +10131,13 @@ def analisar_pecas(ref):
     if not dados:
         return False, (SEM_ORCAMENTO_HOJE if sem_orcamento
                        else "; ".join(falhas)[:200])
+    # O campo 11 e o das tabelas: diz as paginas que nao se leram (Q3)
+    nao_lido = nota_do_que_nao_se_leu(ref, docs) if dados.get("equipa") else ""
+    if nao_lido:
+        dados["equipa"] = dados["equipa"].rstrip() + "\n\n" + nao_lido
 
     anterior = analise_de(ref)
-    campos = juntar_leituras(dados, anterior)
+    campos = negativos_que_a_ficha_responde(juntar_leituras(dados, anterior))
     fontes = juntar_fontes(usados, anterior["fontes"] if anterior else "",
                            bool(falhas))
     # Mesmo problema das fontes, e a mesma solucao: agora que esta coluna
@@ -10006,7 +10513,8 @@ def razao_para_vigiar(a, hoje, alteracoes_desde):
         ultima vez que se olhou: quase sempre vem com peças revistas.
     """
     desde = (a["pecas_vigiadas_em"] or "")[:10]
-    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"],
+                                      _valor(a, "envio"))
     if limite and hoje > limite and (not desde or desde <= limite.isoformat()):
         return "passou a data de esclarecimentos (%s)" % data_pt(limite.isoformat())
     if alteracoes_desde(a["ref"], a["pecas_vigiadas_em"] or ""):
@@ -10030,7 +10538,8 @@ def anuncios_a_vigiar(limite=10, hoje=None):
     with liga() as c:
         marcar_os_da_escada(c)
         marcados = c.execute(
-            "SELECT ref, plataforma, link_pecas, data_pub, prazo, pecas_vigiadas_em"
+            "SELECT ref, plataforma, link_pecas, data_pub, prazo, pecas_vigiadas_em, "
+            + SQL_DO_ENVIO.format(t="texto") +
             " FROM anuncios"
             " WHERE ref IN (SELECT ref FROM temp.na_escada)"
             " AND docs_estado IN ('ok','parcial')"
@@ -10470,7 +10979,9 @@ def exportar_empresa(id_):
         linhas = {t: [{k: v for k, v in dict(r).items() if k != "hash"}
                       for r in c.execute("SELECT * FROM %s WHERE %s" % (t, onde), (id_,))]
                   for t, onde in LINHAS_DA_EMPRESA_NA_PLATAFORMA
-                  + (("entradas", "empresa_id=?"),)}
+                  # e o que as pessoas dela perguntaram ao conector MCP
+                  # (revisão de 10/10/2026); a tabela não tem tokens
+                  + (("entradas", "empresa_id=?"), ("chamadas_mcp", "empresa_id=?"))}
     # nasce já só do dono: o so_o_dono() do fim deixava-o legível a
     # todos enquanto se escrevia
     os.close(os.open(caminho, os.O_CREAT | os.O_WRONLY | os.O_EXCL, 0o600))
@@ -10514,6 +11025,14 @@ def _apagar_da_plataforma(id_):
                                   (id_,)).rowcount
         saiu["leituras pedidas"] = c.execute(
             "DELETE FROM leituras_pedidas WHERE empresa_id=?", (id_,)).rowcount
+        # o conector MCP (revisão de 10/10/2026): os tokens, os códigos e o
+        # registo saem com ela -- o número não se reutiliza (D10), mas um
+        # token nunca fica à espera de uma empresa com o mesmo número
+        saiu["assistentes ligados"] = c.execute(
+            "DELETE FROM tokens_mcp WHERE empresa_id=?", (id_,)).rowcount
+        c.execute("DELETE FROM codigos_oauth WHERE empresa_id=?", (id_,))
+        saiu["chamadas ao conector"] = c.execute(
+            "DELETE FROM chamadas_mcp WHERE empresa_id=?", (id_,)).rowcount
         # o dono que estava a ver esta empresa (o modo de suporte) deixa
         # de a ver: a marca ficava na sessao, e com o numero reaproveitado
         # abria a empresa nova
@@ -10551,6 +11070,9 @@ def limpar_marcas_de_uso():
         saiu["sessões"] = c.execute("DELETE FROM sessoes").rowcount
         saiu["entradas falhadas"] = c.execute(
             "DELETE FROM entradas_falhadas").rowcount
+        # quem perguntou o quê ao conector MCP (revisão de 10/10/2026)
+        saiu["chamadas ao conector"] = c.execute(
+            "DELETE FROM chamadas_mcp").rowcount
         saiu["último acesso"] = c.execute(
             "UPDATE utilizadores SET ultimo_acesso=NULL "
             "WHERE ultimo_acesso IS NOT NULL").rowcount
@@ -12208,6 +12730,9 @@ def liga_corpus():
     c.execute("PRAGMA recursive_triggers=ON")
     # Como na liga(): e com ela que a migracao enche objecto_norm.
     c.create_function("simplifica", 1, simplifica)
+    if _SO_DE_LEITURA.get():
+        c.execute("PRAGMA query_only=ON")
+        _com_prazo(c)
     return c
 
 
@@ -15124,6 +15649,16 @@ def volta_ao_referer(omissao):
 # ligacao de repor por e-mail. A guarda e dentro da rota
 # (`esqueci_me()`): a origem, o tecto por IP e por endereco, a mesma
 # resposta exista ou nao a conta, e nunca a conta do dono.
+# E o conector MCP (10/10/2026), por igualdade: quem chama é um servidor
+# do Claude, sem sessão do painel. A guarda de cada um é dentro da rota,
+# e NUNCA o cookie: o /mcp pede o bearer (`mcp()`, que põe a empresa do
+# token), o /oauth/token o código e o PKCE ou o refresh, e o
+# /oauth/register a lista branca dos redirects e o tecto por IP. Os
+# metadados (/.well-known/) são só GET e sem dados.
+ROTAS_DO_MCP = ("/mcp", "/oauth/register", "/oauth/token",
+                "/.well-known/oauth-protected-resource",
+                "/.well-known/oauth-protected-resource/mcp",
+                "/.well-known/oauth-authorization-server")
 ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/favicon.svg", "/privacidade", "/termos", "/acessibilidade",
                  "/entrar/codigo", "/robots.txt", "/sitemap.xml",
@@ -15136,7 +15671,7 @@ ROTAS_ABERTAS = ("/entrar", "/saude", "/tipo", "/pedir-acesso",
                  "/visita",
                  # a visita guiada (5/10/2026): um ficheiro do `site/`,
                  # sem dados verdadeiros, só GET
-                 "/demo")
+                 "/demo") + ROTAS_DO_MCP
 # Os caminhos sem sessão que são PREFIXO e não caminho exacto: as fontes
 # (`/tipo/<nome>`, lista branca) e a folha de estilo (`/estilo/<etiqueta>`,
 # que confere a etiqueta). Nenhum dos dois tem dados lá dentro, e sem
@@ -15399,6 +15934,10 @@ def nome_de_anfitriao(nome):
 # local ficam onde estao.
 DOMINIOS_DO_PAINEL = ("miragov.pt", "www.miragov.pt", "miragov.com",
                       "www.miragov.com", "radargov.pt", "www.radargov.pt")
+# O que responde no nome por onde chegou, sem saltar para o publico.
+NAO_SALTAM = ("/saude", "/mcp", "/.well-known/oauth-protected-resource",
+              "/.well-known/oauth-protected-resource/mcp",
+              "/.well-known/oauth-authorization-server")
 
 
 @app.before_request
@@ -15411,8 +15950,10 @@ def ao_endereco_certo():
     O proprio endereco publico nao se reencaminha -- era um ciclo."""
     anfitriao = (request.host or "").split(":")[0].lower()
     # o /saude responde em qualquer nome: a vigia de fora bate nele, e um
-    # 301 ou conta como «em baixo» ou esconde a falha que devia ver
-    if anfitriao not in DOMINIOS_DO_PAINEL or request.path == "/saude":
+    # 301 ou conta como «em baixo» ou esconde a falha que devia ver. E o
+    # /mcp com os metadados (10/10/2026): o `resource` tem de ser igual
+    # ao URL que a pessoa escreveu, e um salto a meio parte o conector.
+    if anfitriao not in DOMINIOS_DO_PAINEL or request.path in NAO_SALTAM:
         return None
     publico = endereco_do_painel()
     alvo = (urlparse(publico).hostname or "").lower()
@@ -22409,49 +22950,16 @@ def _pagina_das_sugestoes(recado="", texto="", tipo="", pagina=""):
     with liga() as c:
         minhas = c.execute("SELECT * FROM sugestoes WHERE conta=? ORDER BY id "
                            "DESC LIMIT 50", (conta,)).fetchall() if conta else []
-    opcoes = "".join("<option value='%s'%s>%s</option>"
-                     % (k, " selected" if k == tipo else "", v)
-                     for k, v in TIPOS_DE_SUGESTAO.items())
-    formulario = cartao("O que nos quer dizer", (
-        ("<div class='mg-alert mg-alert--danger' role='alert'>%s</div>"
-         % html.escape(recado) if recado else "")
-        + "<form method='post' action='/sugestoes' enctype='multipart/form-data' "
-          "class='conf-form sugestao-form'>"
-          "<input type='hidden' name='pagina' value='%s'>"
-          "<label class='conf-campo'><span>Tipo</span>"
-          "<select name='tipo' required>%s</select></label>"
-          "<label class='conf-campo largo'><span>O que se passa</span>"
-          "<textarea name='texto' rows='6' maxlength='%d' required "
-          "placeholder='O que falta, o que não funciona, o que podia ser "
-          "melhor.'>%s</textarea><small>Até %d caracteres.</small></label>"
-          "<label class='conf-campo largo'><span>Captura de ecrã "
-          "<span class='nota'>(opcional)</span></span>"
-          "<input type='file' name='captura' accept='image/png,image/jpeg,image/webp'>"
-          "<small>PNG, JPG ou WebP, até 5 MB. Só a equipa do Mira Gov a vê."
-          "</small></label>"
-          "<button type='submit' class='mg-btn mg-btn--primary'>Enviar</button>"
-          "</form>"
-        % (html.escape(pagina, quote=True), opcoes, TECTO_DA_SUGESTAO,
-           html.escape(texto), TECTO_DA_SUGESTAO)),
-        meta="Lemos todas. Se for preciso, respondemos para o e-mail da sua conta.")
-    if minhas:
-        linhas = "".join(
-            "<tr>%s%s%s%s</tr>" % (
-                _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criada_em"]))),
-                _celula_da_tabela("Tipo", html.escape(TIPOS_DE_SUGESTAO.get(l["tipo"], ""))),
-                _celula_da_tabela("O que escreveu", html.escape(corta(l["texto"] or "", 140))),
-                _celula_da_tabela("Estado", "<span class='mg-tag %s'>%s</span>" % (
-                    tom(TOM_DO_ESTADO_DA_SUGESTAO.get(l["estado"], "")),
-                    html.escape(ESTADOS_DE_SUGESTAO.get(l["estado"], "")))))
-            for l in minhas)
-        enviadas = cartao("As que enviou", (
-            "<table class='mg-table tab-plataforma'><thead><tr><th>Quando</th>"
-            "<th>Tipo</th><th>O que escreveu</th><th>Estado</th></tr></thead>"
-            "<tbody>%s</tbody></table>" % linhas))
-    else:
-        enviadas = ""
     return envolver("ajuda", "Enviar uma sugestão", "",
-                    "<div class='larg'>%s%s</div>" % (formulario, enviadas),
+                    ecra("sugestoes.html", recado=recado, pagina=pagina, tipo=tipo,
+                         texto=texto, tecto=TECTO_DA_SUGESTAO,
+                         tipos=list(TIPOS_DE_SUGESTAO.items()), minhas=[{
+                             "quando": data_hora_pt(l["criada_em"]),
+                             "tipo": TIPOS_DE_SUGESTAO.get(l["tipo"], ""),
+                             "texto": corta(l["texto"] or "", 140),
+                             "tom": tom(TOM_DO_ESTADO_DA_SUGESTAO.get(l["estado"], "")),
+                             "estado": ESTADOS_DE_SUGESTAO.get(l["estado"], "")}
+                             for l in minhas]),
                     titulo_aba="Enviar uma sugestão",
                     cabeca=cabecalho_de_pagina(
                         "Enviar uma sugestão",
@@ -28504,7 +29012,8 @@ def essencial_do_anuncio(a, seccoes, analise=None):
 
     # E um prazo que se perde em silencio: passa muito antes do prazo das
     # propostas e nao ha aviso nenhum quando fecha.
-    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"],
+                                      valor_de(seccoes, "Data de Envio do Anúncio"))
     if limite:
         dias, passou = dias_restantes(limite.strftime("%Y-%m-%d"))
         esclarecimentos = "%s (%s)" % (
@@ -28912,7 +29421,8 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         lado = leitura_do_preco(base, ref_preco["mediana"])
         nota_preco = "%s %s a entidade costuma pagar" % (
             lado.capitalize(), "com o que" if lado == "em linha" else "do que")
-    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"],
+                                      valor_de(seccoes, "Data de Envio do Anúncio"))
     if limite:
         esclarec = ("Esclarecimentos até", limite.strftime("%d/%m/%Y"),
                     "%s · calculado, confirmar no Programa"
@@ -33051,35 +33561,22 @@ def calendario():
         # proposta, quem faz uma tarefa (e de que proposta), a entidade
         # de um anuncio
         segunda = " · ".join(x for x in (rotulo, a["segunda"]) if x)
-        classe = {"proposta": " empresa", "tarefa": " tarefa"}.get(a["tipo"], "")
-        return ("<a class='cal-it%s' href='%s' title='%s'>"
-                "<b>%s</b><i>%s</i></a>"
-                % (classe, html.escape(a["href"], quote=True),
-                   html.escape(a["titulo"], quote=True),
-                   html.escape(corta(a["titulo"], 60)),
-                   html.escape(corta(segunda, 40))))
+        return {"classe": {"proposta": " empresa", "tarefa": " tarefa"}.get(a["tipo"], ""),
+                "href": a["href"], "titulo": a["titulo"],
+                "curto": corta(a["titulo"], 60), "segunda": corta(segunda, 40)}
 
     def urgencia(dia):
-        """(classe, sinal) da urgencia do DIA, e nao de cada linha: no
-        mesmo dia todas sao igualmente urgentes. A conta e a mesma do
-        resto da aplicacao (janela unica, dias_urgente()), para a cor
-        aqui e a etiqueta da lista nunca discordarem sobre o mesmo
-        prazo. E nao e so a cor do numero (segunda ronda, 26/09/2026;
-        WCAG 1.4.1): um sinal por escalao, e o texto para o leitor."""
-        aqui = por_dia.get(dia, [])
-        if not aqui:
-            return "", ""
+        """O tom da urgencia do DIA («mau», «avisa» ou nada), e nao de
+        cada linha: no mesmo dia todas sao igualmente urgentes. A conta e
+        a mesma do resto da aplicacao (janela unica, dias_urgente()), para
+        a cor aqui e a etiqueta da lista nunca discordarem sobre o mesmo
+        prazo. O sinal de cada escalao desenha-o o molde."""
+        if not por_dia.get(dia):
+            return ""
         classe = "mau"
         if dia >= hoje:
             _, classe = etiqueta_prazo(dia.isoformat(), urgente)
-        if classe == "mau":
-            return "mau", ("<i class='cal-urg' aria-hidden='true'>&#9888;</i>"
-                           "<span class='so-leitor'>prazo hoje ou já passado</span>")
-        if classe == "avisa":
-            return "avisa", ("<i class='cal-urg' aria-hidden='true'>&#9719;</i>"
-                             "<span class='so-leitor'>prazo em %d dias ou menos</span>"
-                             % urgente)
-        return "", ""
+        return classe if classe in ("mau", "avisa") else ""
 
     def celula(dia):
         classes = ["cal-dia"]
@@ -33092,57 +33589,36 @@ def calendario():
         if dia.day == 1:
             classes.append("mes-novo")
         aqui = por_dia.get(dia, [])
-        tom_, sinal = urgencia(dia)
+        tom_ = urgencia(dia)
         if tom_:
             classes.append(tom_)
-        cabeca = ("<div class='cal-n'>%d%s%s</div>"
-                  % (dia.day,
-                     "<span>%s</span>" % MESES[dia.month - 1]
-                     if dia.day == 1 or dia == principio else "", sinal))
-        visiveis = "".join(item(a) for a in aqui[:CABEM_NO_DIA])
-        resto = aqui[CABEM_NO_DIA:]
         # «+8» era o nome inteiro do botão (3.ª ronda, G74). Numa página
         # pesada o que o «+N» esconde pede-se ao abrir (`data-pedaco`)
-        mais = ("<details class='cal-mais'%s><summary>+%d<span class='so-leitor'> "
-                "no dia %s</span></summary>%s</details>"
-                % ("" if leve else " data-pedaco='%s'" % dia.isoformat(),
-                   len(resto), data_pt(dia.isoformat()),
-                   "".join(item(a) for a in resto) if leve
-                   else "<span class='cal-carrega'>a carregar…</span>")
-                ) if resto else ""
-        return "<div class='%s'>%s%s%s</div>" % (" ".join(classes), cabeca,
-                                                 visiveis, mais)
+        resto = aqui[CABEM_NO_DIA:]
+        return {"classes": " ".join(classes), "n": dia.day,
+                "mes": MESES[dia.month - 1] if dia.day == 1 or dia == principio else "",
+                "tom": tom_, "visiveis": [item(a) for a in aqui[:CABEM_NO_DIA]],
+                "resto_n": len(resto), "resto": [item(a) for a in resto] if leve else [],
+                "iso": dia.isoformat(), "data": data_pt(dia.isoformat())}
 
-    def agenda_html():
-        """Os dias da agenda do telemovel, em `<li>`."""
-        linhas = []
-        for dia in sorted(por_dia):
-            tom_, sinal = urgencia(dia)
-            linhas.append(
-                "<li class='ag-dia%s%s'><h2 class='ag-data'>%s%s%s</h2>%s</li>"
-                % (" " + tom_ if tom_ else "", " hoje" if dia == hoje else "",
-                   DIAS_SEMANA[dia.weekday()] + ", ", data_pt(dia.isoformat()),
-                   (" &middot; hoje" if dia == hoje else "") + sinal,
-                   "".join(item(a) for a in por_dia[dia])))
-        return "".join(linhas) or ("<li class='ag-vazio'>Nada a fechar nestas "
-                                   "seis semanas.</li>")
+    def agenda():
+        """Os dias da agenda do telemovel."""
+        return [{"tom": urgencia(dia), "hoje": dia == hoje,
+                 "data": DIAS_SEMANA[dia.weekday()] + ", " + data_pt(dia.isoformat()),
+                 "itens": [item(a) for a in por_dia[dia]]} for dia in sorted(por_dia)]
 
     if pedaco == "agenda":
-        return Response(agenda_html(), mimetype="text/html")
+        return Response(ecra("calendario_pedaco.html", dias=agenda(), urgente=urgente),
+                        mimetype="text/html")
     if pedaco:
         try:
             dia_pedido = datetime.strptime(pedaco, "%Y-%m-%d").date()
         except ValueError:
             return pagina_de_erro(404)
-        return Response("".join(item(a) for a in
-                                por_dia.get(dia_pedido, [])[CABEM_NO_DIA:]),
+        return Response(ecra("calendario_pedaco.html", dias=None, urgente=urgente,
+                             itens=[item(a) for a in
+                                    por_dia.get(dia_pedido, [])[CABEM_NO_DIA:]]),
                         mimetype="text/html")
-
-    grade = ["<div class='cal-rolo'><div class='cal'>"]
-    grade += ["<div class='cal-cab'>%s</div>" % d for d in DIAS_SEMANA]
-    grade += [celula(principio + timedelta(days=i))
-              for i in range(SEMANAS_CALENDARIO * 7)]
-    grade.append("</div></div>")
 
     # A AGENDA do telemovel (D12 (d)): sete colunas em 390 px davam 49 px
     # e o titulo saia «Ex…», e a grade rolava de lado. Aqui e uma lista,
@@ -33150,10 +33626,6 @@ def calendario():
     # pagina e o CSS mostra uma: o servidor nao sabe a largura do ecra.
     # Numa página pesada vai vazia, e o JS pede-a só num ecrã estreito:
     # na secretária nunca se vê (lote 10).
-    agenda = ["<ol class='cal-agenda' aria-label='Agenda'%s>%s</ol>"
-              % (("", agenda_html()) if leve else
-                 (" data-pedaco='agenda'",
-                  "<li class='ag-vazio'>a carregar…</li>"))]
 
     # A ligacao de volta a lista e da PAGINA e ja nao de cada linha: com
     # o dia como unidade, uma linha e uma linha dentro de uma celula e
@@ -33172,24 +33644,8 @@ def calendario():
     # O Calendario de uma empresa nova abria em «As nossas» com 0 e a
     # grelha vazia, sem uma palavra, com «Por ver 49» na aba ao lado
     # (UX-7-LEIS Z1, 30/09/2026). Diz porque, e aponta os por ver.
-    vazio = ""
-    if ver == "nossas" and not por_filtro["nossas"][0]:
-        n_porver = len(por_filtro["porver"][0])
-        vazio = ("<span class='cal-vazio'>Nenhuma proposta da empresa fecha "
-                 "nestas seis semanas.%s</span>"
-                 % (" <a href='%s'>Há %s por ver com prazo aqui &rarr;</a>"
-                    % (html.escape(para("porver", semana), quote=True),
-                       mil_pt(n_porver)) if n_porver else ""))
-    legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
-               "%s.</span>%s<span><i class='cal-urg' aria-hidden='true'>&#9888;</i> "
-               "fecha hoje ou já fechou &middot; <i class='cal-urg' "
-               "aria-hidden='true'>&#9719;</i> fecha em %d dias ou menos</span>"
-               "%s<a href='%s'>ver em lista</a></div>"
-               % (html.escape(o_que), data_pt(principio.isoformat()),
-                  data_pt(fim.isoformat()), vazio, urgente,
-                  ("<span>%s com prazo depois destas seis semanas &mdash; "
-                   "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
-                  html.escape(em_lista, quote=True)))
+    vazio = ver == "nossas" and not por_filtro["nossas"][0]
+    n_porver = len(por_filtro["porver"][0])
 
     anterior, hoje_, seguinte = (html.escape(para(ver, n), quote=True)
                                  for n in (semana - 1, 0, semana + 1))
@@ -33201,18 +33657,20 @@ def calendario():
               % (anterior, icone("anterior"), hoje_, seguinte, icone("seguinte")))
     # Os tres filtros, com o numero de cada um nestas seis semanas. Levam
     # a semana atras: mudar de filtro nao volta a hoje.
-    filtros = ("<nav class='mg-tabs cal-filtros' aria-label='O que mostrar'>%s</nav>"
-               % "".join(
-                   "<a class='mg-tab'%s href='%s'>%s <span class='mg-tab__count'>%s</span></a>"
-                   % (" aria-current='page'" if chave == ver else "",
-                      html.escape(para(chave, semana), quote=True),
-                      html.escape(rotulo), mil_pt(len(por_filtro[chave][0])))
-                   for chave, rotulo in FILTROS_DO_CALENDARIO))
-    return envolver("calendario", "Calendário", "",
-                    "<div class='larg fs-topo'>" + _vistas_das_propostas("calendario")
-                    + "</div>" + filtros + "<div class='larg'>%s%s%s%s</div>"
-                    % (faixa, legenda, "".join(grade), "".join(agenda)
-                       + ("" if leve else CALENDARIO_JS)),
+    corpo = ecra(
+        "calendario.html", vistas=Markup(_vistas_das_propostas("calendario")),
+        filtros=[{"aceso": chave == ver, "href": para(chave, semana), "rotulo": rotulo,
+                  "n": mil_pt(len(por_filtro[chave][0]))}
+                 for chave, rotulo in FILTROS_DO_CALENDARIO],
+        faixa=Markup(faixa), o_que=o_que, de=data_pt(principio.isoformat()),
+        ate=data_pt(fim.isoformat()), vazio=vazio,
+        n_porver=mil_pt(n_porver) if n_porver else "",
+        para_porver=para("porver", semana), urgente=urgente,
+        fora=mil_pt(fora) if fora else "", em_lista=em_lista, dias_semana=DIAS_SEMANA,
+        celulas=[celula(principio + timedelta(days=i))
+                 for i in range(SEMANAS_CALENDARIO * 7)],
+        leve=leve, agenda=agenda() if leve else [], js=Markup(CALENDARIO_JS))
+    return envolver("calendario", "Calendário", "", corpo,
                     cabeca=cabecalho_de_pagina(
                         "Calendário", "Seis semanas a partir de segunda-feira. "
                         "Cada dia mostra o que fecha nesse dia.", [], accoes),
@@ -33915,61 +34373,33 @@ def desconto_ponderado(linhas):
 
 
 def tabela_das_decididas(linhas, rotulo_periodo):
-    """A lista que confirma os numeros do periodo, com o total. Cada
-    Stat liga para aqui (`#decididas`)."""
-    if not linhas:
-        return ("<div class='mg-card' id='decididas' style='padding:22px 24px'>"
-                "<h2 class='mg-card__title'>Decididas %s</h2>"
-                "<div class='nota' style='margin-top:6px'>Nenhuma proposta "
-                "ganha ou perdida neste período.</div></div>"
-                % html.escape(rotulo_periodo))
+    """A lista que confirma os numeros do periodo, com o total, para o
+    molde da Situação. Cada Stat liga para aqui (`#decididas`). Em cartão
+    no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela tinha
+    900 e só se via o título. Os preços vão como texto: o `preco_pt()`
+    devolve tal qual o que não lê, e o proposto escreve-o quem usa a
+    aplicação -- até 10/10/2026 entravam no HTML sem escapar."""
     ganhas = [l for l in linhas if l["estado"] == "ganho"]
-    total = sum(valor_ganho(l) for l in ganhas)
-    # Em cartão no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela
-    # tinha 900 e só se via o título; o `data-r` é o rótulo de cada número
-    # no cartão, onde o cabeçalho não aparece.
-    corpo = "".join(
-        "<tr><td class='mg-num' data-r='Decidida em'>%s</td>"
-        "<td class='o'><a href='%s'>%s</a></td>"
-        "<td data-r='Resultado'>%s</td><td class='p' data-r='Preço base'>%s</td>"
-        "<td class='p' data-r='Proposto'>%s</td>"
-        "<td class='p' data-r='Adjudicado'>%s</td><td class='p' data-r='Conta'>%s</td></tr>"
-        % (data_pt((l["decidida"] or "")[:10], "—")
-           + ("" if l["data_adjudicacao"] else
-              " <span class='nota' title='sem data da adjudicação: é o dia "
-              "em que se marcou no Mira Gov'>(marcada)</span>"),
-           ("/anuncio/" + quote(l["ref"], safe="")) if l["ref"]
-           else "/proposta/%d" % l["id"],
-           html.escape(corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70)),
-           html.escape(estado_da_empresa(l["estado"])),
-           preco_pt(l["preco_base"]), preco_pt(l["valor_proposta"]),
-           preco_pt(l["valor_adjudicado"]) if l["estado"] == "ganho" else "—",
-           ("%s <span class='nota'>(%s)</span>"
-            % (html.escape(euros(valor_ganho(l))), de_onde_vem_o_ganho(l) or "—"))
-           if l["estado"] == "ganho" else "—")
-        for l in linhas)
-    return ("<div class='mg-card tab-cx' id='decididas'>"
-            "<h2 class='mg-card__title' style='padding:16px 16px 0'>"
-            "Decididas %s</h2>"
-            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
-            "<th>Decidida em</th><th>Concurso</th><th>Resultado</th>"
-            "<th class='p'>Preço base</th><th class='p'>Proposto</th>"
-            "<th class='p'>Adjudicado</th><th class='p'>Conta</th>"
-            "</tr></thead><tbody>%s</tbody><tfoot><tr><td></td>"
-            "<td><b>%s ganha%s, %s perdida%s</b></td><td></td><td></td><td></td>"
-            "<td></td><td class='p'><b>%s</b></td></tr></tfoot></table>"
-            # a explicação fechada (uniformizar, 6/10/2026): fica na
-            # página, mas não empurra o resto
-            "<details class='como-se-conta' style='padding:0 16px 16px'>"
-            "<summary>Como se conta</summary><p class='nota'>A data é a da "
-            "adjudicação; sem ela, a do dia em que a proposta se marcou como "
-            "decidida no Mira Gov («marcada»). A coluna «Conta» é o que "
-            "entra no total: %s.</p></details></div>"
-            % (html.escape(rotulo_periodo), corpo,
-               mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s",
-               mil_pt(len(linhas) - len(ganhas)),
-               "" if len(linhas) - len(ganhas) == 1 else "s",
-               html.escape(euros(total)), html.escape(frase_do_ganho(linhas))))
+    perdidas = len(linhas) - len(ganhas)
+    return {
+        "rotulo": rotulo_periodo,
+        "linhas": [{
+            "data": data_pt((l["decidida"] or "")[:10], "—"),
+            "marcada": not l["data_adjudicacao"],
+            "href": ("/anuncio/" + quote(l["ref"], safe="")) if l["ref"]
+                    else "/proposta/%d" % l["id"],
+            "titulo": corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70),
+            "resultado": estado_da_empresa(l["estado"]),
+            "base": preco_pt(l["preco_base"]),
+            "proposto": preco_pt(l["valor_proposta"]),
+            "ganho": l["estado"] == "ganho",
+            "adjudicado": preco_pt(l["valor_adjudicado"]),
+            "conta": euros(valor_ganho(l)),
+            "origem": de_onde_vem_o_ganho(l) or "—"} for l in linhas],
+        "ganhas": "%s ganha%s" % (mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s"),
+        "perdidas": "%s perdida%s" % (mil_pt(perdidas), "" if perdidas == 1 else "s"),
+        "total": euros(sum(valor_ganho(l) for l in ganhas)),
+        "frase": frase_do_ganho(linhas)}
 
 
 # O «Em jogo» em dois (D10 da segunda ronda, 26/09/2026, decisao dele):
@@ -33998,38 +34428,26 @@ def valor_em_jogo(p):
 
 def tabela_em_jogo(ancora, rotulo, estados):
     """A lista que confirma um dos dois «em jogo», com o total: cada
-    numero abre a sua (a regra da casa)."""
+    numero abre a sua (a regra da casa). Os dados, para o molde da
+    Situação."""
     with liga() as c:
         linhas = c.execute(
             "SELECT * FROM propostas WHERE estado IN (%s) "
             "ORDER BY COALESCE(criada_em,'') DESC, id DESC"
             % ",".join("?" * len(estados)), list(estados)).fetchall()
-    cabeca = ("<h2 class='mg-card__title' style='padding:16px 16px 0'>%s"
-              "</h2>" % html.escape(rotulo))
-    if not linhas:
-        return ("<div class='mg-card tab-cx' id='%s'>%s<div class='nota' "
-                "style='padding:6px 16px 16px'>Nenhuma proposta em %s.</div>"
-                "</div>" % (ancora, cabeca, " nem em ".join(
-                    "«%s»" % estado_da_empresa(e) for e in estados)))
-    corpo = "".join(
-        "<tr><td class='o'><a href='%s'>%s</a></td><td data-r='Fase'>%s</td>"
-        "<td class='p' data-r='Preço base'>%s</td><td class='p' data-r='Proposto'>%s</td>"
-        "<td class='p' data-r='Conta'>%s</td></tr>"
-        % (("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
-           else "/proposta/%d" % p["id"],
-           html.escape(corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70)),
-           html.escape(estado_da_empresa(p["estado"])),
-           preco_pt(p["preco_base"]), preco_pt(p["valor_proposta"]),
-           euros(valor_em_jogo(p)))
-        for p in linhas)
-    return ("<div class='mg-card tab-cx' id='%s'>%s"
-            "<table class='mg-table tab-contratos tab-plataforma'><thead><tr>"
-            "<th>Concurso</th><th>Fase</th><th class='p'>Preço base</th>"
-            "<th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead>"
-            "<tbody>%s</tbody><tfoot><tr><td><b>%s</b></td><td></td><td></td>"
-            "<td></td><td class='p'><b>%s</b></td></tr></tfoot></table></div>"
-            % (ancora, cabeca, corpo, plural(len(linhas), "proposta"),
-               html.escape(euros(sum(valor_em_jogo(p) for p in linhas)))))
+    return {
+        "ancora": ancora, "rotulo": rotulo,
+        "nomes": " nem em ".join("«%s»" % estado_da_empresa(e) for e in estados),
+        "linhas": [{
+            "href": ("/anuncio/" + quote(p["ref"], safe="")) if p["ref"]
+                    else "/proposta/%d" % p["id"],
+            "titulo": corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70),
+            "fase": estado_da_empresa(p["estado"]),
+            "base": preco_pt(p["preco_base"]),
+            "proposto": preco_pt(p["valor_proposta"]),
+            "conta": euros(valor_em_jogo(p))} for p in linhas],
+        "quantas": plural(len(linhas), "proposta"),
+        "total": euros(sum(valor_em_jogo(p) for p in linhas))}
 
 
 @app.route("/situacao")
@@ -34049,41 +34467,20 @@ def situacao():
         periodo = PERIODO_DE_OMISSAO
     janela, antes, rotulo_antes = janelas_do_periodo(periodo, hoje)
 
-    abas = "<nav class='mg-tabs' aria-label='Vistas da situação'>%s</nav>" % "".join(
-        "<a class='mg-tab'%s href='/situacao?%s'>"
-        "%s</a>"
-        % (" aria-current='page'" if ver == chave else "",
-           urlencode([("ver", chave), ("periodo", periodo)]),
-           html.escape(rotulo))
-        for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),
-                              ("cpv", "Por área CPV")))
-
-    selector = ("<div class='periodos'><span>Período</span>%s</div>"
-                % "".join(
-                    "<a class='%s' href='/situacao?%s'>%s</a>"
-                    # o escolhido diz-se, e não só pela cor (G73)
-                    % ("on' aria-current='true" if periodo == chave else "",
-                       urlencode([("ver", ver), ("periodo", chave)]),
-                       html.escape(rotulo))
-                    for chave, rotulo in PERIODOS_DA_SITUACAO))
+    # as consultas vão feitas: o `&` do urlencode entra tal qual no href
+    abas = [(chave, rotulo, Markup(urlencode([("ver", chave), ("periodo", periodo)])))
+            for chave, rotulo in (("negocio", "Negócio"), ("triagem", "Triagem"),
+                                  ("cpv", "Por área CPV"))]
+    # o escolhido diz-se, e não só pela cor (G73)
+    periodos = [(chave, rotulo, Markup(urlencode([("ver", ver), ("periodo", chave)])))
+                for chave, rotulo in PERIODOS_DA_SITUACAO]
 
     if ver == "triagem":
         # o funil conta desde sempre: o período não lhe mexia e o selector
         # dizia o contrário (5.ª ronda) -- sai, e diz-se desde quando
-        selector = ("<p class='nota'>A triagem conta tudo desde que a empresa "
-                    "chegou ao Mira Gov; o período não se aplica aqui.</p>")
-        corpo = funil_cx_html()
+        pecas = {"funil": Markup(funil_cx_html())}
     elif ver == "cpv":
-        bloco = cpv_html_bloco()
-        corpo = ("<div class='mg-card' style='padding:22px 24px'>"
-                 "<h2 class='mg-card__title'>Por área de CPV</h2>"
-                 "<div class='nota' style='margin:6px 0 0'>A taxa de "
-                 "vitória por divisão do vocabulário CPV — as duas "
-                 "primeiras casas, que são a área do negócio. Uma taxa "
-                 "só aparece com %d decididas ou mais.</div>%s</div>"
-                 % (MINIMO_PARA_TAXA,
-                    bloco or "<div class='nota' style='margin-top:14px'>"
-                    "Ainda não há decididas com CPV lido.</div>"))
+        pecas = {"cpv": Markup(cpv_html_bloco())}
     else:
         pipeline = pipeline_em_euros()
 
@@ -34179,35 +34576,21 @@ def situacao():
         ))
 
         # «pela data em que se decidiu» lia-se como a da adjudicacao, e
-        # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23)
-        # fechada desde 6/10/2026 (uniformizar): eram quatro linhas por
-        # baixo dos números, todos os dias
-        nota_periodo = (
-            "<details class='como-se-conta' style='margin:16px 0 0'>"
-            "<summary>Como se contam estes números</summary><p class='nota'>"
-            "Os números do "
-            "período contam pela <b>data da adjudicação</b>; sem ela, pelo "
-            "dia em que a proposta se marcou como decidida no Mira Gov. "
-            "«Por submeter» e «Em jogo» são uma fotografia de agora "
-            "— o que está aberto não se decidiu em período nenhum. Uma taxa só "
-            "aparece com %d decididas ou mais.%s</p></details>"
-            % (MINIMO_PARA_TAXA, "" if not rotulo_antes
-               else " A comparação é com %s." % rotulo_antes))
-
-        corpo = ("<div class='mg-card' style='padding:22px 24px'>"
-                 "<div class='mg-stats'>%s</div>%s</div>%s%s%s"
-                 % (numeros, nota_periodo,
-                    "".join(tabela_em_jogo(*g) for g in GRUPOS_EM_JOGO)
-                    + tabela_das_decididas(decididas, rotulo_periodo),
-                    negocio_cx() + quem_nos_ganha_cx(),
-                    ranhuras_cx_html(_propostas_por_estado())))
+        # um ganho de 12/2024 marcado hoje entrava neste trimestre (E23);
+        # a nota está fechada desde 6/10/2026 (uniformizar), no molde
+        pecas = {"numeros": Markup(numeros), "rotulo_antes": rotulo_antes,
+                 "em_jogo_": [tabela_em_jogo(*g) for g in GRUPOS_EM_JOGO],
+                 "decididas_": tabela_das_decididas(decididas, rotulo_periodo),
+                 "negocio": Markup(negocio_cx()),
+                 "quem_nos_ganha": Markup(quem_nos_ganha_cx()),
+                 "ranhuras": Markup(ranhuras_cx_html(_propostas_por_estado()))}
 
     # o cabeçalho novo, com as abas no corpo, como o Mercado
     # (uniformizar, 6/10/2026)
     return envolver(
         "situacao", "Ponto de situação", "",
-        abas + "<div class='larg'>%s<div style='display:flex;flex-direction:column;"
-        "gap:18px'>%s</div></div>" % (selector, corpo),
+        ecra("situacao.html", ver=ver, periodo=periodo, abas=abas, periodos=periodos,
+             minimo=MINIMO_PARA_TAXA, **pecas),
         titulo_aba="Ponto de situação",
         cabeca=cabecalho_de_pagina(
             "Ponto de situação",
@@ -38239,6 +38622,208 @@ def tarefas_adiar_fazer():
         [("aviso", "%s tarefa%s adiada%s para hoje."
           % (mil_pt(quantas), "" if quantas == 1 else "s",
              "" if quantas == 1 else "s"))])) + "#fazer")
+
+
+# ------------------------------------------------------- o conector MCP
+#
+# O Mira Gov como conector no Claude de cada empresa (10/10/2026; o
+# desenho e as decisões dele no BACKLOG, linha MCP; o que É no
+# docs/FUNCIONAL.md). O protocolo, as ferramentas e o OAuth vivem no
+# `mcp_servidor.py`, as tabelas e a criptografia no `contas.py`; aqui só
+# o pedido HTTP e a lista do que o conector pode tocar.
+#
+# Falta o ecrã do consentimento (o GET/POST /oauth/autorizar) e a linha
+# «Assistentes ligados» da Conta: são HTML, e o HTML está a passar para
+# moldes (o D1). A lógica deles está pronta e testada no `mcp_servidor`
+# (`validar_autorizacao()`, `emitir_codigo()`, `recusa_do_consentimento()`).
+
+def fontes_do_mcp():
+    """O que as ferramentas do conector podem chamar -- e só isto. A
+    empresa não está cá: é o `mcp()` que a põe, a do token."""
+    return types.SimpleNamespace(
+        base=endereco_do_painel(), hoje=lambda: datetime.now().date(),
+        liga=liga, liga_corpus=liga_corpus, ha_corpus=ha_corpus,
+        ler_config=ler_config, simplifica=simplifica, para_like=para_like,
+        ESCAPE_LIKE=ESCAPE_LIKE, DISTRITOS=DISTRITOS,
+        CHAVES_DA_EMPRESA=CHAVES_DA_EMPRESA, ROTULOS_DA_ESCADA=ROTULOS_DA_ESCADA,
+        MINIMO_PARA_TAXA=MINIMO_PARA_TAXA,
+        condicoes=condicoes, com_recorte=com_recorte,
+        condicao_do_interesse=condicao_do_interesse, analise_de=analise_de,
+        nome_da_pessoa=nome_da_pessoa, passos_do_anuncio=passos_do_anuncio,
+        resultados_da_pesquisa=resultados_da_pesquisa,
+        propostas_por_estado=_propostas_por_estado,
+        pipeline_em_euros=pipeline_em_euros, taxa_de_vitoria=taxa_de_vitoria,
+        ganho_no_periodo=ganho_no_periodo, janelas_do_periodo=janelas_do_periodo,
+        condicoes_contratos=condicoes_contratos,
+        entidades_da_pesquisa=entidades_da_pesquisa,
+        lado_da_empresa=lado_da_empresa,
+        a_acabar_por_entidade=a_acabar_por_entidade)
+
+
+def _json_do_mcp(corpo, estado=200, cabecalhos=None):
+    return Response(json.dumps(corpo, ensure_ascii=False), estado,
+                    mimetype="application/json",
+                    headers=dict({"Cache-Control": "no-store"}, **(cabecalhos or {})))
+
+
+@app.route("/.well-known/oauth-protected-resource")
+@app.route("/.well-known/oauth-protected-resource/mcp")
+def mcp_metadados_do_recurso():
+    return _json_do_mcp(mcp_servidor.metadados_do_recurso(endereco_do_painel()))
+
+
+@app.route("/.well-known/oauth-authorization-server")
+def mcp_metadados_do_servidor():
+    return _json_do_mcp(mcp_servidor.metadados_do_servidor(endereco_do_painel()))
+
+
+@app.route("/oauth/register", methods=["POST"])
+def oauth_registar():
+    """O registo dinâmico (DCR). Rota aberta: a guarda é a lista branca
+    dos redirects e o tecto por IP, no `contas.registar_cliente_oauth()`."""
+    if (request.content_length or 0) > mcp_servidor.MAXIMO_DO_REGISTO:
+        return _json_do_mcp({"error": "invalid_client_metadata",
+                             "error_description": "pedido grande demais"}, 413)
+    c = liga()
+    try:
+        estado, corpo = mcp_servidor.registar_cliente(
+            c, request.get_json(silent=True), ip_de_quem_pede())
+        c.commit()
+    finally:
+        c.close()
+    return _json_do_mcp(corpo, estado)
+
+
+@app.route("/oauth/token", methods=["POST"])
+def oauth_token():
+    """O código por tokens, e o refresh rodado. Rota aberta: a guarda é o
+    código (uso único, 60 s, PKCE S256, o mesmo redirect) ou o refresh."""
+    ip = ip_de_quem_pede()
+    if mcp_servidor.token_fechado_ao_ip(ip):
+        return _json_do_mcp({"error": "slow_down"}, 429)
+    c = liga()
+    try:
+        estado, corpo = mcp_servidor.responder_token(c, request.form,
+                                                     endereco_do_painel())
+        c.commit()
+    finally:
+        c.close()
+    if estado != 200:
+        mcp_servidor.contar_falha_do_token(ip)
+    return _json_do_mcp(corpo, estado)
+
+
+def _origem_do_mcp_e_nossa(base):
+    """A especificação obriga: um `Origin` que venha tem de ser nosso (é o
+    que trava um site a falar com o /mcp pelo browser de alguém). Os
+    servidores do Claude não o mandam."""
+    origem = request.headers.get("Origin")
+    if not origem:
+        return True
+    nome = nome_de_anfitriao(urlparse(origem).hostname or "")
+    return nome in (nome_de_anfitriao(urlparse(base).hostname or ""),
+                    nome_de_anfitriao((request.host or "").split(":")[0]))
+
+
+@app.route("/mcp", methods=["POST"])
+def mcp():
+    """O conector. Rota aberta, e a guarda é esta, por esta ordem: o
+    `Origin`; o bearer (nunca o cookie do painel, nem o acesso livre
+    local), com a conta e a empresa relidas agora; a conta do dono fora
+    (403); e cada ferramenta dentro de `com_empresa(empresa do token)` e
+    de `so_de_leitura()` -- no `_chamada_do_mcp()`."""
+    base = endereco_do_painel()
+    if not _origem_do_mcp_e_nossa(base):
+        return _json_do_mcp({"error": "origem recusada"}, 403)
+    if (request.content_length or 0) > mcp_servidor.MAXIMO_DO_PEDIDO:
+        return _json_do_mcp({"error": "pedido grande demais"}, 413)
+    autorizacao = request.headers.get("Authorization") or ""
+    token = autorizacao[7:].strip() if autorizacao[:7].lower() == "bearer " else ""
+    c = liga()
+    try:
+        quem = contas.conta_do_token_mcp(c, token, mcp_servidor.recurso(base))
+        # a empresa suspensa, ou que já não existe: o token revoga-se
+        if quem and quem["empresa_id"] not in empresas_a_trabalhar():
+            contas.revogar_familia_mcp(c, quem["familia"])
+            quem = None
+        c.commit()
+    finally:
+        c.close()
+    if not quem:
+        desafio = 'Bearer resource_metadata="%s/.well-known/oauth-protected-resource"' % base
+        if token:
+            desafio += ', error="invalid_token"'
+        return _json_do_mcp({"error": "invalid_token" if token else "sem credencial"},
+                            401, {"WWW-Authenticate": desafio})
+    if contas.e_dono(quem["utilizador"]) or contas.sem_empresa(quem["utilizador"]):
+        return _json_do_mcp({"error": "a conta do dono da plataforma não usa o "
+                                      "conector"}, 403)
+    mensagem = request.get_json(silent=True)
+    if mensagem is None:
+        return _json_do_mcp(mcp_servidor.erro_jsonrpc(None, -32700, "JSON inválido"), 400)
+    resposta = mcp_servidor.responder(
+        mensagem, lambda nome, argumentos: _chamada_do_mcp(quem, nome, argumentos),
+        DISTRITOS, CHAVES_DA_EMPRESA)
+    if resposta is None:
+        return Response("", 202)
+    return _json_do_mcp(resposta)
+
+
+def _chamada_do_mcp(quem, nome, argumentos):
+    """Uma ferramenta: o tecto, a empresa do token, só de leitura, e uma
+    linha no registo. Um erro inesperado vai para os erros de sempre, e o
+    modelo recebe uma frase, não um 500."""
+    agora = datetime.now()
+    utilizador_id, empresa_id = quem["utilizador"]["id"], quem["empresa_id"]
+    c = liga()
+    try:
+        recado = mcp_servidor.tecto_da_chamada(c, utilizador_id, empresa_id, agora)
+        if recado:
+            mcp_servidor.registar_chamada(c, agora, utilizador_id, empresa_id,
+                                          quem["client_id"], nome, argumentos, 0, 0,
+                                          "tecto")
+            c.commit()
+            return mcp_servidor.resultado_de_erro(recado)
+    finally:
+        c.close()
+    inicio = time.monotonic()
+    try:
+        with com_empresa(empresa_id), so_de_leitura():
+            resultado, linhas, estado = mcp_servidor.executar(
+                fontes_do_mcp(), nome, argumentos)
+    except sqlite3.OperationalError as erro:
+        # o prazo do `_com_prazo()`: é a pergunta que é larga, não o painel
+        # que avariou -- não vai para os erros
+        if "interrupted" not in str(erro):
+            resultado, linhas, estado = _erro_do_mcp(agora, nome, erro)
+        else:
+            resultado, linhas, estado = mcp_servidor.resultado_de_erro(
+                "A pergunta é larga demais para o Mira Gov responder a tempo: "
+                "afine os filtros (um distrito, um CPV, um período mais "
+                "curto) e volte a pedir."), 0, "recusado"
+    except Exception as erro:
+        resultado, linhas, estado = _erro_do_mcp(agora, nome, erro)
+    c = liga()
+    try:
+        mcp_servidor.registar_chamada(c, agora, utilizador_id, empresa_id,
+                                      quem["client_id"], nome, argumentos, linhas,
+                                      int((time.monotonic() - inicio) * 1000), estado)
+        c.commit()
+    finally:
+        c.close()
+    return resultado
+
+
+def _erro_do_mcp(agora, nome, erro):
+    """Um erro inesperado de uma ferramenta: vai para os erros de sempre, e
+    o modelo recebe uma frase, não um 500."""
+    marca_erro("painel_ultimo_erro", "painel",
+               "%s no conector MCP (%s): %s: %s"
+               % (agora.strftime("%Y-%m-%d %H:%M"), nome,
+                  type(erro).__name__, str(erro)[:300]))
+    return mcp_servidor.resultado_de_erro(
+        "O Mira Gov não conseguiu responder a isto; o erro ficou "
+        "registado."), 0, "erro"
 
 
 # ------------------------------------------------------------- arranque

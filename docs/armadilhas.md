@@ -11,9 +11,9 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 18
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 33
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 36
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 12
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 13
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
 - [Contratos e entidades](#contratos-e-entidades) &middot; 41
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
@@ -21,11 +21,11 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 24
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 51
+- [Contas e a porta](#contas-e-a-porta) &middot; 58
 - [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **467** ao todo, contados a 10/10/2026. Contam-se por secção com
+São **478** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -338,7 +338,14 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   quem os lê é o `analisar_pecas()`, que agora extrai antes de ler. Um
   Excel que não abre é «não é PDF», não «erro:» — um erro retentava-se
   a cada leitura. O `openpyxl` avisa, ao ler as linhas, de cabeçalhos
-  que não percebe: cala-se dentro do `texto_do_xlsx()`.
+  que não percebe: cala-se dentro do `texto_do_xlsx()`. **E o que ainda
+  ficava** (Q3, 10/10/2026): o `.xls` antigo, que agora passa pelo
+  `xlrd` (`texto_do_excel()` escolhe pela extensão; sem o `xlrd` é
+  «erro:», que se retenta depois do `actualizar.sh` o instalar); o
+  «ANEXO I_LPU.xlsx» da 22071, que vinha no ZIP do **Programa** — só os
+  ZIP de Caderno davam os anexos técnicos — e não era técnico, porque o
+  `\b` do `re` trata o «_» como letra. A marca `pecas_xls_e_anexos` pôs
+  por ler, uma vez, os `.xls` e os ZIP já lidos em disco.
 
 - **"Abrir plataforma" não é o link das peças.** O DR nunca publica o
   endereço da página do procedimento: traz a raiz da plataforma e o
@@ -529,7 +536,17 @@ Orçamento, cadeia de reserva, chaves.
   que se constrói e onde. E o Caderno da Infraestruturas de Portugal
   vem **partido por capítulos** («Cap7_CondicoesParticulares_L1.pdf»,
   21999), sem «caderno» em nenhum: a equipa técnica do Cap. 7 nunca
-  chegava ao modelo.
+  chegava ao modelo. **A versão colada à sigla e a pasta do ZIP** (Q3,
+  10/10/2026): «1_CEV24052024…» e «2_PCV24052024…» (23591) não eram
+  peça nenhuma — o `_sigla()` aceita agora um «v» e algarismos atrás —, e
+  o «727.ORC_…pdf» da 23834 está na pasta «MAPA DE QUANTIDADES» de um
+  ZIP. O `papeis_da_peca()` recebe o caminho de dentro do ZIP e, **só
+  quando o nome não diz nada**, decide pela pasta onde o ficheiro está
+  (`_papeis_da_pasta()`) — e sem o «procedimento», senão uma pasta
+  «Peças do procedimento» fazia de cada anexo o Programa. O
+  `pecas_para_analise()` decide o papel ao abrir o ZIP e guarda-o, porque
+  o nome que segue para as fontes já só leva o do ficheiro. O orçamento e
+  as medições são `tecnico`, como o mapa.
 
 - **O campo 11 é uma coluna e cinco perguntas** (28/09/2026). A
   resposta de todas vai para `analise.equipa`, e por isso todas pedem
@@ -563,6 +580,50 @@ Orçamento, cadeia de reserva, chaves.
   declaração. O recorte junta-os antes de ir ao modelo
   (`junta_numerais_partidos()`), só quando o resultado é um numeral que
   existe. É a mesma família dos «1 2 meses» das armadilhas já pagas.
+
+- **As perguntas dos sete juízes, e o tamanho do pedido** (Q3,
+  10/10/2026). Cada família pede o que os juízes disseram que falta
+  (`docs/FUNCIONAL.md` §3.6, a tabela do campo 11), e há quatro regras
+  para todas: «não exigida»/«não se fixa» é resposta (`PREAMBULO`); a
+  habilitação pelo título do artigo do Programa (peso 2 — no corpo, os
+  «seguintes documentos de habilitação» comiam a reserva do peso 0); as
+  penalidades e a revisão de preços no `pagamentos`, a peso 3 (o último,
+  para não tirar o local ao Caderno: ver a âncora do pagamento, em
+  cima); e o anúncio (§12, §14) à cabeça do pedido do Programa. **O
+  maior pedido passou de 13 933 a ~15 000 caracteres** (1,5 × o tecto,
+  a pergunta da proposta com 4 451 e o bloco do anúncio), ~5 500 tokens
+  a 2,75 por token: abaixo do 413 da Groq, que apareceu aos 7 400 com a
+  resposta. O `test_a_pergunta_da_equipa` guarda o tamanho; se uma
+  pergunta crescer mais, mede o pedido antes. **Mapear, não decidir**:
+  nenhuma pergunta pede ao modelo que diga se se concorre, e um teste
+  procura as palavras.
+
+- **O mesmo procedimento lê-se uma vez** (Q3, 10/10/2026). A 21295
+  altera a 19129, que não está na base, e a 21925 altera a 21295: as
+  duas tinham peças e leitura, e as duas leituras davam equipas
+  diferentes — um terço das falhas some só por repetir. O
+  `reaproveitar_leitura()` copia para um anúncio a leitura de outro da
+  mesma cadeia de alterações (`raiz_da_alteracao()`, `membros_da_cadeia()`)
+  **se for da pergunta de agora**; a da pergunta antiga não se copia,
+  relê-se. Fica um evento «a mesma do <ref>». Não se escolhe qual dos
+  dois é o bom: o primeiro a ser lido com a pergunta nova manda.
+
+- **A página que não tem texto diz-se, com o número** (Q3,
+  10/10/2026). A lista das licenças da 24922 é uma imagem na pág. 15 do
+  CE, e o Anexo B da 23589 sai do PDF com a letra trocada (pág. 16–17,
+  uma fonte sem tabela de caracteres): a leitura respondia com o que via
+  e a ficha parecia completa. O `nota_do_que_nao_se_leu()` junta ao
+  campo 11 «Não lido: <ficheiro>, pág. N (…)» — as imagens pelo PyMuPDF,
+  no PDF em disco (`paginas_em_imagem()`: 30 % da página e menos de 1500
+  caracteres), e a letra trocada pelo texto, também dentro dos ZIP
+  (`paginas_ilegiveis()`: mais de 30 % de controlos e de alfabetos que o
+  português não usa — o «€», o «—» e o «•» estão acima de U+2000 e não
+  contam). Medido nos 138 textos dos bens julgados: uma página
+  apanhada, a verdadeira. A imagem começou nos 40 % e a tabela da 24922
+  ocupa 33 % da página: a 30 %, nas peças dos 103 concursos da Q3,
+  marcam-se 287 páginas (236 a 40 %) — muitas são plantas e fotografias
+  dos projectos das obras, que também não se leram. Afina-os com mais
+  casos.
 
 - **Uma peça que ninguém reconhece não é lida, e o «não encontrado»
   dela mente** (3.ª ronda, G37). O «2_ProgConc_…pdf» não era o Programa
@@ -774,7 +835,7 @@ Orçamento, cadeia de reserva, chaves.
   e a frase «seja considerado anormalmente baixo, o valor da caução»
   deixou de passar pelo limiar — levava-lhe a reserva.
 
-- **As licenças com CPV de serviços de TI lêem-se como bens**
+- **As licenças com CPV de serviços de TI não se lêem como equipa**
   (29/09/2026, `RX_LICENCAS`). «Licenciamento e manutenção de rede
   Check Point» (72267), «Suporte e Renovação do Licenciamento CISCO»,
   «Renovação Suporte AVAMAR»: a família «equipa» dizia «não consta» ou
@@ -784,6 +845,16 @@ Orçamento, cadeia de reserva, chaves.
   horas…). Mediu-se 115 dos 442 anúncios de CPV 72 desde junho. A
   leitura e a ficha passam pela mesma conta (`familia_das_seccoes()`) —
   se uma usasse só o tipo e o CPV, o rótulo e a pergunta divergiam.
+  **Desde a Q3 (10/10/2026) as licenças têm a família delas**,
+  «licencas»: dos 21 «bens» julgados, 11 eram licenças ou suporte, e a
+  pergunta dos artigos não pedia a duração, o contrato a renovar nem a
+  parceria do fabricante. Entra também o CPV 48 (software), que chegava
+  como «Aquisição de Bens». E a regra da designação serve o hardware
+  (`RX_HARDWARE`: o cluster de armazenamento da 22540, CPV 72, era
+  «equipa»); a **locação** e a **concessão de serviços** saem pelo tipo
+  do contrato, antes do CPV — o bar da 21877 (CPV 55) era «mão-de-obra»,
+  e quem o ganha paga renda. A ordem do `familia_do_contrato()` é a
+  regra: obras, concessão, locação, licenças, bens, hardware, mão-de-obra.
 
 - **A família «equipa» também pede o nível de serviço** (29/09/2026).
   As âncoras e a pergunta do SLA só existiam na família «serviços», e os
@@ -1085,6 +1156,19 @@ Orçamento, cadeia de reserva, chaves.
   `limpar_controlos_dos_anuncios()` passou pelos que já lá estavam, uma
   vez, pela marca `titulos_sem_controlos` (varre a tabela: ~6 s).
   Uma fonte nova de títulos passa-os pelo `sem_controlos()`.
+
+- **O 1.º terço conta-se do ENVIO do anúncio, não da publicação**
+  (Q3, 10/10/2026, o jurista). O prazo das propostas conta-se «a contar
+  da data do envio, para publicação, do anúncio» (art. 135.º, n.º 1;
+  art. 136.º, n.º 1 com o JOUE — `docs/ccp.md` §2), e o DR publica 2 a
+  4 dias depois: o `prazo_de_esclarecimentos()` contava da `data_pub` e
+  dava a data 1 a 3 dias tarde em 21 de 29 fichas — e é também o prazo
+  da lista de erros e omissões das obras. A «Data de Envio do Anúncio»
+  do §3 não é coluna: a ficha lê-a das secções (`valor_de()`), e as
+  tarefas e a vigilância recortam-na do texto com o `SQL_DO_ENVIO` (o
+  `CASE` não é enfeite: sem ele, o instr do SQLite a 0 dava os primeiros
+  caracteres do texto). Sem ela, ou se vier depois da publicação,
+  conta-se da publicação.
 
 - **Um preço que uma pessoa escreve passa pelo `preco_escrito()`, e o
   `None` recusa-se** (25/09/2026, teste com dez perfis de utilizador).
@@ -3235,6 +3319,68 @@ Nada espera dentro do pedido do browser.
 ---
 
 ## Contas e a porta
+
+- **No conector MCP a empresa vem do token, e a rota é que a põe**
+  (10/10/2026). O `/mcp` é rota aberta: a porta sai antes de fazer
+  `_EMPRESA.set()`, e a empresa activa ali é a de omissão (a 1). O
+  `mcp()` relê a conta do token (`contas.conta_do_token_mcp()`) e corre
+  cada ferramenta dentro de `com_empresa(empresa do token)` e de
+  `so_de_leitura()` — sem o primeiro, uma conta da B lia a 1 em
+  silêncio. **O teste de isolamento tem de olhar do lado da B**: a A é a
+  empresa de omissão, e um `com_empresa()` esquecido não se vê com o
+  token dela. E **os ids das propostas repetem-se entre empresas** (cada
+  ficheiro conta do 1): «pedir a proposta da B com o token da A» devolvia
+  a n.º 1 da A e o teste passava sem provar nada; o `TestConectorMCP`
+  dá à B uma proposta a mais para os ids não baterem.
+- **O `/mcp` não olha para o cookie, mas a porta já olhou** (10/10/2026).
+  A `porta_de_entrada()` lê a sessão e o acesso livre local em todos os
+  pedidos, antes de ver que a rota é aberta, e deixa o `g.utilizador`
+  posto. Uma ferramenta do conector que lesse o `g.utilizador` (o
+  `quem_sou()`, o `minha_conta()`) via a conta do browser, ou o dono no
+  computador dele — a credencial é **só** o bearer. O
+  `test_o_cookie_do_painel_e_o_acesso_livre_nao_servem` guarda-o.
+- **Os tokens do conector caem no `contas.py`, não nas rotas**
+  (decisão 7, 10/10/2026). O `revogar_tokens_mcp()` é chamado pelo
+  `sair_de_todos()` (e por ele pela suspensão e pela ligação de repor),
+  pelo ramo do `criar_utilizador()` que troca a palavra-passe (a Conta, a
+  consola e o repor passam todos por lá — e também a passagem de gestor a
+  membro, que é o mesmo `UPDATE`), pelo `apagar_utilizador()` e pelo
+  `desligar_segundo_factor()` da consola. O `--apagar-empresa` não passa
+  por nenhum (apaga as contas em SQL, no `_apagar_da_plataforma()`), e
+  por isso apaga lá os `tokens_mcp`, os `codigos_oauth` e a
+  `chamadas_mcp` da empresa. Um caminho novo que mude a palavra-passe ou
+  feche as sessões sem passar por estes deixa o assistente ligado.
+- **Uma consulta do conector tem prazo, e o prazo não é um erro**
+  (revisão de segurança, 10/10/2026). Dentro de `so_de_leitura()` o
+  `liga()` e o `liga_corpus()` põem um `set_progress_handler`
+  (`_com_prazo()`): passados `SEGUNDOS_DA_CONSULTA_MCP` desde que a
+  ligação abriu, o SQLite pára com `interrupted`. O `_chamada_do_mcp()`
+  trata esse caso à parte — a frase «afine os filtros» ao modelo, e
+  `recusado` no registo — e **não** chama o `marca_erro()`: uma pergunta
+  larga de um robô não pode acender o semáforo do dono. Qualquer outro
+  `OperationalError` continua a ir aos erros. E as páginas param nas
+  `PAGINAS_NO_MAXIMO` (40): um `OFFSET` fundo lê-se linha a linha.
+- **O tecto do conector conta e depois escreve, sem trinco** (L4 da
+  revisão de 10/10/2026, deixado assim de propósito). O
+  `tecto_da_chamada()` conta as linhas da `chamadas_mcp` e a linha da
+  chamada só entra depois de ela correr: dois pedidos ao mesmo tempo
+  passam os dois, e a conta pode ir umas chamadas acima dos 30 por minuto.
+  Aceita-se porque as ferramentas só lêem — o pior é uma resposta a mais.
+  Se um dia uma ferramenta escrever, o tecto passa a reservar a linha
+  antes (um `INSERT` dentro da mesma transacção da contagem).
+- **O histórico da proposta sai por lista branca, não negra** (L1 da
+  revisão, 10/10/2026). O `ver_proposta` só leva as `ACCOES_QUE_SAEM`:
+  os campos da proposta escrevem no histórico com o **nome da coluna**
+  como acção, e a coluna antiga `notas` levava o texto da nota no
+  detalhe — uma lista negra de «nota…» deixava-a passar. Uma acção nova
+  no `registar()` fica de fora do conector até alguém a pôr na lista.
+- **O `/mcp` e os metadados não saltam de nome** (`NAO_SALTAM`). O
+  `resource` dos metadados tem de ser igual ao URL que a pessoa escreveu
+  no Claude, e o `ao_endereco_certo()` mandava o pedido de
+  `radargov.pt/mcp` para o `miragov.pt` — um POST com 308 até passava,
+  mas o cliente comparava os dois e recusava. E os endereços dos
+  metadados saem do `endereco_do_painel()`, **nunca do `Host`** do
+  pedido, pela mesma razão do «esqueci-me».
 
 - **A sessão única do Solo está no `_abrir_sessao()`, e não no
   `/entrar`** (L2.1, 1/10/2026). O convite, o repor e o segundo factor

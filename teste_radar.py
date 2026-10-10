@@ -883,6 +883,53 @@ class TestPapeisDaPeca(unittest.TestCase):
                      "419971092.pdf", "espd-request.zip", "Anuncio_JOUE.pdf"):
             self.assertEqual(radar.papeis_da_peca(nome), set(), nome)
 
+    def test_a_sigla_com_a_versao_colada(self):
+        # Q3, 10/10/2026 (o director de obras): o 23591/2026 traz o CE e
+        # o PC com a versão colada à sigla, e nenhum dos dois era peça --
+        # só a Lista.pdf foi lida, e os campos do CE e do PP saíram vazios
+        self.assertEqual(radar.papeis_da_peca("1_CEV24052024_42_2026.pdf"),
+                         {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("2_PCV24052024_42_2026.pdf"),
+                         {"programa"})
+        # mas uma palavra que só começa pela sigla continua a não ser
+        self.assertEqual(radar.papeis_da_peca("Certidao_Cevada.pdf"), set())
+
+    def test_a_pasta_do_zip_decide_quando_o_nome_nao_diz(self):
+        # Q3 (23834/2026): o ZIP da obra arruma as peças por pastas, e o
+        # orçamento chama-se «727.ORC_...» dentro de «MAPA DE QUANTIDADES»
+        dentro = "procº. 727/727_26.zip/727_26/"
+        self.assertEqual(radar.papeis_da_peca(
+            dentro + "MAPA DE QUANTIDADES/727.ORC_OBRAS DE REABILITAÇÃO NA "
+            "ESCOLA EB1 DO VINHAL SP.pdf"), {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca(
+            dentro + "MEMÓRIA DESCRITIVA/Escola EB1 do Vinhal_signed.pdf"),
+            {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca(dentro + "PSS/Plano de Segurança.pdf"),
+                         set())
+        # o nome manda sobre a pasta, e «procedimento» numa pasta não faz
+        # de cada anexo lá dentro o Programa
+        self.assertEqual(radar.papeis_da_peca(
+            "Peças do procedimento/Caderno de Encargos.pdf"), {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("Peças do procedimento/Anexo I.pdf"),
+                         set())
+
+    def test_o_orcamento_e_as_medicoes_sao_tecnicos(self):
+        for nome in ("727.ORC_OBRAS.pdf", "Orçamento.pdf", "16_MEDIÇOES.pdf"):
+            self.assertEqual(radar.papeis_da_peca(nome), {"tecnico"}, nome)
+
+    def test_a_leitura_le_o_ficheiro_pela_pasta(self):
+        marca = radar.MARCA_DO_FICHEIRO
+        texto = "\n".join((
+            marca % "procº. 727/727_26/MAPA DE QUANTIDADES/727.ORC_OBRAS.pdf",
+            "Artigo 1 Demolição de cobertura em fibrocimento 120 m2",
+            marca % "procº. 727/727_26/PSS/Plano de Segurança e Saúde.pdf",
+            "Plano de segurança da obra"))
+        docs = [{"nome": "procº. 727.zip", "texto": texto}]
+        recorte, usados = radar.pecas_para_analise(docs, "encargos", ())
+        self.assertIn("fibrocimento", recorte)
+        self.assertNotIn("Plano de segurança", recorte)
+        self.assertTrue(usados and "727.ORC_OBRAS.pdf" in usados[0], usados)
+
 
 class TestOrcamentoDoDia(unittest.TestCase):
     """A conta tem dois tectos e só um se vê nos cabeçalhos."""
@@ -972,6 +1019,39 @@ class TestPrazoDeEsclarecimentos(unittest.TestCase):
         self.assertIn("22/08/2026", valor)   # prazo 01/09/2026
         self.assertFalse(falta)              # deixou de estar em falta
         self.assertIn("supletiva", nota)     # mas diz que é calculado
+
+    # Q3, o jurista (10/10/2026): o prazo das propostas conta-se do ENVIO
+    # do anúncio (art. 135.º, n.º 1, e 136.º, n.º 1 do CCP, iguais nos
+    # dois regimes), e a publicação sai 2 a 4 dias depois. A ficha dava
+    # o fim do 1.º terço 1 a 3 dias tarde em 21 de 29 concursos.
+    def test_conta_desde_o_envio_do_anuncio(self):
+        # envio 19/08, publicação 22/08, prazo 18/09: 30 dias desde o
+        # envio, o terço são 10 -> 29/08 (da publicação dava 31/08)
+        d = radar.prazo_de_esclarecimentos("2026-08-22", "2026-09-18",
+                                           "19-08-2026")
+        self.assertEqual(str(d), "2026-08-29")
+        # o DR de 1/10/2026 escreve a hora a seguir à data
+        d = radar.prazo_de_esclarecimentos("2026-10-03", "2026-10-31",
+                                           "01-10-2026 12:04:00")
+        self.assertEqual(str(d), "2026-10-11")
+
+    def test_sem_data_de_envio_conta_da_publicacao(self):
+        for envio in ("", None, "lixo", "25-08-2026"):   # o último: depois da pub.
+            with self.subTest(envio=envio):
+                d = radar.prazo_de_esclarecimentos("2026-08-18", "2026-09-01",
+                                                   envio)
+                self.assertEqual(str(d), "2026-08-22")
+
+    def test_a_ficha_e_as_tarefas_contam_do_envio(self):
+        anuncio = dict(TestTabelaEssencial.ANUNCIO, data_pub="2026-08-22",
+                       prazo="2026-09-18")
+        seccoes = [("3", "AVISO", [("Data de Envio do Anúncio", "19-08-2026")])]
+        linha = next(l for l in radar.essencial_do_anuncio(anuncio, seccoes)
+                     if l[0] == "Data de esclarecimentos")
+        self.assertIn("29/08/2026", linha[1])
+        datas = radar.datas_automaticas(dict(
+            anuncio, envio="Data de Envio do Anúncio: 19-08-2026"))
+        self.assertEqual(datas["esclarecimentos"], "2026-08-29")
 
 
 class TestTextoDoPdf(unittest.TestCase):
@@ -1420,8 +1500,15 @@ class TestSegundaRondaDaLeitura(unittest.TestCase):
         # e não cresce sem conta: o pedido inteiro fica debaixo do limite
         # da Groq. Eram 2 842; a 29/09/2026 passou a 2 939 com a página em
         # cada linha, o nível de serviço e o que só pontua (3.ª ronda), e
-        # o maior pedido de todos foi de 13 430 a 13 933 caracteres
-        self.assertLessEqual(len(i), 2939)
+        # o maior pedido de todos foi de 13 430 a 13 933 caracteres. A
+        # 10/10/2026 (Q3), com a avaliação, a empresa e a prova, 3 397
+        self.assertLessEqual(len(i), 3400)
+        for nome, instrucao in (("proposta", radar.INSTRUCOES_PROPOSTA),
+                                ("objecto", radar.INSTRUCOES_OBJECTO)):
+            # 1,5 x o tecto, a pergunta e o anúncio: abaixo dos 16 mil
+            # caracteres (~5 800 tokens a 2,75 por token)
+            self.assertLess(int(radar.TECTO_RECORTE * 1.5) + len(instrucao) + 400,
+                            16000, nome)
 
     def test_a_pergunta_das_obras_sem_alvara(self):
         # o alvará vem do anúncio, e a leitura só produzia negações
@@ -1533,14 +1620,16 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
             self.assertTrue(any(re.search(r, radar.simplifica(frase)) for r in fortes), frase)
         self.assertIn("Nível de serviço", radar.INSTRUCOES_EQUIPA)
 
-    def test_as_licencas_com_cpv_de_ti_sao_bens(self):
-        # 21659, 22682, 23589: artigos com quantidade lidos como perfis
+    def test_as_licencas_com_cpv_de_ti_sao_licencas(self):
+        # 21659, 22682, 23589: artigos com quantidade lidos como perfis;
+        # eram «bens» desde 29/09/2026, e desde a Q3 (10/10/2026) têm a
+        # família delas -- 11 dos 21 «bens» julgados eram licenças
         f = radar.familia_do_contrato
         for titulo, cpv in (("Licenciamento e manutenção de rede check Point", "72267000"),
                             ("Aquisição de Serviços de Suporte e Renovação do "
                              "Licenciamento CISCO", "72500000"),
                             ("Serviços Renovação Suporte AVAMAR 2026", "72100000")):
-            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "bens", titulo)
+            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "licencas", titulo)
         # com trabalho de equipa no mesmo contrato, fica equipa
         for titulo in ("Aquisição de serviços de suporte técnico e manutenção adaptativa "
                        "e evolutiva da plataforma DSpace",
@@ -1550,7 +1639,7 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
         self.assertEqual(f("Aquisição de Serviços", "72267000"), "equipa")
         texto = ("6 - OBJETO DO CONTRATO\nDesignação do contrato: Licenças Office 2024\n"
                  "Tipo de Contrato Principal: Aquisição de Serviços\n")
-        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "bens")
+        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "licencas")
 
     def test_a_lista_dos_itens_dos_bens(self):
         # 21659: «2- O fornecimento compreende os seguintes itens:»
@@ -5317,6 +5406,302 @@ class TestTextoDoExcel(BaseTemporaria):
                 ).fetchone()[0], "não é PDF")
 
 
+class TestExcelQueFicavaPorLer(BaseTemporaria):
+    """Q3, 10/10/2026 (o director de operações): o «ANEXO I_LPU.xlsx»
+    dentro do «2_PROGRAMA_DO_PROCEDIMENTO.zip» da 22071 não chegou ao
+    texto -- de um ZIP de Programa só se tirava o Programa, e o «_LPU»
+    não era técnico (o \\b do re trata o «_» como letra). E os .xls
+    antigos (24120, 24944) ficavam «não é PDF», com as horas lá dentro."""
+
+    MAPA = TestTextoDoExcel.MAPA
+
+    def test_a_lpu_com_sublinhado_e_tecnica(self):
+        self.assertEqual(radar.papeis_da_peca("ANEXO I_LPU.xlsx"), {"tecnico"})
+
+    def test_do_zip_do_programa_sai_tambem_o_anexo_tecnico(self):
+        import zipfile
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        with zipfile.ZipFile(os.path.join(pasta, "2_PROGRAMA_DO_PROCEDIMENTO.zip"),
+                             "w") as z:
+            z.writestr("PROGRAMA DO PROCEDIMENTO.docx",
+                       TestTextoDoZip.docx("Criterio de adjudicacao"))
+            z.writestr("ANEXO I_LPU.xlsx", _livro_excel(self.MAPA))
+            z.writestr("Anexo II - Modelo de declaracao.docx",
+                       TestTextoDoZip.docx("declaro sob compromisso"))
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref,nome) VALUES "
+                      "('9/2026','2_PROGRAMA_DO_PROCEDIMENTO.zip')")
+        radar.extrair_textos("9/2026")
+        with radar.liga() as c:
+            texto = c.execute("SELECT texto FROM documentos").fetchone()[0]
+        self.assertIn("Criterio de adjudicacao", texto)
+        self.assertIn("Betão C25/30", texto)
+        self.assertNotIn("declaro sob compromisso", texto)
+
+    def test_o_xls_antigo_le_se_pelo_xlrd(self):
+        class Folha:
+            name = "Anexo II"
+            nrows = 3
+
+            def row_values(self, i):
+                return [["Posto", "Horas/mês"], ["Portaria", 744.0],
+                        ["", ""]][i]
+
+        class Livro:
+            def sheets(self):
+                return [Folha()]
+
+        falso = unittest.mock.MagicMock()
+        falso.open_workbook.return_value = Livro()
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": falso}):
+            texto, estado = radar.texto_do_excel("Anexo II.xls", b"\xd0\xcf")
+        self.assertEqual(estado, "ok")
+        self.assertIn("Folha: Anexo II", texto)
+        self.assertIn("Portaria | 744", texto)
+
+    def test_sem_o_xlrd_e_erro_e_retenta_se(self):
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": None}):
+            _, estado = radar.texto_do_excel("Anexo II.xls", b"\xd0\xcf")
+        self.assertTrue(estado.startswith("erro: falta o xlrd"), estado)
+
+    def test_o_xls_que_nao_abre_e_veredicto(self):
+        falso = unittest.mock.MagicMock()
+        falso.open_workbook.side_effect = ValueError("não é BIFF")
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": falso}):
+            self.assertEqual(radar.texto_do_excel("x.xls", b"lixo"),
+                             ("", "não é PDF"))
+
+    def test_a_migracao_poe_por_ler_os_xls_e_os_zip(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        for nome in ("Mapa.xls", "PP.zip"):
+            open(os.path.join(pasta, nome), "wb").close()
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                "VALUES ('9/2026',?,?,?)",
+                [("Mapa.xls", "", "não é PDF"), ("PP.zip", "antigo", "ok"),
+                 ("CE.pdf", "t", "ok")])
+            c.execute("DELETE FROM estado WHERE chave='pecas_xls_e_anexos'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            d = {r["nome"]: r["texto_estado"] for r in c.execute(
+                "SELECT nome, texto_estado FROM documentos")}
+        self.assertEqual(d, {"Mapa.xls": None, "PP.zip": None, "CE.pdf": "ok"})
+
+
+class TestPaginasQueNaoSeLeram(BaseTemporaria):
+    """Q3, 10/10/2026 (o gestor de bens): a lista das licenças da 24922 é
+    uma imagem na pág. 15 do CE, e o Anexo B da 23589 sai com a letra
+    trocada (pág. 16–17). A leitura calava-se -- o campo dizia o que viu,
+    e quem lia a ficha não sabia que faltava uma tabela."""
+
+    @staticmethod
+    def pdf_com_imagem(caminho):
+        import pymupdf
+        doc = pymupdf.open()
+        p = doc.new_page()
+        p.insert_text((72, 72), "Clausula 1.a Objecto do contrato " * 20)
+        p = doc.new_page()
+        p.insert_text((72, 72), "ANEXO I - Pretendem-se as licencas do quadro:")
+        imagem = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
+        imagem.clear_with(200)
+        p.insert_image(pymupdf.Rect(50, 100, 550, 700), pixmap=imagem)
+        doc.save(caminho)
+
+    def test_a_pagina_que_e_uma_imagem(self):
+        caminho = os.path.join(self.pasta, "CE.pdf")
+        self.pdf_com_imagem(caminho)
+        self.assertEqual(radar.paginas_em_imagem(caminho), [2])
+        self.assertEqual(radar.paginas_em_imagem(os.path.join(self.pasta, "x.pdf")), [])
+
+    def test_a_pagina_com_a_letra_trocada(self):
+        trocada = "\x03sŝƐƚŽ\x03ĚŽ\x03^ƵƉĞƌŝŶƚĞŶĚĞŶƚĞ\x03ĚĂ\x03/ŶĨŽƌŵĂĕĆŽ " * 5
+        texto = "\n\f\n".join(("Cláusula 1.ª Objecto " * 10, trocada,
+                                "Página 3 sem nada de estranho " * 5))
+        self.assertEqual(radar.paginas_ilegiveis(texto), [2])
+        # o português com acentos, o euro e os travessões não são «estranhos»
+        self.assertEqual(radar.paginas_ilegiveis(
+            "Preço base: 1 000 € — ação, função, Cláusula 3.ª • alínea " * 5), [])
+
+    def test_a_leitura_diz_o_que_nao_leu(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        self.pdf_com_imagem(os.path.join(pasta, "1_Caderno_de_Encargos.pdf"))
+        trocada = "\x03ĚŽ\x03^ƵƉĞƌŝŶƚĞŶĚĞŶƚĞ\x03ĚĂ " * 10
+        docs = [{"nome": "1_Caderno_de_Encargos.pdf",
+                 "texto": "Clausula 1.a\n\f\nANEXO I"},
+                {"nome": "3_Anexo_B_Tecnico.pdf",
+                 "texto": "Especificação\n\f\n" + trocada},
+                {"nome": "Anúncio DR.pdf", "texto": "\n\f\n" + trocada}]
+        nota = radar.nota_do_que_nao_se_leu("9/2026", docs)
+        self.assertEqual(nota, "Não lido: 1_Caderno_de_Encargos.pdf, pág. 2 "
+                               "(imagem sem texto); 3_Anexo_B_Tecnico.pdf, pág. 2 "
+                               "(texto ilegível)")
+        self.assertEqual(radar.nota_do_que_nao_se_leu("9/2026", docs[2:]), "")
+
+
+class TestOMesmoProcedimentoLeSeUmaVez(BaseTemporaria):
+    """Q3, 10/10/2026 (o bid manager): a 21295 altera a 19129, e a 21925
+    altera a 21295 -- é o mesmo procedimento, com as mesmas peças, e foi
+    lido duas vezes, com duas equipas diferentes. A leitura de um
+    procedimento já lido com a pergunta de agora reaproveita-se."""
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            c.executemany("INSERT INTO anuncios (ref, altera, estado) VALUES (?,?,?)",
+                          [("21295/2026", "19129/2026", "novo"),
+                           ("21925/2026", "21295/2026", "alteracao"),
+                           ("30000/2026", "", "novo")])
+
+    def ler(self, ref, pergunta=None):
+        with radar.liga() as c:
+            c.execute("INSERT OR REPLACE INTO analise (ref, objecto, equipa, "
+                      "documentos_proposta, modelo, fontes, quando, pergunta) "
+                      "VALUES (?,?,?,?,?,?,?,?)",
+                      (ref, "- o website", "Technical Leader UI/UX", "1. DEUCP",
+                       "nvidia", "CE.pdf (pág. 54)", "2026-10-03 21:10",
+                       pergunta or radar.VERSAO_DA_PERGUNTA))
+
+    def test_a_alteracao_leva_a_leitura_do_original(self):
+        self.ler("21295/2026")
+        self.assertEqual(radar.reaproveitar_leitura("21925/2026"), "21295/2026")
+        copia = radar.analise_de("21925/2026")
+        self.assertEqual(copia["equipa"], "Technical Leader UI/UX")
+        self.assertEqual(copia["fontes"], "CE.pdf (pág. 54)")
+        self.assertEqual(copia["pergunta"], radar.VERSAO_DA_PERGUNTA)
+
+    def test_e_o_original_a_da_alteracao(self):
+        self.ler("21925/2026")
+        self.assertEqual(radar.reaproveitar_leitura("21295/2026"), "21925/2026")
+
+    def test_uma_leitura_da_pergunta_antiga_nao_se_reaproveita(self):
+        self.ler("21295/2026", pergunta="antiga")
+        self.assertIsNone(radar.reaproveitar_leitura("21925/2026"))
+        self.assertIsNone(radar.reaproveitar_leitura("30000/2026"))
+
+    def test_a_leitura_nao_chama_o_modelo(self):
+        self.ler("21295/2026")
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        return_value=[("x",)]), \
+                unittest.mock.patch.object(radar, "_perguntar") as perguntar:
+            self.assertEqual(radar.analisar_pecas("21925/2026"), (True, ""))
+        perguntar.assert_not_called()
+        with radar.liga() as c:
+            evento = c.execute("SELECT detalhe FROM eventos WHERE ref='21925/2026'"
+                               ).fetchone()
+        self.assertIn("21295/2026", evento["detalhe"])
+
+
+class TestAsPerguntasDosJuizes(unittest.TestCase):
+    """Q3, 10/10/2026: sete juízes — o bid manager e o director de equipa
+    de TI, o director de obras, os gestores de bens e de serviços, o
+    director de operações e o jurista — julgaram 103 leituras e disseram
+    o que cada pergunta devia pedir. Mapear, não decidir: nenhuma pede
+    ao modelo que diga se se concorre."""
+
+    def junto(self, i):
+        return " ".join(i.split())
+
+    def test_dispensada_e_resposta_e_nao_nao_consta(self):
+        # caução dispensada lida como «não consta» (6 na equipa, 10 nas
+        # obras); «o PP diz expressamente que não fixa limiar» (21713)
+        p = self.junto(radar.PREAMBULO)
+        self.assertIn("não é exigida", p)
+        self.assertIn("não se fixa", p)
+        self.assertIn("é a resposta", p)
+
+    def test_a_equipa_diz_como_pontua_e_a_quem_se_exige(self):
+        i = self.junto(radar.INSTRUCOES_EQUIPA)
+        for pedaco in ("Como a equipa é avaliada", "escalão → pontos",
+                       "só admissão", "Exigido à empresa", "Prova:",
+                       "(exclui)", "na proposta ou na habilitação"):
+            self.assertIn(pedaco, i)
+
+    def test_as_obras_a_visita_e_o_mapa(self):
+        i = self.junto(radar.INSTRUCOES_OBRAS)
+        for pedaco in ("Visita ao local", "Mapa de quantidades", "### nome",
+                       "Programa"):
+            self.assertIn(pedaco, i)
+
+    def test_os_bens_contam_e_dao_o_preco_do_lote(self):
+        i = self.junto(radar.INSTRUCOES_BENS)
+        for pedaco in ("Total:", "preço base do lote", "Amostras",
+                       "não da vigência", "«Lista»", "as duas versões"):
+            self.assertIn(pedaco, i)
+
+    def test_a_mao_de_obra_pessoas_horas_e_transmissao(self):
+        i = self.junto(radar.INSTRUCOES_MAO_DE_OBRA)
+        for pedaco in ("número de trabalhadores", "não posições", "Horas",
+                       "bolsa", "Transmissão de pessoal", "as peças não falam disto",
+                       "CCT", "refeições"):
+            self.assertIn(pedaco, i)
+
+    def test_os_servicos_os_meios_e_a_contagem(self):
+        i = self.junto(radar.INSTRUCOES_SERVICOS)
+        for pedaco in ("com a contagem", "Meios mínimos", "atributo",
+                       "Calendário", "métrica exacta"):
+            self.assertIn(pedaco, i)
+        # os SLA que são atributos da proposta (23370): o Programa entra
+        self.assertTrue(any(re.search(r, "criterio e atributos da proposta")
+                            for _, r in radar.ANCORAS_SERVICOS))
+
+    def test_os_pagamentos_levam_as_penalidades_e_as_retencoes(self):
+        for i in (radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_OBJECTO_OBRAS):
+            i = self.junto(i)
+            for pedaco in ("penalidades", "tecto", "retenções"):
+                self.assertIn(pedaco, i)
+        self.assertIn("revisão de preços", self.junto(radar.INSTRUCOES_OBJECTO_OBRAS))
+        # as obras não tinham âncora de pagamento nenhuma
+        self.assertTrue(any(re.search(r, "condicoes de pagamento")
+                            for _, r in radar.ANCORAS_OBJECTO_OBRAS))
+        self.assertTrue(any(re.search(r, "penalidades contratuais")
+                            for _, r in radar.ANCORAS_OBJECTO))
+
+    def test_a_habilitacao_pelo_titulo_do_artigo(self):
+        # 9 de 15, 15 de 21, 13 de 20, 12 de 16 «não consta» com o
+        # artigo «Documentos de habilitação» no Programa
+        titulo = "artigo 19.o documentos de habilitacao"
+        pesos = [p for p, r in radar.ANCORAS_PROGRAMA if re.search(r, titulo)]
+        self.assertTrue(pesos and min(pesos) <= 2, pesos)
+        i = self.junto(radar.INSTRUCOES_PROPOSTA)
+        for pedaco in ("«Documentos de habilitação»", "licenças",
+                       "Anúncio do DR", "as duas, cada uma com a fonte"):
+            self.assertIn(pedaco, i)
+
+    def test_o_anuncio_entra_no_que_o_modelo_ve(self):
+        texto = ("12 - DOCUMENTOS DE HABILITAÇÃO\n"
+                 "Habilitação para o exercício da atividade profissional: Não\n"
+                 "14 - PRESTAÇÃO DE CAUÇÃO\nPrestação de caução: Não\n")
+        bloco = radar.bloco_do_anuncio(texto)
+        self.assertTrue(bloco.startswith("### Anúncio do DR\n"), bloco)
+        self.assertIn("Caução (§14): Não", bloco)
+        self.assertIn("Habilitação (§12): Não exigida no anúncio", bloco)
+        self.assertEqual(radar.bloco_do_anuncio(""), "")
+
+    def test_nenhuma_pergunta_pede_que_se_decida(self):
+        for familia, (_, _, _, i) in radar.CAMPO_11.items():
+            for instrucao in (i or "", radar.INSTRUCOES_PROPOSTA,
+                              radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_EQUIPA):
+                self.assertFalse(re.search(
+                    r"deve(s)? concorrer|vale a pena|go/no|recomend", instrucao, re.I),
+                    familia)
+
+    def test_o_nao_consta_que_outro_campo_responde(self):
+        # 23010: os locais estão no campo 11 e a localização diz «não consta»
+        campos = {"localizacao": "não consta",
+                  "equipa": "Âmbito: transporte de doentes\n"
+                            "Locais: Hospital Dr. Nélio Mendonça (pág. 4)",
+                  "pagamentos": "não consta",
+                  "caucao": "2% do preço contratual (pág. 13)"}
+        fora = radar.negativos_que_a_ficha_responde(campos)
+        self.assertEqual(fora["localizacao"], "Locais: Hospital Dr. Nélio Mendonça (pág. 4)")
+        self.assertEqual(fora["pagamentos"], "não consta")     # ninguém o diz
+        self.assertEqual(campos["localizacao"], "não consta")  # não muda o que recebe
+
+
 class TestAnexosTecnicos(unittest.TestCase):
     """28/09/2026: a leitura escolhia as peças pelo nome — «caderno» ou
     «programa» — e 88 de 235 documentos com texto não iam a pedido
@@ -5498,13 +5883,46 @@ class TestCampo11PorTipo(unittest.TestCase):
         f = radar.familia_do_contrato
         self.assertEqual(f("Empreitada de Obras Públicas", "45261910"), "obras")
         self.assertEqual(f("Aquisição de Bens Móveis", "37412241"), "bens")
-        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "bens")
+        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "locacao")
         self.assertEqual(f("Aquisição de Serviços", "90911200"), "mao_de_obra")
         self.assertEqual(f("Aquisição de Serviços", "79714000"), "mao_de_obra")
         self.assertEqual(f("Aquisição de Serviços", "72000000"), "equipa")
         self.assertEqual(f("Aquisição de Serviços", "50711000"), "servicos")
         # o CPV com dois códigos: conta o primeiro
         self.assertEqual(f("Aquisição de Serviços", "72000000, 50000000"), "equipa")
+
+    def test_as_familias_que_os_juizes_separaram(self):
+        # Q3, 10/10/2026: os juízes acharam nos «bens» licenças e
+        # viaturas alugadas, nas «equipas» hardware, e na «mão-de-obra»
+        # a concessão de um bar
+        f = radar.familia_do_contrato
+        # o software (CPV 48), comprado como bens ou como serviço
+        self.assertEqual(f("Aquisição de Bens Móveis", "48321000",
+                           "Aquisição de bens móveis Software AutoCAD"), "licencas")
+        self.assertEqual(f("Aquisição de Bens Móveis", "48900000",
+                           "Subscrição de licenças de software Microsoft (modelo CSP)"),
+                         "licencas")
+        # mas um ERP a implementar não é uma compra de licenças
+        self.assertEqual(f("Aquisição de Serviços", "48000000",
+                           "Implementação de um ERP"), "servicos")
+        # a locação: duração, quilómetros, o que a renda inclui
+        self.assertEqual(f("Locação de Bens Móveis", "34110000",
+                           "Locação operacional de veículos automóveis ligeiros"),
+                         "locacao")
+        # o hardware com suporte (22540) não é uma equipa a propor
+        self.assertEqual(f("Aquisição de Serviços", "72300000",
+                           "Renovação e Expansão do Cluster de Armazenamento de "
+                           "Dados (DataCenter)"), "bens")
+        # a concessão de um bar (21877): quem concorre paga renda
+        self.assertEqual(f("Concessão de Serviços Públicos", "55511000",
+                           "concessão de exploração do bar"), "concessao")
+        self.assertEqual(f("Concessão de Obras Públicas", "45000000"), "obras")
+
+    def test_cada_familia_tem_o_seu_campo_11(self):
+        for familia in ("licencas", "locacao", "concessao"):
+            rotulo, falta, ancoras, instrucao = radar.CAMPO_11[familia]
+            self.assertTrue(rotulo and falta and ancoras, familia)
+            self.assertIn('{"equipa":', instrucao, familia)
 
     def test_sem_nada_fica_a_pergunta_de_antes(self):
         self.assertEqual(radar.familia_do_contrato("", ""), "equipa")
@@ -12451,8 +12869,9 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
         """O «+N» de um dia cheio **não** liga a `/?de=X&ate=X`: esses
         dois filtros são por `data_pub` e não por `prazo`, e a lista que
         abriam não era a que o número prometia. Abre no sítio, com um
-        `<details>`."""
-        fonte = inspect.getsource(radar.calendario)
+        `<details>`. O HTML está no molde desde o D1 (lote 3.5)."""
+        fonte = inspect.getsource(radar.calendario) + radar.MOLDES_JINJA.loader.get_source(
+            radar.MOLDES_JINJA, "calendario.html")[0]
         self.assertIn("cal-mais", fonte)
         self.assertNotIn("&ate=", fonte)
         self.assertNotIn("ate=%s", fonte)
@@ -14936,11 +15355,18 @@ class TestContas(BaseTemporaria):
                        # E o beacon das visitas (4/10/2026): quem visita o
                        # site não tem conta; a guarda é a origem, o tamanho
                        # e o id da visita (TestAsVisitasAoSite)
+                       # E o conector MCP (10/10/2026): quem chama é um
+                       # servidor do Claude, sem sessão. A guarda do /mcp
+                       # é o bearer (401, nunca o cookie), a do /oauth/token
+                       # o código com PKCE ou o refresh, e a do
+                       # /oauth/register a lista branca dos redirects e o
+                       # tecto por IP (TestConectorMCP)
                        and r.rule not in ("/entrar", "/pedir-acesso",
                                           "/convite/<codigo>",
                                           "/repor/<codigo>",
                                           "/entrar/codigo", "/esqueci-me",
-                                          "/visita"))
+                                          "/visita", "/mcp", "/oauth/token",
+                                          "/oauth/register"))
         self.assertGreater(len(rotas), 15)
         for regra in rotas:
             caminho = re.sub(r"<[^>]*>", "1", regra)
@@ -18777,6 +19203,717 @@ class TestNenhumaEmpresaVeAOutra(BaseTemporaria):
         self.assertEqual(radar.empresa_activa(), radar.EMPRESA_ACTIVA)
 
 
+class TestConectorMCP(BaseTemporaria):
+    """O Mira Gov como conector MCP (10/10/2026). O que se guarda, por
+    ordem do desenho: uma empresa nunca vê outra pelo conector (e o teste
+    prova que apanharia a fuga), o OAuth recusa o código reutilizado, o
+    verifier errado, o redirect diferente e o resource alheio, o /mcp só
+    aceita o bearer (nunca o cookie do painel), os tokens caem com a
+    conta, e o tecto e as páginas das peças."""
+
+    FORA = {"REMOTE_ADDR": "203.0.113.7"}
+    CLAUDE = "https://claude.ai/api/mcp/auth_callback"
+    VERIFIER = "v" * 50
+
+    def setUp(self):
+        super().setUp()
+        import contas, mcp_servidor
+        self.contas, self.mcp = contas, mcp_servidor
+        self.enterContext(unittest.mock.patch.dict(mcp_servidor._FALHAS_DO_TOKEN))
+        self.cliente = radar.app.test_client()
+        self.base = radar.endereco_do_painel()
+        paginas = "\n\f\n".join("texto da pagina %d" % n for n in range(1, 31))
+        with radar.liga() as c:
+            c.execute("INSERT INTO anuncios (ref, titulo, titulo_norm, entidade, "
+                      "data_pub, prazo, estado, distrito, preco_base, cpv, texto) "
+                      "VALUES ('900/2026', 'Limpeza de escolas', 'limpeza de escolas', "
+                      "'Município de Lisboa', '2026-10-05', '2099-01-01', 'novo', "
+                      "'|Lisboa|', '100.000,00 EUR', '90910000-9', "
+                      "'<b>Anúncio</b> com\x07 lixo')")
+            c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                      "VALUES ('900/2026', 'Programa.pdf', ?, 'ok')", (paginas,))
+            self.dono = self.contas.criar_utilizador(c, "dono@mira.pt", "senha-comprida",
+                                                     pela_consola=True)
+            self.ana = self.contas.criar_utilizador(c, "ana@a.pt", "senha-comprida",
+                                                    papel="tester")
+        self.proposta_a = radar.criar_proposta("900/2026", titulo="TITULO-A",
+                                               estado="proposta")
+        radar.gravar_nota(self.proposta_a, "NOTA-A-SEGREDO")
+        self.b = radar.criar_empresa("EMPRESA-B")
+        with radar.com_empresa(self.b):
+            # cada empresa conta as propostas no seu ficheiro: sem esta, a
+            # da B era a n.º 1, como a da A, e pedir a «da B» devolvia a
+            # da A -- o teste passava sem provar nada
+            radar.criar_proposta("", titulo="outra da B", estado="analisar")
+            self.proposta_b = radar.criar_proposta("900/2026", titulo="TITULO-B-SEGREDO",
+                                                   estado="ganho")
+        self.assertNotEqual(self.proposta_a, self.proposta_b)
+        with radar.liga() as c:
+            self.bruno = self.contas.criar_utilizador(c, "bruno@b.pt", "senha-comprida",
+                                                      papel="admin", empresa_id=self.b)
+
+    # -- o caminho do OAuth, sem o ecrã (que é HTML e fica para o D1)
+
+    @classmethod
+    def desafio(cls, verifier=None):
+        import base64, hashlib
+        return base64.urlsafe_b64encode(hashlib.sha256(
+            (verifier or cls.VERIFIER).encode()).digest()).decode().rstrip("=")
+
+    def registar(self, redirects=None):
+        r = self.cliente.post("/oauth/register", json={
+            "client_name": "Claude", "redirect_uris": redirects or [self.CLAUDE]},
+            environ_base=self.FORA)
+        return r
+
+    def codigo(self, utilizador_id, client_id=None, **mais):
+        client_id = client_id or self.registar().get_json()["client_id"]
+        with radar.liga() as c:
+            u = dict(c.execute("SELECT * FROM utilizadores WHERE id=?",
+                               (utilizador_id,)).fetchone())
+            args = dict({"response_type": "code", "client_id": client_id,
+                         "redirect_uri": self.CLAUDE, "code_challenge": self.desafio(),
+                         "code_challenge_method": "S256", "state": "xyz",
+                         "resource": self.base + "/mcp"}, **mais)
+            pedido, erro = self.mcp.validar_autorizacao(c, args, u, self.base)
+            self.assertIsNone(erro)
+            volta = self.mcp.emitir_codigo(c, pedido, u, self.base)
+        q = dict(parse_qsl(urlparse(volta).query))
+        self.assertEqual((q["state"], q["iss"]), ("xyz", self.base))
+        return q["code"], client_id
+
+    def trocar(self, codigo, client_id, **mais):
+        return self.cliente.post("/oauth/token", data=dict({
+            "grant_type": "authorization_code", "code": codigo,
+            "client_id": client_id, "redirect_uri": self.CLAUDE,
+            "code_verifier": self.VERIFIER, "resource": self.base + "/mcp"}, **mais),
+            environ_base=self.FORA)
+
+    def tokens(self, utilizador_id):
+        r = self.trocar(*self.codigo(utilizador_id))
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        return r.get_json()
+
+    def mcp_pede(self, token, metodo="initialize", params=None, **kw):
+        cabecalhos = kw.pop("headers", {})
+        if token:
+            cabecalhos["Authorization"] = "Bearer " + token
+        return (kw.pop("cliente", None) or self.cliente).post(
+            "/mcp", json={"jsonrpc": "2.0", "id": 1, "method": metodo,
+                          "params": params or {}},
+            headers=cabecalhos, environ_base=kw.pop("environ_base", self.FORA))
+
+    def chamar(self, token, nome, **argumentos):
+        r = self.mcp_pede(token, "tools/call", {"name": nome, "arguments": argumentos})
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        return r.get_json()["result"]
+
+    # -- os metadados e o 401
+
+    def test_os_metadados_dizem_o_recurso_e_o_s256(self):
+        r = self.cliente.get("/.well-known/oauth-protected-resource", environ_base=self.FORA)
+        self.assertEqual(r.get_json()["resource"], self.base + "/mcp")
+        self.assertEqual(r.get_json()["authorization_servers"], [self.base])
+        m = self.cliente.get("/.well-known/oauth-authorization-server",
+                             environ_base=self.FORA).get_json()
+        self.assertEqual(m["code_challenge_methods_supported"], ["S256"])
+        self.assertEqual(m["token_endpoint_auth_methods_supported"], ["none"])
+        self.assertEqual(m["registration_endpoint"], self.base + "/oauth/register")
+
+    def test_o_mcp_sem_bearer_da_401_com_o_cabecalho_certo(self):
+        r = self.mcp_pede(None)
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.headers["WWW-Authenticate"],
+                         'Bearer resource_metadata="%s/.well-known/oauth-protected-'
+                         'resource"' % self.base)
+        r = self.mcp_pede("inventado")
+        self.assertEqual(r.status_code, 401)
+        self.assertIn('error="invalid_token"', r.headers["WWW-Authenticate"])
+
+    def test_o_cookie_do_painel_e_o_acesso_livre_nao_servem(self):
+        painel = radar.app.test_client()
+        r = painel.post("/entrar", data={"email": "ana@a.pt", "senha": "senha-comprida"},
+                        environ_base=self.FORA)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.mcp_pede(None, cliente=painel).status_code, 401)
+        # o computador do Afonso entra sem palavra-passe no painel; no
+        # conector, não
+        self.assertEqual(self.mcp_pede(None, environ_base={"REMOTE_ADDR": "127.0.0.1"})
+                         .status_code, 401)
+
+    def test_get_e_delete_dao_405_e_um_origin_alheio_403(self):
+        t = self.tokens(self.ana)["access_token"]
+        for metodo in ("get", "delete"):
+            r = getattr(self.cliente, metodo)("/mcp", environ_base=self.FORA,
+                                              headers={"Authorization": "Bearer " + t})
+            self.assertEqual(r.status_code, 405, metodo)
+        r = self.mcp_pede(t, headers={"Origin": "https://mal.example"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_initialize_e_as_nove_ferramentas_so_de_leitura(self):
+        t = self.tokens(self.ana)["access_token"]
+        r = self.mcp_pede(t, params={"protocolVersion": "2025-06-18"})
+        self.assertEqual(r.get_json()["result"]["protocolVersion"], "2025-06-18")
+        ferramentas = self.mcp_pede(t, "tools/list").get_json()["result"]["tools"]
+        self.assertEqual({f["name"] for f in ferramentas}, set(self.mcp.EXECUTORES))
+        self.assertEqual(len(ferramentas), 9)
+        for f in ferramentas:
+            self.assertTrue(f["annotations"]["readOnlyHint"], f["name"])
+            self.assertFalse(f["inputSchema"]["additionalProperties"])
+            # nenhuma recebe o número da empresa
+            self.assertFalse([p for p in f["inputSchema"]["properties"]
+                              if "empresa" in p], f["name"])
+        # e um «empresa» enfiado no pedido não chega a lado nenhum
+        r = self.chamar(t, "listar_propostas", empresa=self.b)
+        self.assertTrue(r["isError"])
+        # uma notificação não tem resposta
+        r = self.cliente.post("/mcp", json={"jsonrpc": "2.0",
+                                            "method": "notifications/initialized"},
+                              headers={"Authorization": "Bearer " + t},
+                              environ_base=self.FORA)
+        self.assertEqual(r.status_code, 202)
+
+    # -- uma empresa nunca vê outra
+
+    def test_a_empresa_a_nao_ve_a_proposta_da_b(self):
+        t = self.tokens(self.ana)["access_token"]
+        r = self.chamar(t, "ver_proposta", id=self.proposta_b)
+        self.assertTrue(r["isError"])
+        self.assertNotIn("TITULO-B-SEGREDO", json.dumps(r))
+        for nome, args in (("listar_propostas", {}), ("pesquisar", {"q": "TITULO"}),
+                           ("ver_concurso", {"ref": "900/2026"}),
+                           ("situacao", {"periodo": "tudo"})):
+            corpo = json.dumps(self.chamar(t, nome, **args), ensure_ascii=False)
+            self.assertNotIn("TITULO-B-SEGREDO", corpo, nome)
+        self.assertIn("TITULO-A", json.dumps(self.chamar(t, "listar_propostas")))
+        # e ao contrário: a A é a empresa de omissão, e um `com_empresa()`
+        # esquecido só se vê do lado da B
+        t = self.tokens(self.bruno)["access_token"]
+        corpo = json.dumps(self.chamar(t, "listar_propostas"), ensure_ascii=False)
+        self.assertIn("TITULO-B-SEGREDO", corpo)
+        self.assertNotIn("TITULO-A", corpo)
+        # o n.º 1 da B existe e é outra proposta: a da A não aparece
+        self.assertNotIn("TITULO-A", json.dumps(
+            self.chamar(t, "ver_proposta", id=self.proposta_a), ensure_ascii=False))
+
+    def test_as_propostas_levam_o_codigo(self):
+        """O código («EMP-26-0002», 10/10/2026) é o que a equipa diz; o
+        `id` repete-se entre empresas."""
+        with radar.com_empresa(self.b):
+            codigo = radar.proposta(self.proposta_b)["codigo"]
+        self.assertRegex(codigo, r"^EMP-\d\d-0002$")
+        t = self.tokens(self.bruno)["access_token"]
+        self.assertIn('"codigo": "%s"' % codigo,
+                      json.dumps(self.chamar(t, "listar_propostas")))
+        self.assertIn('"codigo": "%s"' % codigo,
+                      json.dumps(self.chamar(t, "ver_proposta", id=self.proposta_b)))
+
+    def test_com_a_empresa_forcada_a_b_o_teste_apanha_a_fuga(self):
+        """O teste de cima só vale se falhar quando se estraga de
+        propósito: com o token e a conta postos na B, a mesma pergunta vê
+        a proposta da B -- a empresa vem mesmo do token. Com só o token
+        forçado (a conta ficou na A), a conta reconfirmada recusa-o."""
+        t = self.tokens(self.ana)["access_token"]
+        with radar.liga() as c:
+            c.execute("UPDATE tokens_mcp SET empresa_id=?", (self.b,))
+        self.assertEqual(self.mcp_pede(t).status_code, 401)
+        t = self.tokens(self.ana)["access_token"]
+        with radar.liga() as c:
+            c.execute("UPDATE tokens_mcp SET empresa_id=? WHERE revogado_em IS NULL",
+                      (self.b,))
+            c.execute("UPDATE utilizadores SET empresa_id=? WHERE id=?",
+                      (self.b, self.ana))
+        r = self.chamar(t, "ver_proposta", id=self.proposta_b)
+        self.assertIn("TITULO-B-SEGREDO", json.dumps(r, ensure_ascii=False))
+
+    def test_as_notas_nao_saem(self):
+        t = self.tokens(self.ana)["access_token"]
+        r = self.chamar(t, "ver_proposta", id=self.proposta_a)
+        self.assertFalse(r.get("isError"))
+        self.assertNotIn("NOTA-A-SEGREDO", json.dumps(r, ensure_ascii=False))
+
+    def test_a_conta_suspensa_mudada_ou_a_empresa_suspensa_dao_401(self):
+        casos = (
+            lambda c: c.execute("UPDATE utilizadores SET suspensa='2026-10-10' "
+                                "WHERE id=?", (self.ana,)),
+            lambda c: c.execute("UPDATE utilizadores SET empresa_id=? WHERE id=?",
+                                (self.b, self.ana)),
+        )
+        for estragar in casos:
+            with radar.liga() as c:
+                c.execute("UPDATE utilizadores SET suspensa=NULL, empresa_id=1 WHERE id=?",
+                          (self.ana,))
+            t = self.tokens(self.ana)["access_token"]
+            self.assertEqual(self.mcp_pede(t).status_code, 200)
+            with radar.liga() as c:
+                estragar(c)
+            self.assertEqual(self.mcp_pede(t).status_code, 401)
+        t = self.tokens(self.bruno)["access_token"]
+        radar.gravar_config({"empresas_suspensas": [self.b]})
+        self.assertEqual(self.mcp_pede(t).status_code, 401)
+        radar.gravar_config({"empresas_suspensas": []})
+        # e não volta: suspender revogou o token
+        self.assertEqual(self.mcp_pede(t).status_code, 401)
+
+    def test_a_conta_do_dono_fica_fora(self):
+        cid = self.registar().get_json()["client_id"]
+        with radar.liga() as c:
+            u = dict(c.execute("SELECT * FROM utilizadores WHERE id=?",
+                               (self.dono,)).fetchone())
+            pedido, erro = self.mcp.validar_autorizacao(c, {
+                "response_type": "code", "client_id": cid, "redirect_uri": self.CLAUDE,
+                "code_challenge": self.desafio(), "code_challenge_method": "S256"},
+                u, self.base)
+            self.assertIsNone(pedido)
+            self.assertIn("dono", erro["mostrar"])
+            # um token que lá chegasse dá 403 no /mcp
+            codigo = self.contas.criar_codigo_oauth(
+                c, cid, self.dono, 1, self.desafio(), self.CLAUDE, self.base + "/mcp")
+        t = self.trocar(codigo, cid).get_json()["access_token"]
+        self.assertEqual(self.mcp_pede(t).status_code, 403)
+
+    # -- o OAuth
+
+    def test_o_registo_so_aceita_o_redirect_do_claude(self):
+        for fora in (["http://localhost:3000/callback"],
+                     ["https://chatgpt.com/connector_platform_oauth_redirect"],
+                     [self.CLAUDE, "https://mal.example/cb"], [], "texto"):
+            r = self.registar(fora) if fora else self.cliente.post(
+                "/oauth/register", json={"redirect_uris": fora}, environ_base=self.FORA)
+            self.assertEqual(r.status_code, 400, fora)
+            self.assertEqual(r.get_json()["error"], "invalid_redirect_uri")
+        self.assertEqual(self.registar().status_code, 201)
+
+    def test_o_codigo_vale_uma_vez_e_reutilizado_revoga(self):
+        codigo, cid = self.codigo(self.ana)
+        primeiro = self.trocar(codigo, cid)
+        self.assertEqual(primeiro.status_code, 200)
+        self.assertEqual(primeiro.headers["Cache-Control"], "no-store")
+        segundo = self.trocar(codigo, cid)
+        self.assertEqual(segundo.get_json()["error"], "invalid_grant")
+        self.assertEqual(self.mcp_pede(primeiro.get_json()["access_token"]).status_code, 401)
+
+    def test_o_verifier_o_redirect_o_cliente_e_o_resource_conferem(self):
+        for mais in ({"code_verifier": "w" * 50},
+                     {"redirect_uri": "https://claude.ai/outro"}):
+            codigo, cid = self.codigo(self.ana)
+            r = self.trocar(codigo, cid, **mais)
+            self.assertEqual(r.get_json()["error"], "invalid_grant", mais)
+            # e o código ficou gasto: nem com os dados certos serve
+            self.assertEqual(self.trocar(codigo, cid).status_code, 400, mais)
+        # um token para outro servidor recusa-se antes de olhar o código
+        codigo, cid = self.codigo(self.ana)
+        r = self.trocar(codigo, cid, resource="https://outro.example/mcp")
+        self.assertEqual(r.get_json()["error"], "invalid_target")
+        codigo, cid = self.codigo(self.ana)
+        outro = self.registar().get_json()["client_id"]
+        self.assertEqual(self.trocar(codigo, outro).status_code, 400)
+        # um resource alheio no pedido de autorização volta ao cliente com erro
+        with radar.liga() as c:
+            u = dict(c.execute("SELECT * FROM utilizadores WHERE id=?", (self.ana,)).fetchone())
+            pedido, erro = self.mcp.validar_autorizacao(c, {
+                "response_type": "code", "client_id": cid, "redirect_uri": self.CLAUDE,
+                "code_challenge": self.desafio(), "code_challenge_method": "S256",
+                "resource": "https://outro.example/mcp"}, u, self.base)
+            self.assertIn("error=invalid_target", erro["voltar"])
+            # e sem PKCE, ou com o plain, também
+            pedido, erro = self.mcp.validar_autorizacao(c, {
+                "response_type": "code", "client_id": cid, "redirect_uri": self.CLAUDE,
+                "code_challenge": "abc", "code_challenge_method": "plain"}, u, self.base)
+            self.assertIn("error=invalid_request", erro["voltar"])
+            # um redirect que não é o registado nem se segue
+            pedido, erro = self.mcp.validar_autorizacao(c, {
+                "response_type": "code", "client_id": cid,
+                "redirect_uri": "https://mal.example/cb"}, u, self.base)
+            self.assertIn("mostrar", erro)
+
+    def test_o_codigo_expira_em_60_segundos(self):
+        codigo, cid = self.codigo(self.ana)
+        with radar.liga() as c:
+            c.execute("UPDATE codigos_oauth SET expira='2000-01-01 00:00:00'")
+        self.assertEqual(self.trocar(codigo, cid).status_code, 400)
+
+    def test_o_refresh_roda_e_reutilizado_revoga_a_familia(self):
+        primeiro = self.tokens(self.ana)
+        cid = self.registar().get_json()["client_id"]
+        with radar.liga() as c:
+            cid = c.execute("SELECT client_id FROM tokens_mcp").fetchone()[0]
+
+        def rodar(refresh):
+            return self.cliente.post("/oauth/token", data={
+                "grant_type": "refresh_token", "refresh_token": refresh,
+                "client_id": cid}, environ_base=self.FORA)
+        segundo = rodar(primeiro["refresh_token"])
+        self.assertEqual(segundo.status_code, 200)
+        novo = segundo.get_json()
+        self.assertEqual(self.mcp_pede(novo["access_token"]).status_code, 200)
+        self.assertEqual(self.mcp_pede(primeiro["access_token"]).status_code, 401)
+        # o refresh antigo outra vez: alguém o roubou, e a família cai
+        self.assertEqual(rodar(primeiro["refresh_token"]).get_json()["error"],
+                         "invalid_grant")
+        self.assertEqual(self.mcp_pede(novo["access_token"]).status_code, 401)
+        self.assertEqual(rodar(novo["refresh_token"]).status_code, 400)
+
+    def test_os_tokens_caem_com_a_conta(self):
+        """Decisão 7: sair de todos, trocar a palavra-passe, apagar a conta
+        (e a suspensão e a ligação de repor, que passam pelo primeiro)."""
+        for estragar in (lambda c: self.contas.sair_de_todos(c, self.ana),
+                         lambda c: self.contas.criar_utilizador(c, "ana@a.pt",
+                                                                "outra-senha-boa"),
+                         lambda c: self.contas.apagar_utilizador(c, self.ana)):
+            t = self.tokens(self.ana)
+            with radar.liga() as c:
+                estragar(c)
+            self.assertEqual(self.mcp_pede(t["access_token"]).status_code, 401)
+            with radar.liga() as c:
+                self.assertFalse(c.execute(
+                    "SELECT 1 FROM tokens_mcp WHERE revogado_em IS NULL").fetchone())
+
+    # -- as ferramentas
+
+    def test_lisboa_esta_semana_e_o_perfil(self):
+        t = self.tokens(self.ana)["access_token"]
+        r = self.chamar(t, "procurar_concursos", texto="limpeza", distrito="Lisboa",
+                        de="2026-10-01", ate="2026-10-10")
+        dados = r["structuredContent"]
+        self.assertEqual(dados["total"], 1)
+        c = dados["concursos"][0]
+        self.assertEqual(c["url"], self.base + "/anuncio/900/2026")
+        self.assertEqual(c["fase_na_empresa"], "A preparar")
+        self.assertEqual(self.chamar(t, "procurar_concursos", distrito="Porto")
+                         ["structuredContent"]["total"], 0)
+        self.assertTrue(self.chamar(t, "procurar_concursos", distrito="Lisbon")["isError"])
+        self.assertTrue(self.chamar(t, "procurar_concursos", de="10/10/2026")["isError"])
+        # o perfil da empresa recorta por cima, como na lista
+        radar.gravar_config({"interesse_activo": True, "interesse_cpv": "45000000"})
+        r = self.chamar(t, "procurar_concursos")["structuredContent"]
+        self.assertEqual((r["total"], r["com_o_perfil_da_empresa"]), (0, True))
+        r = self.chamar(t, "procurar_concursos", so_o_perfil=False)["structuredContent"]
+        self.assertEqual(r["total"], 1)
+
+    def test_ver_concurso_limpa_o_texto_e_conta_as_paginas(self):
+        t = self.tokens(self.ana)["access_token"]
+        d = self.chamar(t, "ver_concurso", ref="900/2026")["structuredContent"]
+        self.assertEqual(d["pecas"][0]["paginas"], 30)
+        self.assertEqual(d["anuncio"]["texto_do_anuncio"], "Anúncio com lixo")
+        self.assertEqual(d["proposta_da_empresa"][0]["fase"], "A preparar")
+        self.assertEqual(self.mcp.limpo("x" * 2000)[-1], "…")
+        self.assertEqual(len(self.mcp.limpo("x" * 2000)), self.mcp.CORTE_DO_TEXTO + 1)
+
+    def ler(self, t, **argumentos):
+        """(metadados, {página: texto}, o texto todo) de um ler_peca: o texto
+        vem só no `content`, com as marcas de página."""
+        r = self.chamar(t, "ler_peca", ref="900/2026", **argumentos)
+        texto = r["content"][0]["text"]
+        paginas = {int(n): corpo for n, corpo in re.findall(
+            r"— pág\. (\d+) —\n(.*?)(?=\n\n— pág\.|\n\ncontinua|\Z)", texto, re.S)}
+        return r["structuredContent"], paginas, texto
+
+    def test_ler_peca_da_as_paginas_certas_e_a_peca_inteira_sem_pedir(self):
+        t = self.tokens(self.ana)["access_token"]
+        d, paginas, _ = self.ler(t, peca="Programa.pdf", de_pagina=3, ate_pagina=5)
+        self.assertEqual(sorted(paginas), [3, 4, 5])
+        self.assertEqual(paginas[3], "texto da pagina 3")
+        self.assertEqual(d["proxima_pagina"], 6)
+        # sem páginas pedidas, a peça inteira -- cabe no tecto -- e nada continua
+        d, paginas, texto = self.ler(t, peca="Programa.pdf")
+        self.assertEqual((d["de"], d["ate"], d["proxima_pagina"]), (1, 30, None))
+        self.assertEqual(sorted(paginas), list(range(1, 31)))
+        self.assertNotIn("continua", d)
+        self.assertNotIn("continua na página", texto)
+        self.assertTrue(self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
+                                    de_pagina=31)["isError"])
+        r = self.chamar(t, "ler_peca", ref="900/2026", peca="../radar.db")
+        self.assertTrue(r["isError"])
+        self.assertIn("Programa.pdf", r["content"][0]["text"])
+
+    def test_ler_peca_para_no_tecto_de_caracteres_e_diz_onde_continua(self):
+        """O tecto é de caracteres e não de páginas (pedido dele, 10/10/2026),
+        sempre em páginas inteiras; o resto pede-se pela continuação, até ao
+        fim, sem faltar nem repetir uma página."""
+        t = self.tokens(self.ana)["access_token"]
+        with unittest.mock.patch.object(self.mcp, "CARACTERES_POR_CHAMADA", 100):
+            d, paginas, texto = self.ler(t, peca="Programa.pdf")
+            self.assertLessEqual(sum(len(v) for v in paginas.values()), 100)
+            self.assertTrue(all(v == "texto da pagina %d" % n for n, v in paginas.items()))
+            frase = "continua na página %d — pede de_pagina=%d" % (
+                d["proxima_pagina"], d["proxima_pagina"])
+            self.assertEqual(d["continua"], frase)
+            self.assertTrue(texto.endswith(frase))
+            lidas = sorted(paginas)
+            while d["proxima_pagina"]:
+                d, paginas, _ = self.ler(t, peca="Programa.pdf",
+                                         de_pagina=d["proxima_pagina"])
+                lidas += sorted(paginas)
+            self.assertEqual(lidas, list(range(1, 31)))
+        # uma página maior do que o tecto lê-se na mesma, sozinha
+        with unittest.mock.patch.object(self.mcp, "CARACTERES_POR_CHAMADA", 5):
+            d, _, _ = self.ler(t, peca="Programa.pdf")
+        self.assertEqual((d["ate"], d["proxima_pagina"]), (1, 2))
+
+    def test_ler_peca_nao_manda_o_texto_duas_vezes(self):
+        """Com o texto no `content` e no `structuredContent`, uma chamada
+        eram ~240 mil caracteres no contexto do Claude de quem pergunta
+        (10/10/2026). A resposta inteira cabe no tecto, com folga só para
+        as marcas das páginas e os metadados."""
+        pagina = "palavra " * 375                       # 3 000 caracteres
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                      "VALUES ('900/2026', 'Caderno.pdf', ?, 'ok')",
+                      ("\n\f\n".join([pagina] * 100),))
+        t = self.tokens(self.ana)["access_token"]
+        r = self.mcp_pede(t, "tools/call", {"name": "ler_peca", "arguments": {
+            "ref": "900/2026", "peca": "Caderno.pdf"}})
+        tamanho = len(r.get_data(as_text=True))
+        self.assertGreater(tamanho, self.mcp.CARACTERES_POR_CHAMADA * 0.9)
+        self.assertLess(tamanho, self.mcp.CARACTERES_POR_CHAMADA * 1.1)
+        meta = r.get_json()["result"]["structuredContent"]
+        self.assertNotIn("paginas", meta)
+        self.assertEqual(meta["paginas_total"], 100)
+        self.assertTrue(meta["proxima_pagina"])
+
+    def test_as_outras_ferramentas_respondem(self):
+        t = self.tokens(self.ana)["access_token"]
+        s = self.chamar(t, "situacao")["structuredContent"]
+        self.assertEqual(sum(f["quantas"] for f in s["propostas_por_fase"]), 1)
+        r = self.chamar(t, "procurar_contratos", texto="limpeza")
+        self.assertTrue(r["isError"])          # sem o corpus, di-lo
+        r = self.chamar(t, "ver_entidade", nome_ou_nif="500000001")
+        self.assertEqual(r["structuredContent"]["portal_base"], None)
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (id, objecto, objecto_norm, adjudicante, "
+                      "adjudicante_chave, data_celebracao, preco_contratual, "
+                      "tipo_procedimento) VALUES (1, 'Limpeza', 'limpeza', 'Câmara', "
+                      "'500000001', ?, 1000, 'Ajuste Direto')",
+                      (datetime.date.today().isoformat(),))
+            c.execute("INSERT INTO contrato_adjudicatario (contrato_id, nif, nome, "
+                      "nome_norm, chave) VALUES (1, '500000002', 'Limpa Lda', "
+                      "'limpa lda', '500000002')")
+            c.execute("INSERT INTO entidades (chave, nif, nome) VALUES "
+                      "('500000001', '500000001', 'Câmara')")
+        r = self.chamar(t, "procurar_contratos", entidade="500000001")
+        self.assertEqual(r["structuredContent"]["contratos"][0]["adjudicatarios"],
+                         "Limpa Lda")
+        r = self.chamar(t, "ver_entidade", nome_ou_nif="500000001")["structuredContent"]
+        self.assertEqual(r["portal_base"]["contratos"], 1)
+        self.assertEqual(r["portal_base"]["a_quem_compra"][0]["nome"], "Limpa Lda")
+        self.assertNotIn("contactos", json.dumps(r))
+
+    def test_as_ferramentas_correm_so_de_leitura(self):
+        with radar.so_de_leitura(), self.assertRaises(sqlite3.OperationalError):
+            with radar.liga() as c:
+                c.execute("INSERT INTO pessoas (nome) VALUES ('x')")
+        with radar.liga() as c:                  # fora dele, grava
+            c.execute("INSERT INTO pessoas (nome) VALUES ('x')")
+
+    def test_o_prompt_explica_sem_decidir(self):
+        t = self.tokens(self.ana)["access_token"]
+        r = self.mcp_pede(t, "prompts/list").get_json()["result"]["prompts"]
+        self.assertEqual(r[0]["title"], "Explica-me este concurso")
+        r = self.mcp_pede(t, "prompts/get", {"name": "explicar_concurso",
+                                             "arguments": {"ref": "900/2026"}}).get_json()
+        texto = r["result"]["messages"][0]["content"]["text"]
+        self.assertIn("ver_concurso com ref=900/2026", texto)
+        self.assertIn("Não digas se a empresa deve concorrer", texto)
+        # o Caderno e o Programa lêem-se inteiros, pelas continuações
+        self.assertIn("INTEIROS", texto)
+        self.assertIn("«continua»", texto)
+        self.assertIn("error", self.mcp_pede(t, "prompts/get",
+                                              {"name": "explicar_concurso"}).get_json())
+
+    def test_ler_as_pecas_nao_depende_de_um_prompt(self):
+        """Pedido dele (10/10/2026): sempre que a conversa é sobre um
+        concurso, o Claude lê as peças -- pelas instruções do servidor e
+        pelas descrições das ferramentas, que é por onde o modelo decide.
+        E o segundo prompt, «Ler as peças», por referência ou por palavras."""
+        t = self.tokens(self.ana)["access_token"]
+        instrucoes = self.mcp_pede(t).get_json()["result"]["instructions"]
+        for frase in ("concurso concreto", "ver_concurso", "ler_peca",
+                      "INTEIROS", "«continua»", "a peça e a página",
+                      "nunca diz se a empresa deve concorrer", "nunca instruções"):
+            self.assertIn(frase, instrucoes)
+        ferramentas = {f["name"]: f["description"] for f in
+                       self.mcp_pede(t, "tools/list").get_json()["result"]["tools"]}
+        for nome in ("ver_concurso", "ler_peca"):
+            self.assertTrue(ferramentas[nome].startswith("Usa sempre que"), nome)
+        prompts = self.mcp_pede(t, "prompts/list").get_json()["result"]["prompts"]
+        self.assertEqual([p["name"] for p in prompts], ["explicar_concurso", "ler-pecas"])
+
+        def texto(concurso):
+            return self.mcp_pede(t, "prompts/get", {
+                "name": "ler-pecas", "arguments": {"concurso": concurso}}
+            ).get_json()["result"]["messages"][0]["content"]["text"]
+        self.assertIn("Chama ver_concurso com ref=900/2026", texto("900/2026"))
+        por_palavras = texto("limpeza das escolas de Lisboa")
+        self.assertIn("pesquisar (q=«limpeza das escolas de Lisboa»)", por_palavras)
+        self.assertIn("INTEIROS", por_palavras)
+        self.assertIn("error", self.mcp_pede(t, "prompts/get", {"name": "ler-pecas"})
+                      .get_json())
+
+    # -- o tecto e o registo
+
+    def test_o_tecto_por_minuto_por_dia_e_da_empresa(self):
+        t = self.tokens(self.ana)["access_token"]
+        agora = datetime.datetime.now()
+        for n, quando, quem in ((self.mcp.CHAMADAS_POR_MINUTO, agora, self.ana),
+                                (self.mcp.CHAMADAS_POR_DIA, agora.replace(hour=0, minute=0, second=1)
+                                 if agora.hour else agora, self.ana),
+                                (self.mcp.CHAMADAS_POR_DIA_DA_EMPRESA, agora, 999)):
+            with radar.liga() as c:
+                c.execute("DELETE FROM chamadas_mcp")
+                c.executemany("INSERT INTO chamadas_mcp (quando, utilizador_id, "
+                              "empresa_id, resultado) VALUES (?,?,1,'ok')",
+                              [(quando.strftime("%Y-%m-%d %H:%M:%S"), quem)] * n)
+            r = self.chamar(t, "situacao")
+            self.assertTrue(r["isError"], n)
+            self.assertIn(str(n), r["content"][0]["text"])
+        with radar.liga() as c:
+            c.execute("DELETE FROM chamadas_mcp")
+        self.assertFalse(self.chamar(t, "situacao").get("isError"))
+
+    def test_cada_chamada_fica_no_registo_sem_o_token(self):
+        t = self.tokens(self.ana)["access_token"]
+        self.chamar(t, "pesquisar", q="limpeza")
+        with radar.liga() as c:
+            l = dict(c.execute("SELECT * FROM chamadas_mcp").fetchone())
+            self.assertFalse(c.execute("SELECT 1 FROM tokens_mcp WHERE resumo=?",
+                                       (t,)).fetchone())
+        self.assertEqual((l["ferramenta"], l["resultado"], l["utilizador_id"],
+                          l["empresa_id"]), ("pesquisar", "ok", self.ana, 1))
+        self.assertNotIn(t, json.dumps(l))
+
+    # -- a revisão de segurança do PR #315 (10/10/2026)
+
+    def test_m1_o_registo_tem_tectos_e_os_clientes_sem_tokens_saem(self):
+        r = self.registar([self.CLAUDE] * 3)
+        self.assertEqual(r.get_json()["redirect_uris"], [self.CLAUDE])
+        r = self.registar([self.CLAUDE] + ["https://claude.ai/x%d" % n for n in range(5)])
+        self.assertEqual(r.status_code, 400)
+        r = self.cliente.post("/oauth/register", json={
+            "redirect_uris": [self.CLAUDE], "client_name": "x" * 9000},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 413)
+        velho = self.registar().get_json()["client_id"]
+        com_tokens = self.registar().get_json()["client_id"]
+        self.tokens(self.ana)        # um código novo poda; este cliente tem tokens
+        with radar.liga() as c:
+            c.execute("UPDATE tokens_mcp SET client_id=?", (com_tokens,))
+            c.execute("UPDATE clientes_oauth SET criado_em='2000-01-01 00:00:00' "
+                      "WHERE client_id IN (?,?)", (velho, com_tokens))
+        self.codigo(self.ana)
+        with radar.liga() as c:
+            ficam = {r[0] for r in c.execute("SELECT client_id FROM clientes_oauth")}
+        self.assertNotIn(velho, ficam)
+        self.assertIn(com_tokens, ficam)
+
+    def test_m2_um_state_comprido_nao_volta_no_endereco(self):
+        cid = self.registar().get_json()["client_id"]
+        with radar.liga() as c:
+            u = dict(c.execute("SELECT * FROM utilizadores WHERE id=?", (self.ana,)).fetchone())
+            pedido, erro = self.mcp.validar_autorizacao(c, {
+                "response_type": "code", "client_id": cid, "redirect_uri": self.CLAUDE,
+                "code_challenge": self.desafio(), "code_challenge_method": "S256",
+                "state": "s" * 513}, u, self.base)
+        self.assertIsNone(pedido)
+        self.assertIn("mostrar", erro)
+
+    def test_m3_paginas_fundas_e_consultas_lentas_recusam_se_por_palavras(self):
+        t = self.tokens(self.ana)["access_token"]
+        self.assertTrue(self.chamar(t, "procurar_concursos",
+                                    pagina=self.mcp.PAGINAS_NO_MAXIMO + 1)["isError"])
+        with radar.liga() as c:
+            erros = c.execute("SELECT COUNT(*) FROM erros").fetchone()[0]
+        with unittest.mock.patch.object(radar, "SEGUNDOS_DA_CONSULTA_MCP", -1), \
+                unittest.mock.patch.object(radar, "PASSOS_ENTRE_RELOGIOS", 1):
+            r = self.chamar(t, "procurar_concursos", so_o_perfil=False)
+        self.assertTrue(r["isError"])
+        self.assertIn("larga demais", r["content"][0]["text"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM erros").fetchone()[0], erros)
+            self.assertEqual(c.execute("SELECT resultado FROM chamadas_mcp ORDER BY "
+                                       "rowid DESC").fetchone()[0], "recusado")
+
+    def test_l1_o_historico_so_leva_as_accoes_da_lista_branca(self):
+        with radar.liga() as c:
+            for accao, detalhe in (("notas", "NOTA-VELHA-SEGREDO"),
+                                   ("accao-nova", "NOVA-SEGREDO"),
+                                   ("estado", "Por analisar → A preparar")):
+                c.execute("INSERT INTO historico (ref, quem, accao, detalhe, quando, "
+                          "proposta_id) VALUES ('900/2026', 'ana@a.pt', ?, ?, "
+                          "'2026-10-09 10:00', ?)", (accao, detalhe, self.proposta_a))
+        t = self.tokens(self.ana)["access_token"]
+        corpo = json.dumps(self.chamar(t, "ver_proposta", id=self.proposta_a),
+                           ensure_ascii=False)
+        self.assertNotIn("SEGREDO", corpo)
+        self.assertIn("Por analisar", corpo)
+
+    def test_l2_nan_e_infinito_recusam_se_sem_ir_aos_erros(self):
+        t = self.tokens(self.ana)["access_token"]
+        for args in ('{"pagina": NaN}', '{"preco_min": Infinity}',
+                     '{"pagina": -Infinity}'):
+            r = self.cliente.post(
+                "/mcp", data='{"jsonrpc": "2.0", "id": 1, "method": "tools/call", '
+                '"params": {"name": "procurar_concursos", "arguments": %s}}' % args,
+                content_type="application/json",
+                headers={"Authorization": "Bearer " + t}, environ_base=self.FORA)
+            self.assertTrue(r.get_json()["result"]["isError"], args)
+        self.assertFalse(radar.le_marca("painel_ultimo_erro", ""))
+
+    def test_l3_o_tecto_do_token_nao_cresce_sem_fim(self):
+        falhas = self.mcp._FALHAS_DO_TOKEN
+        self.mcp.contar_falha_do_token("1.1.1.1", agora=1000)
+        self.assertFalse(self.mcp.token_fechado_ao_ip("1.1.1.1", agora=10000))
+        self.assertNotIn("1.1.1.1", falhas)
+        with unittest.mock.patch.object(self.mcp, "IPS_DAS_FALHAS_NO_MAXIMO", 3):
+            for n in range(3):
+                self.mcp.contar_falha_do_token("ip%d" % n, agora=1000)
+            self.mcp.contar_falha_do_token("novo", agora=10000)
+        self.assertEqual(set(falhas), {"novo"})
+
+    def test_l5_os_tokens_caem_no_segundo_factor_ao_despromover_e_ao_apagar_a_empresa(self):
+        for estragar in (lambda c: self.contas.desligar_segundo_factor(c, self.bruno),
+                         lambda c: self.contas.criar_utilizador(
+                             c, "bruno@b.pt", "outra-senha-boa", papel="tester")):
+            t = self.tokens(self.bruno)["access_token"]
+            with radar.liga() as c:
+                estragar(c)
+            self.assertEqual(self.mcp_pede(t).status_code, 401)
+        self.chamar(self.tokens(self.ana)["access_token"], "situacao")
+        with radar.liga() as c:
+            c.execute("UPDATE utilizadores SET papel='admin' WHERE id=?", (self.bruno,))
+        t = self.tokens(self.bruno)["access_token"]
+        self.chamar(t, "situacao")
+        radar.apagar_empresa(self.b)
+        with radar.liga() as c:
+            for tabela in ("tokens_mcp", "codigos_oauth", "chamadas_mcp"):
+                self.assertFalse(c.execute("SELECT 1 FROM %s WHERE empresa_id=?" % tabela,
+                                           (self.b,)).fetchone(), tabela)
+            # as da A ficam
+            self.assertTrue(c.execute("SELECT 1 FROM chamadas_mcp WHERE empresa_id=1")
+                            .fetchone())
+
+    def test_l6_o_registo_entra_no_limpar_uso_e_no_exportar(self):
+        self.chamar(self.tokens(self.bruno)["access_token"], "situacao")
+        caminho = radar.exportar_empresa(self.b)
+        with zipfile.ZipFile(caminho) as z:
+            linhas = json.loads(z.read("plataforma.json"))["linhas"]
+        self.assertEqual(linhas["chamadas_mcp"][0]["ferramenta"], "situacao")
+        self.assertNotIn("tokens_mcp", linhas)
+        self.assertEqual(radar.limpar_marcas_de_uso()["chamadas ao conector"], 1)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM chamadas_mcp").fetchone())
+
+    def test_o_mcp_nao_salta_para_o_endereco_publico(self):
+        radar.gravar_config({"endereco_publico": "https://miragov.pt"})
+        for caminho in ("/mcp", "/.well-known/oauth-protected-resource"):
+            r = self.cliente.post(caminho, base_url="https://radargov.pt",
+                                  environ_base=self.FORA) if caminho == "/mcp" else \
+                self.cliente.get(caminho, base_url="https://radargov.pt",
+                                 environ_base=self.FORA)
+            self.assertNotIn(r.status_code, (301, 308), caminho)
+
+
 class TestOAdminNaoTiraODonoNemImportaDaOutra(BaseTemporaria):
     """Duas falhas de segurança de 25/09/2026, achadas por um agente de
     revisão e corrigidas a 26/09/2026:
@@ -21683,6 +22820,24 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         # a data é a da adjudicação desde a D3; a de marcar é o recurso
         self.assertIn("data da adjudicação</b>; sem ela", corpo)
 
+    def test_um_preco_que_nao_se_le_entra_escapado(self):
+        """O `preco_pt()` devolve tal qual o que não lê como número, e o
+        proposto escreve-o quem usa a aplicação: as duas tabelas da
+        Situação metiam-no no HTML sem escapar (achado do D1, lote 3.6,
+        10/10/2026)."""
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=? WHERE ref='1/2026'",
+                      ("<script>x()</script>",))
+        id_ = radar.criar_proposta("2/2026", estado="submetido")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=? WHERE id=?",
+                      ("<b>caro</b>", id_))
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertNotIn("<script>x()</script>", corpo)
+        self.assertIn("&lt;script&gt;x()&lt;/script&gt;", corpo)
+        self.assertNotIn("<b>caro</b>", corpo)
+        self.assertIn("&lt;b&gt;caro&lt;/b&gt;", corpo)
+
     def test_os_numeros_abrem_a_lista_das_decididas_com_total(self):
         corpo = self.cliente.get("/situacao").get_data(as_text=True)
         self.assertIn("href='/situacao?ver=negocio&amp;periodo=trimestre"
@@ -21723,8 +22878,10 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         self.assertIn("class='mg-table tab-contratos tab-plataforma'", decididas)
         for rotulo in ("Resultado", "Preço base", "Proposto", "Adjudicado", "Conta"):
             self.assertIn("data-r='%s'" % rotulo, decididas)
+        # o «em jogo» desenha-se no molde desde o D1 (lote 3.6)
         self.assertIn("class='mg-table tab-contratos tab-plataforma'",
-                      inspect.getsource(radar.tabela_em_jogo))
+                      radar.MOLDES_JINJA.loader.get_source(
+                          radar.MOLDES_JINJA, "situacao.html")[0])
         with open(os.path.join(os.path.dirname(radar.__file__), "estilo",
                                "miragov-radar.css"), encoding="utf-8") as f:
             folha = f.read()

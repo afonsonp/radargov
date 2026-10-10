@@ -15,7 +15,7 @@ volta ao formato. Onde está o resto:
 | `docs/armadilhas.md` | O que não é óbvio, por área — **lê a área antes de lhe mexer** |
 | `docs/design.md` | O caminho do aspecto: a direcção, a letra, a cor, os botões |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim |
-| `docs/seguranca.md` | As seis coisas a rever, por ordem de gravidade |
+| `docs/seguranca.md` | As sete coisas a rever, por ordem de gravidade |
 | `docs/diario/2026-08.md` | As sessões de 28 a 31 de agosto |
 | `docs/diario/2026-09.md` | As sessões de setembro |
 | `docs/diario/2026-10.md` | As sessões de outubro, a começar pelo L0 do plano de Outubro (as medições de 30/09) |
@@ -62,11 +62,11 @@ empresas são de **26/09/2026**; os do corpus, de **22/09/2026**.
 | Corpus do Portal BASE | 2 009 640 contratos, 180 507 entidades (28/09/2026) |
 | Alertas ligados · entidades seguidas | 0 · 0 — são de cada empresa |
 | Contas | 2: a do dono, **sem empresa** (abre a `/plataforma`, a Conta dele e a Ajuda, e lê os Concursos e o Mercado), e mais nenhuma desde que a LATD saiu (1/10/2026) |
-| Rotas Flask | 144 |
-| Tabelas em `radar.db` | 24, as da plataforma (com a `prefixos_das_empresas`, o código das propostas, 10/10; com as `entradas`, as `visitas` e o `uso`, 4/10, as `sugestoes`, 4/10, os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
+| Rotas Flask | 161 |
+| Tabelas em `radar.db` | 28, as da plataforma (com a `prefixos_das_empresas`, o código das propostas, 10/10; com as quatro do conector MCP, 10/10: `clientes_oauth`, `codigos_oauth`, `tokens_mcp` e `chamadas_mcp`; com as `entradas`, as `visitas` e o `uso`, 4/10, as `sugestoes`, 4/10, os `eventos`, F2, os `convites`, F5, as `leituras_pedidas`, F7, as `reposicoes`, D17 a 26/09, o `segundo_factor`, 28/09, e os `planos` e as `sessoes_fechadas`, L2.1 a 1/10). As 16 da empresa (com as `notas_da_proposta` e os `documentos_da_empresa`, 26/09) vivem em `empresas/<id>/empresa.db` desde 23/09 (F1); hoje nenhuma, desde que a LATD saiu |
 | Índices em `anuncios` | 16: dois a 17/09 para o filtro por entidade (+22 MB), o `ix_anuncios_cobre` a 26/09 para as abas com o perfil (+36 MB), e o `ix_anuncios_altera` a 29/09 (0,6 s a criar, no arranque). No corpus, o `ix_cpv_cobre` e o `ix_ctr_chave_cobre` (26/09, +144 MB), o `ix_nomes_chave` (29/09, 0,4 s a criar), e o índice de texto `contratos_fts` (29/09, lote 10: ~5 min a construir **em fundo** no primeiro arranque do painel, +609 MB). E o índice da **pesquisa geral** (1/10/2026): `pesquisa_fts` + `pesquisa_refs` no `radar.db`, ~115 MB, 30 a 60 s **em fundo** no primeiro arranque com esse código, numa cópia |
-| Testes | **2 087**, em ~240 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
-| Código | `radar.py` 38 785 linhas · `teste_radar.py` 30 650 · `empresa.py` 881 · `contas.py` 1 520 · `icones.py` 62 |
+| Testes | **2 158**, em ~340 s, sem rede e sem tocar em nenhuma das duas bases verdadeiras (o corpus só desde 26/09) |
+| Código | `radar.py` 39 370 linhas · `teste_radar.py` 31 807 · `empresa.py` 881 · `contas.py` 1 806 · `mcp_servidor.py` 1 139 · `icones.py` 62 |
 | As duas bases | `radar.db` **1,32 GB** (o `anuncios.texto` sozinho vale ~840 MB) · `contratos.db` **2,67 GB**, fora do git |
 
 **O CSS não viaja em cada clique** desde 17/09/2026: está em

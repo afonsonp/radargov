@@ -71,7 +71,7 @@ VIVOS = ["CLAUDE.md", "ESTADO.md", "BACKLOG.md", "LEIA-ME.md",
          "docs/FUNCIONAL.md", "docs/armadilhas.md", "docs/design.md",
          "docs/seguranca.md"]
 
-MODULOS = ["radar.py", "contas.py", "empresa.py"]
+MODULOS = ["radar.py", "contas.py", "empresa.py", "mcp_servidor.py"]
 
 # Referências que a documentação faz de propósito a coisas que não
 # existem — porque saíram, ou porque só nascem em uso. Cada uma leva a

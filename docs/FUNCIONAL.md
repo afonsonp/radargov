@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 24 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 28 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -131,6 +131,10 @@ as exactas e salta as outras.
 | `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
 | `prefixos_das_empresas` | uma por empresa com nome | As três letras do código das propostas de cada empresa (10/10/2026, §3.1): únicas entre empresas (o `UNIQUE`), dadas uma vez a partir do nome (`prefixo_para()`) e **fixas** — mudar o nome não as muda, e a linha fica quando a empresa sai, para não voltarem a servir |
 | `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
+| `clientes_oauth` | um por assistente registado | O conector MCP (10/10/2026, §4.11): cada assistente que se registou (o DCR do Claude), com os `redirect_uris` (só os da lista branca) e o IP, para o tecto do registo |
+| `codigos_oauth` | os do último dia | Os códigos de autorização do conector: só o resumo, a conta, a empresa, o desafio PKCE, o redirect e o `resource`; uso único, 60 s. Podam-se ao criar o seguinte |
+| `tokens_mcp` | os dos assistentes ligados | Os tokens do conector: o resumo do de acesso (uma hora) e o do refresh (30 dias, rodado), a conta, a **empresa**, a `familia` (os que nascem do mesmo código) e o `revogado_em` |
+| `chamadas_mcp` | as dos últimos 90 dias | O registo de cada chamada a uma ferramenta do conector: quem, que empresa, que ferramenta, os argumentos cortados a 300 caracteres, quantas linhas, quanto tempo e o resultado (`ok`, `recusado`, `tecto`, `erro`). Sem a resposta e sem o token. É também o que o tecto conta |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
 
@@ -548,7 +552,7 @@ aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
 **Os ZIP abrem-se por dentro** (23/09/2026): todos, até três níveis de ZIP dentro de ZIP, com os PDF, os `.docx` e (desde 28/09/2026) o **Excel** lidos; de um ZIP, o modelo recebe só os ficheiros de dentro que são o Caderno de Encargos, o Programa ou um anexo técnico. Os `.7z` também (`py7zr`), lidos quando se pedem as peças ou a leitura do concurso.
 
-**O Excel lê-se** (28/09/2026): os `.xlsx` e `.xlsm`, pelo `openpyxl` (`texto_do_xlsx()`), uma linha por linha da folha e uma «página» por folha. É lá que estão os mapas de quantidades, os cadastros dos equipamentos e as listas de preços unitários. O `.xls` antigo **não** — pedia outra biblioteca, e eram 2 em 24.
+**O Excel lê-se** (28/09/2026): os `.xlsx` e `.xlsm`, pelo `openpyxl` (`texto_do_xlsx()`), uma linha por linha da folha e uma «página» por folha. É lá que estão os mapas de quantidades, os cadastros dos equipamentos e as listas de preços unitários. O `.xls` antigo lê-se desde 10/10/2026 (Q3), pelo `xlrd` (`texto_do_xls()`, no mesmo formato): eram lá as horas e as bolsas de duas limpezas e vigilâncias. Num ZIP de uma peça — do Caderno ou do Programa — os anexos técnicos de dentro também se lêem.
 
 **A leitura é da plataforma, e partilhada** (F7, 23/09/2026; decisão
 dele: o que poupa custos e não é de uma empresa é de todas). Uma leitura
@@ -580,11 +584,20 @@ e o seu rótulo na ficha (`CAMPO_11`):
 
 | Tipo | Na ficha | O que se pede |
 |---|---|---|
-| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa, e o nível de serviço (tempos de resposta, horário, disponibilidade) desde 29/09/2026 |
-| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
-| Bens — e, desde 29/09/2026, as licenças e o suporte de fabricante com CPV de TI (`RX_LICENCAS`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
-| Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
-| Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
+| Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa, e o nível de serviço (tempos de resposta, horário, disponibilidade) desde 29/09/2026; desde 10/10/2026 (Q3) também o exigido à empresa, como a equipa é avaliada (o factor, o peso e a escala, ou «só admissão»), a prova (na proposta ou na habilitação) e o «(exclui)» do que é sob pena de exclusão |
+| Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação e, desde 10/10/2026, o peso quando pontua), equipamento a montar, o ficheiro do mapa de quantidades, a visita ao local, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
+| Bens — e, desde 10/10/2026, o hardware com CPV de TI (`RX_HARDWARE`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia; desde 10/10/2026 o total de lotes e artigos, o preço base do lote e o unitário máximo, as amostras, os requisitos legais do produto, e a quantidade da peça e não da «Lista» da plataforma |
+| Licenças, subscrições e suporte de fabricante (desde 10/10/2026): o CPV 48, e o 72 com `RX_LICENCAS` na designação, sem trabalho de equipa | Licenças e suporte | O total de produtos, cada produto ou part number com a quantidade, perpétua/subscrição/renovação e a duração, o contrato que se renova, o preço por lote, a parceria do fabricante, a entrega e o suporte |
+| Locação de bens (desde 10/10/2026; eram «bens») | Bens locados e condições | Os bens com as características, a duração, o uso incluído (km), o que a renda inclui, o bem de substituição, a entrega e a devolução, a renda máxima |
+| Concessão de serviços (desde 10/10/2026; o bar da 21877 era «mão-de-obra») | Renda e condições da concessão | A contrapartida, o prazo, o espaço e os encargos, o horário, os preços, o pessoal, os requisitos legais |
+| Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Por lote e local: trabalhadores (pessoas, não posições), função, horário e dias; desde 10/10/2026 as horas e a bolsa, a equipa mínima, a transmissão de pessoal (ou «as peças não falam disto»), a CCT e, nas refeições, o regime de produção e as refeições por ano; habilitações e equipamentos |
+| Outros serviços | Nível de serviço | Âmbito com a contagem, os níveis de serviço com a métrica, os meios mínimos (também os atributos da proposta, no Programa), as qualificações, o volume e o preço, o calendário (desde 10/10/2026) |
+
+Desde 10/10/2026 (Q3) o campo 11 acaba, quando é o caso, numa linha
+«Não lido: <ficheiro>, pág. N (imagem sem texto | texto ilegível)» — as
+páginas de uma peça lida que o modelo não pôde ler
+(`nota_do_que_nao_se_leu()`); o ficheiro inteiro que não se leu continua
+na lista «Não lido» da ficha.
 
 Sem tipo nem CPV fica «Equipa», a pergunta de antes. A resposta vai
 sempre para a coluna `analise.equipa`; a afinação do `config.json` para
@@ -732,12 +745,22 @@ Excel — listam-se por nome, «Não lido» (`pecas_nao_lidas()`).
 **A caução e o alvará do Programa** (`analise.caucao`,
 `analise.habilitacao`) vão ao lado do que o anúncio diz, cada um com a
 fonte: quando se contradizem, vêem-se as duas versões, e o Mira Gov não
-escolhe.
+escolhe. Desde 10/10/2026 (Q3) o modelo também as vê: o pedido do
+Programa abre com «### Anúncio do DR», a caução e a habilitação do
+anúncio (`bloco_do_anuncio()`), e a pergunta manda escrever as duas
+quando o Programa diz outra coisa. A habilitação procura-se no artigo
+«Documentos de habilitação» (âncora de título, peso 2) e leva também as
+licenças e autorizações legais da actividade; «não exigida» e «não se
+fixa» são respostas, e não «não consta» (`PREAMBULO`). Um campo que diz
+«não consta» quando outro da mesma leitura tem a linha (os locais no
+campo 11, a localização vazia) leva essa linha
+(`negativos_que_a_ficha_responde()`).
 **As condições de pagamento** (`analise.pagamentos`, L4 do plano de
 Outubro, 1/10/2026) perguntam-se no pedido do objecto, que é o do Caderno
 de Encargos: a periodicidade, o prazo depois da fatura, o adiantamento,
-as retenções e a fatura eletrónica, copiados como estão e com os números
-conferidos como os outros. A ficha mostra-as na linha «Pagamento» de «O
+as retenções e a fatura eletrónica — e, desde 10/10/2026 (Q3), as
+penalidades com a fórmula e o tecto, e numa obra a revisão de preços —,
+copiados como estão e com os números conferidos como os outros. A ficha mostra-as na linha «Pagamento» de «O
 que as peças pedem»; uma leitura de antes da pergunta diz que é de
 antes, e não «não encontrado». **A âncora tem peso 1**, decisão dele:
 com o peso 0 chegavam ao modelo 4 das 5 passagens de pagamento medidas,
@@ -919,7 +942,7 @@ uma entidade, ver o que chega — está no `BACKLOG.md`.
 
 ## 4. O que já está feito, ecrã a ecrã
 
-**155 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
+**161 rotas.** A barra tem **o logótipo, seis itens e a Ajuda** desde
 26/09/2026 (D11 da segunda ronda: a Situação entrou, a Ajuda é um «?»
 com nome depois das Configurações, e as Entidades são aba do Mercado).
 Eram cinco itens desde 24/09/2026
@@ -1561,6 +1584,11 @@ recebido, em espera, aceite (com o e-mail para onde foi o convite) ou
 recusado (sem o motivo). O código só existe para quem pediu; na base, a
 coluna `pedidos_acesso.codigo` guarda o resumo. Os pedidos de antes não
 têm página.
+E o **conector MCP** (10/10/2026), por igualdade (`ROTAS_DO_MCP`): o
+`/mcp`, o `/oauth/register`, o `/oauth/token` e os três metadados do OAuth
+(`/.well-known/oauth-…`). Quem lhes chama é um servidor do Claude, sem sessão; a
+guarda de cada um é dentro da rota, e **nunca o cookie** (§4.11). Não
+saltam para o endereço público (`NAO_SALTAM`), como o `/saude`.
 A **`/acessibilidade`** (D15, 26/09/2026): a declaração de
 acessibilidade, com a estrutura do modelo do DL 83/2018 — o estado
 (parcialmente conforme com a WCAG 2.1 AA), o que não está conforme, a
@@ -2037,6 +2065,102 @@ Até aí as duas mandavam-no de volta para a `/plataforma`.
 - **Leitura das peças pelo modelo**: três pedidos por concurso, a descer
   a cadeia de fornecedores (a Groq, o Cerebras, a NVIDIA, o OpenRouter,
   o Gemini e a reserva na Groq) até alguém responder.
+
+### 4.11 O conector MCP — `/mcp`
+
+**Meio feito** (10/10/2026, ramo `claude/mcp-conector`): o servidor e o
+OAuth estão prontos e testados; **falta o ecrã do consentimento**, e
+sem ele ninguém consegue ligar um assistente (o que falta está no
+`BACKLOG.md`, linha MCP). O que segue descreve o que já existe.
+
+**O que é.** A empresa acrescenta o Mira Gov como conector no Claude
+dela (`https://miragov.pt/mcp`); quem pergunta «que concursos de limpeza
+abriram esta semana em Lisboa?» entra uma vez com a conta do Mira Gov, e
+a resposta vem dos dados do Mira Gov — **só os da empresa dele** —,
+gasta da subscrição que ela já paga. Por agora **só o Claude** (decisão
+dele a 10/10/2026); o ChatGPT vem quando um cliente o pedir.
+
+**Quem.** Qualquer conta de uma empresa, cada pessoa com o seu token e
+em todos os planos. **A conta do dono não** (403): não é de nenhuma
+empresa, e as ferramentas são de uma empresa.
+
+**As nove ferramentas**, todas só de leitura (`mcp_servidor.py`); cada
+resultado traz o `url` para o painel, e as listas vêm em páginas de 25,
+até à 40.ª:
+
+| Ferramenta | O que devolve |
+|---|---|
+| `procurar_concursos` | Os anúncios pelo motor da lista (`condicoes()`), por texto, CPV, distrito, entidade ou NIF, datas de publicação, prazo e preço base; **com o perfil da empresa por cima**, como a lista, a menos que se peça `so_o_perfil=false` |
+| `ver_concurso` | O anúncio, a leitura das peças (com o «de onde vem»), as peças com **quantas páginas** tem cada uma, e a proposta da empresa |
+| `ler_peca` | O texto já extraído de uma peça, **com o número de cada página** (a mesma numeração da ficha), em páginas inteiras até ~120 mil caracteres por chamada (40 a 60 páginas de um caderno; uma página sozinha corta-se nos 30 mil). Sem `de_pagina` lê desde a primeira; quando a peça não cabe, a resposta diz «continua na página N — pede de_pagina=N», e o Claude pede o resto sozinho. **O texto vai só uma vez**, no `content`, com as marcas «— pág. N —»; o `structuredContent` leva só os metadados (as páginas devolvidas, o total, a `proxima_pagina`) |
+| `pesquisar` | A pesquisa geral (`resultados_da_pesquisa()`): concursos, propostas, entidades |
+| `listar_propostas` | As propostas da empresa, numa fase da escada ou em todas, cada uma com o código (§3.1) |
+| `ver_proposta` | Uma proposta (com o código), o histórico e as tarefas por fazer |
+| `situacao` | As propostas por fase, o que está em jogo, a taxa de vitória e o ganho no período, com o anterior ao lado |
+| `procurar_contratos` | Os contratos do Portal BASE (pede pelo menos um filtro) |
+| `ver_entidade` | Quanto uma entidade compra e a quem (24 meses), em que CPV, o que está a acabar, e o que a empresa já fez com ela |
+
+**Ler as peças não depende de um prompt** (pedido dele, 10/10/2026):
+as instruções do servidor (o `instructions` do `initialize`,
+`mcp_servidor.INSTRUCOES`) e as descrições do `ver_concurso` e do
+`ler_peca` dizem ao Claude que, **sempre que a conversa fala de um
+concurso concreto** (uma referência, um título, «a proposta para a
+Câmara X») **ou de preparar uma proposta**, chama primeiro o
+`ver_concurso` e depois lê o Caderno de Encargos e o Programa
+**inteiros**, pelas continuações, antes de responder — com a peça e a
+página em cada linha e sem dizer se é para concorrer. É pelas descrições
+e pelas instruções que o modelo decide chamar uma ferramenta; um prompt
+só corre quando a pessoa o escolhe.
+
+E **dois prompts**, que a pessoa escolhe no Claude:
+
+- «Explica-me este concurso» (`explicar_concurso`, com a `ref`): lê o
+  anúncio, o Programa e o Caderno **inteiros** e diz o objecto, os
+  prazos, o preço base, a caução, o alvará, os documentos, as
+  penalidades e o critério — cada linha com a peça e a página — **sem
+  dizer se é para concorrer**.
+- «Ler as peças» (`ler-pecas`, com o `concurso`: a referência, ou
+  palavras que o identifiquem — então procura-o primeiro com o
+  `pesquisar` e, havendo mais de um, pergunta qual): lê as peças
+  inteiras, diz o que leu e espera pela pergunta.
+
+**O que não sai, de propósito** (decisão 5): os **contactos** das
+entidades (dados pessoais de funcionários públicos), as **notas** das
+propostas (o histórico da proposta só leva as acções de uma lista
+branca, `ACCOES_QUE_SAEM`) e os **documentos do
+cofre**. Nada da plataforma (pedidos de acesso, contas, erros).
+
+**A porta do conector** (OAuth 2.1, sem dependências novas): os
+metadados em `/.well-known/oauth-protected-resource` e
+`/.well-known/oauth-authorization-server`; o registo dinâmico em
+`POST /oauth/register`, **só com o redirect do Claude**
+(`contas.REDIRECTS_DO_MCP`: nem o `localhost` do Claude Code, nem o
+ChatGPT); o código de autorização (uso único, 60 s, PKCE `S256`
+obrigatório) e os tokens em `POST /oauth/token` — o de acesso vale uma
+hora, o refresh 30 dias e **roda** a cada uso, e um refresh ou um código
+usado duas vezes revoga tudo o que nasceu dele. Na base só os
+**resumos**. O `/mcp` aceita só `Authorization: Bearer` (nunca o cookie
+do painel, nem o acesso livre local); sem ele, 401 com o
+`WWW-Authenticate` que aponta para os metadados.
+
+**A empresa vem do token, e só dele.** Em cada chamada a conta relê-se:
+suspensa, mudada de empresa ou apagada, ou a empresa suspensa → 401, e o
+token revoga-se. Cada ferramenta corre dentro de `com_empresa()` dessa
+empresa e com a base **só de leitura** (`so_de_leitura()`, o `PRAGMA
+query_only`), e nenhuma tem um parâmetro de empresa.
+
+**Os tokens caem** quando a pessoa sai de todos os aparelhos, troca a
+palavra-passe, a conta é suspensa ou apagada, ou usa uma ligação de
+repor (decisão 7); também quando passa de gestor a membro, quando o
+segundo factor se desliga pela consola, e quando a empresa é apagada
+(saem os tokens, os códigos e o registo dela).
+
+**O tecto** (decisão 8): 30 chamadas por minuto e 600 por dia por
+conta, 2 000 por dia por empresa; acima, a ferramenta responde com a
+frase, não com um erro. **Cada pergunta tem 10 s**: uma que leve mais
+pára, e a ferramenta pede para afinar os filtros (não conta como erro
+do painel). O registo é a `chamadas_mcp` (§2.1), 90 dias; entra no
+`--limpar-uso`, no `--exportar-empresa` e no `--apagar-empresa`.
 
 ---
 
