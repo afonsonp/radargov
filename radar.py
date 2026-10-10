@@ -7596,14 +7596,16 @@ Extrai duas coisas do Programa de Concurso:
   autorizações ou inscrições que a lei exige para a actividade (alvará
   da PSP, licença de operador de resíduos, autorização da ASF,
   inscrição numa Ordem), e o prazo para as entregar. Não são
-  habilitação os documentos da proposta nem as certidões de sempre
-  (Segurança Social, Finanças, registo criminal). Se não fala disso,
+  habilitação os documentos da proposta nem os de todos os concursos
+  (a declaração do Anexo II, as do art. 55.º, Segurança Social,
+  Finanças, registo criminal): esses ficam de fora. Se não fala disso,
   "não consta".
 
 O texto pode abrir com o bloco «### Anúncio do DR», com a caução e a
-habilitação que o anúncio publicou. Quando o Programa diz outra coisa,
-escreve as duas, cada uma com a fonte ("Programa: 5% (pág. 12)" e
-"Anúncio do DR: Não").
+habilitação que o anúncio publicou. A resposta vem do Programa; o
+anúncio só entra quando o Programa não fala disso, ou quando diz outra
+coisa: aí escreve as duas, cada uma com a fonte ("Programa: 5% (pág.
+12)" e "Anúncio do DR: Não").
 
 ATENÇÃO a uma confusão frequente: "documentos que constituem a proposta"
 (o que tu entregas) NÃO é o mesmo que "peças que constituem o
@@ -7659,7 +7661,8 @@ segurança, e as outras que as peças pedem), cada um com:
   Experiência: a expressão exacta, com os anos, ou —
   Presença em obra ou percentagem de afectação ("presente sempre que
   convocado", "20 %"), ou —
-  Se pontua no critério, o factor e o peso
+  Pontua: o factor e o peso no critério (quando as peças não o dizem,
+  esta linha não se escreve)
 Equipamento a fornecer e montar: qual, se a obra não for só civil, ou —
 Mapa de quantidades: o ficheiro que o tem (as linhas «### nome»), ou —
 Visita ao local: se há, e as regras (prazo, marcação), ou —

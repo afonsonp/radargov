@@ -591,7 +591,7 @@ Orçamento, cadeia de reserva, chaves.
   para não tirar o local ao Caderno: ver a âncora do pagamento, em
   cima); e o anúncio (§12, §14) à cabeça do pedido do Programa. **O
   maior pedido passou de 13 933 a ~15 000 caracteres** (1,5 × o tecto,
-  a pergunta da proposta com 4 307 e o bloco do anúncio), ~5 500 tokens
+  a pergunta da proposta com 4 451 e o bloco do anúncio), ~5 500 tokens
   a 2,75 por token: abaixo do 413 da Groq, que apareceu aos 7 400 com a
   resposta. O `test_a_pergunta_da_equipa` guarda o tamanho; se uma
   pergunta crescer mais, mede o pedido antes. **Mapear, não decidir**:
