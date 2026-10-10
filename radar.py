@@ -2121,13 +2121,21 @@ def dias_restantes(prazo):
     return delta, delta < 0
 
 
-def prazo_de_esclarecimentos(data_pub, prazo):
+def prazo_de_esclarecimentos(data_pub, prazo, envio=""):
     """Data-limite para pedir esclarecimentos, ou None.
 
     Regra supletiva do artigo 50.º do CCP: os esclarecimentos pedem-se no
     primeiro terço do prazo fixado para a apresentacao das propostas.
     Encontrada literalmente em 4 dos 6 Programas de Concurso legiveis que
     se leram; os outros dois fixam prazo proprio.
+
+    O prazo das propostas conta-se do ENVIO do anuncio para publicacao
+    (art. 135.º, n.º 1, e 136.º, n.º 1 do CCP -- o mesmo texto antes e
+    depois do DL 177/2026; `docs/ccp.md` §2), e nao da publicacao, que
+    sai 2 a 4 dias depois (Q3, o jurista, 10/10/2026: 21 de 29 fichas
+    davam o fim do terco tarde). `envio` e o valor da «Data de Envio do
+    Anúncio» do §3, como o DR o escreve; sem ele, ou se nao fizer
+    sentido (depois da publicacao), conta-se da publicacao.
 
     Por isso isto e um calculo, nao uma leitura do documento -- e aparece
     sempre marcado como supletivo, para se confirmar no PC."""
@@ -2136,10 +2144,26 @@ def prazo_de_esclarecimentos(data_pub, prazo):
         fim = datetime.strptime(prazo or "", "%Y-%m-%d").date()
     except (ValueError, TypeError):
         return None
+    m = RX_DATA_DE_ENVIO.search(envio or "")
+    if m:
+        try:
+            inicio = datetime.strptime(m.group(1), "%d-%m-%Y").date()
+        except ValueError:
+            inicio = pub
+        pub = min(pub, inicio)
     dias = (fim - pub).days
     if dias <= 0:
         return None
     return pub + timedelta(days=dias // 3)
+
+
+# A «Data de Envio do Anúncio» do §3 do DR («19-08-2026», e desde
+# 1/10/2026 com a hora a seguir). Aceita o valor sozinho ou a linha
+# inteira, que é o que o SQL das tarefas recorta do texto.
+RX_DATA_DE_ENVIO = re.compile(r"(?:^|Data de Envio do Anúncio:)\s*(\d{2}-\d{2}-\d{4})")
+SQL_DO_ENVIO = ("CASE WHEN instr({t}, 'Data de Envio do Anúncio:') > 0 THEN "
+                "substr({t}, instr({t}, 'Data de Envio do Anúncio:'), 40) "
+                "END AS envio")
 
 
 # O prazo da audiência prévia: o art. 147.º do CCP manda o júri fixá-lo
@@ -3802,7 +3826,8 @@ def datas_automaticas(a):
     if not a:
         return {}
     datas = {}
-    esclarec = prazo_de_esclarecimentos(_valor(a, "data_pub"), _valor(a, "prazo"))
+    esclarec = prazo_de_esclarecimentos(_valor(a, "data_pub"), _valor(a, "prazo"),
+                                        _valor(a, "envio"))
     if esclarec:
         datas["esclarecimentos"] = esclarec.isoformat()
     if _valor(a, "prazo"):
@@ -3832,7 +3857,8 @@ def sincronizar_tarefas(ref=None):
             # só a linha do regime, para o `e_flexivel()`: o texto
             # inteiro de cada anúncio da escada era carga para nada
             "substr(a.texto, instr(a.texto, 'flexibilização do concurso "
-            "público:'), 45) AS regime "
+            "público:'), 45) AS regime, "
+            + SQL_DO_ENVIO.format(t="a.texto") + " "
             "FROM propostas p "
             "LEFT JOIN anuncios a ON a.ref = p.ref" + onde,
             vals).fetchall()
@@ -9866,7 +9892,8 @@ def razao_para_vigiar(a, hoje, alteracoes_desde):
         ultima vez que se olhou: quase sempre vem com peças revistas.
     """
     desde = (a["pecas_vigiadas_em"] or "")[:10]
-    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"],
+                                      _valor(a, "envio"))
     if limite and hoje > limite and (not desde or desde <= limite.isoformat()):
         return "passou a data de esclarecimentos (%s)" % data_pt(limite.isoformat())
     if alteracoes_desde(a["ref"], a["pecas_vigiadas_em"] or ""):
@@ -9890,7 +9917,8 @@ def anuncios_a_vigiar(limite=10, hoje=None):
     with liga() as c:
         marcar_os_da_escada(c)
         marcados = c.execute(
-            "SELECT ref, plataforma, link_pecas, data_pub, prazo, pecas_vigiadas_em"
+            "SELECT ref, plataforma, link_pecas, data_pub, prazo, pecas_vigiadas_em, "
+            + SQL_DO_ENVIO.format(t="texto") +
             " FROM anuncios"
             " WHERE ref IN (SELECT ref FROM temp.na_escada)"
             " AND docs_estado IN ('ok','parcial')"
@@ -28349,7 +28377,8 @@ def essencial_do_anuncio(a, seccoes, analise=None):
 
     # E um prazo que se perde em silencio: passa muito antes do prazo das
     # propostas e nao ha aviso nenhum quando fecha.
-    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"],
+                                      valor_de(seccoes, "Data de Envio do Anúncio"))
     if limite:
         dias, passou = dias_restantes(limite.strftime("%Y-%m-%d"))
         esclarecimentos = "%s (%s)" % (
@@ -28757,7 +28786,8 @@ def factos_para_decidir(a, seccoes, analise=None, ref_preco=None,
         lado = leitura_do_preco(base, ref_preco["mediana"])
         nota_preco = "%s %s a entidade costuma pagar" % (
             lado.capitalize(), "com o que" if lado == "em linha" else "do que")
-    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"])
+    limite = prazo_de_esclarecimentos(a["data_pub"], a["prazo"],
+                                      valor_de(seccoes, "Data de Envio do Anúncio"))
     if limite:
         esclarec = ("Esclarecimentos até", limite.strftime("%d/%m/%Y"),
                     "%s · calculado, confirmar no Programa"

@@ -13,7 +13,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
 - [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 33
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
-- [Datas, números e texto](#datas-numeros-e-texto) &middot; 12
+- [Datas, números e texto](#datas-numeros-e-texto) &middot; 13
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
 - [Contratos e entidades](#contratos-e-entidades) &middot; 41
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
@@ -22,10 +22,10 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
 - [Contas e a porta](#contas-e-a-porta) &middot; 51
-- [A interface](#a-interface) &middot; 131
+- [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **461** ao todo, contados a 8/10/2026. Contam-se por secção com
+São **464** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -1085,6 +1085,19 @@ Orçamento, cadeia de reserva, chaves.
   `limpar_controlos_dos_anuncios()` passou pelos que já lá estavam, uma
   vez, pela marca `titulos_sem_controlos` (varre a tabela: ~6 s).
   Uma fonte nova de títulos passa-os pelo `sem_controlos()`.
+
+- **O 1.º terço conta-se do ENVIO do anúncio, não da publicação**
+  (Q3, 10/10/2026, o jurista). O prazo das propostas conta-se «a contar
+  da data do envio, para publicação, do anúncio» (art. 135.º, n.º 1;
+  art. 136.º, n.º 1 com o JOUE — `docs/ccp.md` §2), e o DR publica 2 a
+  4 dias depois: o `prazo_de_esclarecimentos()` contava da `data_pub` e
+  dava a data 1 a 3 dias tarde em 21 de 29 fichas — e é também o prazo
+  da lista de erros e omissões das obras. A «Data de Envio do Anúncio»
+  do §3 não é coluna: a ficha lê-a das secções (`valor_de()`), e as
+  tarefas e a vigilância recortam-na do texto com o `SQL_DO_ENVIO` (o
+  `CASE` não é enfeite: sem ele, o instr do SQLite a 0 dava os primeiros
+  caracteres do texto). Sem ela, ou se vier depois da publicação,
+  conta-se da publicação.
 
 - **Um preço que uma pessoa escreve passa pelo `preco_escrito()`, e o
   `None` recusa-se** (25/09/2026, teste com dez perfis de utilizador).

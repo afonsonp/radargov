@@ -972,6 +972,39 @@ class TestPrazoDeEsclarecimentos(unittest.TestCase):
         self.assertFalse(falta)              # deixou de estar em falta
         self.assertIn("supletiva", nota)     # mas diz que é calculado
 
+    # Q3, o jurista (10/10/2026): o prazo das propostas conta-se do ENVIO
+    # do anúncio (art. 135.º, n.º 1, e 136.º, n.º 1 do CCP, iguais nos
+    # dois regimes), e a publicação sai 2 a 4 dias depois. A ficha dava
+    # o fim do 1.º terço 1 a 3 dias tarde em 21 de 29 concursos.
+    def test_conta_desde_o_envio_do_anuncio(self):
+        # envio 19/08, publicação 22/08, prazo 18/09: 30 dias desde o
+        # envio, o terço são 10 -> 29/08 (da publicação dava 31/08)
+        d = radar.prazo_de_esclarecimentos("2026-08-22", "2026-09-18",
+                                           "19-08-2026")
+        self.assertEqual(str(d), "2026-08-29")
+        # o DR de 1/10/2026 escreve a hora a seguir à data
+        d = radar.prazo_de_esclarecimentos("2026-10-03", "2026-10-31",
+                                           "01-10-2026 12:04:00")
+        self.assertEqual(str(d), "2026-10-11")
+
+    def test_sem_data_de_envio_conta_da_publicacao(self):
+        for envio in ("", None, "lixo", "25-08-2026"):   # o último: depois da pub.
+            with self.subTest(envio=envio):
+                d = radar.prazo_de_esclarecimentos("2026-08-18", "2026-09-01",
+                                                   envio)
+                self.assertEqual(str(d), "2026-08-22")
+
+    def test_a_ficha_e_as_tarefas_contam_do_envio(self):
+        anuncio = dict(TestTabelaEssencial.ANUNCIO, data_pub="2026-08-22",
+                       prazo="2026-09-18")
+        seccoes = [("3", "AVISO", [("Data de Envio do Anúncio", "19-08-2026")])]
+        linha = next(l for l in radar.essencial_do_anuncio(anuncio, seccoes)
+                     if l[0] == "Data de esclarecimentos")
+        self.assertIn("29/08/2026", linha[1])
+        datas = radar.datas_automaticas(dict(
+            anuncio, envio="Data de Envio do Anúncio: 19-08-2026"))
+        self.assertEqual(datas["esclarecimentos"], "2026-08-29")
+
 
 class TestTextoDoPdf(unittest.TestCase):
     """Nunca rebentar: um PDF ilegível não pode parar a recolha."""
