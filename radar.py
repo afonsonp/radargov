@@ -9142,7 +9142,13 @@ def numeros_por_confirmar(valor, texto_lido):
     o modelo so viu aquilo, e um numero que la nao esta nao veio dali."""
     if not isinstance(valor, str) or not re.search(r"\d", valor):
         return valor
-    fonte = _numeros_normalizados(re.sub(r"\[pág\. \d+\]", " ", texto_lido or ""))
+    lido = re.sub(r"\[pág\. \d+\]", " ", texto_lido or "")
+    # E o ponto decimal do Excel (10/10/2026): o mapa da 23769 diz
+    # «2514.3», a resposta «2514,3 m²», e o ponto separava o «3» -- que
+    # tem de ficar separado no «Clausula 41.2». Vai como terceira forma,
+    # so para dar apoio.
+    fonte = _numeros_normalizados(lido) + (
+        _numeros_normalizados(re.sub(r"(?<=\d)\.(?=\d{1,2}(?!\d))", ",", lido))[1],)
     linhas = []
     for linha in valor.split("\n"):
         if not RX_POR_CONFIRMAR.search(linha):
@@ -9350,12 +9356,43 @@ def _linhas_do_molde(pergunta):
             if len(l.strip()) >= 12}
 
 
+# O rotulo da pergunta copiado inteiro (10/10/2026): o Gemini, com as
+# pecas inteiras, escreve «Experiência: a expressão exacta, com os anos,
+# ou —: —» e «Formação ou inscrição (Ordem …); se o documento remete
+# para a lei (…Lei n.º 40/2015…) … e não —: <resposta>» (21482, 22796,
+# 24004). O molde parte-se em varias linhas, e a comparacao linha a
+# linha nao o via; e o «2015» da explicacao ficava por confirmar.
+MINIMO_DO_ROTULO_LONGO = 25
+
+
+def sem_rotulos_longos(linha, pergunta_junta):
+    """«<rótulo da pergunta>: valor» -> «<nome curto>: valor», quando o
+    que esta antes dos dois pontos e texto da pergunta. Em cada «:», o
+    rotulo mais comprido que acaba nele (o da formacao tem um «;» dentro)."""
+    feito, resto = "", linha
+    while True:
+        for m in re.finditer(":", resto):
+            i = m.start()
+            inicios = [0] + [k.end() for k in re.finditer(r"; |\. |: |^\s*[-•]\s*", resto[:i])]
+            j = next((j for j in sorted(inicios)
+                      if len(resto[j:i].strip()) >= MINIMO_DO_ROTULO_LONGO
+                      and " ".join(resto[j:i].split()) in pergunta_junta), None)
+            if j is not None:
+                rotulo = resto[j:i].strip()
+                feito += resto[:j] + re.split(r"[:(;,]", rotulo, maxsplit=1)[0].strip()
+                resto = resto[i:]
+                break
+        else:
+            return feito + resto
+
+
 def sem_o_molde(valor, pergunta, texto_lido):
     """O campo sem as linhas que repetem a pergunta e sem o «(firme)» ou
     o «(estimada)» que o texto lido não diz."""
     if not isinstance(valor, str):
         return valor
     molde = _linhas_do_molde(pergunta)
+    junta = " ".join((pergunta or "").split())
     lido = simplifica(texto_lido or "")
     diz = {"firm": bool(re.search(r"\bfirmes?\b", lido)),
            "esti": bool(re.search(r"\bestimad[ao]s?\b", lido))}
@@ -9363,6 +9400,7 @@ def sem_o_molde(valor, pergunta, texto_lido):
     for linha in valor.split("\n"):
         if molde and simplifica(sem_a_pagina_citada(linha)).strip(" :") in molde:
             continue
+        linha = sem_rotulos_longos(linha, junta)
         linhas.append(RX_FIRME_OU_ESTIMADA.sub(
             lambda m: m.group() if diz[simplifica(m.group(1))[:4]] else "", linha))
     return "\n".join(linhas)

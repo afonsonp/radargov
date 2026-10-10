@@ -2392,6 +2392,34 @@ class TestACadeiaDoCampo11(unittest.TestCase):
         self.assertEqual(montados, [radar.TECTO_INTEIRO, radar.TECTO_RECORTE])
 
 
+class TestOGeminiComAsPecasInteiras(unittest.TestCase):
+    """10/10/2026, a releitura inteira das 103 do Q3: o Gemini copiava o
+    rótulo da pergunta inteiro para a resposta (21482, 22796, 24004), e
+    o «2015» da explicação ficava por confirmar; e o «2514.3» do mapa em
+    Excel não apoiava o «2514,3 m²» da resposta (23769)."""
+
+    def test_o_rotulo_longo_fica_o_nome_curto(self):
+        perg = radar.CAMPO_11["obras"][3]
+        resposta = ("Formação ou inscrição (Ordem dos Engenheiros, OET, …); se o "
+                    "documento remete para a lei (\"qualificação prevista na Lei n.º "
+                    "40/2015\"), copia a remissão tal qual — é um requisito, e não —: "
+                    "técnico qualificado\nExperiência: a expressão exacta, com os "
+                    "anos, ou —: —\nFunção exacta: Diretor de obra")
+        fora = radar.conferir_a_resposta(resposta, "técnico qualificado Diretor de obra", perg)
+        self.assertEqual(fora, "Formação ou inscrição: técnico qualificado\n"
+                               "Experiência: —\nFunção exacta: Diretor de obra")
+
+    def test_um_valor_com_dois_pontos_fica_como_esta(self):
+        perg = radar.CAMPO_11["obras"][3]
+        linha = "Experiência: 5 anos em obras: pontes e viadutos"
+        self.assertEqual(radar.sem_rotulos_longos(linha, " ".join(perg.split())), linha)
+
+    def test_o_ponto_decimal_do_excel_apoia_a_virgula(self):
+        lido = " |  |  | 2514.3 | m²\n Cláusula 41.2 do Caderno"
+        self.assertNotIn("[confirmar", radar.numeros_por_confirmar("Caixa (com 2514,3 m²)", lido))
+        self.assertNotIn("[confirmar", radar.numeros_por_confirmar("cláusula 41.2", lido))
+
+
 class TestALeituraInteira(unittest.TestCase):
     """10/10/2026: o recorte levava ~28 mil caracteres das ~131 mil de um
     concurso mediano, e o «não consta» falso era o dado numa página que

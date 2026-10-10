@@ -489,6 +489,17 @@ Orçamento, cadeia de reserva, chaves.
   aguenta o pedido inteiro (a Groq dá 413 acima de ~8 mil tokens) fica
   com o recorte: é por isso que o recorte se monta por tecto, e não uma
   vez por leitura.
+- **Com as peças inteiras, o Gemini copia o rótulo da pergunta para a
+  resposta, e o Excel escreve o decimal com ponto** (10/10/2026). «Experiência:
+  a expressão exacta, com os anos, ou —: —» e o rótulo da formação com o
+  «Lei n.º 40/2015» do exemplo, que ficava por confirmar: o
+  `sem_rotulos_longos()` troca o que está antes dos dois pontos pelo nome
+  curto quando é texto da pergunta (o molde parte-se em várias linhas, e
+  a comparação linha a linha não o via). E o «2514.3» do mapa em `.xls`
+  não apoiava o «2514,3 m²» da resposta: o `numeros_por_confirmar()`
+  confere também com o ponto lido como vírgula, numa terceira forma, sem
+  tocar nas outras duas, onde o «41.2» de uma cláusula tem de continuar
+  a ser dois números.
 - **A âncora do pagamento tem peso 1 de propósito, e subir-lho é
   trocar a localização pelo pagamento** (L4, 1/10/2026). Os dois vivem
   no recorte do Caderno de Encargos, que tem tecto: medido com a régua,
