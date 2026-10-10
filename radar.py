@@ -1601,6 +1601,22 @@ def iniciar_db():
                               "WHERE id=?", (d["id"],))
             c.execute("INSERT OR REPLACE INTO estado "
                       "VALUES ('pecas_em_excel','1')")
+        # O .xls e os anexos tecnicos dos ZIP de Programa (Q3, 10/10/2026):
+        # o mesmo gesto, com a sua marca -- os .xls «não é PDF» e os ZIP
+        # ja lidos voltam a por ler, se estiverem em disco, sem ler aqui.
+        if not c.execute("SELECT 1 FROM estado "
+                         "WHERE chave='pecas_xls_e_anexos'").fetchone():
+            for d in c.execute(
+                    "SELECT id, ref, nome FROM documentos WHERE "
+                    "(texto_estado='não é PDF' AND lower(nome) LIKE '%.xls') "
+                    "OR (texto_estado='ok' AND (lower(nome) LIKE '%.zip' "
+                    "OR lower(nome) LIKE '%.7z'))").fetchall():
+                if os.path.exists(os.path.join(pasta_do_anuncio(d["ref"]),
+                                               d["nome"])):
+                    c.execute("UPDATE documentos SET texto_estado=NULL "
+                              "WHERE id=?", (d["id"],))
+            c.execute("INSERT OR REPLACE INTO estado "
+                      "VALUES ('pecas_xls_e_anexos','1')")
         # E os .7z, que chegaram no mesmo dia um pouco depois: voltam a
         # por ler, uma vez, com a sua marca -- mas NAO se leem aqui.
         # Medido nesse dia: um .7z de lote sao 46 PDF e 91 s de leitura;
@@ -6834,7 +6850,50 @@ def texto_do_docx(dados):
 # ponytail: corta cada folha a 5000 linhas -- um cadastro maior perde o
 # fim; subir o numero se aparecer um que o precise.
 LINHAS_POR_FOLHA = 5000
-EXTENSOES_EXCEL = (".xlsx", ".xlsm")
+# O .xls antigo (BIFF) desde a Q3 (10/10/2026): as horas da 24120 e a
+# bolsa da 24944 estavam la, e ficavam «não é PDF».
+EXTENSOES_EXCEL = (".xlsx", ".xlsm", ".xls")
+
+
+def texto_do_excel(nome, dados):
+    """(texto, estado) de um livro de Excel, pelo nome: o .xls antigo
+    pelo xlrd (`texto_do_xls()`), o resto pelo openpyxl."""
+    if nome.lower().endswith(".xls"):
+        return texto_do_xls(dados)
+    return texto_do_xlsx(dados)
+
+
+def texto_do_xls(dados):
+    """(texto, estado) de um .xls (BIFF), no formato do `texto_do_xlsx()`:
+    uma linha por linha, « | » entre celulas, uma folha por pagina. Pede
+    o xlrd (requirements.txt); sem ele e um erro, que se retenta."""
+    try:
+        import xlrd
+    except ImportError:
+        return "", "erro: falta o xlrd (python -m pip install xlrd)"
+    if xlrd is None:                   # posto a None, como nos testes
+        return "", "erro: falta o xlrd (python -m pip install xlrd)"
+    try:
+        livro = xlrd.open_workbook(file_contents=dados)
+    except Exception:                  # nao e um livro que se abra
+        return "", "não é PDF"
+    folhas = []
+    try:
+        for folha in livro.sheets():
+            linhas = []
+            for i in range(min(folha.nrows, LINHAS_POR_FOLHA)):
+                celulas = [_celula_do_excel(v if v != "" else None)
+                           for v in folha.row_values(i)]
+                while celulas and not celulas[-1]:
+                    celulas.pop()
+                if any(celulas):
+                    linhas.append(" | ".join(celulas))
+            if linhas:
+                folhas.append("Folha: %s\n%s" % (folha.name, "\n".join(linhas)))
+    except Exception as erro:
+        return "", "erro: %s" % str(erro)[:80]
+    texto = "\n\f\n".join(folhas)
+    return (texto, "ok") if texto else ("", "scan")
 
 
 def _celula_do_excel(valor):
@@ -6849,7 +6908,7 @@ def texto_do_xlsx(dados):
     """(texto, estado) de um .xlsx (28/09/2026): uma linha por linha da
     folha, as celulas separadas por « | », e cada folha com o nome a
     abrir e um \\f entre elas -- as «paginas» das fontes sao as folhas.
-    O .xls antigo (BIFF) nao: pedia o xlrd, e sao 2 em 24."""
+    O .xls antigo (BIFF) e o `texto_do_xls()`."""
     try:
         import openpyxl
     except ImportError:
@@ -7012,7 +7071,7 @@ def _texto_dos_ficheiros(dentro, papeis):
             if nome.lower().endswith(".docx"):
                 texto, estado = texto_do_docx(dados)
             elif nome.lower().endswith(EXTENSOES_EXCEL):
-                texto, estado = texto_do_xlsx(dados)
+                texto, estado = texto_do_excel(nome, dados)
             else:
                 alvo = os.path.join(temporaria, nome_seguro(os.path.basename(nome)))
                 with open(alvo, "wb") as f:
@@ -7067,9 +7126,11 @@ def extrair_textos(ref):
     for d in docs:
         caminho = os.path.join(pasta, d["nome"])
         papeis = papeis_da_peca(d["nome"])
-        # Num ZIP de Caderno de Encargos, os anexos tecnicos de dentro sao
-        # da peca -- a especificacao, o mapa de quantidades (28/09/2026).
-        if "encargos" in papeis:
+        # Num ZIP de uma peca, os anexos tecnicos de dentro sao da peca --
+        # a especificacao, o mapa de quantidades (28/09/2026). E nao so no
+        # do Caderno: o «ANEXO I_LPU.xlsx» da 22071 vinha no ZIP do
+        # Programa, e ficava de fora (Q3, 10/10/2026).
+        if papeis:
             papeis = papeis | {"tecnico"}
         if not os.path.exists(caminho):
             estado, texto = "não é PDF", ""
@@ -7081,7 +7142,7 @@ def extrair_textos(ref):
         elif d["nome"].lower().endswith(EXTENSOES_EXCEL):
             # Antes do ZIP: um .xlsx e um ZIP por dentro (28/09/2026).
             with open(caminho, "rb") as f:
-                texto, estado = texto_do_xlsx(f.read())
+                texto, estado = texto_do_excel(d["nome"], f.read())
         elif d["nome"].lower().endswith(".7z"):
             texto, estado = texto_do_7z(caminho, papeis)
         elif zipfile.is_zipfile(caminho):
@@ -8385,7 +8446,8 @@ RX_PECA_TECNICA = re.compile(
     r"(?<![a-z0-9])md[a-z]{0,4}(?![a-z0-9])|"
     # «Mem Descritiva» e «MQTEN249-3» (21999, a mesma IP)
     r"especifica|t.?cnic|mem(oria)?\.?.?descritiva|mapa|quantidades|(?<![a-z0-9])mqt|"
-    r"cadastro|tarefas|pre.?os.?unit|\blpu\b|conformidade|caracteristicas|"
+    # a «LPU» sem o \b, que trata o «_» como letra: «ANEXO I_LPU.xlsx» (22071)
+    r"cadastro|tarefas|pre.?os.?unit|(?<![a-z0-9])lpu(?![a-z0-9])|conformidade|caracteristicas|"
     r"patrimonio|sinistralidade|"
     # o orcamento e as medicoes sao o mapa das obras com outro nome
     # («727.ORC_OBRAS...», 23834; «16_MEDIÇOES.pdf», 24004; Q3, 10/10/2026)

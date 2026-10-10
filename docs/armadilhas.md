@@ -338,7 +338,14 @@ Trazer os documentos do procedimento, e o que se faz com o texto deles.
   quem os lê é o `analisar_pecas()`, que agora extrai antes de ler. Um
   Excel que não abre é «não é PDF», não «erro:» — um erro retentava-se
   a cada leitura. O `openpyxl` avisa, ao ler as linhas, de cabeçalhos
-  que não percebe: cala-se dentro do `texto_do_xlsx()`.
+  que não percebe: cala-se dentro do `texto_do_xlsx()`. **E o que ainda
+  ficava** (Q3, 10/10/2026): o `.xls` antigo, que agora passa pelo
+  `xlrd` (`texto_do_excel()` escolhe pela extensão; sem o `xlrd` é
+  «erro:», que se retenta depois do `actualizar.sh` o instalar); o
+  «ANEXO I_LPU.xlsx» da 22071, que vinha no ZIP do **Programa** — só os
+  ZIP de Caderno davam os anexos técnicos — e não era técnico, porque o
+  `\b` do `re` trata o «_» como letra. A marca `pecas_xls_e_anexos` pôs
+  por ler, uma vez, os `.xls` e os ZIP já lidos em disco.
 
 - **"Abrir plataforma" não é o link das peças.** O DR nunca publica o
   endereço da página do procedimento: traz a raiz da plataforma e o

@@ -528,7 +528,7 @@ aparece no balde «prazo passou sem decisão» e quem escolhe é a pessoa.
 
 **Os ZIP abrem-se por dentro** (23/09/2026): todos, até três níveis de ZIP dentro de ZIP, com os PDF, os `.docx` e (desde 28/09/2026) o **Excel** lidos; de um ZIP, o modelo recebe só os ficheiros de dentro que são o Caderno de Encargos, o Programa ou um anexo técnico. Os `.7z` também (`py7zr`), lidos quando se pedem as peças ou a leitura do concurso.
 
-**O Excel lê-se** (28/09/2026): os `.xlsx` e `.xlsm`, pelo `openpyxl` (`texto_do_xlsx()`), uma linha por linha da folha e uma «página» por folha. É lá que estão os mapas de quantidades, os cadastros dos equipamentos e as listas de preços unitários. O `.xls` antigo **não** — pedia outra biblioteca, e eram 2 em 24.
+**O Excel lê-se** (28/09/2026): os `.xlsx` e `.xlsm`, pelo `openpyxl` (`texto_do_xlsx()`), uma linha por linha da folha e uma «página» por folha. É lá que estão os mapas de quantidades, os cadastros dos equipamentos e as listas de preços unitários. O `.xls` antigo lê-se desde 10/10/2026 (Q3), pelo `xlrd` (`texto_do_xls()`, no mesmo formato): eram lá as horas e as bolsas de duas limpezas e vigilâncias. Num ZIP de uma peça — do Caderno ou do Programa — os anexos técnicos de dentro também se lêem.
 
 **A leitura é da plataforma, e partilhada** (F7, 23/09/2026; decisão
 dele: o que poupa custos e não é de uma empresa é de todas). Uma leitura

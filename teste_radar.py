@@ -5398,6 +5398,91 @@ class TestTextoDoExcel(BaseTemporaria):
                 ).fetchone()[0], "não é PDF")
 
 
+class TestExcelQueFicavaPorLer(BaseTemporaria):
+    """Q3, 10/10/2026 (o director de operações): o «ANEXO I_LPU.xlsx»
+    dentro do «2_PROGRAMA_DO_PROCEDIMENTO.zip» da 22071 não chegou ao
+    texto -- de um ZIP de Programa só se tirava o Programa, e o «_LPU»
+    não era técnico (o \\b do re trata o «_» como letra). E os .xls
+    antigos (24120, 24944) ficavam «não é PDF», com as horas lá dentro."""
+
+    MAPA = TestTextoDoExcel.MAPA
+
+    def test_a_lpu_com_sublinhado_e_tecnica(self):
+        self.assertEqual(radar.papeis_da_peca("ANEXO I_LPU.xlsx"), {"tecnico"})
+
+    def test_do_zip_do_programa_sai_tambem_o_anexo_tecnico(self):
+        import zipfile
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        with zipfile.ZipFile(os.path.join(pasta, "2_PROGRAMA_DO_PROCEDIMENTO.zip"),
+                             "w") as z:
+            z.writestr("PROGRAMA DO PROCEDIMENTO.docx",
+                       TestTextoDoZip.docx("Criterio de adjudicacao"))
+            z.writestr("ANEXO I_LPU.xlsx", _livro_excel(self.MAPA))
+            z.writestr("Anexo II - Modelo de declaracao.docx",
+                       TestTextoDoZip.docx("declaro sob compromisso"))
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref,nome) VALUES "
+                      "('9/2026','2_PROGRAMA_DO_PROCEDIMENTO.zip')")
+        radar.extrair_textos("9/2026")
+        with radar.liga() as c:
+            texto = c.execute("SELECT texto FROM documentos").fetchone()[0]
+        self.assertIn("Criterio de adjudicacao", texto)
+        self.assertIn("Betão C25/30", texto)
+        self.assertNotIn("declaro sob compromisso", texto)
+
+    def test_o_xls_antigo_le_se_pelo_xlrd(self):
+        class Folha:
+            name = "Anexo II"
+            nrows = 3
+
+            def row_values(self, i):
+                return [["Posto", "Horas/mês"], ["Portaria", 744.0],
+                        ["", ""]][i]
+
+        class Livro:
+            def sheets(self):
+                return [Folha()]
+
+        falso = unittest.mock.MagicMock()
+        falso.open_workbook.return_value = Livro()
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": falso}):
+            texto, estado = radar.texto_do_excel("Anexo II.xls", b"\xd0\xcf")
+        self.assertEqual(estado, "ok")
+        self.assertIn("Folha: Anexo II", texto)
+        self.assertIn("Portaria | 744", texto)
+
+    def test_sem_o_xlrd_e_erro_e_retenta_se(self):
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": None}):
+            _, estado = radar.texto_do_excel("Anexo II.xls", b"\xd0\xcf")
+        self.assertTrue(estado.startswith("erro: falta o xlrd"), estado)
+
+    def test_o_xls_que_nao_abre_e_veredicto(self):
+        falso = unittest.mock.MagicMock()
+        falso.open_workbook.side_effect = ValueError("não é BIFF")
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": falso}):
+            self.assertEqual(radar.texto_do_excel("x.xls", b"lixo"),
+                             ("", "não é PDF"))
+
+    def test_a_migracao_poe_por_ler_os_xls_e_os_zip(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        for nome in ("Mapa.xls", "PP.zip"):
+            open(os.path.join(pasta, nome), "wb").close()
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                "VALUES ('9/2026',?,?,?)",
+                [("Mapa.xls", "", "não é PDF"), ("PP.zip", "antigo", "ok"),
+                 ("CE.pdf", "t", "ok")])
+            c.execute("DELETE FROM estado WHERE chave='pecas_xls_e_anexos'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            d = {r["nome"]: r["texto_estado"] for r in c.execute(
+                "SELECT nome, texto_estado FROM documentos")}
+        self.assertEqual(d, {"Mapa.xls": None, "PP.zip": None, "CE.pdf": "ok"})
+
+
 class TestAnexosTecnicos(unittest.TestCase):
     """28/09/2026: a leitura escolhia as peças pelo nome — «caderno» ou
     «programa» — e 88 de 235 documentos com texto não iam a pedido
