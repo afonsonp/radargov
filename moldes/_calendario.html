@@ -1,0 +1,7 @@
+{#- As peças do Calendário, que a página e os dois pedaços (`?pedaco=`)
+    partilham: uma linha de um dia, o sinal da urgência do dia (WCAG
+    1.4.1: um sinal por escalão, e o texto para o leitor) e os dias da
+    agenda do telemóvel. -#}
+{% macro item(a) %}<a class='cal-it{{ a.classe }}' href='{{ a.href }}' title='{{ a.titulo }}'><b>{{ a.curto }}</b><i>{{ a.segunda }}</i></a>{% endmacro %}
+{% macro sinal(tom, urgente) %}{% if tom == "mau" %}<i class='cal-urg' aria-hidden='true'>&#9888;</i><span class='so-leitor'>prazo hoje ou já passado</span>{% elif tom == "avisa" %}<i class='cal-urg' aria-hidden='true'>&#9719;</i><span class='so-leitor'>prazo em {{ urgente }} dias ou menos</span>{% endif %}{% endmacro %}
+{% macro agenda(dias, urgente) %}{% for d in dias %}<li class='ag-dia{% if d.tom %} {{ d.tom }}{% endif %}{% if d.hoje %} hoje{% endif %}'><h2 class='ag-data'>{{ d.data }}{% if d.hoje %} &middot; hoje{% endif %}{{ sinal(d.tom, urgente) }}</h2>{% for a in d.itens %}{{ item(a) }}{% endfor %}</li>{% else %}<li class='ag-vazio'>Nada a fechar nestas seis semanas.</li>{% endfor %}{% endmacro %}

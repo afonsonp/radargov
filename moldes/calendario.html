@@ -1,0 +1,15 @@
+{#- O Calendário (fase 3 do docs/design.md): seis semanas a partir de
+    segunda-feira, o dia como unidade; os três filtros com o número de
+    cada um nestas seis semanas (D12); a legenda; a grelha; e a agenda
+    do telemóvel, que o CSS mostra no lugar da grelha. Numa página pesada
+    (`leve` falso) o «+N» e a agenda pedem-se à parte, pelo `js`. -#}
+{%- import "_calendario.html" as c -%}
+<div class='larg fs-topo'>{{ vistas }}</div><nav class='mg-tabs cal-filtros' aria-label='O que mostrar'>{% for f in filtros %}<a class='mg-tab'{% if f.aceso %} aria-current='page'{% endif %} href='{{ f.href }}'>{{ f.rotulo }} <span class='mg-tab__count'>{{ f.n }}</span></a>{% endfor %}</nav><div class='larg'>{{ faixa }}
+{#- a legenda -#}
+<div class='cal-legenda'><span>A mostrar <b>{{ o_que }}</b>, de {{ de }} a {{ ate }}.</span>{% if vazio %}<span class='cal-vazio'>Nenhuma proposta da empresa fecha nestas seis semanas.{% if n_porver %} <a href='{{ para_porver }}'>Há {{ n_porver }} por ver com prazo aqui &rarr;</a>{% endif %}</span>{% endif %}<span><i class='cal-urg' aria-hidden='true'>&#9888;</i> fecha hoje ou já fechou &middot; <i class='cal-urg' aria-hidden='true'>&#9719;</i> fecha em {{ urgente }} dias ou menos</span>{% if fora %}<span>{{ fora }} com prazo depois destas seis semanas &mdash; continuam na lista.</span>{% endif %}<a href='{{ em_lista }}'>ver em lista</a></div>
+{#- a grelha -#}
+<div class='cal-rolo'><div class='cal'>{% for d in dias_semana %}<div class='cal-cab'>{{ d }}</div>{% endfor %}
+{%- for d in celulas %}<div class='{{ d.classes }}'><div class='cal-n'>{{ d.n }}{% if d.mes %}<span>{{ d.mes }}</span>{% endif %}{{ c.sinal(d.tom, urgente) }}</div>{% for a in d.visiveis %}{{ c.item(a) }}{% endfor %}
+{%- if d.resto_n %}<details class='cal-mais'{% if not leve %} data-pedaco='{{ d.iso }}'{% endif %}><summary>+{{ d.resto_n }}<span class='so-leitor'> no dia {{ d.data }}</span></summary>{% if leve %}{% for a in d.resto %}{{ c.item(a) }}{% endfor %}{% else %}<span class='cal-carrega'>a carregar…</span>{% endif %}</details>{% endif %}</div>{% endfor %}</div></div>
+{#- a agenda do telemóvel -#}
+<ol class='cal-agenda' aria-label='Agenda'{% if not leve %} data-pedaco='agenda'{% endif %}>{% if leve %}{{ c.agenda(agenda, urgente) }}{% else %}<li class='ag-vazio'>a carregar…</li>{% endif %}</ol>{% if not leve %}{{ js }}{% endif %}</div>
