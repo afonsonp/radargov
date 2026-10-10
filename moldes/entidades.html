@@ -1,0 +1,27 @@
+{#- A lista das entidades (17/09/2026): a procura, a comparação de duas
+    marcadas e a tabela da aba (ou o vazio dela, que diz o que fazer a
+    seguir). O selo do papel, a fita do «connosco», a legenda e o
+    paginador vêm feitos. -#}
+{%- macro valor(c, i) -%}
+{% if i == 0 %}{% if c.compra_k is none %}sem BASE{% else %}{{ c.compra_k }} contrato{{ c.compra_s }} &middot; {{ c.compra_v }}{% endif %}
+{%- elif i == 1 %}{% for n, v in c.fornece %}{% if not loop.first %}<br>{% endif %}{{ n }} &mdash; {{ v }}{% else %}—{% endfor %}
+{%- elif i == 2 %}{{ c.propostas_n }} proposta{{ c.propostas_s }} &middot; {{ c.com_ela }}
+{%- elif i == 3 %}{{ c.anuncios }}
+{%- else %}{% if c.acabar_k %}{{ c.acabar_k }} &middot; {{ c.acabar_v }}{% else %}—{% endif %}{% endif %}
+{%- endmacro -%}
+{%- set botao %}<button type='submit' class='mg-btn mg-btn--secondary'>Comparar as marcadas</button>{% endset -%}
+<div class='larg'>{% if not corpus %}<div class='mg-alert mg-alert--info'>Sem os contratos do Portal BASE, as colunas do mercado dizem «sem BASE» e três destas abas ficam vazias. Traz-se em <a href='/configuracoes/indicadores'>Configurações › Indicadores</a>, com «Actualizar contratos» — demora minutos e refaz-se sozinho à segunda-feira.</div>{% endif -%}
+<form class='procura-larga' id='procura-entidade' method='get' action='/entidade/procurar'><label><span class='so-leitor'>Nome ou NIF</span>{{ lupa }}<input type='text' name='q' placeholder='Abrir a ficha de uma entidade: nome ou NIF, ex. Politécnico de Leiria'></label><button type='submit' class='mg-btn mg-btn--primary'>Abrir a ficha</button></form>
+{#- as duas marcadas, lado a lado -#}
+{%- if comparar %}<div class='mg-card comparar'><div class='cab'><span class='mg-field__label'>A comparar</span>{% for c in comparar %}<div><a href='/entidade/{{ c.href }}'>{{ c.nome }}</a></div>{% endfor %}</div><div class='grelha'>
+{%- for rotulo in rotulos %}{% set i = loop.index0 %}<div class='r'>{{ rotulo }}</div>{% for c in comparar %}<div>{{ valor(c, i) }}</div>{% endfor %}{% endfor -%}
+</div><a class='nota' href='/entidades'>deixar de comparar</a></div>{% endif -%}
+{#- a tabela da aba -#}
+{%- if linhas %}<form method='get' action='/entidades'><input type='hidden' name='ver' value='{{ aba }}'>{% if pagina > 1 %}<input type='hidden' name='pag' value='{{ pagina }}'>{% endif %}<div class='mg-card tab-cx'><div class='tab-pe'>{{ botao }}<span class='nota'>Marque duas.</span></div><table class='mg-table tab-contratos'><thead><tr><th><span class='so-leitor'>Comparar</span></th><th>Entidade</th><th>Papel</th><th class='p'>Compra · sempre</th><th class='p'>Ganha · sempre</th><th>Connosco</th><th class='p'>Taxa connosco</th><th class='p'>A acabar · {{ meses }} meses</th></tr></thead><tbody>
+{%- for l in linhas %}<tr><td><input type='checkbox' name='vs' value='{{ l.chave }}'{% if l.marcada %} checked{% endif %} aria-label='Comparar {{ l.nome_longo }}'></td><td><a href='/entidade/{{ l.href }}'>{{ l.nome }}</a>{% if l.seguida %} <span class='mg-tag mg-tag--success'>seguida</span>{% endif %}{% if l.base %}<div class='nota'>{{ l.nif }}</div>{% else %}<div class='nota'>só no DR</div>{% endif %}</td>
+{#- -#}
+<td>{{ l.selo }}</td><td class='p'>{% if l.base %}{{ l.compra }}{% else %}<span class='nota'>sem BASE</span>{% endif %}</td><td class='p'>{% if l.base %}{{ l.ganha }}{% endif %}</td><td>{% if l.fita %}{{ l.fita }}{% else %}<span class='nota'>ainda nenhuma</span>{% endif %}</td>
+{#- -#}
+<td class='p'>{% if l.taxa %}{{ l.taxa }}{% elif l.decididos %}<span class='nota'>{{ l.ganhos }} de {{ l.decididos }} — poucos</span>{% else %}—{% endif %}</td><td class='p'>{% if l.acabar_k %}{{ l.acabar_k }} &middot; {{ l.acabar_v }}{% else %}—{% endif %}</td></tr>{% endfor -%}
+</tbody></table><div class='tab-pe'>{{ botao }}<span class='nota'>Marque duas. «Compra» e «Ganha» são os totais do Portal BASE, de sempre; «Ganha» é a <b>parte dela</b>: num consórcio, o contrato reparte-se pelos vencedores (6.ª ronda). O «a acabar» é o <b>fim estimado</b> — celebração mais o prazo declarado, sem prorrogações. A taxa connosco só se diz a partir de {{ minimo }} decididas. {{ legenda }}</span></div></div></form>{{ paginador }}
+{%- else %}<div class='mg-empty comecar'><h2 class='mg-empty__title'>{{ vazio_titulo }}</h2><span>{{ vazio_porque }}</span></div>{% endif %}</div>

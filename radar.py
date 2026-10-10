@@ -26799,27 +26799,13 @@ def _bloco_de_comparacao(chaves):
     isto nao se desenha: a comparacao e entre duas.
     """
     if len(chaves) != 2:
-        return ""
-    colunas, cabecas = [], []
+        return []
+    colunas = []
     acabam = a_acabar_por_entidade(chaves=chaves)
     for ch in chaves:
         nome = nome_da_entidade(ch) or ch
         nosso = lado_da_empresa(ch, nome)
         f = ficha_entidade(ch) if ha_corpus() else None
-        cabecas.append("<a href='/entidade/%s'>%s</a>"
-                       % (quote(ch, safe=""), html.escape(corta(nome, 44))))
-        fornece = "<br>".join(
-            "%s &mdash; %s" % (html.escape(corta(r["n"] or "", 30)),
-                               euros_curto(r["v"] or 0))
-            for r in (f["fornecedores"][:4] if f and f["fornecedores"]
-                      else []))
-        if f is None:
-            compra = "sem BASE"
-        else:
-            compra = ("%s contrato%s &middot; %s"
-                      % (mil_pt(f["compra"]["k"]),
-                         "" if f["compra"]["k"] == 1 else "s",
-                         euros_curto(f["compra"]["v"] or 0)))
         if nosso["taxa"] is not None:
             com_ela = ("%s de %s decididas"
                        % (pct_pt(nosso["taxa"], 0), mil_pt(nosso["decididos"])))
@@ -26829,27 +26815,20 @@ def _bloco_de_comparacao(chaves):
         else:
             com_ela = "ainda não há decididas"
         k, v = acabam.get(ch, (0, 0.0))
-        colunas.append([
-            ("O que compra", compra),
-            ("A quem compra", fornece or "—"),
-            ("Connosco",
-             "%s proposta%s &middot; %s"
-             % (mil_pt(len(nosso["propostas"])),
-                "" if len(nosso["propostas"]) == 1 else "s", com_ela)),
-            ("Anúncios dela na base", mil_pt(nosso["anuncios"])),
-            ("A acabar · %d meses" % MESES_A_ACABAR,
-             ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—"),
-        ])
-
-    linhas = "".join(
-        "<div class='r'>%s</div><div>%s</div><div>%s</div>"
-        % (html.escape(colunas[0][i][0]), colunas[0][i][1], colunas[1][i][1])
-        for i in range(len(colunas[0])))
-    return ("<div class='mg-card comparar'><div class='cab'>"
-            "<span class='mg-field__label'>A comparar</span><div>%s</div><div>%s</div>"
-            "</div><div class='grelha'>%s</div>"
-            "<a class='nota' href='/entidades'>deixar de comparar</a></div>"
-            % (cabecas[0], cabecas[1], linhas))
+        # as duas colunas, para o molde ([] sem as duas)
+        colunas.append({
+            "href": quote(ch, safe=""), "nome": corta(nome, 44),
+            "compra_k": mil_pt(f["compra"]["k"]) if f else None,
+            "compra_s": "" if f and f["compra"]["k"] == 1 else "s",
+            "compra_v": euros_curto(f["compra"]["v"] or 0) if f else "",
+            "fornece": [(corta(r["n"] or "", 30), euros_curto(r["v"] or 0))
+                        for r in (f["fornecedores"][:4] if f and f["fornecedores"]
+                                  else [])],
+            "propostas_n": mil_pt(len(nosso["propostas"])),
+            "propostas_s": "" if len(nosso["propostas"]) == 1 else "s",
+            "com_ela": com_ela, "anuncios": mil_pt(nosso["anuncios"]),
+            "acabar_k": mil_pt(k) if k else "", "acabar_v": euros_curto(v)})
+    return colunas
 
 
 def _vazio_da_aba(aba):
@@ -26899,27 +26878,10 @@ def entidades():
            mil_pt(contas.get(chave, 0)))
         for chave, rotulo in ABAS_DAS_ENTIDADES)
 
-    # a procura larga, como a pesquisa dos Concursos (uniformizar,
-    # 6/10/2026): era uma caixa pequena centrada num cartão
-    procura = ("<form class='procura-larga' id='procura-entidade' method='get' "
-               "action='/entidade/procurar'>"
-               "<label><span class='so-leitor'>Nome ou NIF</span>%s"
-               "<input type='text' name='q' "
-               "placeholder='Abrir a ficha de uma entidade: nome ou NIF, ex. "
-               "Politécnico de Leiria'></label>"
-               "<button type='submit' class='mg-btn mg-btn--primary'>Abrir a ficha</button></form>"
-               % icone("pesquisar", 18))
-
-    # Sem corpus, três das cinco abas não têm o que mostrar e as colunas
-    # do BASE dizem «sem BASE». O aviso diz o caminho em vez de deixar a
-    # página a parecer avariada (redesenho §5).
-    if not ha_corpus():
-        procura = ("<div class='mg-alert mg-alert--info'>Sem os contratos do Portal BASE, as "
-                   "colunas do mercado dizem «sem BASE» e três destas abas "
-                   "ficam vazias. Traz-se em <a href='/configuracoes/"
-                   "indicadores'>Configurações › Indicadores</a>, com "
-                   "«Actualizar contratos» — demora minutos e refaz-se "
-                   "sozinho à segunda-feira.</div>") + procura
+    # A procura larga, como a pesquisa dos Concursos (uniformizar,
+    # 6/10/2026). Sem corpus, três das cinco abas não têm o que mostrar e
+    # as colunas do BASE dizem «sem BASE»: o aviso por cima diz o caminho
+    # em vez de deixar a página a parecer avariada (redesenho §5).
 
     linhas = _linhas_da_aba(aba, (pagina - 1) * CABEM_NA_LISTA)
     chaves = [ch for ch, _ in linhas]
@@ -26930,96 +26892,50 @@ def entidades():
         seguidas = {r["chave"] for r in c.execute(
             "SELECT chave FROM entidades_seguidas")}
 
-    corpo = []
-    for ch, nome in linhas:
+    def linha(ch, nome):
         e = ident.get(ch)
         compra = (e["compra"] or 0) if e else 0
         ganha = (e["ganha"] or 0) if e else 0
         propostas = nossas.get(ch, [])
         ganhos = sum(1 for x in propostas if x == "ganho")
         decididos = sum(1 for x in propostas if x in ("ganho", "perdido"))
-        # A taxa só a partir do mínimo, e abaixo dele diz-se quantos são:
-        # uma taxa sobre dois concursos é ruído com ar de facto.
-        if decididos >= MINIMO_COM_ENTIDADE:
-            taxa = pct_pt(ganhos / decididos, 0)
-        elif decididos:
-            taxa = ("<span class='nota'>%s de %s — poucos</span>"
-                    % (mil_pt(ganhos), mil_pt(decididos)))
-        else:
-            taxa = "—"
         k, v = acabam.get(ch, (0, 0.0))
-        corpo.append(
-            "<tr><td><input type='checkbox' name='vs' value='%s'%s "
-            "aria-label='%s'></td>"
-            "<td><a href='/entidade/%s'>%s</a>%s%s</td>"
-            "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
-            "<td>%s</td><td class='p'>%s</td><td class='p'>%s</td></tr>"
-            % (html.escape(ch, quote=True),
-               " checked" if ch in marcadas else "",
-               # o nome diz QUAL (26/09/2026; WCAG 2.4.6): eram vinte
-               # «comparar» iguais
-               html.escape("Comparar %s" % corta(nome or ch, 60), quote=True),
-               quote(ch, safe=""),
-               html.escape(corta(nome or ch, 46)),
-               # a coluna «abrir» saiu (UX-7-LEIS, H6): o nome ja leva a
-               # ficha, e eram duas ligacoes por linha para o mesmo sitio
-               " <span class='mg-tag mg-tag--success'>seguida</span>"
-               if ch in seguidas else "",
-               ("<div class='nota'>%s</div>"
-                % html.escape(e["nif"] or "sem NIF")) if e else
-               "<div class='nota'>só no DR</div>",
-               selo_do_papel(papel_da_entidade(compra, ganha), curto=True)
-               if e else "",
-               euros_curto(compra) if e
-               else "<span class='nota'>sem BASE</span>",
-               euros_curto(ganha) if e else "",
-               _fita_connosco(propostas) if propostas
-               else "<span class='nota'>ainda nenhuma</span>",
-               taxa,
-               ("%s &middot; %s" % (mil_pt(k), euros_curto(v))) if k else "—"))
+        # o nome diz QUAL no «comparar» (26/09/2026; WCAG 2.4.6): eram
+        # vinte iguais; e a coluna «abrir» saiu (UX-7-LEIS, H6): o nome
+        # ja leva a ficha
+        return {
+            "chave": ch, "marcada": ch in marcadas, "nome_longo": corta(nome or ch, 60),
+            "href": quote(ch, safe=""), "nome": corta(nome or ch, 46),
+            "seguida": ch in seguidas, "base": bool(e),
+            "nif": (e["nif"] or "sem NIF") if e else "",
+            "selo": Markup(selo_do_papel(papel_da_entidade(compra, ganha), curto=True)
+                           if e else ""),
+            "compra": euros_curto(compra), "ganha": euros_curto(ganha),
+            "fita": Markup(_fita_connosco(propostas)) if propostas else "",
+            # A taxa só a partir do mínimo, e abaixo dele diz-se quantos
+            # são: uma taxa sobre dois concursos é ruído com ar de facto.
+            "taxa": pct_pt(ganhos / decididos, 0) if decididos >= MINIMO_COM_ENTIDADE
+                    else "",
+            "ganhos": mil_pt(ganhos), "decididos": mil_pt(decididos) if decididos else "",
+            "acabar_k": mil_pt(k) if k else "", "acabar_v": euros_curto(v)}
 
-    if corpo:
-        # O «comparar» tambem por cima da tabela (UX-7-LEIS, F3): so
-        # existia depois da 60.a linha, e com ele a instrucao «Marque duas».
-        comparar = ("<button type='submit' class='mg-btn mg-btn--secondary'>"
-                    "Comparar as marcadas</button>")
-        tabela = (
-            "<form method='get' action='/entidades'>"
-            "<input type='hidden' name='ver' value='%s'>%s"
-            "<div class='mg-card tab-cx'>"
-            "<div class='tab-pe'>%s<span class='nota'>Marque duas.</span></div>"
-            "<table class='mg-table tab-contratos'>"
-            "<thead><tr><th><span class='so-leitor'>Comparar</span></th>"
-            "<th>Entidade</th><th>Papel</th>"
-            "<th class='p'>Compra · sempre</th><th class='p'>Ganha · sempre</th>"
-            "<th>Connosco</th><th class='p'>Taxa connosco</th>"
-            "<th class='p'>A acabar · %d meses</th></tr></thead>"
-            "<tbody>%s</tbody></table>"
-            "<div class='tab-pe'>%s<span class='nota'>Marque duas. "
-            "«Compra» e «Ganha» são os totais do Portal BASE, de sempre; "
-            "«Ganha» é a <b>parte dela</b>: num consórcio, o contrato "
-            "reparte-se pelos vencedores (6.ª ronda). "
-            "O «a acabar» é o <b>fim estimado</b> — celebração mais o "
-            "prazo declarado, sem prorrogações. A taxa connosco só se diz "
-            "a partir de %d decididas. %s</span></div></div></form>"
-            % (html.escape(aba, quote=True),
-               # comparar volta a MESMA pagina: as marcadas estao nela
-               "<input type='hidden' name='pag' value='%d'>" % pagina
-               if pagina > 1 else "",
-               comparar, MESES_A_ACABAR,
-               "".join(corpo), comparar, MINIMO_COM_ENTIDADE,
-               LEGENDA_DO_PAPEL))
-        tabela += paginador(pagina, paginas, request.args, "/entidades")
-    else:
-        titulo_vazio, porque = _vazio_da_aba(aba)
-        tabela = ("<div class='mg-empty comecar'><h2 class='mg-empty__title'>%s</h2>"
-                  "<span>%s</span></div>"
-                  % (html.escape(titulo_vazio), porque))
-
+    titulo_vazio, porque = _vazio_da_aba(aba)
+    # O «comparar» tambem por cima da tabela (UX-7-LEIS, F3), e volta a
+    # MESMA pagina: as marcadas estao nela
     return envolver("entidades", "Entidades",
                     "Quem compra, quem ganha, e com quem já trabalhámos.",
-                    "<div class='larg'>%s%s%s</div>"
-                    % (procura, _bloco_de_comparacao(marcadas), tabela),
+                    ecra("entidades.html", corpus=ha_corpus(),
+                         lupa=Markup(icone("pesquisar", 18)),
+                         comparar=_bloco_de_comparacao(marcadas),
+                         rotulos=["O que compra", "A quem compra", "Connosco",
+                                  "Anúncios dela na base",
+                                  "A acabar · %d meses" % MESES_A_ACABAR],
+                         linhas=[linha(ch, nome) for ch, nome in linhas],
+                         aba=aba, pagina=pagina, meses=MESES_A_ACABAR,
+                         minimo=MINIMO_COM_ENTIDADE, legenda=Markup(LEGENDA_DO_PAPEL),
+                         paginador=Markup(paginador(pagina, paginas, request.args,
+                                                    "/entidades")),
+                         vazio_titulo=titulo_vazio, vazio_porque=porque),
                     migalhas=migalhas_de("entidades"), abas=abas,
                     titulo_aba="Entidades")
 
