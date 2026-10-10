@@ -16,3 +16,7 @@ openpyxl
 # concurso de quatro lotes, 32 MB cada); puro Python, so se importa ao
 # ler uma dessas pecas
 py7zr
+# le os .xls antigos (BIFF) das pecas -- mapas de quantidades e listas
+# de precos que ficavam «não é PDF» (Q3, 10/10/2026); puro Python, sem
+# dependencias, so se importa ao ler um .xls
+xlrd

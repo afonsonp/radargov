@@ -882,6 +882,53 @@ class TestPapeisDaPeca(unittest.TestCase):
                      "419971092.pdf", "espd-request.zip", "Anuncio_JOUE.pdf"):
             self.assertEqual(radar.papeis_da_peca(nome), set(), nome)
 
+    def test_a_sigla_com_a_versao_colada(self):
+        # Q3, 10/10/2026 (o director de obras): o 23591/2026 traz o CE e
+        # o PC com a versão colada à sigla, e nenhum dos dois era peça --
+        # só a Lista.pdf foi lida, e os campos do CE e do PP saíram vazios
+        self.assertEqual(radar.papeis_da_peca("1_CEV24052024_42_2026.pdf"),
+                         {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("2_PCV24052024_42_2026.pdf"),
+                         {"programa"})
+        # mas uma palavra que só começa pela sigla continua a não ser
+        self.assertEqual(radar.papeis_da_peca("Certidao_Cevada.pdf"), set())
+
+    def test_a_pasta_do_zip_decide_quando_o_nome_nao_diz(self):
+        # Q3 (23834/2026): o ZIP da obra arruma as peças por pastas, e o
+        # orçamento chama-se «727.ORC_...» dentro de «MAPA DE QUANTIDADES»
+        dentro = "procº. 727/727_26.zip/727_26/"
+        self.assertEqual(radar.papeis_da_peca(
+            dentro + "MAPA DE QUANTIDADES/727.ORC_OBRAS DE REABILITAÇÃO NA "
+            "ESCOLA EB1 DO VINHAL SP.pdf"), {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca(
+            dentro + "MEMÓRIA DESCRITIVA/Escola EB1 do Vinhal_signed.pdf"),
+            {"tecnico"})
+        self.assertEqual(radar.papeis_da_peca(dentro + "PSS/Plano de Segurança.pdf"),
+                         set())
+        # o nome manda sobre a pasta, e «procedimento» numa pasta não faz
+        # de cada anexo lá dentro o Programa
+        self.assertEqual(radar.papeis_da_peca(
+            "Peças do procedimento/Caderno de Encargos.pdf"), {"encargos"})
+        self.assertEqual(radar.papeis_da_peca("Peças do procedimento/Anexo I.pdf"),
+                         set())
+
+    def test_o_orcamento_e_as_medicoes_sao_tecnicos(self):
+        for nome in ("727.ORC_OBRAS.pdf", "Orçamento.pdf", "16_MEDIÇOES.pdf"):
+            self.assertEqual(radar.papeis_da_peca(nome), {"tecnico"}, nome)
+
+    def test_a_leitura_le_o_ficheiro_pela_pasta(self):
+        marca = radar.MARCA_DO_FICHEIRO
+        texto = "\n".join((
+            marca % "procº. 727/727_26/MAPA DE QUANTIDADES/727.ORC_OBRAS.pdf",
+            "Artigo 1 Demolição de cobertura em fibrocimento 120 m2",
+            marca % "procº. 727/727_26/PSS/Plano de Segurança e Saúde.pdf",
+            "Plano de segurança da obra"))
+        docs = [{"nome": "procº. 727.zip", "texto": texto}]
+        recorte, usados = radar.pecas_para_analise(docs, "encargos", ())
+        self.assertIn("fibrocimento", recorte)
+        self.assertNotIn("Plano de segurança", recorte)
+        self.assertTrue(usados and "727.ORC_OBRAS.pdf" in usados[0], usados)
+
 
 class TestOrcamentoDoDia(unittest.TestCase):
     """A conta tem dois tectos e só um se vê nos cabeçalhos."""
@@ -971,6 +1018,39 @@ class TestPrazoDeEsclarecimentos(unittest.TestCase):
         self.assertIn("22/08/2026", valor)   # prazo 01/09/2026
         self.assertFalse(falta)              # deixou de estar em falta
         self.assertIn("supletiva", nota)     # mas diz que é calculado
+
+    # Q3, o jurista (10/10/2026): o prazo das propostas conta-se do ENVIO
+    # do anúncio (art. 135.º, n.º 1, e 136.º, n.º 1 do CCP, iguais nos
+    # dois regimes), e a publicação sai 2 a 4 dias depois. A ficha dava
+    # o fim do 1.º terço 1 a 3 dias tarde em 21 de 29 concursos.
+    def test_conta_desde_o_envio_do_anuncio(self):
+        # envio 19/08, publicação 22/08, prazo 18/09: 30 dias desde o
+        # envio, o terço são 10 -> 29/08 (da publicação dava 31/08)
+        d = radar.prazo_de_esclarecimentos("2026-08-22", "2026-09-18",
+                                           "19-08-2026")
+        self.assertEqual(str(d), "2026-08-29")
+        # o DR de 1/10/2026 escreve a hora a seguir à data
+        d = radar.prazo_de_esclarecimentos("2026-10-03", "2026-10-31",
+                                           "01-10-2026 12:04:00")
+        self.assertEqual(str(d), "2026-10-11")
+
+    def test_sem_data_de_envio_conta_da_publicacao(self):
+        for envio in ("", None, "lixo", "25-08-2026"):   # o último: depois da pub.
+            with self.subTest(envio=envio):
+                d = radar.prazo_de_esclarecimentos("2026-08-18", "2026-09-01",
+                                                   envio)
+                self.assertEqual(str(d), "2026-08-22")
+
+    def test_a_ficha_e_as_tarefas_contam_do_envio(self):
+        anuncio = dict(TestTabelaEssencial.ANUNCIO, data_pub="2026-08-22",
+                       prazo="2026-09-18")
+        seccoes = [("3", "AVISO", [("Data de Envio do Anúncio", "19-08-2026")])]
+        linha = next(l for l in radar.essencial_do_anuncio(anuncio, seccoes)
+                     if l[0] == "Data de esclarecimentos")
+        self.assertIn("29/08/2026", linha[1])
+        datas = radar.datas_automaticas(dict(
+            anuncio, envio="Data de Envio do Anúncio: 19-08-2026"))
+        self.assertEqual(datas["esclarecimentos"], "2026-08-29")
 
 
 class TestTextoDoPdf(unittest.TestCase):
@@ -1419,8 +1499,15 @@ class TestSegundaRondaDaLeitura(unittest.TestCase):
         # e não cresce sem conta: o pedido inteiro fica debaixo do limite
         # da Groq. Eram 2 842; a 29/09/2026 passou a 2 939 com a página em
         # cada linha, o nível de serviço e o que só pontua (3.ª ronda), e
-        # o maior pedido de todos foi de 13 430 a 13 933 caracteres
-        self.assertLessEqual(len(i), 2939)
+        # o maior pedido de todos foi de 13 430 a 13 933 caracteres. A
+        # 10/10/2026 (Q3), com a avaliação, a empresa e a prova, 3 397
+        self.assertLessEqual(len(i), 3400)
+        for nome, instrucao in (("proposta", radar.INSTRUCOES_PROPOSTA),
+                                ("objecto", radar.INSTRUCOES_OBJECTO)):
+            # 1,5 x o tecto, a pergunta e o anúncio: abaixo dos 16 mil
+            # caracteres (~5 800 tokens a 2,75 por token)
+            self.assertLess(int(radar.TECTO_RECORTE * 1.5) + len(instrucao) + 400,
+                            16000, nome)
 
     def test_a_pergunta_das_obras_sem_alvara(self):
         # o alvará vem do anúncio, e a leitura só produzia negações
@@ -1532,14 +1619,16 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
             self.assertTrue(any(re.search(r, radar.simplifica(frase)) for r in fortes), frase)
         self.assertIn("Nível de serviço", radar.INSTRUCOES_EQUIPA)
 
-    def test_as_licencas_com_cpv_de_ti_sao_bens(self):
-        # 21659, 22682, 23589: artigos com quantidade lidos como perfis
+    def test_as_licencas_com_cpv_de_ti_sao_licencas(self):
+        # 21659, 22682, 23589: artigos com quantidade lidos como perfis;
+        # eram «bens» desde 29/09/2026, e desde a Q3 (10/10/2026) têm a
+        # família delas -- 11 dos 21 «bens» julgados eram licenças
         f = radar.familia_do_contrato
         for titulo, cpv in (("Licenciamento e manutenção de rede check Point", "72267000"),
                             ("Aquisição de Serviços de Suporte e Renovação do "
                              "Licenciamento CISCO", "72500000"),
                             ("Serviços Renovação Suporte AVAMAR 2026", "72100000")):
-            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "bens", titulo)
+            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "licencas", titulo)
         # com trabalho de equipa no mesmo contrato, fica equipa
         for titulo in ("Aquisição de serviços de suporte técnico e manutenção adaptativa "
                        "e evolutiva da plataforma DSpace",
@@ -1549,7 +1638,7 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
         self.assertEqual(f("Aquisição de Serviços", "72267000"), "equipa")
         texto = ("6 - OBJETO DO CONTRATO\nDesignação do contrato: Licenças Office 2024\n"
                  "Tipo de Contrato Principal: Aquisição de Serviços\n")
-        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "bens")
+        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "licencas")
 
     def test_a_lista_dos_itens_dos_bens(self):
         # 21659: «2- O fornecimento compreende os seguintes itens:»
@@ -5316,6 +5405,302 @@ class TestTextoDoExcel(BaseTemporaria):
                 ).fetchone()[0], "não é PDF")
 
 
+class TestExcelQueFicavaPorLer(BaseTemporaria):
+    """Q3, 10/10/2026 (o director de operações): o «ANEXO I_LPU.xlsx»
+    dentro do «2_PROGRAMA_DO_PROCEDIMENTO.zip» da 22071 não chegou ao
+    texto -- de um ZIP de Programa só se tirava o Programa, e o «_LPU»
+    não era técnico (o \\b do re trata o «_» como letra). E os .xls
+    antigos (24120, 24944) ficavam «não é PDF», com as horas lá dentro."""
+
+    MAPA = TestTextoDoExcel.MAPA
+
+    def test_a_lpu_com_sublinhado_e_tecnica(self):
+        self.assertEqual(radar.papeis_da_peca("ANEXO I_LPU.xlsx"), {"tecnico"})
+
+    def test_do_zip_do_programa_sai_tambem_o_anexo_tecnico(self):
+        import zipfile
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        with zipfile.ZipFile(os.path.join(pasta, "2_PROGRAMA_DO_PROCEDIMENTO.zip"),
+                             "w") as z:
+            z.writestr("PROGRAMA DO PROCEDIMENTO.docx",
+                       TestTextoDoZip.docx("Criterio de adjudicacao"))
+            z.writestr("ANEXO I_LPU.xlsx", _livro_excel(self.MAPA))
+            z.writestr("Anexo II - Modelo de declaracao.docx",
+                       TestTextoDoZip.docx("declaro sob compromisso"))
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref,nome) VALUES "
+                      "('9/2026','2_PROGRAMA_DO_PROCEDIMENTO.zip')")
+        radar.extrair_textos("9/2026")
+        with radar.liga() as c:
+            texto = c.execute("SELECT texto FROM documentos").fetchone()[0]
+        self.assertIn("Criterio de adjudicacao", texto)
+        self.assertIn("Betão C25/30", texto)
+        self.assertNotIn("declaro sob compromisso", texto)
+
+    def test_o_xls_antigo_le_se_pelo_xlrd(self):
+        class Folha:
+            name = "Anexo II"
+            nrows = 3
+
+            def row_values(self, i):
+                return [["Posto", "Horas/mês"], ["Portaria", 744.0],
+                        ["", ""]][i]
+
+        class Livro:
+            def sheets(self):
+                return [Folha()]
+
+        falso = unittest.mock.MagicMock()
+        falso.open_workbook.return_value = Livro()
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": falso}):
+            texto, estado = radar.texto_do_excel("Anexo II.xls", b"\xd0\xcf")
+        self.assertEqual(estado, "ok")
+        self.assertIn("Folha: Anexo II", texto)
+        self.assertIn("Portaria | 744", texto)
+
+    def test_sem_o_xlrd_e_erro_e_retenta_se(self):
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": None}):
+            _, estado = radar.texto_do_excel("Anexo II.xls", b"\xd0\xcf")
+        self.assertTrue(estado.startswith("erro: falta o xlrd"), estado)
+
+    def test_o_xls_que_nao_abre_e_veredicto(self):
+        falso = unittest.mock.MagicMock()
+        falso.open_workbook.side_effect = ValueError("não é BIFF")
+        with unittest.mock.patch.dict(sys.modules, {"xlrd": falso}):
+            self.assertEqual(radar.texto_do_excel("x.xls", b"lixo"),
+                             ("", "não é PDF"))
+
+    def test_a_migracao_poe_por_ler_os_xls_e_os_zip(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        for nome in ("Mapa.xls", "PP.zip"):
+            open(os.path.join(pasta, nome), "wb").close()
+        with radar.liga() as c:
+            c.executemany(
+                "INSERT INTO documentos (ref,nome,texto,texto_estado) "
+                "VALUES ('9/2026',?,?,?)",
+                [("Mapa.xls", "", "não é PDF"), ("PP.zip", "antigo", "ok"),
+                 ("CE.pdf", "t", "ok")])
+            c.execute("DELETE FROM estado WHERE chave='pecas_xls_e_anexos'")
+        radar.iniciar_db()
+        with radar.liga() as c:
+            d = {r["nome"]: r["texto_estado"] for r in c.execute(
+                "SELECT nome, texto_estado FROM documentos")}
+        self.assertEqual(d, {"Mapa.xls": None, "PP.zip": None, "CE.pdf": "ok"})
+
+
+class TestPaginasQueNaoSeLeram(BaseTemporaria):
+    """Q3, 10/10/2026 (o gestor de bens): a lista das licenças da 24922 é
+    uma imagem na pág. 15 do CE, e o Anexo B da 23589 sai com a letra
+    trocada (pág. 16–17). A leitura calava-se -- o campo dizia o que viu,
+    e quem lia a ficha não sabia que faltava uma tabela."""
+
+    @staticmethod
+    def pdf_com_imagem(caminho):
+        import pymupdf
+        doc = pymupdf.open()
+        p = doc.new_page()
+        p.insert_text((72, 72), "Clausula 1.a Objecto do contrato " * 20)
+        p = doc.new_page()
+        p.insert_text((72, 72), "ANEXO I - Pretendem-se as licencas do quadro:")
+        imagem = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
+        imagem.clear_with(200)
+        p.insert_image(pymupdf.Rect(50, 100, 550, 700), pixmap=imagem)
+        doc.save(caminho)
+
+    def test_a_pagina_que_e_uma_imagem(self):
+        caminho = os.path.join(self.pasta, "CE.pdf")
+        self.pdf_com_imagem(caminho)
+        self.assertEqual(radar.paginas_em_imagem(caminho), [2])
+        self.assertEqual(radar.paginas_em_imagem(os.path.join(self.pasta, "x.pdf")), [])
+
+    def test_a_pagina_com_a_letra_trocada(self):
+        trocada = "\x03sŝƐƚŽ\x03ĚŽ\x03^ƵƉĞƌŝŶƚĞŶĚĞŶƚĞ\x03ĚĂ\x03/ŶĨŽƌŵĂĕĆŽ " * 5
+        texto = "\n\f\n".join(("Cláusula 1.ª Objecto " * 10, trocada,
+                                "Página 3 sem nada de estranho " * 5))
+        self.assertEqual(radar.paginas_ilegiveis(texto), [2])
+        # o português com acentos, o euro e os travessões não são «estranhos»
+        self.assertEqual(radar.paginas_ilegiveis(
+            "Preço base: 1 000 € — ação, função, Cláusula 3.ª • alínea " * 5), [])
+
+    def test_a_leitura_diz_o_que_nao_leu(self):
+        pasta = radar.pasta_do_anuncio("9/2026")
+        os.makedirs(pasta)
+        self.pdf_com_imagem(os.path.join(pasta, "1_Caderno_de_Encargos.pdf"))
+        trocada = "\x03ĚŽ\x03^ƵƉĞƌŝŶƚĞŶĚĞŶƚĞ\x03ĚĂ " * 10
+        docs = [{"nome": "1_Caderno_de_Encargos.pdf",
+                 "texto": "Clausula 1.a\n\f\nANEXO I"},
+                {"nome": "3_Anexo_B_Tecnico.pdf",
+                 "texto": "Especificação\n\f\n" + trocada},
+                {"nome": "Anúncio DR.pdf", "texto": "\n\f\n" + trocada}]
+        nota = radar.nota_do_que_nao_se_leu("9/2026", docs)
+        self.assertEqual(nota, "Não lido: 1_Caderno_de_Encargos.pdf, pág. 2 "
+                               "(imagem sem texto); 3_Anexo_B_Tecnico.pdf, pág. 2 "
+                               "(texto ilegível)")
+        self.assertEqual(radar.nota_do_que_nao_se_leu("9/2026", docs[2:]), "")
+
+
+class TestOMesmoProcedimentoLeSeUmaVez(BaseTemporaria):
+    """Q3, 10/10/2026 (o bid manager): a 21295 altera a 19129, e a 21925
+    altera a 21295 -- é o mesmo procedimento, com as mesmas peças, e foi
+    lido duas vezes, com duas equipas diferentes. A leitura de um
+    procedimento já lido com a pergunta de agora reaproveita-se."""
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            c.executemany("INSERT INTO anuncios (ref, altera, estado) VALUES (?,?,?)",
+                          [("21295/2026", "19129/2026", "novo"),
+                           ("21925/2026", "21295/2026", "alteracao"),
+                           ("30000/2026", "", "novo")])
+
+    def ler(self, ref, pergunta=None):
+        with radar.liga() as c:
+            c.execute("INSERT OR REPLACE INTO analise (ref, objecto, equipa, "
+                      "documentos_proposta, modelo, fontes, quando, pergunta) "
+                      "VALUES (?,?,?,?,?,?,?,?)",
+                      (ref, "- o website", "Technical Leader UI/UX", "1. DEUCP",
+                       "nvidia", "CE.pdf (pág. 54)", "2026-10-03 21:10",
+                       pergunta or radar.VERSAO_DA_PERGUNTA))
+
+    def test_a_alteracao_leva_a_leitura_do_original(self):
+        self.ler("21295/2026")
+        self.assertEqual(radar.reaproveitar_leitura("21925/2026"), "21295/2026")
+        copia = radar.analise_de("21925/2026")
+        self.assertEqual(copia["equipa"], "Technical Leader UI/UX")
+        self.assertEqual(copia["fontes"], "CE.pdf (pág. 54)")
+        self.assertEqual(copia["pergunta"], radar.VERSAO_DA_PERGUNTA)
+
+    def test_e_o_original_a_da_alteracao(self):
+        self.ler("21925/2026")
+        self.assertEqual(radar.reaproveitar_leitura("21295/2026"), "21925/2026")
+
+    def test_uma_leitura_da_pergunta_antiga_nao_se_reaproveita(self):
+        self.ler("21295/2026", pergunta="antiga")
+        self.assertIsNone(radar.reaproveitar_leitura("21925/2026"))
+        self.assertIsNone(radar.reaproveitar_leitura("30000/2026"))
+
+    def test_a_leitura_nao_chama_o_modelo(self):
+        self.ler("21295/2026")
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        return_value=[("x",)]), \
+                unittest.mock.patch.object(radar, "_perguntar") as perguntar:
+            self.assertEqual(radar.analisar_pecas("21925/2026"), (True, ""))
+        perguntar.assert_not_called()
+        with radar.liga() as c:
+            evento = c.execute("SELECT detalhe FROM eventos WHERE ref='21925/2026'"
+                               ).fetchone()
+        self.assertIn("21295/2026", evento["detalhe"])
+
+
+class TestAsPerguntasDosJuizes(unittest.TestCase):
+    """Q3, 10/10/2026: sete juízes — o bid manager e o director de equipa
+    de TI, o director de obras, os gestores de bens e de serviços, o
+    director de operações e o jurista — julgaram 103 leituras e disseram
+    o que cada pergunta devia pedir. Mapear, não decidir: nenhuma pede
+    ao modelo que diga se se concorre."""
+
+    def junto(self, i):
+        return " ".join(i.split())
+
+    def test_dispensada_e_resposta_e_nao_nao_consta(self):
+        # caução dispensada lida como «não consta» (6 na equipa, 10 nas
+        # obras); «o PP diz expressamente que não fixa limiar» (21713)
+        p = self.junto(radar.PREAMBULO)
+        self.assertIn("não é exigida", p)
+        self.assertIn("não se fixa", p)
+        self.assertIn("é a resposta", p)
+
+    def test_a_equipa_diz_como_pontua_e_a_quem_se_exige(self):
+        i = self.junto(radar.INSTRUCOES_EQUIPA)
+        for pedaco in ("Como a equipa é avaliada", "escalão → pontos",
+                       "só admissão", "Exigido à empresa", "Prova:",
+                       "(exclui)", "na proposta ou na habilitação"):
+            self.assertIn(pedaco, i)
+
+    def test_as_obras_a_visita_e_o_mapa(self):
+        i = self.junto(radar.INSTRUCOES_OBRAS)
+        for pedaco in ("Visita ao local", "Mapa de quantidades", "### nome",
+                       "Programa"):
+            self.assertIn(pedaco, i)
+
+    def test_os_bens_contam_e_dao_o_preco_do_lote(self):
+        i = self.junto(radar.INSTRUCOES_BENS)
+        for pedaco in ("Total:", "preço base do lote", "Amostras",
+                       "não da vigência", "«Lista»", "as duas versões"):
+            self.assertIn(pedaco, i)
+
+    def test_a_mao_de_obra_pessoas_horas_e_transmissao(self):
+        i = self.junto(radar.INSTRUCOES_MAO_DE_OBRA)
+        for pedaco in ("número de trabalhadores", "não posições", "Horas",
+                       "bolsa", "Transmissão de pessoal", "as peças não falam disto",
+                       "CCT", "refeições"):
+            self.assertIn(pedaco, i)
+
+    def test_os_servicos_os_meios_e_a_contagem(self):
+        i = self.junto(radar.INSTRUCOES_SERVICOS)
+        for pedaco in ("com a contagem", "Meios mínimos", "atributo",
+                       "Calendário", "métrica exacta"):
+            self.assertIn(pedaco, i)
+        # os SLA que são atributos da proposta (23370): o Programa entra
+        self.assertTrue(any(re.search(r, "criterio e atributos da proposta")
+                            for _, r in radar.ANCORAS_SERVICOS))
+
+    def test_os_pagamentos_levam_as_penalidades_e_as_retencoes(self):
+        for i in (radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_OBJECTO_OBRAS):
+            i = self.junto(i)
+            for pedaco in ("penalidades", "tecto", "retenções"):
+                self.assertIn(pedaco, i)
+        self.assertIn("revisão de preços", self.junto(radar.INSTRUCOES_OBJECTO_OBRAS))
+        # as obras não tinham âncora de pagamento nenhuma
+        self.assertTrue(any(re.search(r, "condicoes de pagamento")
+                            for _, r in radar.ANCORAS_OBJECTO_OBRAS))
+        self.assertTrue(any(re.search(r, "penalidades contratuais")
+                            for _, r in radar.ANCORAS_OBJECTO))
+
+    def test_a_habilitacao_pelo_titulo_do_artigo(self):
+        # 9 de 15, 15 de 21, 13 de 20, 12 de 16 «não consta» com o
+        # artigo «Documentos de habilitação» no Programa
+        titulo = "artigo 19.o documentos de habilitacao"
+        pesos = [p for p, r in radar.ANCORAS_PROGRAMA if re.search(r, titulo)]
+        self.assertTrue(pesos and min(pesos) <= 2, pesos)
+        i = self.junto(radar.INSTRUCOES_PROPOSTA)
+        for pedaco in ("«Documentos de habilitação»", "licenças",
+                       "Anúncio do DR", "as duas, cada uma com a fonte"):
+            self.assertIn(pedaco, i)
+
+    def test_o_anuncio_entra_no_que_o_modelo_ve(self):
+        texto = ("12 - DOCUMENTOS DE HABILITAÇÃO\n"
+                 "Habilitação para o exercício da atividade profissional: Não\n"
+                 "14 - PRESTAÇÃO DE CAUÇÃO\nPrestação de caução: Não\n")
+        bloco = radar.bloco_do_anuncio(texto)
+        self.assertTrue(bloco.startswith("### Anúncio do DR\n"), bloco)
+        self.assertIn("Caução (§14): Não", bloco)
+        self.assertIn("Habilitação (§12): Não exigida no anúncio", bloco)
+        self.assertEqual(radar.bloco_do_anuncio(""), "")
+
+    def test_nenhuma_pergunta_pede_que_se_decida(self):
+        for familia, (_, _, _, i) in radar.CAMPO_11.items():
+            for instrucao in (i or "", radar.INSTRUCOES_PROPOSTA,
+                              radar.INSTRUCOES_OBJECTO, radar.INSTRUCOES_EQUIPA):
+                self.assertFalse(re.search(
+                    r"deve(s)? concorrer|vale a pena|go/no|recomend", instrucao, re.I),
+                    familia)
+
+    def test_o_nao_consta_que_outro_campo_responde(self):
+        # 23010: os locais estão no campo 11 e a localização diz «não consta»
+        campos = {"localizacao": "não consta",
+                  "equipa": "Âmbito: transporte de doentes\n"
+                            "Locais: Hospital Dr. Nélio Mendonça (pág. 4)",
+                  "pagamentos": "não consta",
+                  "caucao": "2% do preço contratual (pág. 13)"}
+        fora = radar.negativos_que_a_ficha_responde(campos)
+        self.assertEqual(fora["localizacao"], "Locais: Hospital Dr. Nélio Mendonça (pág. 4)")
+        self.assertEqual(fora["pagamentos"], "não consta")     # ninguém o diz
+        self.assertEqual(campos["localizacao"], "não consta")  # não muda o que recebe
+
+
 class TestAnexosTecnicos(unittest.TestCase):
     """28/09/2026: a leitura escolhia as peças pelo nome — «caderno» ou
     «programa» — e 88 de 235 documentos com texto não iam a pedido
@@ -5497,13 +5882,46 @@ class TestCampo11PorTipo(unittest.TestCase):
         f = radar.familia_do_contrato
         self.assertEqual(f("Empreitada de Obras Públicas", "45261910"), "obras")
         self.assertEqual(f("Aquisição de Bens Móveis", "37412241"), "bens")
-        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "bens")
+        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "locacao")
         self.assertEqual(f("Aquisição de Serviços", "90911200"), "mao_de_obra")
         self.assertEqual(f("Aquisição de Serviços", "79714000"), "mao_de_obra")
         self.assertEqual(f("Aquisição de Serviços", "72000000"), "equipa")
         self.assertEqual(f("Aquisição de Serviços", "50711000"), "servicos")
         # o CPV com dois códigos: conta o primeiro
         self.assertEqual(f("Aquisição de Serviços", "72000000, 50000000"), "equipa")
+
+    def test_as_familias_que_os_juizes_separaram(self):
+        # Q3, 10/10/2026: os juízes acharam nos «bens» licenças e
+        # viaturas alugadas, nas «equipas» hardware, e na «mão-de-obra»
+        # a concessão de um bar
+        f = radar.familia_do_contrato
+        # o software (CPV 48), comprado como bens ou como serviço
+        self.assertEqual(f("Aquisição de Bens Móveis", "48321000",
+                           "Aquisição de bens móveis Software AutoCAD"), "licencas")
+        self.assertEqual(f("Aquisição de Bens Móveis", "48900000",
+                           "Subscrição de licenças de software Microsoft (modelo CSP)"),
+                         "licencas")
+        # mas um ERP a implementar não é uma compra de licenças
+        self.assertEqual(f("Aquisição de Serviços", "48000000",
+                           "Implementação de um ERP"), "servicos")
+        # a locação: duração, quilómetros, o que a renda inclui
+        self.assertEqual(f("Locação de Bens Móveis", "34110000",
+                           "Locação operacional de veículos automóveis ligeiros"),
+                         "locacao")
+        # o hardware com suporte (22540) não é uma equipa a propor
+        self.assertEqual(f("Aquisição de Serviços", "72300000",
+                           "Renovação e Expansão do Cluster de Armazenamento de "
+                           "Dados (DataCenter)"), "bens")
+        # a concessão de um bar (21877): quem concorre paga renda
+        self.assertEqual(f("Concessão de Serviços Públicos", "55511000",
+                           "concessão de exploração do bar"), "concessao")
+        self.assertEqual(f("Concessão de Obras Públicas", "45000000"), "obras")
+
+    def test_cada_familia_tem_o_seu_campo_11(self):
+        for familia in ("licencas", "locacao", "concessao"):
+            rotulo, falta, ancoras, instrucao = radar.CAMPO_11[familia]
+            self.assertTrue(rotulo and falta and ancoras, familia)
+            self.assertIn('{"equipa":', instrucao, familia)
 
     def test_sem_nada_fica_a_pergunta_de_antes(self):
         self.assertEqual(radar.familia_do_contrato("", ""), "equipa")

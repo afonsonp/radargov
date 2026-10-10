@@ -71,6 +71,7 @@ que o DL 177/2026 lhe mexe; não quer dizer que mexe na parte que usamos.
 | Artigo | O que usamos | Alterado? | No código |
 |---|---|---|---|
 | **50.º** | Esclarecimentos no primeiro terço do prazo das propostas (regra supletiva) | Não | `prazo_de_esclarecimentos()` |
+| **135.º, n.º 1** / **136.º, n.º 1** | O prazo das propostas conta-se **da data do envio do anúncio** para publicação (no DR; com o JOUE, do envio ao Serviço das Publicações). É daí que se conta o terço do art. 50.º — a «Data de Envio do Anúncio» do §3 do DR, não a publicação. *Conferido a 10/10/2026*: no regime novo, na republicação do DL 177/2026 (PDF do DR, pág. 152); no anterior, no texto consolidado da PGDL, que dá o art. 135.º alterado só pelo DL 111-B/2017 | Não (o 136.º, n.º 4 é revogado; não é o que usamos) | `prazo_de_esclarecimentos()`, `SQL_DO_ENVIO` |
 | **70.º** | A proposta acima do preço base é excluída | **Sim — mudou de sítio**: era o n.º 2, al. d); passa a **n.º 3, al. d)**. O n.º 2, al. d) novo é «não constituídas por todos os documentos exigidos» | `recusa_do_preco()` e os dois avisos do preço, que desde 27/09/2026 citam só «art. 70.º» |
 | **71.º** | Preço anormalmente baixo: a entidade *pode* fixar o limiar no PP; sem ele, pode considerá-lo na mesma, fundamentando; o concorrente é sempre ouvido antes | Sim — não se conferiu em que parte | A pergunta ao modelo sobre o Programa |
 | **147.º** | Audiência prévia: prazo fixado pelo júri, não inferior a cinco dias | Não | `DIAS_DE_PRONUNCIA`, `prazo_de_pronuncia()` |
