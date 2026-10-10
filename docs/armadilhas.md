@@ -21,7 +21,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
 - [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
-- [Contas e a porta](#contas-e-a-porta) &middot; 55
+- [Contas e a porta](#contas-e-a-porta) &middot; 58
 - [A interface](#a-interface) &middot; 131
 - [Convenções](#convencoes) &middot; 8
 
@@ -3215,9 +3215,37 @@ Nada espera dentro do pedido do browser.
   (decisão 7, 10/10/2026). O `revogar_tokens_mcp()` é chamado pelo
   `sair_de_todos()` (e por ele pela suspensão e pela ligação de repor),
   pelo ramo do `criar_utilizador()` que troca a palavra-passe (a Conta, a
-  consola e o repor passam todos por lá) e pelo `apagar_utilizador()`.
-  Um caminho novo que mude a palavra-passe ou feche as sessões sem
-  passar por estas três deixa o assistente ligado.
+  consola e o repor passam todos por lá — e também a passagem de gestor a
+  membro, que é o mesmo `UPDATE`), pelo `apagar_utilizador()` e pelo
+  `desligar_segundo_factor()` da consola. O `--apagar-empresa` não passa
+  por nenhum (apaga as contas em SQL, no `_apagar_da_plataforma()`), e
+  por isso apaga lá os `tokens_mcp`, os `codigos_oauth` e a
+  `chamadas_mcp` da empresa. Um caminho novo que mude a palavra-passe ou
+  feche as sessões sem passar por estes deixa o assistente ligado.
+- **Uma consulta do conector tem prazo, e o prazo não é um erro**
+  (revisão de segurança, 10/10/2026). Dentro de `so_de_leitura()` o
+  `liga()` e o `liga_corpus()` põem um `set_progress_handler`
+  (`_com_prazo()`): passados `SEGUNDOS_DA_CONSULTA_MCP` desde que a
+  ligação abriu, o SQLite pára com `interrupted`. O `_chamada_do_mcp()`
+  trata esse caso à parte — a frase «afine os filtros» ao modelo, e
+  `recusado` no registo — e **não** chama o `marca_erro()`: uma pergunta
+  larga de um robô não pode acender o semáforo do dono. Qualquer outro
+  `OperationalError` continua a ir aos erros. E as páginas param nas
+  `PAGINAS_NO_MAXIMO` (40): um `OFFSET` fundo lê-se linha a linha.
+- **O tecto do conector conta e depois escreve, sem trinco** (L4 da
+  revisão de 10/10/2026, deixado assim de propósito). O
+  `tecto_da_chamada()` conta as linhas da `chamadas_mcp` e a linha da
+  chamada só entra depois de ela correr: dois pedidos ao mesmo tempo
+  passam os dois, e a conta pode ir umas chamadas acima dos 30 por minuto.
+  Aceita-se porque as ferramentas só lêem — o pior é uma resposta a mais.
+  Se um dia uma ferramenta escrever, o tecto passa a reservar a linha
+  antes (um `INSERT` dentro da mesma transacção da contagem).
+- **O histórico da proposta sai por lista branca, não negra** (L1 da
+  revisão, 10/10/2026). O `ver_proposta` só leva as `ACCOES_QUE_SAEM`:
+  os campos da proposta escrevem no histórico com o **nome da coluna**
+  como acção, e a coluna antiga `notas` levava o texto da nota no
+  detalhe — uma lista negra de «nota…» deixava-a passar. Uma acção nova
+  no `registar()` fica de fora do conector até alguém a pôr na lista.
 - **O `/mcp` e os metadados não saltam de nome** (`NAO_SALTAM`). O
   `resource` dos metadados tem de ser igual ao URL que a pessoa escreveu
   no Claude, e o `ao_endereco_certo()` mandava o pedido de

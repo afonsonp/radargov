@@ -120,8 +120,11 @@ def _inteiro(a, nome, omissao, minimo=1, maximo=10 ** 6):
     valor = a.get(nome, omissao)
     if valor is None:
         return omissao
+    # NaN e infinito (revisão de 10/10/2026): o `int()` rebentava e o
+    # erro ia para o `painel_ultimo_erro` em vez de voltar ao modelo
     if isinstance(valor, bool) or not isinstance(valor, (int, float)) \
-            or valor != int(valor) or not minimo <= valor <= maximo:
+            or not math.isfinite(valor) or valor != int(valor) \
+            or not minimo <= valor <= maximo:
         raise Recusa("«%s» é um número inteiro entre %d e %d" % (nome, minimo, maximo))
     return int(valor)
 
@@ -132,7 +135,8 @@ def _euros(a, nome):
     valor = a.get(nome)
     if valor is None:
         return ""
-    if isinstance(valor, bool) or not isinstance(valor, (int, float)) or valor < 0:
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)) \
+            or not math.isfinite(valor) or valor < 0:
         raise Recusa("«%s» é um valor em euros, sem sinal" % nome)
     return str(int(round(valor)))
 
@@ -144,8 +148,14 @@ def _escolha(a, nome, opcoes, omissao=""):
     return valor
 
 
+# Uma página funda é um OFFSET grande, que o SQLite lê linha a linha
+# (revisão de 10/10/2026): 40 páginas são mil linhas, e quem quer mais
+# afina o filtro.
+PAGINAS_NO_MAXIMO = 40
+
+
 def _pagina(a):
-    return _inteiro(a, "pagina", 1, 1, 10000)
+    return _inteiro(a, "pagina", 1, 1, PAGINAS_NO_MAXIMO)
 
 
 def _distritos(f, a):
@@ -354,11 +364,23 @@ def listar_propostas(f, a):
 
 # O que a proposta mostra. De fora, de propósito (decisão 5): as notas
 # (texto livre da equipa, que também está no histórico -- por isso o
-# histórico perde as linhas delas), os contactos e os documentos do cofre.
+# histórico só leva as ACCOES_QUE_SAEM), os contactos e os documentos do cofre.
 CAMPOS_DA_PROPOSTA = ("ref", "lote", "titulo", "entidade", "motivo", "tipologia",
                       "preco_base", "valor_proposta", "valor_adjudicado",
                       "data_adjudicacao", "prazo_entrega", "criada_em", "fechada_em")
-ACCOES_DE_FORA = ("nota", "contacto", "documento")
+# As acções do histórico que saem (revisão de 10/10/2026: era uma lista
+# negra, e uma acção nova saía sem ninguém decidir). São os nomes reais
+# do `historico.accao` e dos `eventos`: a escada, as tarefas, a criação,
+# os eventos da plataforma (`ACCOES_DA_PLATAFORMA` do radar) e os campos
+# da proposta (os de `_NOMES_ACCAO`) -- menos as `notas`, o `cv`, a
+# `proposta_tecnica` e o `ebitda`, que são texto livre ou contas internas.
+ACCOES_QUE_SAEM = frozenset((
+    "estado", "tarefa", "proposta criada", "análise",
+    "alterou", "alteração", "rectificado", "verificou as peças", "leitura",
+    "valor_proposta", "preco_base", "lugar", "top3", "coe", "documentos_prontos",
+    "vencedor", "preco_vencedor", "responsavel", "tipologia", "motivo",
+    "titulo", "entidade", "porque_sem_ref", "data_adjudicacao", "audiencia_em",
+    "valor_adjudicado", "prazo_entrega"))
 
 
 def ver_proposta(f, a):
@@ -384,7 +406,7 @@ def ver_proposta(f, a):
     historico = [{"quando": h["quando"] or "", "quem": f.nome_da_pessoa(h["quem"]),
                   "o_que": h["accao"] or "", "detalhe": limpo(h["detalhe"], 300)}
                  for h in passos
-                 if not (h["accao"] or "").startswith(ACCOES_DE_FORA)]
+                 if (h["accao"] or "") in ACCOES_QUE_SAEM]
     por_fazer = [{"o_que": limpo(t["o_que"], 300), "quem": f.nome_da_pessoa(t["quem"]),
                   "quando": t["quando"] or ""} for t in tarefas]
     return {"proposta": proposta, "historico": historico,
@@ -856,6 +878,10 @@ def metadados_do_servidor(base):
             "authorization_response_iss_parameter_supported": True}
 
 
+# O corpo de um registo é pequeno; acima disto recusa-se na rota.
+MAXIMO_DO_REGISTO = 8 * 1024
+
+
 def registar_cliente(c, dados, ip):
     """(estado HTTP, corpo) do POST /oauth/register (RFC 7591)."""
     if not isinstance(dados, dict):
@@ -912,13 +938,31 @@ def token_fechado_ao_ip(ip, agora=None):
     agora = agora or time.time()
     with _TRINCO_DAS_FALHAS:
         recentes = [t for t in _FALHAS_DO_TOKEN.get(ip, ()) if t > agora - 3600]
-        _FALHAS_DO_TOKEN[ip] = recentes
+        if recentes:
+            _FALHAS_DO_TOKEN[ip] = recentes
+        else:
+            _FALHAS_DO_TOKEN.pop(ip, None)
         return len(recentes) >= FALHAS_DO_TOKEN_POR_HORA
 
 
+# Um robô com muitos IPs enchia o dicionário: acima disto, saem os IPs
+# sem falhas na última hora, e se não chegar, todos (revisão de 10/10/2026).
+IPS_DAS_FALHAS_NO_MAXIMO = 10000
+
+
 def contar_falha_do_token(ip, agora=None):
+    agora = agora or time.time()
     with _TRINCO_DAS_FALHAS:
-        _FALHAS_DO_TOKEN.setdefault(ip, []).append(agora or time.time())
+        if len(_FALHAS_DO_TOKEN) >= IPS_DAS_FALHAS_NO_MAXIMO:
+            for chave in [k for k, v in _FALHAS_DO_TOKEN.items()
+                          if not v or v[-1] <= agora - 3600]:
+                del _FALHAS_DO_TOKEN[chave]
+            if len(_FALHAS_DO_TOKEN) >= IPS_DAS_FALHAS_NO_MAXIMO:
+                _FALHAS_DO_TOKEN.clear()
+        _FALHAS_DO_TOKEN.setdefault(ip, []).append(agora)
+
+
+TAMANHO_DO_STATE = 512
 
 
 def _desafio_valido(desafio):
@@ -949,6 +993,9 @@ def validar_autorizacao(c, args, utilizador, base):
         return None, {"mostrar": "A conta do dono da plataforma não liga "
                                  "assistentes: entre com uma conta de uma empresa."}
     estado = args.get("state") or ""
+    # o `state` volta no endereço do redirect: um sem fim era um URL sem fim
+    if len(estado) > TAMANHO_DO_STATE:
+        return None, {"mostrar": "O pedido deste assistente é inválido."}
 
     def voltar(erro):
         return None, {"voltar": redirect + "?" + urlencode(

@@ -431,7 +431,22 @@ def liga():
     if _SO_DE_LEITURA.get():
         # o conector MCP (10/10/2026): vale para a principal e para a `emp`
         c.execute("PRAGMA query_only=ON")
+        _com_prazo(c)
     return c
+
+
+# O tempo de uma ligação do conector MCP (revisão de 10/10/2026): uma
+# pergunta de um robô que levasse minutos prendia o painel de toda a
+# gente. Conta-se desde que a ligação abre -- as ferramentas abrem uma
+# ou duas --, e passado o prazo o SQLite pára a consulta com
+# «interrupted», que o `_chamada_do_mcp()` diz por palavras.
+SEGUNDOS_DA_CONSULTA_MCP = 10
+PASSOS_ENTRE_RELOGIOS = 10000
+
+
+def _com_prazo(c):
+    fim = time.monotonic() + SEGUNDOS_DA_CONSULTA_MCP
+    c.set_progress_handler(lambda: time.monotonic() > fim, PASSOS_ENTRE_RELOGIOS)
 
 
 # As ligacoes abertas dentro de `so_de_leitura()` nao gravam nada: o
@@ -10349,7 +10364,9 @@ def exportar_empresa(id_):
         linhas = {t: [{k: v for k, v in dict(r).items() if k != "hash"}
                       for r in c.execute("SELECT * FROM %s WHERE %s" % (t, onde), (id_,))]
                   for t, onde in LINHAS_DA_EMPRESA_NA_PLATAFORMA
-                  + (("entradas", "empresa_id=?"),)}
+                  # e o que as pessoas dela perguntaram ao conector MCP
+                  # (revisão de 10/10/2026); a tabela não tem tokens
+                  + (("entradas", "empresa_id=?"), ("chamadas_mcp", "empresa_id=?"))}
     # nasce já só do dono: o so_o_dono() do fim deixava-o legível a
     # todos enquanto se escrevia
     os.close(os.open(caminho, os.O_CREAT | os.O_WRONLY | os.O_EXCL, 0o600))
@@ -10393,6 +10410,14 @@ def _apagar_da_plataforma(id_):
                                   (id_,)).rowcount
         saiu["leituras pedidas"] = c.execute(
             "DELETE FROM leituras_pedidas WHERE empresa_id=?", (id_,)).rowcount
+        # o conector MCP (revisão de 10/10/2026): os tokens, os códigos e o
+        # registo saem com ela -- o número não se reutiliza (D10), mas um
+        # token nunca fica à espera de uma empresa com o mesmo número
+        saiu["assistentes ligados"] = c.execute(
+            "DELETE FROM tokens_mcp WHERE empresa_id=?", (id_,)).rowcount
+        c.execute("DELETE FROM codigos_oauth WHERE empresa_id=?", (id_,))
+        saiu["chamadas ao conector"] = c.execute(
+            "DELETE FROM chamadas_mcp WHERE empresa_id=?", (id_,)).rowcount
         # o dono que estava a ver esta empresa (o modo de suporte) deixa
         # de a ver: a marca ficava na sessao, e com o numero reaproveitado
         # abria a empresa nova
@@ -10430,6 +10455,9 @@ def limpar_marcas_de_uso():
         saiu["sessões"] = c.execute("DELETE FROM sessoes").rowcount
         saiu["entradas falhadas"] = c.execute(
             "DELETE FROM entradas_falhadas").rowcount
+        # quem perguntou o quê ao conector MCP (revisão de 10/10/2026)
+        saiu["chamadas ao conector"] = c.execute(
+            "DELETE FROM chamadas_mcp").rowcount
         saiu["último acesso"] = c.execute(
             "UPDATE utilizadores SET ultimo_acesso=NULL "
             "WHERE ultimo_acesso IS NOT NULL").rowcount
@@ -12083,6 +12111,7 @@ def liga_corpus():
     c.create_function("simplifica", 1, simplifica)
     if _SO_DE_LEITURA.get():
         c.execute("PRAGMA query_only=ON")
+        _com_prazo(c)
     return c
 
 
@@ -38237,6 +38266,9 @@ def mcp_metadados_do_servidor():
 def oauth_registar():
     """O registo dinâmico (DCR). Rota aberta: a guarda é a lista branca
     dos redirects e o tecto por IP, no `contas.registar_cliente_oauth()`."""
+    if (request.content_length or 0) > mcp_servidor.MAXIMO_DO_REGISTO:
+        return _json_do_mcp({"error": "invalid_client_metadata",
+                             "error_description": "pedido grande demais"}, 413)
     c = liga()
     try:
         estado, corpo = mcp_servidor.registar_cliente(
@@ -38344,14 +38376,18 @@ def _chamada_do_mcp(quem, nome, argumentos):
         with com_empresa(empresa_id), so_de_leitura():
             resultado, linhas, estado = mcp_servidor.executar(
                 fontes_do_mcp(), nome, argumentos)
+    except sqlite3.OperationalError as erro:
+        # o prazo do `_com_prazo()`: é a pergunta que é larga, não o painel
+        # que avariou -- não vai para os erros
+        if "interrupted" not in str(erro):
+            resultado, linhas, estado = _erro_do_mcp(agora, nome, erro)
+        else:
+            resultado, linhas, estado = mcp_servidor.resultado_de_erro(
+                "A pergunta é larga demais para o Mira Gov responder a tempo: "
+                "afine os filtros (um distrito, um CPV, um período mais "
+                "curto) e volte a pedir."), 0, "recusado"
     except Exception as erro:
-        marca_erro("painel_ultimo_erro", "painel",
-                   "%s no conector MCP (%s): %s: %s"
-                   % (agora.strftime("%Y-%m-%d %H:%M"), nome,
-                      type(erro).__name__, str(erro)[:300]))
-        resultado, linhas, estado = mcp_servidor.resultado_de_erro(
-            "O Mira Gov não conseguiu responder a isto; o erro ficou "
-            "registado."), 0, "erro"
+        resultado, linhas, estado = _erro_do_mcp(agora, nome, erro)
     c = liga()
     try:
         mcp_servidor.registar_chamada(c, agora, utilizador_id, empresa_id,
@@ -38361,6 +38397,18 @@ def _chamada_do_mcp(quem, nome, argumentos):
     finally:
         c.close()
     return resultado
+
+
+def _erro_do_mcp(agora, nome, erro):
+    """Um erro inesperado de uma ferramenta: vai para os erros de sempre, e
+    o modelo recebe uma frase, não um 500."""
+    marca_erro("painel_ultimo_erro", "painel",
+               "%s no conector MCP (%s): %s: %s"
+               % (agora.strftime("%Y-%m-%d %H:%M"), nome,
+                  type(erro).__name__, str(erro)[:300]))
+    return mcp_servidor.resultado_de_erro(
+        "O Mira Gov não conseguiu responder a isto; o erro ficou "
+        "registado."), 0, "erro"
 
 
 # ------------------------------------------------------------- arranque

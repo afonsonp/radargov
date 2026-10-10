@@ -2046,7 +2046,8 @@ em todos os planos. **A conta do dono não** (403): não é de nenhuma
 empresa, e as ferramentas são de uma empresa.
 
 **As nove ferramentas**, todas só de leitura (`mcp_servidor.py`); cada
-resultado traz o `url` para o painel, e as listas vêm em páginas de 25:
+resultado traz o `url` para o painel, e as listas vêm em páginas de 25,
+até à 40.ª:
 
 | Ferramenta | O que devolve |
 |---|---|
@@ -2068,7 +2069,8 @@ dizer se é para concorrer**.
 
 **O que não sai, de propósito** (decisão 5): os **contactos** das
 entidades (dados pessoais de funcionários públicos), as **notas** das
-propostas (nem as linhas «nota» do histórico) e os **documentos do
+propostas (o histórico da proposta só leva as acções de uma lista
+branca, `ACCOES_QUE_SAEM`) e os **documentos do
 cofre**. Nada da plataforma (pedidos de acesso, contas, erros).
 
 **A porta do conector** (OAuth 2.1, sem dependências novas): os
@@ -2092,11 +2094,16 @@ query_only`), e nenhuma tem um parâmetro de empresa.
 
 **Os tokens caem** quando a pessoa sai de todos os aparelhos, troca a
 palavra-passe, a conta é suspensa ou apagada, ou usa uma ligação de
-repor (decisão 7).
+repor (decisão 7); também quando passa de gestor a membro, quando o
+segundo factor se desliga pela consola, e quando a empresa é apagada
+(saem os tokens, os códigos e o registo dela).
 
 **O tecto** (decisão 8): 30 chamadas por minuto e 600 por dia por
 conta, 2 000 por dia por empresa; acima, a ferramenta responde com a
-frase, não com um erro. O registo é a `chamadas_mcp` (§2.1), 90 dias.
+frase, não com um erro. **Cada pergunta tem 10 s**: uma que leve mais
+pára, e a ferramenta pede para afinar os filtros (não conta como erro
+do painel). O registo é a `chamadas_mcp` (§2.1), 90 dias; entra no
+`--limpar-uso`, no `--exportar-empresa` e no `--apagar-empresa`.
 
 ---
 

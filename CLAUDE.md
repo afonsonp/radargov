@@ -36,7 +36,7 @@ pede.**
 | `docs/design.md` | O caminho do aspecto **até 20/09/2026**: a direcção, a letra, a cor, os botões, a escala. A paleta e a letra que ele descreve (Plex, ardósia) **saíram a 21/09** — o que vale hoje é o sistema de desenho | Para perceber uma decisão de aspecto antiga |
 | `docs/referencia.md` | Como cada parte foi feita, e porquê assim | Quando a armadilha não chega |
 | `docs/ccp.md` | **A lei**: os artigos do CCP que o Mira Gov usa, conferidos no texto oficial, o que muda e quando (o DL 177/2026 a 1/10/2026 e o que está por sair) | **Antes de escrever uma frase que cite o CCP** — e nunca o número ou a alínea de um artigo que mudou entre os dois regimes |
-| `docs/seguranca.md` | As sete coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, no conector MCP ou no que serve ficheiros. São 143 linhas |
+| `docs/seguranca.md` | As sete coisas a rever, por ordem de gravidade | Antes de mexer na porta, nas rotas, no conector MCP ou no que serve ficheiros. São 149 linhas |
 | `docs/diario/2026-08.md`<br>`docs/diario/2026-09.md` | O diário: o que se mediu e decidiu, dia a dia | Para perceber uma decisão antiga |
 | `docs/historico/` | **O arquivo**: vinte e três instantâneos com data fechada — `CRM`, `ONLINE`, `ONLINE-empresas`, `UX-Auditoria`, `CONCORRENTES`, `CONCORRENTES-2026-09` (a segunda passagem, com a SWOT) e `CONCORRENTES-2026-09-exploracao` (a prova, por dentro das contas), `REDESENHO`, `MIGRACAO`, `CICLOS`, `CAMADAS`, `SETORES`, `CADERNOS`, `MAPA`, `LEITURA-VALIDADA`, `PLANO-2026-10` (os planos pagos e os seis gaps, 30/09/2026), `TERMOS-2026-10` (o rascunho dos termos e da privacidade para os planos pagos), `MULTIDAO` (o ensaio do lançamento de 5/10 com 500 fornecedores simulados e o dono a decidir os pedidos, 30/09/2026), `UX-7-LEIS`, `UX-ICONES-DICAS-PESOS` e `UX-ECRAS-EM-FALTA-E-ESCURO` (as três auditorias do mesmo dia), `UX-AUDITORIA-1-10` e `LANCAMENTO-2026-10` (o dia do anúncio, 5/10/2026: os textos do LinkedIn e do WhatsApp, e os vídeos, a série e o funil que ficaram em pausa). **Descrevem o dia em que foram escritos e não se editam** | **Nunca antes de mexer em código** — para isso é o dono vivo. Só para perceber **porquê**, e em que dia |
 | `BACKLOG.md` | O que falta, com prioridade | Ao escolher trabalho |
@@ -678,7 +678,7 @@ A ordem do ficheiro é a ordem do fluxo:
 
 ### O que não é óbvio está em `docs/armadilhas.md`
 
-São **467 pontos** (contados a 10/10/2026), cada um de um erro que
+São **470 pontos** (contados a 10/10/2026), cada um de um erro que
 existiu mesmo, em **16 áreas**:
 a recolha e as fontes · as peças e as plataformas · o modelo que lê as
 peças · o motor de filtros · datas, números e texto · a árvore de CPV ·

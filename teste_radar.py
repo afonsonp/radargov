@@ -19266,6 +19266,127 @@ class TestConectorMCP(BaseTemporaria):
                           l["empresa_id"]), ("pesquisar", "ok", self.ana, 1))
         self.assertNotIn(t, json.dumps(l))
 
+    # -- a revisão de segurança do PR #315 (10/10/2026)
+
+    def test_m1_o_registo_tem_tectos_e_os_clientes_sem_tokens_saem(self):
+        r = self.registar([self.CLAUDE] * 3)
+        self.assertEqual(r.get_json()["redirect_uris"], [self.CLAUDE])
+        r = self.registar([self.CLAUDE] + ["https://claude.ai/x%d" % n for n in range(5)])
+        self.assertEqual(r.status_code, 400)
+        r = self.cliente.post("/oauth/register", json={
+            "redirect_uris": [self.CLAUDE], "client_name": "x" * 9000},
+            environ_base=self.FORA)
+        self.assertEqual(r.status_code, 413)
+        velho = self.registar().get_json()["client_id"]
+        com_tokens = self.registar().get_json()["client_id"]
+        self.tokens(self.ana)        # um código novo poda; este cliente tem tokens
+        with radar.liga() as c:
+            c.execute("UPDATE tokens_mcp SET client_id=?", (com_tokens,))
+            c.execute("UPDATE clientes_oauth SET criado_em='2000-01-01 00:00:00' "
+                      "WHERE client_id IN (?,?)", (velho, com_tokens))
+        self.codigo(self.ana)
+        with radar.liga() as c:
+            ficam = {r[0] for r in c.execute("SELECT client_id FROM clientes_oauth")}
+        self.assertNotIn(velho, ficam)
+        self.assertIn(com_tokens, ficam)
+
+    def test_m2_um_state_comprido_nao_volta_no_endereco(self):
+        cid = self.registar().get_json()["client_id"]
+        with radar.liga() as c:
+            u = dict(c.execute("SELECT * FROM utilizadores WHERE id=?", (self.ana,)).fetchone())
+            pedido, erro = self.mcp.validar_autorizacao(c, {
+                "response_type": "code", "client_id": cid, "redirect_uri": self.CLAUDE,
+                "code_challenge": self.desafio(), "code_challenge_method": "S256",
+                "state": "s" * 513}, u, self.base)
+        self.assertIsNone(pedido)
+        self.assertIn("mostrar", erro)
+
+    def test_m3_paginas_fundas_e_consultas_lentas_recusam_se_por_palavras(self):
+        t = self.tokens(self.ana)["access_token"]
+        self.assertTrue(self.chamar(t, "procurar_concursos",
+                                    pagina=self.mcp.PAGINAS_NO_MAXIMO + 1)["isError"])
+        with radar.liga() as c:
+            erros = c.execute("SELECT COUNT(*) FROM erros").fetchone()[0]
+        with unittest.mock.patch.object(radar, "SEGUNDOS_DA_CONSULTA_MCP", -1), \
+                unittest.mock.patch.object(radar, "PASSOS_ENTRE_RELOGIOS", 1):
+            r = self.chamar(t, "procurar_concursos", so_o_perfil=False)
+        self.assertTrue(r["isError"])
+        self.assertIn("larga demais", r["content"][0]["text"])
+        with radar.liga() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM erros").fetchone()[0], erros)
+            self.assertEqual(c.execute("SELECT resultado FROM chamadas_mcp ORDER BY "
+                                       "rowid DESC").fetchone()[0], "recusado")
+
+    def test_l1_o_historico_so_leva_as_accoes_da_lista_branca(self):
+        with radar.liga() as c:
+            for accao, detalhe in (("notas", "NOTA-VELHA-SEGREDO"),
+                                   ("accao-nova", "NOVA-SEGREDO"),
+                                   ("estado", "Por analisar → A preparar")):
+                c.execute("INSERT INTO historico (ref, quem, accao, detalhe, quando, "
+                          "proposta_id) VALUES ('900/2026', 'ana@a.pt', ?, ?, "
+                          "'2026-10-09 10:00', ?)", (accao, detalhe, self.proposta_a))
+        t = self.tokens(self.ana)["access_token"]
+        corpo = json.dumps(self.chamar(t, "ver_proposta", id=self.proposta_a),
+                           ensure_ascii=False)
+        self.assertNotIn("SEGREDO", corpo)
+        self.assertIn("Por analisar", corpo)
+
+    def test_l2_nan_e_infinito_recusam_se_sem_ir_aos_erros(self):
+        t = self.tokens(self.ana)["access_token"]
+        for args in ('{"pagina": NaN}', '{"preco_min": Infinity}',
+                     '{"pagina": -Infinity}'):
+            r = self.cliente.post(
+                "/mcp", data='{"jsonrpc": "2.0", "id": 1, "method": "tools/call", '
+                '"params": {"name": "procurar_concursos", "arguments": %s}}' % args,
+                content_type="application/json",
+                headers={"Authorization": "Bearer " + t}, environ_base=self.FORA)
+            self.assertTrue(r.get_json()["result"]["isError"], args)
+        self.assertFalse(radar.le_marca("painel_ultimo_erro", ""))
+
+    def test_l3_o_tecto_do_token_nao_cresce_sem_fim(self):
+        falhas = self.mcp._FALHAS_DO_TOKEN
+        self.mcp.contar_falha_do_token("1.1.1.1", agora=1000)
+        self.assertFalse(self.mcp.token_fechado_ao_ip("1.1.1.1", agora=10000))
+        self.assertNotIn("1.1.1.1", falhas)
+        with unittest.mock.patch.object(self.mcp, "IPS_DAS_FALHAS_NO_MAXIMO", 3):
+            for n in range(3):
+                self.mcp.contar_falha_do_token("ip%d" % n, agora=1000)
+            self.mcp.contar_falha_do_token("novo", agora=10000)
+        self.assertEqual(set(falhas), {"novo"})
+
+    def test_l5_os_tokens_caem_no_segundo_factor_ao_despromover_e_ao_apagar_a_empresa(self):
+        for estragar in (lambda c: self.contas.desligar_segundo_factor(c, self.bruno),
+                         lambda c: self.contas.criar_utilizador(
+                             c, "bruno@b.pt", "outra-senha-boa", papel="tester")):
+            t = self.tokens(self.bruno)["access_token"]
+            with radar.liga() as c:
+                estragar(c)
+            self.assertEqual(self.mcp_pede(t).status_code, 401)
+        self.chamar(self.tokens(self.ana)["access_token"], "situacao")
+        with radar.liga() as c:
+            c.execute("UPDATE utilizadores SET papel='admin' WHERE id=?", (self.bruno,))
+        t = self.tokens(self.bruno)["access_token"]
+        self.chamar(t, "situacao")
+        radar.apagar_empresa(self.b)
+        with radar.liga() as c:
+            for tabela in ("tokens_mcp", "codigos_oauth", "chamadas_mcp"):
+                self.assertFalse(c.execute("SELECT 1 FROM %s WHERE empresa_id=?" % tabela,
+                                           (self.b,)).fetchone(), tabela)
+            # as da A ficam
+            self.assertTrue(c.execute("SELECT 1 FROM chamadas_mcp WHERE empresa_id=1")
+                            .fetchone())
+
+    def test_l6_o_registo_entra_no_limpar_uso_e_no_exportar(self):
+        self.chamar(self.tokens(self.bruno)["access_token"], "situacao")
+        caminho = radar.exportar_empresa(self.b)
+        with zipfile.ZipFile(caminho) as z:
+            linhas = json.loads(z.read("plataforma.json"))["linhas"]
+        self.assertEqual(linhas["chamadas_mcp"][0]["ferramenta"], "situacao")
+        self.assertNotIn("tokens_mcp", linhas)
+        self.assertEqual(radar.limpar_marcas_de_uso()["chamadas ao conector"], 1)
+        with radar.liga() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM chamadas_mcp").fetchone())
+
     def test_o_mcp_nao_salta_para_o_endereco_publico(self):
         radar.gravar_config({"endereco_publico": "https://miragov.pt"})
         for caminho in ("/mcp", "/.well-known/oauth-protected-resource"):

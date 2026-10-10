@@ -1301,6 +1301,8 @@ def desligar_segundo_factor(c, utilizador_id):
     c.execute("UPDATE utilizadores SET totp_segredo=NULL, totp_ligado_em=NULL, "
               "totp_passo=0 WHERE id=?", (utilizador_id,))
     c.execute("DELETE FROM segundo_factor WHERE utilizador_id=?", (utilizador_id,))
+    # o telemóvel perdeu-se: os assistentes ligados também saem
+    revogar_tokens_mcp(c, utilizador_id)
     return estava
 
 
@@ -1583,6 +1585,9 @@ DIAS_DO_REFRESH_MCP = 30
 # o registo dinamico e aberto a quem quer que seja: um tecto por IP, como
 # o /pedir-acesso
 CLIENTES_OAUTH_POR_IP_POR_HORA = 10
+REDIRECTS_POR_CLIENTE = 5
+# um cliente registado que nunca chegou a ter tokens sai ao fim disto
+DIAS_DO_CLIENTE_SEM_TOKENS = 30
 
 
 def _texto_da_hora(momento):
@@ -1598,6 +1603,12 @@ def registar_cliente_oauth(c, nome, redirect_uris, ip="", agora=None):
     if not isinstance(redirect_uris, list) or not redirect_uris \
             or not all(isinstance(u, str) for u in redirect_uris):
         return None, ("invalid_redirect_uri", "redirect_uris em falta")
+    # repetidos contam uma vez, e mais de REDIRECTS_POR_CLIENTE recusa-se
+    # (revisão de 10/10/2026): uma lista sem fim era uma linha sem fim
+    redirect_uris = list(dict.fromkeys(redirect_uris))
+    if len(redirect_uris) > REDIRECTS_POR_CLIENTE:
+        return None, ("invalid_redirect_uri",
+                      "no máximo %d redirect_uris" % REDIRECTS_POR_CLIENTE)
     fora = [u for u in redirect_uris if u not in REDIRECTS_DO_MCP]
     if fora:
         return None, ("invalid_redirect_uri",
@@ -1634,6 +1645,14 @@ def criar_codigo_oauth(c, client_id, utilizador_id, empresa_id, code_challenge,
     # os de ontem já não servem para nada, nem para apanhar um reutilizado
     c.execute("DELETE FROM codigos_oauth WHERE expira < ?",
               (_texto_da_hora(agora - timedelta(days=1)),))
+    # e os assistentes registados que ficaram sem tokens: o registo é
+    # aberto, e sem isto a tabela só crescia (revisão de 10/10/2026)
+    c.execute("DELETE FROM clientes_oauth WHERE criado_em < ? AND client_id NOT IN "
+              "(SELECT client_id FROM tokens_mcp WHERE client_id IS NOT NULL) "
+              "AND client_id NOT IN (SELECT client_id FROM codigos_oauth "
+              "WHERE client_id IS NOT NULL) AND client_id != ?",
+              (_texto_da_hora(agora - timedelta(days=DIAS_DO_CLIENTE_SEM_TOKENS)),
+               client_id))
     codigo = secrets.token_urlsafe(32)
     c.execute("INSERT INTO codigos_oauth (resumo, client_id, utilizador_id, "
               "empresa_id, code_challenge, redirect_uri, resource, expira) "

@@ -123,7 +123,13 @@ capturas `curl_*.txt` — ficheiros que **nunca** podem ser servidos.
    um anúncio pode trazer instruções para o modelo de quem pergunta. O
    OAuth guarda só resumos, aceita só o redirect do Claude
    (`REDIRECTS_DO_MCP`), exige o PKCE `S256`, e revoga a família de um
-   código ou de um refresh usado duas vezes. Os testes que provam o
+   código ou de um refresh usado duas vezes. **E nada sem tecto** (revisão
+   de 10/10/2026): o registo dinâmico até 5 redirects e 8 KB, com os
+   clientes sem tokens a sair aos 30 dias; as listas até 40 páginas; cada
+   ligação das ferramentas com 10 s de prazo (`_com_prazo()`), recusado
+   por palavras e fora dos erros; números NaN ou infinitos recusados; o
+   histórico por lista branca (`ACCOES_QUE_SAEM`); e o dicionário das
+   falhas do `/oauth/token` podado. Os testes que provam o
    isolamento (`TestConectorMCP`) falham quando se força a empresa
    errada — se um deixar de falhar, é o teste que está estragado.
 
