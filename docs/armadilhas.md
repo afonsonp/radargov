@@ -17,15 +17,15 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
 - [Contratos e entidades](#contratos-e-entidades) &middot; 41
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
-- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 84
+- [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 85
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 21
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 23
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
 - [Contas e a porta](#contas-e-a-porta) &middot; 51
-- [A interface](#a-interface) &middot; 131
+- [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **461** ao todo, contados a 8/10/2026. Contam-se por secção com
+São **466** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2679,6 +2679,15 @@ pelo Afonso e nenhuma se reabre de passagem.
   clique no dia não as mostrava e o cartão cortava em cinco sem «mais»;
   três leituras do mesmo facto, cada uma com o seu corte. E partem-se
   pelo `ESTADOS_POR_ENTREGAR`: o que já foi entregue não é trabalho.
+- **O código da proposta («ABC-0001») não é o `id`, e não se edita**
+  (10/10/2026). O `id` repete-se entre empresas e fica por baixo; o
+  código é o que se diz. Por isso fica fora da `versao_da_proposta()`
+  (com ele, a versão de todas as propostas mudava no dia em que a coluna
+  entrou, e os formulários abertos recusavam-se) e fora dos campos que a
+  ficha grava. E um número que se apagou **não volta a sair**: o
+  próximo é o maior entre a marca `MARCA_DO_ULTIMO_CODIGO` e o que está
+  na tabela — só a tabela dava outra vez o número da última apagada, e
+  um código dito ao telefone passava a ser de outra proposta.
 
 ## O registo da empresa
 
@@ -2994,6 +3003,27 @@ SQLite, cópias, e a pen que manda nos números.
   as colunas que a cópia tem (`PRAGMA table_info`); o mesmo vale para
   quem ler uma cópia com uma lista de colunas escrita no código.
 
+- **O código das propostas dá-se num gatilho, e não no
+  `criar_proposta()`** (10/10/2026). São cinco os caminhos que inserem
+  propostas — o `criar_proposta()`, a importação do modelo
+  (`empresa.py`), o `repor_triagem()` e os dois desfazer (o da importação
+  e o `--empresa-desfazer`) — e um código
+  dado só num deles deixava os outros sem ele. O `tg_codigo_da_proposta`
+  corre dentro da própria escrita, e por isso duas criações ao mesmo
+  tempo não tiram o mesmo número (o índice único `ix_propostas_codigo` é
+  a segunda guarda). Lê o prefixo da `marcas_da_empresa` porque um
+  gatilho do ficheiro da empresa **não vê o `radar.db`**: o prefixo de
+  verdade é o da `prefixos_das_empresas`, e o `prefixo_da_empresa()`
+  copia-o para lá a cada arranque. Sem a marca (a empresa ainda sem
+  nome) o gatilho não faz nada, e o `numerar_propostas()` dá os códigos
+  que faltam pela ordem de criação, quando ela existir.
+- **O `INSERT OR REPLACE` apaga a OUTRA linha que bata num índice
+  único** (10/10/2026). O `repor_triagem()` grava as propostas assim, e
+  com o índice do código uma proposta reposta com um código que outra já
+  tem apagava essa outra em silêncio — o mesmo que o `(ref, lote)` faz
+  de propósito. Ali repõe-se sem o código, e o gatilho dá-lhe um novo.
+  Quem acrescentar um índice único a uma tabela que se repõe por
+  `OR REPLACE` pergunta o mesmo.
 - **Migrações idempotentes.** Colunas novas acrescentam-se ao ciclo de
   `ALTER TABLE` em `iniciar_db()`, que corre sempre e não faz nada se já
   existirem. Não escrevas migrações que corram uma vez só.

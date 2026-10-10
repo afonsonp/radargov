@@ -78,7 +78,7 @@ A aplicação faz três coisas que se sobrepõem:
 
 É a matéria-prima. **Nada se pode desenhar que não saia daqui.**
 
-### 2.1 `radar.db` — a plataforma (1,32 GB, 23 tabelas)
+### 2.1 `radar.db` — a plataforma (1,32 GB, 24 tabelas)
 
 **A base muda-se sozinha, a cada arranque.** Não há ficheiros de
 migração nem números de versão: é o `iniciar_db()`, e cada passo é
@@ -129,6 +129,7 @@ as exactas e salta as outras.
 | `visitas` | as dos últimos 13 meses | As visitas ao site público (ANL, 4/10/2026): a página, o dia, o domínio de onde veio, os UTM, o aparelho, o `visitante` (um resumo com o sal do dia, nunca o IP), o tempo, o scroll e os eventos (§4.9) |
 | `sugestoes` | as que quem usa envia | O que cada conta tem a dizer (4/10/2026, §4.8): o tipo, o texto, a página de onde partiu, a `captura` (a extensão da imagem, em `sugestoes/<id>.<ext>`), e o `estado` que o dono lhe dá |
 | `planos` | uma por empresa com plano | O plano de cada empresa (L2.1, 1/10/2026): o nome, mensal ou anual, se é fundador, e os utilizadores acordados no Corporate. É da plataforma, como as contas (`contas.py`) |
+| `prefixos_das_empresas` | uma por empresa com nome | As três letras do código das propostas de cada empresa (10/10/2026, §3.1): únicas entre empresas (o `UNIQUE`), dadas uma vez a partir do nome (`prefixo_para()`) e **fixas** — mudar o nome não as muda, e a linha fica quando a empresa sai, para não voltarem a servir |
 | `sessoes_fechadas` | as que uma entrada noutro aparelho fechou | A sessão única do plano de uma pessoa: guarda o token fechado, para quem o tinha ver porque saiu |
 
 **As colunas de `anuncios` que interessam, e quanto estão preenchidas:**
@@ -189,7 +190,7 @@ comparadas antes de apagar.
 | `entidades_seguidas` · `seguidas_vistos` | **0** | Construído, por usar |
 | `alertas_vistos` | **9 879** | A memória do que já foi avisado (§3.8) |
 | `empresa` | **0** | Resto do importador de Excel, já corrido |
-| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`) |
+| `marcas_da_empresa` | 4 | As marcas do resumo diário (`MARCAS_DA_EMPRESA`), a da migração das alterações avisadas e, desde 26/09/2026, a do cartão do arranque dispensado (`MARCA_DO_ARRANQUE`); desde 10/10/2026, o prefixo do código das propostas e o último número dado (`MARCA_DO_PREFIXO`, `MARCA_DO_ULTIMO_CODIGO`) |
 | `alteracoes_avisadas` | uma por alteração recebida | O que esta empresa já recebeu da fila `alteracoes`, que é da plataforma (F2) |
 
 **As colunas de `propostas`, e quantas das 78 estão preenchidas:**
@@ -214,6 +215,7 @@ comparadas antes de apagar.
 | `motivo` | 31 | Vocabulário fechado (4+4 palavras) |
 | `lote` | 0 | Existe, ainda não se usou |
 | `porque_sem_ref` | 0 | Propostas sem anúncio: existe, ainda não se usou |
+| `codigo` | todas, numa empresa com nome | O código legível, «ABC-0001» (10/10/2026, §3.1). Único na empresa (`ix_propostas_codigo`); **nenhum ecrã o mostra ainda** |
 | `prazo_entrega` | 0 | O prazo de entrega de uma proposta **sem anúncio** (1/10/2026): dá o «até …» dos quatro passos, a coluna «Prazo» da lista e a tarefa automática «entregar a proposta». Com anúncio fica vazia — o prazo é o do DR |
 
 ### 2.2 `contratos.db` — o mercado (2,66 GB, 6 tabelas)
@@ -304,6 +306,18 @@ Por ver → Por analisar → A preparar → Submetida
   antes não foi ela que o deixou passar, e fica só em «Todos». Sem essa
   data (as empresas anteriores a ela) conta tudo.
 - **As oito do meio** são **propostas** — o que a empresa decidiu fazer.
+  **Cada uma tem um código**, «ABC-0001» (10/10/2026, pedido dele): as
+  três letras da empresa e um número que não recomeça (nem no ano, nem
+  quando se apaga a última — o número dela não volta a sair). É o que se
+  diz ao telefone; o `id` fica por baixo, e repete-se entre empresas
+  (cada `empresa.db` conta do 1). As letras saem do nome
+  (`prefixo_para()`): as três primeiras sem acentos; tomadas por outra
+  empresa, a combinação de três letras do nome seguinte, pela ordem em
+  que aparecem (com ALF tomado, «Alfândega» dá ALA); esgotadas, AAA…ZZZ.
+  Dão-se uma vez e não mudam com o nome. Uma empresa sem nome ainda não
+  as tem, e as propostas dela ficam sem código até ao arranque a seguir
+  ao nome. Encontra-se na pesquisa geral; **os ecrãs ainda não o
+  mostram** (fica para depois do D1).
 - **Qualquer salto é permitido**, e voltar atrás é reabrir. **O salto
   pede o que pedem as ranhuras que implica** (D3 da 3.ª ronda,
   29/09/2026, decisão dele: «não vejo problema em meter diretamente no

@@ -1023,6 +1023,38 @@ def iniciar_empresa(caminho=None):
         # forma da `estado`, noutro ficheiro.
         c.execute("""CREATE TABLE IF NOT EXISTS marcas_da_empresa (
             chave TEXT PRIMARY KEY, valor TEXT)""")
+        # O código legível da proposta, «ABC-0001» (pedido dele,
+        # 10/10/2026): o `id` repete-se entre empresas, e é o código que
+        # se diz ao telefone. Depois da `marcas_da_empresa`, que o gatilho
+        # lê (o prefixo e o último número dado). O gatilho é o que cobre
+        # TODOS os caminhos que inserem -- o `criar_proposta()`, a
+        # importação do modelo, o restauro, o desfazer -- e, por ser um
+        # passo só da escrita, duas criações ao mesmo tempo não tiram o
+        # mesmo número. O número sai do maior entre a marca e o que está
+        # na tabela: apagada a última, o código dela não volta a sair.
+        # Sem prefixo (a empresa ainda sem nome) fica NULL, e o
+        # `numerar_propostas()` enche-o quando o houver.
+        if "codigo" not in cols_p:
+            c.execute("ALTER TABLE propostas ADD COLUMN codigo TEXT")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_propostas_codigo "
+                  "ON propostas(codigo)")
+        c.execute("""CREATE TRIGGER IF NOT EXISTS tg_codigo_da_proposta
+            AFTER INSERT ON propostas WHEN NEW.codigo IS NULL AND EXISTS (
+                SELECT 1 FROM marcas_da_empresa WHERE chave = '%(p)s')
+            BEGIN
+                INSERT OR REPLACE INTO marcas_da_empresa (chave, valor)
+                SELECT '%(u)s', MAX(
+                    COALESCE((SELECT CAST(valor AS INTEGER) FROM
+                              marcas_da_empresa WHERE chave = '%(u)s'), 0),
+                    COALESCE((SELECT MAX(CAST(substr(codigo, 5) AS INTEGER))
+                              FROM propostas), 0)) + 1;
+                UPDATE propostas SET codigo =
+                    (SELECT valor FROM marcas_da_empresa WHERE chave = '%(p)s')
+                    || '-' || printf('%%04d', (SELECT CAST(valor AS INTEGER)
+                    FROM marcas_da_empresa WHERE chave = '%(u)s'))
+                WHERE id = NEW.id;
+            END""" % {"p": MARCA_DO_PREFIXO, "u": MARCA_DO_ULTIMO_CODIGO})
+        numerar_propostas(c)
         # O que ESTA empresa ja recebeu da fila `alteracoes`, que e da
         # plataforma (F2, 23/09/2026). Era a coluna `avisado_em` da fila:
         # a primeira empresa a mandar o resumo apagava as alteracoes das
@@ -1077,6 +1109,93 @@ def passar_as_notas(c):
               "WHERE TRIM(COALESCE(notas, '')) != ''")
 
 
+# O código legível das propostas, «ABC-0001» (10/10/2026). As duas marcas
+# vivem na `marcas_da_empresa`, que é o que o gatilho do
+# `iniciar_empresa()` consegue ler: o prefixo (cópia do da plataforma,
+# `prefixos_das_empresas`, que é quem manda) e o último número dado.
+MARCA_DO_PREFIXO = "prefixo_das_propostas"
+MARCA_DO_ULTIMO_CODIGO = "ultimo_codigo_de_proposta"
+LETRAS_DO_PREFIXO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def prefixo_para(nome, tomados):
+    """Três letras A-Z para uma empresa, que não estejam em `tomados`.
+
+    A regra, determinística: as letras do nome sem acentos (`simplifica()`)
+    e sem o que não é A-Z; um nome com menos de três completa-se com «A».
+    Primeiro as combinações de três letras do nome pela ordem em que
+    aparecem -- a primeira é a das três primeiras («Alfândega» dá ALF, e
+    com ALF tomado ALA) --; esgotadas, AAA, AAB… ZZZ."""
+    letras = re.sub("[^A-Z]", "", simplifica(nome).upper())
+    letras = (letras + "AAA")[:3] if len(letras) < 3 else letras
+    candidatos = itertools.chain(itertools.combinations(letras, 3),
+                                 itertools.product(LETRAS_DO_PREFIXO, repeat=3))
+    for trio in map("".join, candidatos):
+        if trio not in tomados:
+            return trio
+    raise RuntimeError("não sobra prefixo nenhum de três letras")
+
+
+def prefixo_da_empresa(id_, nome=None):
+    """O prefixo da empresa `id_`: o que a plataforma já lhe deu, ou um
+    novo, a partir do nome, se ela já o tem (sem nome devolve None, e as
+    propostas ficam sem código até o haver). Uma vez dado **não muda**,
+    nem quando o nome muda. Leva-o também ao ficheiro da empresa, e
+    numera as propostas que estejam sem código. Idempotente: corre a
+    cada arranque, no `iniciar_db()`, e no `criar_empresa()`."""
+    with _abre(DB) as c:
+        linha = c.execute("SELECT prefixo FROM prefixos_das_empresas "
+                          "WHERE empresa_id=?", (id_,)).fetchone()
+    prefixo = linha[0] if linha else None
+    if not prefixo:
+        if nome is None:
+            with com_empresa(id_):
+                nome = ler_config().get("nome_da_empresa") or ""
+        if not nome.strip():
+            return None
+        # ponytail: ler e gravar em dois passos; duas empresas novas no
+        # mesmo instante dão IntegrityError (o UNIQUE), alto, e não um
+        # prefixo repetido
+        with _abre(DB) as c:
+            tomados = {r[0] for r in c.execute(
+                "SELECT prefixo FROM prefixos_das_empresas")}
+            prefixo = prefixo_para(nome, tomados)
+            c.execute("INSERT INTO prefixos_das_empresas VALUES (?,?)",
+                      (id_, prefixo))
+    with _abre(db_da_empresa(id_)) as c:
+        c.execute("INSERT OR REPLACE INTO marcas_da_empresa VALUES (?,?)",
+                  (MARCA_DO_PREFIXO, prefixo))
+        numerar_propostas(c)
+    return prefixo
+
+
+def numerar_propostas(c):
+    """Dá código às propostas que não o têm, pela ordem de criação, a
+    seguir ao maior já dado. São as de antes do código, e as que nasceram
+    com a empresa ainda sem nome; as outras numera-as o gatilho. Sem
+    prefixo no ficheiro da empresa não faz nada. Idempotente."""
+    prefixo = c.execute("SELECT valor FROM marcas_da_empresa WHERE chave=?",
+                        (MARCA_DO_PREFIXO,)).fetchone()
+    if not prefixo:
+        return
+    sem = [r[0] for r in c.execute(
+        "SELECT id FROM propostas WHERE codigo IS NULL "
+        "ORDER BY COALESCE(criada_em, ''), id")]
+    if not sem:
+        return
+    n = c.execute(
+        "SELECT MAX(COALESCE((SELECT CAST(valor AS INTEGER) FROM "
+        "marcas_da_empresa WHERE chave=?), 0), COALESCE((SELECT "
+        "MAX(CAST(substr(codigo, 5) AS INTEGER)) FROM propostas), 0))",
+        (MARCA_DO_ULTIMO_CODIGO,)).fetchone()[0]
+    for id_ in sem:
+        n += 1
+        c.execute("UPDATE propostas SET codigo=? WHERE id=?",
+                  ("%s-%04d" % (prefixo[0], n), id_))
+    c.execute("INSERT OR REPLACE INTO marcas_da_empresa VALUES (?,?)",
+              (MARCA_DO_ULTIMO_CODIGO, str(n)))
+
+
 # A marca do maior número de empresa que alguma vez se deu (D10 da 3.ª
 # ronda, decisão dele: «não reutilizar»). Vive na tabela `estado` do
 # radar.db, que não sai com a empresa.
@@ -1116,6 +1235,7 @@ def criar_empresa(nome):
         gravar_config({"nome_da_empresa": " ".join(nome.split())[:120],
                        # o «Expirou sem ver» conta daqui (condicao_da_aba)
                        "empresa_desde": datetime.now().date().isoformat()})
+    prefixo_da_empresa(id_, nome)       # as três letras do código das propostas
     return id_
 
 
@@ -1204,6 +1324,12 @@ def iniciar_db():
             quando TEXT, empresa_id INTEGER, ref TEXT, quem TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_leituras_pedidas "
                   "ON leituras_pedidas(empresa_id, quando)")
+        # As tres letras de cada empresa, para o codigo das propostas
+        # («ABC-0001», 10/10/2026). Da plataforma, porque so aqui se ve
+        # que nenhuma outra empresa as tem (o UNIQUE); e ficam depois de
+        # a empresa sair, como o numero dela, para nao voltarem a servir.
+        c.execute("""CREATE TABLE IF NOT EXISTS prefixos_das_empresas (
+            empresa_id INTEGER PRIMARY KEY, prefixo TEXT NOT NULL UNIQUE)""")
         c.execute("""CREATE TABLE IF NOT EXISTS eventos (
             id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT, quem TEXT,
             accao TEXT, detalhe TEXT, quando TEXT)""")
@@ -1660,6 +1786,9 @@ def iniciar_db():
     renomear_chaves_do_config()
     separar_config_da_empresa()         # F3: depois do renomear, que e sobre as chaves velhas
     for id_ in empresas_existentes():
+        # as tres letras do codigo das propostas: depois do F3, que leva
+        # o nome para o config da empresa
+        prefixo_da_empresa(id_)
         with com_empresa(id_):
             arrumar_a_empresa()
 
@@ -3624,7 +3753,10 @@ def versao_da_proposta(p):
     incomodar."""
     # Pelas colunas com nome, e não tuple(p): quem desenha pode trazer a
     # linha com colunas a mais de um JOIN, e a versão nunca batia.
-    return hashlib.sha1(repr(tuple(p[k] for k in COLUNAS_DA_PROPOSTA))
+    # Sem o `codigo` (10/10/2026): não muda depois de dado, e com ele a
+    # versão de todas as propostas mudava no dia em que a coluna entrou.
+    return hashlib.sha1(repr(tuple(p[k] for k in COLUNAS_DA_PROPOSTA
+                                   if k != "codigo"))
                         .encode()).hexdigest()[:16]
 
 
@@ -10286,7 +10418,10 @@ def apagar_empresa(id_):
 # O que o `_apagar_da_plataforma()` tira, para o `plataforma.json`
 LINHAS_DA_EMPRESA_NA_PLATAFORMA = (
     ("utilizadores", "empresa_id=? AND dono=0"), ("convites", "empresa_id=?"),
-    ("planos", "empresa_id=?"), ("leituras_pedidas", "empresa_id=?"))
+    ("planos", "empresa_id=?"), ("leituras_pedidas", "empresa_id=?"),
+    # o prefixo do codigo das propostas: vai no plataforma.json, e nao sai
+    # do radar.db quando a empresa sai (nao volta a servir a outra)
+    ("prefixos_das_empresas", "empresa_id=?"))
 
 
 def _guardar_linhas_da_plataforma(id_, pasta):
@@ -10702,7 +10837,7 @@ COLUNAS_DA_PROPOSTA = ("id", "ref", "porque_sem_ref", "lote", "entidade",
                        "notas", "criada_em", "fechada_em",
                        "data_adjudicacao", "audiencia_em", "valor_adjudicado",
                        "documentos_prontos", "prazo_entrega",
-                       "vencedor", "preco_vencedor")
+                       "vencedor", "preco_vencedor", "codigo")
 COLUNAS_DA_TAREFA =("id", "proposta_id", "ref", "o_que", "quando", "quem",
                      "feita_em", "origem", "criada_em", "documento_id")
 COLUNAS_DA_NOTA = ("id", "proposta_id", "texto", "quem", "quando")
@@ -10849,10 +10984,16 @@ def repor_triagem(caminho=None):
                 if reg.get("ref") and reg["ref"] not in existe:
                     por_repor.setdefault(t, []).append(reg["ref"])
                     continue
+                valores = [reg.get(k) for k in colunas]
+                # O OR REPLACE apagava a OUTRA proposta que ja tivesse o
+                # mesmo codigo (o indice unico): esta leva um numero novo.
+                if t == "propostas" and reg.get("codigo") and c.execute(
+                        "SELECT 1 FROM propostas WHERE codigo=? AND id IS NOT ?",
+                        (reg["codigo"], reg.get("id"))).fetchone():
+                    valores[colunas.index("codigo")] = None
                 c.execute("INSERT OR REPLACE INTO %s (%s) VALUES (%s)"
                           % (t, ", ".join(colunas),
-                             ", ".join("?" * len(colunas))),
-                          [reg.get(k) for k in colunas])
+                             ", ".join("?" * len(colunas))), valores)
                 escritas += 1
             elif t in ("notas_da_proposta", "documentos_da_empresa"):
                 colunas = {"notas_da_proposta": COLUNAS_DA_NOTA,
@@ -14261,12 +14402,13 @@ def propostas_da_pesquisa(c, termos, limite):
     """As propostas DA EMPRESA ACTIVA (a `propostas` e do ficheiro dela,
     junto como `emp`) com todas as palavras no titulo, na entidade ou na
     referencia -- os da proposta, ou os do anuncio quando ela os nao
-    tem. Sao dezenas de linhas: o `LIKE` chega."""
+    tem -- ou no codigo («ABC-0001»). Sao dezenas de linhas: o `LIKE`
+    chega."""
     if not termos:
         return []
     texto = ("simplifica(COALESCE(NULLIF(p.titulo,''), a.titulo, '') || ' ' || "
              "COALESCE(NULLIF(p.entidade,''), a.entidade, '') || ' ' || "
-             "COALESCE(p.ref, ''))")
+             "COALESCE(p.ref, '') || ' ' || COALESCE(p.codigo, ''))")
     return c.execute(
         "SELECT p.id, p.ref, p.estado, COALESCE(NULLIF(p.titulo,''), a.titulo, '') "
         "titulo, COALESCE(NULLIF(p.entidade,''), a.entidade, '') entidade "
@@ -23678,7 +23820,11 @@ def desfazer_importacao(nome):
     with liga() as c:
         for ref, depois in imp["depois"].items():
             agora = _fotografia_da_importacao(c, [ref])[ref]
-            if agora["propostas"] != depois["propostas"]:
+            # so as colunas que a fotografia tem: uma importacao de antes
+            # do `codigo` (10/10/2026) nao o guardou, e nunca batia
+            if [{k: v.get(k) for k in d} for v, d in
+                    zip(agora["propostas"], depois["propostas"])] != depois["propostas"] \
+                    or len(agora["propostas"]) != len(depois["propostas"]):
                 deixadas.append(ref)
                 continue
             antes = imp["antes"].get(ref, {"propostas": [], "registo": []})
