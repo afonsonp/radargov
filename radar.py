@@ -1023,7 +1023,7 @@ def iniciar_empresa(caminho=None):
         # forma da `estado`, noutro ficheiro.
         c.execute("""CREATE TABLE IF NOT EXISTS marcas_da_empresa (
             chave TEXT PRIMARY KEY, valor TEXT)""")
-        # O código legível da proposta, «ABC-0001» (pedido dele,
+        # O código legível da proposta, «ABC-26-0001» (pedido dele,
         # 10/10/2026): o `id` repete-se entre empresas, e é o código que
         # se diz ao telefone. Depois da `marcas_da_empresa`, que o gatilho
         # lê (o prefixo e o último número dado). O gatilho é o que cobre
@@ -1031,7 +1031,8 @@ def iniciar_empresa(caminho=None):
         # importação do modelo, o restauro, o desfazer -- e, por ser um
         # passo só da escrita, duas criações ao mesmo tempo não tiram o
         # mesmo número. O número sai do maior entre a marca e o que está
-        # na tabela: apagada a última, o código dela não volta a sair.
+        # na tabela: apagada a última, o código dela não volta a sair. O
+        # ano é o da `criada_em` e só enfeita -- o número não recomeça.
         # Sem prefixo (a empresa ainda sem nome) fica NULL, e o
         # `numerar_propostas()` enche-o quando o houver.
         if "codigo" not in cols_p:
@@ -1046,14 +1047,16 @@ def iniciar_empresa(caminho=None):
                 SELECT '%(u)s', MAX(
                     COALESCE((SELECT CAST(valor AS INTEGER) FROM
                               marcas_da_empresa WHERE chave = '%(u)s'), 0),
-                    COALESCE((SELECT MAX(CAST(substr(codigo, 5) AS INTEGER))
-                              FROM propostas), 0)) + 1;
+                    COALESCE((SELECT MAX(%(n)s) FROM propostas), 0)) + 1;
                 UPDATE propostas SET codigo =
                     (SELECT valor FROM marcas_da_empresa WHERE chave = '%(p)s')
-                    || '-' || printf('%%04d', (SELECT CAST(valor AS INTEGER)
-                    FROM marcas_da_empresa WHERE chave = '%(u)s'))
+                    || '-' || %(a)s || '-' || printf('%%04d', (SELECT
+                    CAST(valor AS INTEGER) FROM marcas_da_empresa
+                    WHERE chave = '%(u)s'))
                 WHERE id = NEW.id;
-            END""" % {"p": MARCA_DO_PREFIXO, "u": MARCA_DO_ULTIMO_CODIGO})
+            END""" % {"p": MARCA_DO_PREFIXO, "u": MARCA_DO_ULTIMO_CODIGO,
+                     "n": NUMERO_DO_CODIGO,
+                     "a": ANO_DO_CODIGO.format("NEW.")})
         numerar_propostas(c)
         # O que ESTA empresa ja recebeu da fila `alteracoes`, que e da
         # plataforma (F2, 23/09/2026). Era a coluna `avisado_em` da fila:
@@ -1109,13 +1112,22 @@ def passar_as_notas(c):
               "WHERE TRIM(COALESCE(notas, '')) != ''")
 
 
-# O código legível das propostas, «ABC-0001» (10/10/2026). As duas marcas
+# O código legível das propostas, «ABC-26-0001» (10/10/2026; o ano entrou
+# no mesmo dia, decisão dele): o prefixo da empresa, os dois últimos
+# algarismos do ano em que a proposta se criou, e um número que NUNCA
+# recomeça -- em 2027 a seguinte à ABC-26-0157 é a ABC-27-0158. As duas marcas
 # vivem na `marcas_da_empresa`, que é o que o gatilho do
 # `iniciar_empresa()` consegue ler: o prefixo (cópia do da plataforma,
 # `prefixos_das_empresas`, que é quem manda) e o último número dado.
 MARCA_DO_PREFIXO = "prefixo_das_propostas"
 MARCA_DO_ULTIMO_CODIGO = "ultimo_codigo_de_proposta"
 LETRAS_DO_PREFIXO = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+# O ano da `criada_em` («2026-09-01 10:00» dá «26»); sem ela, o de hoje.
+# `{}` é o prefixo da coluna («NEW.» no gatilho).
+ANO_DO_CODIGO = ("COALESCE(NULLIF(substr({}criada_em, 3, 2), ''), "
+                 "substr(date('now', 'localtime'), 3, 2))")
+# O número de um código: o que vem depois de «ABC-26-».
+NUMERO_DO_CODIGO = "CAST(substr(codigo, 8) AS INTEGER)"
 
 
 def prefixo_para(nome, tomados):
@@ -1186,12 +1198,13 @@ def numerar_propostas(c):
     n = c.execute(
         "SELECT MAX(COALESCE((SELECT CAST(valor AS INTEGER) FROM "
         "marcas_da_empresa WHERE chave=?), 0), COALESCE((SELECT "
-        "MAX(CAST(substr(codigo, 5) AS INTEGER)) FROM propostas), 0))",
+        "MAX(" + NUMERO_DO_CODIGO + ") FROM propostas), 0))",
         (MARCA_DO_ULTIMO_CODIGO,)).fetchone()[0]
     for id_ in sem:
         n += 1
-        c.execute("UPDATE propostas SET codigo=? WHERE id=?",
-                  ("%s-%04d" % (prefixo[0], n), id_))
+        c.execute("UPDATE propostas SET codigo = ? || '-' || "
+                  + ANO_DO_CODIGO.format("") + " || '-' || printf('%04d', ?) "
+                  "WHERE id=?", (prefixo[0], n, id_))
     c.execute("INSERT OR REPLACE INTO marcas_da_empresa VALUES (?,?)",
               (MARCA_DO_ULTIMO_CODIGO, str(n)))
 
@@ -1325,7 +1338,7 @@ def iniciar_db():
         c.execute("CREATE INDEX IF NOT EXISTS ix_leituras_pedidas "
                   "ON leituras_pedidas(empresa_id, quando)")
         # As tres letras de cada empresa, para o codigo das propostas
-        # («ABC-0001», 10/10/2026). Da plataforma, porque so aqui se ve
+        # («ABC-26-0001», 10/10/2026). Da plataforma, porque so aqui se ve
         # que nenhuma outra empresa as tem (o UNIQUE); e ficam depois de
         # a empresa sair, como o numero dela, para nao voltarem a servir.
         c.execute("""CREATE TABLE IF NOT EXISTS prefixos_das_empresas (
@@ -14402,7 +14415,8 @@ def propostas_da_pesquisa(c, termos, limite):
     """As propostas DA EMPRESA ACTIVA (a `propostas` e do ficheiro dela,
     junto como `emp`) com todas as palavras no titulo, na entidade ou na
     referencia -- os da proposta, ou os do anuncio quando ela os nao
-    tem -- ou no codigo («ABC-0001»). Sao dezenas de linhas: o `LIKE`
+    tem -- ou no codigo («ABC-26-0001»; pelo texto, e por isso
+    «abc-26-0001», «abc-26» ou «0001», mas nao «abc-0001»). Sao dezenas de linhas: o `LIKE`
     chega."""
     if not termos:
         return []

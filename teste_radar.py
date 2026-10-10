@@ -30453,10 +30453,16 @@ class TestOHookReconheceOCommit(unittest.TestCase):
             self.assertFalse(self.rx.search(comando), comando)
 
 class TestOCodigoDaProposta(BaseTemporaria):
-    """O código legível de cada proposta, «ABC-0001» (pedido dele,
+    """O código legível de cada proposta, «ABC-26-0001» (pedido dele,
     10/10/2026): três letras da empresa e um número que não recomeça.
     O `propostas.id` repete-se entre empresas (cada empresa.db conta do
     1), e é o código que se diz ao telefone."""
+
+    def setUp(self):
+        super().setUp()
+        # o ano da criação vai no código; o das propostas criadas agora
+        # é o de hoje
+        self.aa = radar.datetime.now().strftime("%y")
 
     def _codigos(self, empresa=None):
         with radar.com_empresa(empresa or radar.EMPRESA_ACTIVA), radar.liga() as c:
@@ -30493,7 +30499,7 @@ class TestOCodigoDaProposta(BaseTemporaria):
         radar.criar_proposta(titulo="Convite")
         self.assertEqual(self._codigos(), [None])
         self._com_nome("Gama")
-        self.assertEqual(self._codigos(), ["GAM-0001"])
+        self.assertEqual(self._codigos(), ["GAM-%s-0001" % self.aa])
 
     def test_mudar_o_nome_nao_muda_o_prefixo(self):
         self._com_nome("Alfa")
@@ -30508,13 +30514,23 @@ class TestOCodigoDaProposta(BaseTemporaria):
             radar.criar_proposta(titulo="x")
         with radar.com_empresa(b):
             radar.criar_proposta(titulo="y")
-        self.assertEqual(self._codigos(), ["ALF-0001", "ALF-0002"])
-        self.assertEqual(self._codigos(b), ["BET-0001"])
+        self.assertEqual(self._codigos(), ["ALF-%s-0001" % self.aa, "ALF-%s-0002" % self.aa])
+        self.assertEqual(self._codigos(b), ["BET-%s-0001" % self.aa])
         # apagada a última, o número dela não volta a sair
         with radar.liga() as c:
-            radar.apagar_propostas(c, "codigo=?", ("ALF-0002",))
+            radar.apagar_propostas(c, "codigo=?", ("ALF-%s-0002" % self.aa,))
         radar.criar_proposta(titulo="z")
-        self.assertEqual(self._codigos(), ["ALF-0001", "ALF-0003"])
+        self.assertEqual(self._codigos(), ["ALF-%s-0001" % self.aa, "ALF-%s-0003" % self.aa])
+
+    def test_o_numero_continua_na_passagem_do_ano(self):
+        """O ano é o da criação, e o número não recomeça: em 2027 a
+        seguinte à ALF-26-0157 é a ALF-27-0158."""
+        self._com_nome("Alfa")
+        with radar.liga() as c:
+            c.executemany("INSERT INTO propostas (titulo, criada_em) VALUES (?,?)",
+                          [("véspera", "2026-12-31 23:59"),
+                           ("ano novo", "2027-01-01 00:01")])
+        self.assertEqual(self._codigos(), ["ALF-26-0001", "ALF-27-0002"])
 
     def test_o_codigo_nao_se_repete_dentro_da_empresa(self):
         self._com_nome("Alfa")
@@ -30522,7 +30538,7 @@ class TestOCodigoDaProposta(BaseTemporaria):
         with self.assertRaises(sqlite3.IntegrityError):
             with radar.liga() as c:
                 c.execute("INSERT INTO propostas (titulo, codigo) "
-                          "VALUES ('y', 'ALF-0001')")
+                          "VALUES ('y', ?)", ("ALF-%s-0001" % self.aa,))
 
     def test_criacao_concorrente_nao_repete_codigo(self):
         self._com_nome("Alfa")
@@ -30541,7 +30557,7 @@ class TestOCodigoDaProposta(BaseTemporaria):
             f.join()
         self.assertEqual(erros, [])
         self.assertEqual(sorted(self._codigos()),
-                         ["ALF-%04d" % n for n in range(1, 9)])
+                         ["ALF-%s-%04d" % (self.aa, n) for n in range(1, 9)])
 
     def test_a_migracao_numera_as_antigas_por_ordem_de_criacao(self):
         """Uma empresa.db de antes do código: a `propostas` sem a coluna,
@@ -30564,10 +30580,10 @@ class TestOCodigoDaProposta(BaseTemporaria):
                            ("primeira", "2026-09-01 10:00")])
         radar.iniciar_db()
         radar.iniciar_db()                  # idempotente
-        self.assertEqual(self._codigos(7), ["OME-0002", "OME-0001"])
+        self.assertEqual(self._codigos(7), ["OME-26-0002", "OME-26-0001"])
         with radar.com_empresa(7):
             radar.criar_proposta(titulo="nova")
-        self.assertEqual(self._codigos(7)[-1], "OME-0003")
+        self.assertEqual(self._codigos(7)[-1], "OME-%s-0003" % self.aa)
 
     def test_o_restauro_nao_apaga_a_proposta_que_ja_tem_o_codigo(self):
         """O `repor_triagem()` grava por INSERT OR REPLACE, e com o índice
@@ -30577,18 +30593,18 @@ class TestOCodigoDaProposta(BaseTemporaria):
         caminho = os.path.join(self.pasta, "triagem.jsonl")
         with open(caminho, "w", encoding="utf-8") as f:
             f.write(json.dumps({"tabela": "propostas", "id": 5, "titulo": "de antes",
-                                "codigo": "ALF-0001"}) + "\n")
+                                "codigo": "ALF-%s-0001" % self.aa}) + "\n")
         radar.repor_triagem(caminho)
         with radar.liga() as c:
             linhas = [tuple(r) for r in c.execute(
                 "SELECT titulo, codigo FROM propostas ORDER BY id")]
-        self.assertEqual(linhas, [("de agora", "ALF-0001"), ("de antes", "ALF-0002")])
+        self.assertEqual(linhas, [("de agora", "ALF-%s-0001" % self.aa), ("de antes", "ALF-%s-0002" % self.aa)])
 
     def test_a_pesquisa_encontra_pelo_codigo(self):
         self._com_nome("Alfa")
         radar.criar_proposta(titulo="convite um")
         id_ = radar.criar_proposta(titulo="convite dois")
-        r = radar.resultados_da_pesquisa("alf-0002")
+        r = radar.resultados_da_pesquisa("alf-%s-0002" % self.aa)
         self.assertEqual([p["id"] for p in r["propostas"]], [id_])
 
     def test_a_exportacao_leva_o_prefixo_e_o_codigo(self):
@@ -30601,10 +30617,10 @@ class TestOCodigoDaProposta(BaseTemporaria):
         self.assertEqual(linhas["prefixos_das_empresas"][0]["prefixo"], "ALF")
         with sqlite3.connect(os.path.join(self.pasta, "empresa.db")) as c:
             self.assertEqual(c.execute("SELECT codigo FROM propostas").fetchall(),
-                             [("ALF-0001",)])
+                             [("ALF-%s-0001" % self.aa,)])
         n, ficheiro = radar.exportar_triagem()
         with open(ficheiro, encoding="utf-8") as f:
-            self.assertIn('"codigo": "ALF-0001"', f.read())
+            self.assertIn('"codigo": "ALF-%s-0001"' % self.aa, f.read())
 
 
 if __name__ == "__main__":

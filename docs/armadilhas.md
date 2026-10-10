@@ -19,13 +19,13 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [Alertas e interesse](#alertas-e-interesse) &middot; 14
 - [Triagem, quadro e ficha](#triagem-quadro-e-ficha) &middot; 85
 - [O registo da empresa](#o-registo-da-empresa) &middot; 5
-- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 23
+- [A base, as migrações e o disco](#a-base-as-migracoes-e-o-disco) &middot; 24
 - [Trabalhos de fundo e arranque](#trabalhos-de-fundo-e-arranque) &middot; 9
 - [Contas e a porta](#contas-e-a-porta) &middot; 51
 - [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **466** ao todo, contados a 10/10/2026. Contam-se por secção com
+São **467** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -2679,7 +2679,7 @@ pelo Afonso e nenhuma se reabre de passagem.
   clique no dia não as mostrava e o cartão cortava em cinco sem «mais»;
   três leituras do mesmo facto, cada uma com o seu corte. E partem-se
   pelo `ESTADOS_POR_ENTREGAR`: o que já foi entregue não é trabalho.
-- **O código da proposta («ABC-0001») não é o `id`, e não se edita**
+- **O código da proposta («ABC-26-0001») não é o `id`, e não se edita**
   (10/10/2026). O `id` repete-se entre empresas e fica por baixo; o
   código é o que se diz. Por isso fica fora da `versao_da_proposta()`
   (com ele, a versão de todas as propostas mudava no dia em que a coluna
@@ -3016,7 +3016,15 @@ SQLite, cópias, e a pen que manda nos números.
   verdade é o da `prefixos_das_empresas`, e o `prefixo_da_empresa()`
   copia-o para lá a cada arranque. Sem a marca (a empresa ainda sem
   nome) o gatilho não faz nada, e o `numerar_propostas()` dá os códigos
-  que faltam pela ordem de criação, quando ela existir.
+  que faltam pela ordem de criação, quando ela existir. **O ano do código
+  é enfeite**: o número sai sempre do anterior, de qualquer ano
+  (`NUMERO_DO_CODIGO`), e por isso não recomeça a 1 de Janeiro.
+- **O `strftime('%y')` do SQLite devolve NULL** (10/10/2026, medido no
+  3.46.1 do `.venv`): o `%y` não é dos formatos que ele conhece, e um
+  NULL concatenado com `||` faz o resultado inteiro NULL — o código da
+  proposta ficava vazio, sem erro. O ano de hoje tira-se do
+  `date('now', 'localtime')` (`ANO_DO_CODIGO`). Antes de usar um formato
+  do `strftime` no SQL, prova-o num `SELECT`.
 - **O `INSERT OR REPLACE` apaga a OUTRA linha que bata num índice
   único** (10/10/2026). O `repor_triagem()` grava as propostas assim, e
   com o índice do código uma proposta reposta com um código que outra já
