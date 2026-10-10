@@ -1,0 +1,5 @@
+{#- Um pedaço do Calendário, pedido pelo `fetch()` (lote 10, 29/09/2026):
+    a agenda do telemóvel (`dias`) ou o que o «+N» de um dia esconde
+    (`itens`). -#}
+{%- import "_calendario.html" as c -%}
+{% if dias is not none %}{{ c.agenda(dias, urgente) }}{% else %}{% for a in itens %}{{ c.item(a) }}{% endfor %}{% endif %}

@@ -157,7 +157,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.3c | a página de cada empresa — **feito a 10/10/2026** (`plataforma_empresa.html`, e a tabela da actividade em `actividade_tabela.html`, que serve também as duas `/actividade`; saem o `_gestos_do_suporte`, o `_cartao_do_plano`, o `_cartao_de_apagar`, o `_cartao_do_uso`, o `_cartao_da_nota` e o `_cartao_da_actividade`; o `_cartao_do_pedido` passa a `_pedidos_da_empresa`, só dados) | 141 linhas |
 | 3.3d | os pedidos de acesso — **feito a 10/10/2026** (`pedidos_de_acesso.html`; as etiquetas dos repetidos passam a dados, e a decisão de cada pedido a campos da linha.) | 185 linhas |
 | 3.4 | Alertas e sugestões — **feito a 10/10/2026**: os Alertas já tinham passado no 3.2c-ii, e ficou o «Enviar uma sugestão» (`sugestoes.html`), com a recusa do POST, que traz o texto e o tipo de volta | |
-| 3.5 | Calendário e indicadores | |
+| 3.5 | Calendário e indicadores — **feito a 10/10/2026**: os indicadores já tinham passado no 3.2d-iii; o Calendário é o `calendario.html`, e os dois pedaços (a agenda do telemóvel e o «+N» de um dia) o `calendario_pedaco.html`, com as peças comuns em `_calendario.html` | |
 | 3.6 | Situação (`/situacao`) | |
 | 3.7 | Mercado: contratos, entidades, ficha da entidade | |
 | 3.8 | Concursos e Propostas: listas, fases, tabela | os mais vistos |

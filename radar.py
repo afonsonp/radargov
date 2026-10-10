@@ -32863,35 +32863,22 @@ def calendario():
         # proposta, quem faz uma tarefa (e de que proposta), a entidade
         # de um anuncio
         segunda = " · ".join(x for x in (rotulo, a["segunda"]) if x)
-        classe = {"proposta": " empresa", "tarefa": " tarefa"}.get(a["tipo"], "")
-        return ("<a class='cal-it%s' href='%s' title='%s'>"
-                "<b>%s</b><i>%s</i></a>"
-                % (classe, html.escape(a["href"], quote=True),
-                   html.escape(a["titulo"], quote=True),
-                   html.escape(corta(a["titulo"], 60)),
-                   html.escape(corta(segunda, 40))))
+        return {"classe": {"proposta": " empresa", "tarefa": " tarefa"}.get(a["tipo"], ""),
+                "href": a["href"], "titulo": a["titulo"],
+                "curto": corta(a["titulo"], 60), "segunda": corta(segunda, 40)}
 
     def urgencia(dia):
-        """(classe, sinal) da urgencia do DIA, e nao de cada linha: no
-        mesmo dia todas sao igualmente urgentes. A conta e a mesma do
-        resto da aplicacao (janela unica, dias_urgente()), para a cor
-        aqui e a etiqueta da lista nunca discordarem sobre o mesmo
-        prazo. E nao e so a cor do numero (segunda ronda, 26/09/2026;
-        WCAG 1.4.1): um sinal por escalao, e o texto para o leitor."""
-        aqui = por_dia.get(dia, [])
-        if not aqui:
-            return "", ""
+        """O tom da urgencia do DIA («mau», «avisa» ou nada), e nao de
+        cada linha: no mesmo dia todas sao igualmente urgentes. A conta e
+        a mesma do resto da aplicacao (janela unica, dias_urgente()), para
+        a cor aqui e a etiqueta da lista nunca discordarem sobre o mesmo
+        prazo. O sinal de cada escalao desenha-o o molde."""
+        if not por_dia.get(dia):
+            return ""
         classe = "mau"
         if dia >= hoje:
             _, classe = etiqueta_prazo(dia.isoformat(), urgente)
-        if classe == "mau":
-            return "mau", ("<i class='cal-urg' aria-hidden='true'>&#9888;</i>"
-                           "<span class='so-leitor'>prazo hoje ou já passado</span>")
-        if classe == "avisa":
-            return "avisa", ("<i class='cal-urg' aria-hidden='true'>&#9719;</i>"
-                             "<span class='so-leitor'>prazo em %d dias ou menos</span>"
-                             % urgente)
-        return "", ""
+        return classe if classe in ("mau", "avisa") else ""
 
     def celula(dia):
         classes = ["cal-dia"]
@@ -32904,57 +32891,36 @@ def calendario():
         if dia.day == 1:
             classes.append("mes-novo")
         aqui = por_dia.get(dia, [])
-        tom_, sinal = urgencia(dia)
+        tom_ = urgencia(dia)
         if tom_:
             classes.append(tom_)
-        cabeca = ("<div class='cal-n'>%d%s%s</div>"
-                  % (dia.day,
-                     "<span>%s</span>" % MESES[dia.month - 1]
-                     if dia.day == 1 or dia == principio else "", sinal))
-        visiveis = "".join(item(a) for a in aqui[:CABEM_NO_DIA])
-        resto = aqui[CABEM_NO_DIA:]
         # «+8» era o nome inteiro do botão (3.ª ronda, G74). Numa página
         # pesada o que o «+N» esconde pede-se ao abrir (`data-pedaco`)
-        mais = ("<details class='cal-mais'%s><summary>+%d<span class='so-leitor'> "
-                "no dia %s</span></summary>%s</details>"
-                % ("" if leve else " data-pedaco='%s'" % dia.isoformat(),
-                   len(resto), data_pt(dia.isoformat()),
-                   "".join(item(a) for a in resto) if leve
-                   else "<span class='cal-carrega'>a carregar…</span>")
-                ) if resto else ""
-        return "<div class='%s'>%s%s%s</div>" % (" ".join(classes), cabeca,
-                                                 visiveis, mais)
+        resto = aqui[CABEM_NO_DIA:]
+        return {"classes": " ".join(classes), "n": dia.day,
+                "mes": MESES[dia.month - 1] if dia.day == 1 or dia == principio else "",
+                "tom": tom_, "visiveis": [item(a) for a in aqui[:CABEM_NO_DIA]],
+                "resto_n": len(resto), "resto": [item(a) for a in resto] if leve else [],
+                "iso": dia.isoformat(), "data": data_pt(dia.isoformat())}
 
-    def agenda_html():
-        """Os dias da agenda do telemovel, em `<li>`."""
-        linhas = []
-        for dia in sorted(por_dia):
-            tom_, sinal = urgencia(dia)
-            linhas.append(
-                "<li class='ag-dia%s%s'><h2 class='ag-data'>%s%s%s</h2>%s</li>"
-                % (" " + tom_ if tom_ else "", " hoje" if dia == hoje else "",
-                   DIAS_SEMANA[dia.weekday()] + ", ", data_pt(dia.isoformat()),
-                   (" &middot; hoje" if dia == hoje else "") + sinal,
-                   "".join(item(a) for a in por_dia[dia])))
-        return "".join(linhas) or ("<li class='ag-vazio'>Nada a fechar nestas "
-                                   "seis semanas.</li>")
+    def agenda():
+        """Os dias da agenda do telemovel."""
+        return [{"tom": urgencia(dia), "hoje": dia == hoje,
+                 "data": DIAS_SEMANA[dia.weekday()] + ", " + data_pt(dia.isoformat()),
+                 "itens": [item(a) for a in por_dia[dia]]} for dia in sorted(por_dia)]
 
     if pedaco == "agenda":
-        return Response(agenda_html(), mimetype="text/html")
+        return Response(ecra("calendario_pedaco.html", dias=agenda(), urgente=urgente),
+                        mimetype="text/html")
     if pedaco:
         try:
             dia_pedido = datetime.strptime(pedaco, "%Y-%m-%d").date()
         except ValueError:
             return pagina_de_erro(404)
-        return Response("".join(item(a) for a in
-                                por_dia.get(dia_pedido, [])[CABEM_NO_DIA:]),
+        return Response(ecra("calendario_pedaco.html", dias=None, urgente=urgente,
+                             itens=[item(a) for a in
+                                    por_dia.get(dia_pedido, [])[CABEM_NO_DIA:]]),
                         mimetype="text/html")
-
-    grade = ["<div class='cal-rolo'><div class='cal'>"]
-    grade += ["<div class='cal-cab'>%s</div>" % d for d in DIAS_SEMANA]
-    grade += [celula(principio + timedelta(days=i))
-              for i in range(SEMANAS_CALENDARIO * 7)]
-    grade.append("</div></div>")
 
     # A AGENDA do telemovel (D12 (d)): sete colunas em 390 px davam 49 px
     # e o titulo saia «Ex…», e a grade rolava de lado. Aqui e uma lista,
@@ -32962,10 +32928,6 @@ def calendario():
     # pagina e o CSS mostra uma: o servidor nao sabe a largura do ecra.
     # Numa página pesada vai vazia, e o JS pede-a só num ecrã estreito:
     # na secretária nunca se vê (lote 10).
-    agenda = ["<ol class='cal-agenda' aria-label='Agenda'%s>%s</ol>"
-              % (("", agenda_html()) if leve else
-                 (" data-pedaco='agenda'",
-                  "<li class='ag-vazio'>a carregar…</li>"))]
 
     # A ligacao de volta a lista e da PAGINA e ja nao de cada linha: com
     # o dia como unidade, uma linha e uma linha dentro de uma celula e
@@ -32984,24 +32946,8 @@ def calendario():
     # O Calendario de uma empresa nova abria em «As nossas» com 0 e a
     # grelha vazia, sem uma palavra, com «Por ver 49» na aba ao lado
     # (UX-7-LEIS Z1, 30/09/2026). Diz porque, e aponta os por ver.
-    vazio = ""
-    if ver == "nossas" and not por_filtro["nossas"][0]:
-        n_porver = len(por_filtro["porver"][0])
-        vazio = ("<span class='cal-vazio'>Nenhuma proposta da empresa fecha "
-                 "nestas seis semanas.%s</span>"
-                 % (" <a href='%s'>Há %s por ver com prazo aqui &rarr;</a>"
-                    % (html.escape(para("porver", semana), quote=True),
-                       mil_pt(n_porver)) if n_porver else ""))
-    legenda = ("<div class='cal-legenda'><span>A mostrar <b>%s</b>, de %s a "
-               "%s.</span>%s<span><i class='cal-urg' aria-hidden='true'>&#9888;</i> "
-               "fecha hoje ou já fechou &middot; <i class='cal-urg' "
-               "aria-hidden='true'>&#9719;</i> fecha em %d dias ou menos</span>"
-               "%s<a href='%s'>ver em lista</a></div>"
-               % (html.escape(o_que), data_pt(principio.isoformat()),
-                  data_pt(fim.isoformat()), vazio, urgente,
-                  ("<span>%s com prazo depois destas seis semanas &mdash; "
-                   "continuam na lista.</span>" % mil_pt(fora)) if fora else "",
-                  html.escape(em_lista, quote=True)))
+    vazio = ver == "nossas" and not por_filtro["nossas"][0]
+    n_porver = len(por_filtro["porver"][0])
 
     anterior, hoje_, seguinte = (html.escape(para(ver, n), quote=True)
                                  for n in (semana - 1, 0, semana + 1))
@@ -33013,18 +32959,20 @@ def calendario():
               % (anterior, icone("anterior"), hoje_, seguinte, icone("seguinte")))
     # Os tres filtros, com o numero de cada um nestas seis semanas. Levam
     # a semana atras: mudar de filtro nao volta a hoje.
-    filtros = ("<nav class='mg-tabs cal-filtros' aria-label='O que mostrar'>%s</nav>"
-               % "".join(
-                   "<a class='mg-tab'%s href='%s'>%s <span class='mg-tab__count'>%s</span></a>"
-                   % (" aria-current='page'" if chave == ver else "",
-                      html.escape(para(chave, semana), quote=True),
-                      html.escape(rotulo), mil_pt(len(por_filtro[chave][0])))
-                   for chave, rotulo in FILTROS_DO_CALENDARIO))
-    return envolver("calendario", "Calendário", "",
-                    "<div class='larg fs-topo'>" + _vistas_das_propostas("calendario")
-                    + "</div>" + filtros + "<div class='larg'>%s%s%s%s</div>"
-                    % (faixa, legenda, "".join(grade), "".join(agenda)
-                       + ("" if leve else CALENDARIO_JS)),
+    corpo = ecra(
+        "calendario.html", vistas=Markup(_vistas_das_propostas("calendario")),
+        filtros=[{"aceso": chave == ver, "href": para(chave, semana), "rotulo": rotulo,
+                  "n": mil_pt(len(por_filtro[chave][0]))}
+                 for chave, rotulo in FILTROS_DO_CALENDARIO],
+        faixa=Markup(faixa), o_que=o_que, de=data_pt(principio.isoformat()),
+        ate=data_pt(fim.isoformat()), vazio=vazio,
+        n_porver=mil_pt(n_porver) if n_porver else "",
+        para_porver=para("porver", semana), urgente=urgente,
+        fora=mil_pt(fora) if fora else "", em_lista=em_lista, dias_semana=DIAS_SEMANA,
+        celulas=[celula(principio + timedelta(days=i))
+                 for i in range(SEMANAS_CALENDARIO * 7)],
+        leve=leve, agenda=agenda() if leve else [], js=Markup(CALENDARIO_JS))
+    return envolver("calendario", "Calendário", "", corpo,
                     cabeca=cabecalho_de_pagina(
                         "Calendário", "Seis semanas a partir de segunda-feira. "
                         "Cada dia mostra o que fecha nesse dia.", [], accoes),

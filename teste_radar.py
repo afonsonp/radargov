@@ -12450,8 +12450,9 @@ class TestCalendarioLigaAEscada(unittest.TestCase):
         """O «+N» de um dia cheio **não** liga a `/?de=X&ate=X`: esses
         dois filtros são por `data_pub` e não por `prazo`, e a lista que
         abriam não era a que o número prometia. Abre no sítio, com um
-        `<details>`."""
-        fonte = inspect.getsource(radar.calendario)
+        `<details>`. O HTML está no molde desde o D1 (lote 3.5)."""
+        fonte = inspect.getsource(radar.calendario) + radar.MOLDES_JINJA.loader.get_source(
+            radar.MOLDES_JINJA, "calendario.html")[0]
         self.assertIn("cal-mais", fonte)
         self.assertNotIn("&ate=", fonte)
         self.assertNotIn("ate=%s", fonte)
