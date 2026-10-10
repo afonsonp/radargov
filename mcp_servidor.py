@@ -320,16 +320,26 @@ def ler_peca(f, a):
         lidas.append({"pagina": n, "texto": texto})
         usados += len(texto)
     fim = lidas[-1]["pagina"]
-    # `seguinte` é a página a seguir, se a peça a tem; `continua` só quando
-    # foi o tecto que cortou o que se pediu
-    seguinte = fim + 1 if fim < total else None
-    dados = {"ref": ref, "peca": nome, "paginas_total": total, "de": de, "ate": fim,
-             "paginas": lidas, "seguinte": seguinte,
-             "url": _url_do_anuncio(f, ref) + "?" + urlencode({"peca": nome})}
+    # `proxima_pagina` é a página a seguir, se a peça a tem; «continua» só
+    # quando foi o tecto que cortou o que se pediu
+    proxima = fim + 1 if fim < total else None
+    url = _url_do_anuncio(f, ref) + "?" + urlencode({"peca": nome})
+    meta = {"ref": ref, "peca": nome, "de": de, "ate": fim, "paginas_total": total,
+            "proxima_pagina": proxima, "url": url}
+    # O texto vai SÓ no `content`, e os metadados no `structuredContent`
+    # (pedido dele, 10/10/2026): com o texto nos dois, uma chamada eram
+    # ~240 mil caracteres no contexto do Claude de quem pergunta. Sem
+    # `outputSchema` declarado, a especificação (2025-06-18 e 2025-11-25)
+    # não obriga o texto a ser o JSON do `structuredContent` -- é um
+    # SHOULD, «para compatibilidade» --, e com ele seria um MUST conforme.
+    partes = ["Peça «%s» do concurso %s — páginas %d a %d de %d.\n%s"
+              % (nome, ref, de, fim, total, url)]
+    partes += ["— pág. %d —\n%s" % (p["pagina"], p["texto"]) for p in lidas]
     if fim < min(ate, total):
-        dados["continua"] = ("continua na página %d — pede de_pagina=%d"
-                             % (seguinte, seguinte))
-    return dados, len(lidas)
+        meta["continua"] = ("continua na página %d — pede de_pagina=%d"
+                            % (proxima, proxima))
+        partes.append(meta["continua"])
+    return meta, len(lidas), "\n\n".join(partes)
 
 
 def pesquisar(f, a):
@@ -639,7 +649,7 @@ def ferramentas(distritos, fases):
             "Sem de_pagina, lê desde a primeira; cada chamada leva páginas "
             "inteiras até ~%d mil caracteres, e quando a peça não cabe a "
             "resposta traz «continua»: pede o resto com de_pagina igual a "
-            "«seguinte»." % (CARACTERES_POR_CHAMADA // 1000),
+            "«proxima_pagina»." % (CARACTERES_POR_CHAMADA // 1000),
             {"ref": {"type": "string", "maxLength": 60, "description": "A referência do anúncio."},
              "peca": {"type": "string", "maxLength": 300,
                       "description": "O nome da peça, como vem em ver_concurso."},
@@ -721,10 +731,13 @@ def executar(f, nome, argumentos):
     if a_mais:
         return resultado_de_erro("parâmetro desconhecido: %s" % a_mais[0][:40]), 0, "recusado"
     try:
-        dados, linhas = EXECUTORES[nome](f, argumentos)
+        dados, linhas, *texto = EXECUTORES[nome](f, argumentos)
     except Recusa as recusa:
         return resultado_de_erro(str(recusa)), 0, "recusado"
-    return {"content": [{"type": "text", "text": json.dumps(dados, ensure_ascii=False)}],
+    # o texto, em regra, é o JSON dos dados (o SHOULD da especificação); o
+    # ler_peca manda o seu, com as páginas, e os dados são só os metadados
+    texto = texto[0] if texto else json.dumps(dados, ensure_ascii=False)
+    return {"content": [{"type": "text", "text": texto}],
             "structuredContent": dados}, linhas, "ok"
 
 
@@ -756,7 +769,7 @@ def texto_do_prompt(ref):
         "Depois lê com ler_peca o Programa do Procedimento e o Caderno de "
         "Encargos INTEIROS: cada resposta traz até ~%(n)d mil caracteres, e "
         "enquanto trouxer «continua» volta a pedir com de_pagina igual a "
-        "«seguinte», até ao fim da peça. As outras peças, lê as que "
+        "«proxima_pagina», até ao fim da peça. As outras peças, lê as que "
         "respondem ao que faltar.\n\n"
         "Diz-me o que é o concurso, por esta ordem: o objecto; os prazos (a "
         "entrega das propostas, os esclarecimentos, a execução); o preço base; "
@@ -788,7 +801,7 @@ def texto_de_ler_pecas(concurso):
         "Quero trabalhar no concurso «%s», com os dados do Mira Gov.\n\n%s "
         "Depois lê com ler_peca o Caderno de Encargos e o Programa do "
         "Procedimento INTEIROS: enquanto a resposta trouxer «continua», volta a "
-        "pedir com de_pagina igual a «seguinte», até ao fim de cada peça. As "
+        "pedir com de_pagina igual a «proxima_pagina», até ao fim de cada peça. As "
         "outras peças, lê as que o ver_concurso mostrar que respondem a "
         "alguma coisa.\n\n"
         "Quando acabares, diz-me em duas linhas o que leste (que peças, quantas "
@@ -837,7 +850,7 @@ INSTRUCOES = (
     "ou a entidade, encontra-o primeiro com pesquisar) e depois ler_peca do "
     "Caderno de Encargos e do Programa do Procedimento INTEIROS — enquanto a "
     "resposta trouxer «continua», volta a pedir com de_pagina igual a "
-    "«seguinte», até ao fim de cada peça. Responde com a peça e a página em "
+    "«proxima_pagina», até ao fim de cada peça. Responde com a peça e a página em "
     "cada linha; o que não encontrares nas peças, diz que não encontraste.\n\n"
     "O Mira Gov mapeia, não decide: entrega os factos com a fonte e nunca "
     "diz se a empresa deve concorrer, se o concurso cabe na oferta dela ou "

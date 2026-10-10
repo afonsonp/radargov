@@ -19168,17 +19168,27 @@ class TestConectorMCP(BaseTemporaria):
         self.assertEqual(self.mcp.limpo("x" * 2000)[-1], "…")
         self.assertEqual(len(self.mcp.limpo("x" * 2000)), self.mcp.CORTE_DO_TEXTO + 1)
 
+    def ler(self, t, **argumentos):
+        """(metadados, {página: texto}, o texto todo) de um ler_peca: o texto
+        vem só no `content`, com as marcas de página."""
+        r = self.chamar(t, "ler_peca", ref="900/2026", **argumentos)
+        texto = r["content"][0]["text"]
+        paginas = {int(n): corpo for n, corpo in re.findall(
+            r"— pág\. (\d+) —\n(.*?)(?=\n\n— pág\.|\n\ncontinua|\Z)", texto, re.S)}
+        return r["structuredContent"], paginas, texto
+
     def test_ler_peca_da_as_paginas_certas_e_a_peca_inteira_sem_pedir(self):
         t = self.tokens(self.ana)["access_token"]
-        d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
-                        de_pagina=3, ate_pagina=5)["structuredContent"]
-        self.assertEqual([p["pagina"] for p in d["paginas"]], [3, 4, 5])
-        self.assertEqual(d["paginas"][0]["texto"], "texto da pagina 3")
-        self.assertEqual(d["seguinte"], 6)
+        d, paginas, _ = self.ler(t, peca="Programa.pdf", de_pagina=3, ate_pagina=5)
+        self.assertEqual(sorted(paginas), [3, 4, 5])
+        self.assertEqual(paginas[3], "texto da pagina 3")
+        self.assertEqual(d["proxima_pagina"], 6)
         # sem páginas pedidas, a peça inteira -- cabe no tecto -- e nada continua
-        d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf")["structuredContent"]
-        self.assertEqual((d["de"], d["ate"], d["seguinte"]), (1, 30, None))
+        d, paginas, texto = self.ler(t, peca="Programa.pdf")
+        self.assertEqual((d["de"], d["ate"], d["proxima_pagina"]), (1, 30, None))
+        self.assertEqual(sorted(paginas), list(range(1, 31)))
         self.assertNotIn("continua", d)
+        self.assertNotIn("continua na página", texto)
         self.assertTrue(self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
                                     de_pagina=31)["isError"])
         r = self.chamar(t, "ler_peca", ref="900/2026", peca="../radar.db")
@@ -19191,24 +19201,44 @@ class TestConectorMCP(BaseTemporaria):
         fim, sem faltar nem repetir uma página."""
         t = self.tokens(self.ana)["access_token"]
         with unittest.mock.patch.object(self.mcp, "CARACTERES_POR_CHAMADA", 100):
-            d = self.chamar(t, "ler_peca", ref="900/2026",
-                            peca="Programa.pdf")["structuredContent"]
-            self.assertLessEqual(sum(len(p["texto"]) for p in d["paginas"]), 100)
-            self.assertTrue(all(p["texto"] == "texto da pagina %d" % p["pagina"]
-                                for p in d["paginas"]))
-            self.assertEqual(d["continua"], "continua na página %d — pede de_pagina=%d"
-                             % (d["seguinte"], d["seguinte"]))
-            lidas = [p["pagina"] for p in d["paginas"]]
-            while d["seguinte"]:
-                d = self.chamar(t, "ler_peca", ref="900/2026", peca="Programa.pdf",
-                                de_pagina=d["seguinte"])["structuredContent"]
-                lidas += [p["pagina"] for p in d["paginas"]]
+            d, paginas, texto = self.ler(t, peca="Programa.pdf")
+            self.assertLessEqual(sum(len(v) for v in paginas.values()), 100)
+            self.assertTrue(all(v == "texto da pagina %d" % n for n, v in paginas.items()))
+            frase = "continua na página %d — pede de_pagina=%d" % (
+                d["proxima_pagina"], d["proxima_pagina"])
+            self.assertEqual(d["continua"], frase)
+            self.assertTrue(texto.endswith(frase))
+            lidas = sorted(paginas)
+            while d["proxima_pagina"]:
+                d, paginas, _ = self.ler(t, peca="Programa.pdf",
+                                         de_pagina=d["proxima_pagina"])
+                lidas += sorted(paginas)
             self.assertEqual(lidas, list(range(1, 31)))
         # uma página maior do que o tecto lê-se na mesma, sozinha
         with unittest.mock.patch.object(self.mcp, "CARACTERES_POR_CHAMADA", 5):
-            d = self.chamar(t, "ler_peca", ref="900/2026",
-                            peca="Programa.pdf")["structuredContent"]
-        self.assertEqual((d["ate"], d["seguinte"]), (1, 2))
+            d, _, _ = self.ler(t, peca="Programa.pdf")
+        self.assertEqual((d["ate"], d["proxima_pagina"]), (1, 2))
+
+    def test_ler_peca_nao_manda_o_texto_duas_vezes(self):
+        """Com o texto no `content` e no `structuredContent`, uma chamada
+        eram ~240 mil caracteres no contexto do Claude de quem pergunta
+        (10/10/2026). A resposta inteira cabe no tecto, com folga só para
+        as marcas das páginas e os metadados."""
+        pagina = "palavra " * 375                       # 3 000 caracteres
+        with radar.liga() as c:
+            c.execute("INSERT INTO documentos (ref, nome, texto, texto_estado) "
+                      "VALUES ('900/2026', 'Caderno.pdf', ?, 'ok')",
+                      ("\n\f\n".join([pagina] * 100),))
+        t = self.tokens(self.ana)["access_token"]
+        r = self.mcp_pede(t, "tools/call", {"name": "ler_peca", "arguments": {
+            "ref": "900/2026", "peca": "Caderno.pdf"}})
+        tamanho = len(r.get_data(as_text=True))
+        self.assertGreater(tamanho, self.mcp.CARACTERES_POR_CHAMADA * 0.9)
+        self.assertLess(tamanho, self.mcp.CARACTERES_POR_CHAMADA * 1.1)
+        meta = r.get_json()["result"]["structuredContent"]
+        self.assertNotIn("paginas", meta)
+        self.assertEqual(meta["paginas_total"], 100)
+        self.assertTrue(meta["proxima_pagina"])
 
     def test_as_outras_ferramentas_respondem(self):
         t = self.tokens(self.ana)["access_token"]

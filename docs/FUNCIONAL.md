@@ -2053,7 +2053,7 @@ até à 40.ª:
 |---|---|
 | `procurar_concursos` | Os anúncios pelo motor da lista (`condicoes()`), por texto, CPV, distrito, entidade ou NIF, datas de publicação, prazo e preço base; **com o perfil da empresa por cima**, como a lista, a menos que se peça `so_o_perfil=false` |
 | `ver_concurso` | O anúncio, a leitura das peças (com o «de onde vem»), as peças com **quantas páginas** tem cada uma, e a proposta da empresa |
-| `ler_peca` | O texto já extraído de uma peça, **com o número de cada página** (a mesma numeração da ficha), em páginas inteiras até ~120 mil caracteres por chamada (40 a 60 páginas de um caderno; uma página sozinha corta-se nos 30 mil). Sem `de_pagina` lê desde a primeira; quando a peça não cabe, a resposta diz «continua na página N — pede de_pagina=N», e o Claude pede o resto sozinho |
+| `ler_peca` | O texto já extraído de uma peça, **com o número de cada página** (a mesma numeração da ficha), em páginas inteiras até ~120 mil caracteres por chamada (40 a 60 páginas de um caderno; uma página sozinha corta-se nos 30 mil). Sem `de_pagina` lê desde a primeira; quando a peça não cabe, a resposta diz «continua na página N — pede de_pagina=N», e o Claude pede o resto sozinho. **O texto vai só uma vez**, no `content`, com as marcas «— pág. N —»; o `structuredContent` leva só os metadados (as páginas devolvidas, o total, a `proxima_pagina`) |
 | `pesquisar` | A pesquisa geral (`resultados_da_pesquisa()`): concursos, propostas, entidades |
 | `listar_propostas` | As propostas da empresa, numa fase da escada ou em todas |
 | `ver_proposta` | Uma proposta, o histórico e as tarefas por fazer |
