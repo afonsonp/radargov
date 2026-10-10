@@ -1,0 +1,3 @@
+{#- Plataforma › Visitas ao site (ANL, 4/10/2026): o período, os números,
+    a evolução e as tabelas, que vêm feitas (cartões). -#}
+<div class='larg' style='display:flex;flex-direction:column;gap:18px'><p class='nota'>Período: {% for k, v in periodos %}{% if not loop.first %} · {% endif %}<a href='?periodo={{ k }}'{% if k == periodo %} aria-current='page'{% endif %}>{{ v }}</a>{% endfor %}</p><div class='mg-stats'>{{ kpis }}</div>{{ evolucao }}{% for t in tabelas %}{{ t }}{% endfor %}</div>

@@ -1,0 +1,4 @@
+{#- Uma tabela de contagens das Visitas; as colunas de contagens vão ao
+    centro, cabeçalho e número (9/10/2026, pedido dele). -#}
+{%- import "_pecas.html" as p -%}
+<table class='mg-table tab-plataforma tab-visitas'><thead><tr>{% for h, num in cabecalhos %}<th{% if num %} class='mg-num'{% endif %}>{{ h }}</th>{% endfor %}</tr></thead><tbody>{% for l in linhas %}<tr>{% for h, v, num in l %}{% call p.celula(h, "mg-num" if num else "") %}{{ v }}{% endcall %}{% endfor %}</tr>{% endfor %}</tbody></table>
