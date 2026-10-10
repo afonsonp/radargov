@@ -196,10 +196,14 @@ corrige-se num trabalho à parte, com o seu teste.
 - **O `preco_pt()` deixa passar tal qual o que não lê como número**
   (lote 3.6), e as tabelas da Situação (o «em jogo» e as decididas)
   metiam-no no HTML sem escapar — o `valor_proposta` escreve-o quem usa
-  a aplicação. O molde reproduz o defeito de propósito (os preços entram
-  como `Markup`); corrige-se escapando o ramo «tal qual» dentro do
-  `preco_pt()`, que é por onde passam todos os ecrãs, e tirando o
-  `Markup` dos preços.
+  a aplicação. O molde reproduziu o defeito (os preços entravam como
+  `Markup`). **Corrigido a 10/10/2026**: os preços entram como texto, e
+  o Jinja escapa-os (`test_um_preco_que_nao_se_le_entra_escapado`). O
+  escape **não** foi para dentro do `preco_pt()`: seis sítios já o
+  escapam por fora, e o e-mail em texto usa-o cru. Os outros caminhos do
+  preço foram seguidos até ao ecrã e escapam todos; o `historico` e os
+  `eventos` guardam o preço tal qual, e quem os ler num ecrã novo tem de
+  escapar.
 
 ## 4. Riscos e como se tratam
 

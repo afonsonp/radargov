@@ -2,9 +2,9 @@
     período, e o corpo de cada aba. Os números, o funil, o CPV, o
     negócio, o «Quem nos ganha» e as ranhuras vêm feitos (servem também
     os Indicadores e o Hoje); as listas que confirmam os números (os dois
-    «em jogo» e as decididas) desenham-se aqui. Os preços entram feitos
-    pelo `preco_pt()`, que deixa passar tal qual o que não lê (ver os
-    «Achados» do docs/plano-d1.md). -#}
+    «em jogo» e as decididas) desenham-se aqui. Os preços entram como
+    texto: o `preco_pt()` deixa passar tal qual o que não lê, e o Jinja
+    escapa-o. -#}
 {%- macro em_jogo(g) -%}
 <div class='mg-card tab-cx' id='{{ g.ancora }}'><h2 class='mg-card__title' style='padding:16px 16px 0'>{{ g.rotulo }}</h2>{% if not g.linhas %}<div class='nota' style='padding:6px 16px 16px'>Nenhuma proposta em {{ g.nomes }}.</div></div>{% else -%}
 <table class='mg-table tab-contratos tab-plataforma'><thead><tr><th>Concurso</th><th>Fase</th><th class='p'>Preço base</th><th class='p'>Proposto</th><th class='p'>Conta</th></tr></thead><tbody>{% for p in g.linhas %}<tr><td class='o'><a href='{{ p.href }}'>{{ p.titulo }}</a></td><td data-r='Fase'>{{ p.fase }}</td><td class='p' data-r='Preço base'>{{ p.base }}</td><td class='p' data-r='Proposto'>{{ p.proposto }}</td><td class='p' data-r='Conta'>{{ p.conta }}</td></tr>{% endfor %}</tbody><tfoot><tr><td><b>{{ g.quantas }}</b></td><td></td><td></td><td></td><td class='p'><b>{{ g.total }}</b></td></tr></tfoot></table></div>{% endif %}

@@ -21683,6 +21683,24 @@ class TestASituacaoDizOQueSomaEAbreALista(BaseTemporaria):
         # a data é a da adjudicação desde a D3; a de marcar é o recurso
         self.assertIn("data da adjudicação</b>; sem ela", corpo)
 
+    def test_um_preco_que_nao_se_le_entra_escapado(self):
+        """O `preco_pt()` devolve tal qual o que não lê como número, e o
+        proposto escreve-o quem usa a aplicação: as duas tabelas da
+        Situação metiam-no no HTML sem escapar (achado do D1, lote 3.6,
+        10/10/2026)."""
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=? WHERE ref='1/2026'",
+                      ("<script>x()</script>",))
+        id_ = radar.criar_proposta("2/2026", estado="submetido")
+        with radar.liga() as c:
+            c.execute("UPDATE propostas SET valor_proposta=? WHERE id=?",
+                      ("<b>caro</b>", id_))
+        corpo = self.cliente.get("/situacao").get_data(as_text=True)
+        self.assertNotIn("<script>x()</script>", corpo)
+        self.assertIn("&lt;script&gt;x()&lt;/script&gt;", corpo)
+        self.assertNotIn("<b>caro</b>", corpo)
+        self.assertIn("&lt;b&gt;caro&lt;/b&gt;", corpo)
+
     def test_os_numeros_abrem_a_lista_das_decididas_com_total(self):
         corpo = self.cliente.get("/situacao").get_data(as_text=True)
         self.assertIn("href='/situacao?ver=negocio&amp;periodo=trimestre"
