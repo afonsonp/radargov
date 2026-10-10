@@ -2061,12 +2061,29 @@ até à 40.ª:
 | `procurar_contratos` | Os contratos do Portal BASE (pede pelo menos um filtro) |
 | `ver_entidade` | Quanto uma entidade compra e a quem (24 meses), em que CPV, o que está a acabar, e o que a empresa já fez com ela |
 
-E **um prompt**, «Explica-me este concurso» (`explicar_concurso`, com a
-`ref`): pede ao Claude para ler o anúncio, o Programa e o Caderno de
-Encargos **inteiros** (pedindo as continuações) e dizer o objecto,
-os prazos, o preço base, a caução, o alvará, os documentos, as
-penalidades e o critério — cada linha com a peça e a página — **sem
-dizer se é para concorrer**.
+**Ler as peças não depende de um prompt** (pedido dele, 10/10/2026):
+as instruções do servidor (o `instructions` do `initialize`,
+`mcp_servidor.INSTRUCOES`) e as descrições do `ver_concurso` e do
+`ler_peca` dizem ao Claude que, **sempre que a conversa fala de um
+concurso concreto** (uma referência, um título, «a proposta para a
+Câmara X») **ou de preparar uma proposta**, chama primeiro o
+`ver_concurso` e depois lê o Caderno de Encargos e o Programa
+**inteiros**, pelas continuações, antes de responder — com a peça e a
+página em cada linha e sem dizer se é para concorrer. É pelas descrições
+e pelas instruções que o modelo decide chamar uma ferramenta; um prompt
+só corre quando a pessoa o escolhe.
+
+E **dois prompts**, que a pessoa escolhe no Claude:
+
+- «Explica-me este concurso» (`explicar_concurso`, com a `ref`): lê o
+  anúncio, o Programa e o Caderno **inteiros** e diz o objecto, os
+  prazos, o preço base, a caução, o alvará, os documentos, as
+  penalidades e o critério — cada linha com a peça e a página — **sem
+  dizer se é para concorrer**.
+- «Ler as peças» (`ler-pecas`, com o `concurso`: a referência, ou
+  palavras que o identifiquem — então procura-o primeiro com o
+  `pesquisar` e, havendo mais de um, pergunta qual): lê as peças
+  inteiras, diz o que leu e espera pela pergunta.
 
 **O que não sai, de propósito** (decisão 5): os **contactos** das
 entidades (dados pessoais de funcionários públicos), as **notas** das

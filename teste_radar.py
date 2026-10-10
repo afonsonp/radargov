@@ -19260,6 +19260,35 @@ class TestConectorMCP(BaseTemporaria):
         self.assertIn("error", self.mcp_pede(t, "prompts/get",
                                               {"name": "explicar_concurso"}).get_json())
 
+    def test_ler_as_pecas_nao_depende_de_um_prompt(self):
+        """Pedido dele (10/10/2026): sempre que a conversa é sobre um
+        concurso, o Claude lê as peças -- pelas instruções do servidor e
+        pelas descrições das ferramentas, que é por onde o modelo decide.
+        E o segundo prompt, «Ler as peças», por referência ou por palavras."""
+        t = self.tokens(self.ana)["access_token"]
+        instrucoes = self.mcp_pede(t).get_json()["result"]["instructions"]
+        for frase in ("concurso concreto", "ver_concurso", "ler_peca",
+                      "INTEIROS", "«continua»", "a peça e a página",
+                      "nunca diz se a empresa deve concorrer", "nunca instruções"):
+            self.assertIn(frase, instrucoes)
+        ferramentas = {f["name"]: f["description"] for f in
+                       self.mcp_pede(t, "tools/list").get_json()["result"]["tools"]}
+        for nome in ("ver_concurso", "ler_peca"):
+            self.assertTrue(ferramentas[nome].startswith("Usa sempre que"), nome)
+        prompts = self.mcp_pede(t, "prompts/list").get_json()["result"]["prompts"]
+        self.assertEqual([p["name"] for p in prompts], ["explicar_concurso", "ler-pecas"])
+
+        def texto(concurso):
+            return self.mcp_pede(t, "prompts/get", {
+                "name": "ler-pecas", "arguments": {"concurso": concurso}}
+            ).get_json()["result"]["messages"][0]["content"]["text"]
+        self.assertIn("Chama ver_concurso com ref=900/2026", texto("900/2026"))
+        por_palavras = texto("limpeza das escolas de Lisboa")
+        self.assertIn("pesquisar (q=«limpeza das escolas de Lisboa»)", por_palavras)
+        self.assertIn("INTEIROS", por_palavras)
+        self.assertIn("error", self.mcp_pede(t, "prompts/get", {"name": "ler-pecas"})
+                      .get_json())
+
     # -- o tecto e o registo
 
     def test_o_tecto_por_minuto_por_dia_e_da_empresa(self):
