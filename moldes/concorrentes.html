@@ -1,0 +1,11 @@
+{#- A aba Concorrentes do Mercado (L5): quem concorre nos contratos do
+    perfil, quantas vezes ganha e por quanto abaixo do preço base. A
+    frase do topo diz quantos contratos se leram de quantos; sem nenhum
+    lido não se diz «0 lidos», que se lia como «ninguém concorreu». A
+    faixa do interesse, a ligação de cada fornecedor e o paginador vêm
+    feitos. -#}
+<div class='larg'>{{ faixa }}{% if lidos %}<p class='nota'>{{ lidos }} lidos de {{ ambito }} {{ do_perfil }}nos últimos {{ anos }} anos, sem os ajustes directos; {{ com_lista }} com a lista de concorrentes. O Mira Gov lê o Portal BASE contrato a contrato, e a recolha leva meses.</p>{% endif -%}
+{%- if linhas %}<p class='nota'><b>{{ fornecedores }}</b> com NIF nos contratos lidos.</p><div class='mg-card tab-cx'><table class='mg-table tab-contratos'><thead><tr><th>Fornecedor</th><th class='p'>Concorreu</th><th class='p'>Ganhou</th><th class='p'>Taxa</th><th class='p'>Desconto quando ganha (de sempre)</th></tr></thead><tbody>
+{%- for f in linhas %}<tr><td>{{ f.liga }}</td><td class='p'>{{ f.concorreu }}</td><td class='p'>{{ f.ganhou }}</td><td class='p'>{{ f.taxa }}</td><td class='p'>{% if f.mediana %}{{ f.mediana }} <small>em {{ f.n }}</small>{% else %}—{% endif %}</td></tr>{% endfor -%}
+</tbody></table><div class='tab-pe'><span class='nota'>Concorreu e ganhou contam contratos lidos; a taxa é ganhou a dividir por concorreu. Os ajustes directos ficam de fora: neles o Portal BASE só lista o adjudicatário. O desconto é a mediana sobre o preço base nos procedimentos que ganhou{% if do_perfil %} no perfil{% endif %}, de sempre; só com {{ minimo }} ou mais.</span></div></div>{{ paginador }}
+{%- else %}<div class='mg-empty comecar'><h2 class='mg-empty__title'>Ainda não há concorrentes para mostrar</h2><span>{% if not lidos %}Há {{ ambito }} {{ do_perfil }}nos últimos {{ anos }} anos, e a recolha ainda não leu nenhum: o Mira Gov lê o Portal BASE contrato a contrato, devagar, e chega lá.{% else %}Nenhum dos contratos lidos traz a lista de concorrentes com NIF.{% endif %}</span></div>{% endif %}</div>

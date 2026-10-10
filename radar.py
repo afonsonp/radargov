@@ -26950,66 +26950,37 @@ def concorrentes():
     if not ha_corpus():
         return sem_corpus_html("Concorrentes")
     d = concorrencia_no_perfil(request.args)
-    faixa = _faixa_do_interesse("/concorrentes", 0, so_cpv=True)
-    frase = ("<p class='nota'>%s lidos de %s %snos últimos %d anos, sem os "
-             "ajustes directos; %s com a "
-             "lista de concorrentes. O Mira Gov lê o Portal BASE contrato a "
-             "contrato, e a recolha leva meses.</p>"
-             % (mil_pt(d["lidos"]), plural(d["ambito"], "contrato"),
-                "do perfil " if d["frag"] else "", ANOS_DOS_CONCORRENTES,
-                mil_pt(d["com_lista"])))
     linhas = d["linhas"]
-    if not d["lidos"]:
-        frase = ""          # «0 lidos» lia-se como «ninguém concorreu»
-    if not linhas:
-        tabela = ("<div class='mg-empty comecar'><h2 class='mg-empty__title'>"
-                  "Ainda não há concorrentes para mostrar</h2><span>%s</span></div>"
-                  % ("Há %s %snos últimos %d anos, e a recolha ainda não "
-                     "leu nenhum: o Mira Gov lê o Portal BASE contrato a "
-                     "contrato, devagar, e chega lá."
-                     % (plural(d["ambito"], "contrato"),
-                        "do perfil " if d["frag"] else "", ANOS_DOS_CONCORRENTES)
-                     if not d["lidos"] else
-                     "Nenhum dos contratos lidos traz a lista de concorrentes "
-                     "com NIF."))
-        pe = ""
-    else:
-        paginas = max(1, -(-len(linhas) // CABEM_NA_LISTA))
-        pagina = min(max(1, pagina_pedida(request.args)), paginas)
-        desta = linhas[(pagina - 1) * CABEM_NA_LISTA:pagina * CABEM_NA_LISTA]
-        corpo = []
+    paginas = max(1, -(-len(linhas) // CABEM_NA_LISTA))
+    pagina = min(max(1, pagina_pedida(request.args)), paginas)
+    desta = linhas[(pagina - 1) * CABEM_NA_LISTA:pagina * CABEM_NA_LISTA]
+    corpo = []
+    if desta:
         with liga_corpus() as c:
             for f in desta:
                 n, mediana = desconto_de_quem_ganha(c, f["chave"], d["frag"], d["vals"])
-                corpo.append(
-                    "<tr><td>%s</td><td class='p'>%s</td><td class='p'>%s</td>"
-                    "<td class='p'>%s</td><td class='p'>%s</td></tr>"
-                    % (liga_entidade(f["chave"], f["nome"]), mil_pt(f["concorreu"]),
-                       mil_pt(f["ganhou"]), pct_pt(f["ganhou"] / f["concorreu"], 0),
-                       pct_pt(mediana, 0) + " <small>em %d</small>" % n
-                       if mediana is not None else "—"))
-        tabela = (
-            "<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
-            "<thead><tr><th>Fornecedor</th><th class='p'>Concorreu</th>"
-            "<th class='p'>Ganhou</th><th class='p'>Taxa</th>"
-            # as três primeiras são do perfil e dos últimos anos; o
-            # desconto é de sempre, e só o pé o dizia (N7 da UX-AUDITORIA-1-10)
-            "<th class='p'>Desconto quando ganha (de sempre)</th></tr></thead><tbody>%s</tbody>"
-            "</table><div class='tab-pe'><span class='nota'>Concorreu e ganhou "
-            "contam contratos lidos; a taxa é ganhou a dividir por concorreu. Os "
-            "ajustes directos ficam de fora: neles o Portal BASE só lista o "
-            "adjudicatário. O desconto é a mediana sobre o preço base nos "
-            "procedimentos que ganhou%s, de sempre; só com %d ou mais.</span>"
-            "</div></div>"
-            % ("".join(corpo), " no perfil" if d["frag"] else "",
-               MINIMO_PARA_DESCONTO))
-        tabela += paginador(pagina, paginas, request.args, "/concorrentes")
-        pe = ("<p class='nota'><b>%s</b> com NIF nos contratos lidos.</p>"
-              % plural(len(linhas), "fornecedor", "fornecedores"))
+                corpo.append({
+                    "liga": Markup(liga_entidade(f["chave"], f["nome"])),
+                    "concorreu": mil_pt(f["concorreu"]), "ganhou": mil_pt(f["ganhou"]),
+                    "taxa": pct_pt(f["ganhou"] / f["concorreu"], 0),
+                    "mediana": pct_pt(mediana, 0) if mediana is not None else "",
+                    "n": n})
+    # «0 lidos» lia-se como «ninguém concorreu»: sem nenhum, a frase sai.
+    # O desconto é de sempre, e só o pé o dizia (N7 da UX-AUDITORIA-1-10)
     return envolver("concorrentes", "Concorrentes",
                     "Quem concorre nos contratos do perfil, quantas vezes "
                     "ganha, e por quanto abaixo do preço base.",
-                    "<div class='larg'>%s%s%s%s</div>" % (faixa, frase, pe, tabela),
+                    ecra("concorrentes.html",
+                         faixa=Markup(_faixa_do_interesse("/concorrentes", 0, so_cpv=True)),
+                         lidos=mil_pt(d["lidos"]) if d["lidos"] else "",
+                         ambito=plural(d["ambito"], "contrato"),
+                         do_perfil="do perfil " if d["frag"] else "",
+                         anos=ANOS_DOS_CONCORRENTES, com_lista=mil_pt(d["com_lista"]),
+                         linhas=corpo,
+                         fornecedores=plural(len(linhas), "fornecedor", "fornecedores"),
+                         minimo=MINIMO_PARA_DESCONTO,
+                         paginador=Markup(paginador(pagina, paginas, request.args,
+                                                    "/concorrentes"))),
                     migalhas=migalhas_de("concorrentes"),
                     abas=abas_do_mercado("concorrentes"),
                     titulo_aba="Concorrentes")

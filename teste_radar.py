@@ -28936,8 +28936,10 @@ class TestAuditoriaDe1OutubroOsPequenos(unittest.TestCase):
 
     def test_n7_o_desconto_diz_que_e_de_sempre(self):
         # as outras três colunas são do perfil e dos últimos anos
+        # (o HTML está no molde desde o D1, lote 3.7b)
         self.assertIn("Desconto quando ganha (de sempre)",
-                      inspect.getsource(radar.concorrentes))
+                      radar.MOLDES_JINJA.loader.get_source(
+                          radar.MOLDES_JINJA, "concorrentes.html")[0])
 
     def test_n10_as_iniciais_na_pilula_escolhida_nao_sao_transparentes(self):
         # branco a 28 % sobre o azul: ~4,3:1 para letra de 12 px
