@@ -562,7 +562,10 @@ e o seu rótulo na ficha (`CAMPO_11`):
 |---|---|---|
 | Serviços de TI, projectos, consultoria, formação | Equipa | Os perfis, com as horas e o valor/hora quando o CE os fixa, e o nível de serviço (tempos de resposta, horário, disponibilidade) desde 29/09/2026 |
 | Obras | Equipa técnica e alvará | Equipa técnica (com a remissão para a lei da qualificação), equipamento a montar, mapa de quantidades, condicionantes. O alvará sai do anúncio, e não desta pergunta, desde 29/09/2026 — ao lado dele, o que o Programa diz (`analise.habilitacao`, em baixo) |
-| Bens — e, desde 29/09/2026, as licenças e o suporte de fabricante com CPV de TI (`RX_LICENCAS`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
+| Bens — e, desde 10/10/2026, o hardware com CPV de TI (`RX_HARDWARE`, pela designação do contrato) | Artigos e especificações | Artigos, quantidades, características, marcas e «ou equivalente», entrega, garantia |
+| Licenças, subscrições e suporte de fabricante (desde 10/10/2026): o CPV 48, e o 72 com `RX_LICENCAS` na designação, sem trabalho de equipa | Licenças e suporte | O total de produtos, cada produto ou part number com a quantidade, perpétua/subscrição/renovação e a duração, o contrato que se renova, o preço por lote, a parceria do fabricante, a entrega e o suporte |
+| Locação de bens (desde 10/10/2026; eram «bens») | Bens locados e condições | Os bens com as características, a duração, o uso incluído (km), o que a renda inclui, o bem de substituição, a entrega e a devolução, a renda máxima |
+| Concessão de serviços (desde 10/10/2026; o bar da 21877 era «mão-de-obra») | Renda e condições da concessão | A contrapartida, o prazo, o espaço e os encargos, o horário, os preços, o pessoal, os requisitos legais |
 | Mão-de-obra (limpeza, vigilância, refeições) | Postos e horários | Postos × horário × dias, habilitações, equipamentos, regime dos trabalhadores |
 | Outros serviços | Nível de serviço | Âmbito, tempos de resposta, qualificações, volume |
 

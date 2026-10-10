@@ -7646,6 +7646,83 @@ Qualificações legais exigidas aos técnicos, ou —
 Volume: bolsa de horas ou quantidades, ou —
 Datas fixas, ou —""" + _FIM_DO_CAMPO_11
 
+# --- as tres familias que os juizes separaram (Q3, 10/10/2026). Nos 21
+# «bens» julgados, 11 eram licencas ou suporte de software e 2 eram
+# viaturas alugadas; nas «equipas», um cluster de armazenamento; na
+# «mao-de-obra», a concessao de um bar, onde quem ganha paga renda. Cada
+# uma pergunta o que decide o preco dela, e nada que a empresa decide.
+ANCORAS_LICENCAS = (
+    (0, r"(fornecimento|aquisicao|contrato) (compreende|inclui|abrange) os seguintes|"
+        r"seguintes (itens|artigos|produtos|licencas|subscricoes)|"
+        r"lista de (artigos|produtos|licencas)|part ?numbers?|"
+        r"^quantidade (servico|descricao|artigo|designacao|produto)"),
+    (1, r"licenc|subscri|produtos?|sku|edicao|artigos?|quantidades|lotes?"),
+    (2, r"suporte|renova|parceir|partner|fabricante|ativacao|activacao|entrega"),
+    (3, r"garantia|instalacao|formacao|equivalente"),
+)
+INSTRUCOES_LICENCAS = PREAMBULO + """
+
+É uma compra de LICENÇAS, SUBSCRIÇÕES ou SUPORTE de software ou de
+fabricante. Não há equipa: extrai, das peças (Caderno de Encargos e
+anexos técnicos), com esta estrutura:
+
+Total: quantos produtos ou part numbers há
+Um bloco por produto ou lote:
+  Produto, edição ou part number — quantidade e unidade
+  Perpétua, subscrição ou renovação do suporte, e a duração, ou —
+  Contrato ou número de cliente que se renova, ou —
+Preço base do lote ou preço unitário máximo, ou —
+Parceria ou certificação do fabricante exigida ao concorrente, ou —
+Entrega e activação (electrónica, prazo), ou —
+Suporte: nível e tempo de resposta, ou —
+
+Se há uma lista ou tabela de produtos, passa-a toda.""" + _FIM_DO_CAMPO_11
+
+ANCORAS_LOCACAO = (
+    (0, r"quilometr|kms?|viaturas? de substituicao|renda (mensal|maxima)|"
+        r"(seguintes|lista de) (viaturas|veiculos|equipamentos)"),
+    (1, r"locacao|aluguer|viaturas?|veiculos?|caracteristicas|especifica|lotes?"),
+    (2, r"manutencao|seguro|pneus|assistencia|substituicao|devolucao|entrega"),
+    (3, r"garantia|quantidades?|consumiveis"),
+)
+INSTRUCOES_LOCACAO = PREAMBULO + """
+
+É uma LOCAÇÃO de bens (viaturas, equipamentos). Extrai, das peças
+(Caderno de Encargos e anexos técnicos), com esta estrutura:
+
+Um bloco por lote ou tipo de bem:
+  Bem exacto — quantidade
+  Características exigidas, uma por linha
+Duração e tipo da locação (operacional ou financeira), ou —
+Uso incluído (quilómetros, horas, cópias) e o preço do excesso, ou —
+O que a renda inclui (manutenção, seguro, pneus, assistência), ou —
+Bem de substituição e prazos, ou —
+Entrega e devolução: prazo, local e estado, ou —
+Preço base do lote ou renda máxima, ou —""" + _FIM_DO_CAMPO_11
+
+ANCORAS_CONCESSAO = (
+    (0, r"contrapartida|renda (mensal|anual)|precos? (maximos?|de venda)|"
+        r"tabela de precos|horario de funcionamento"),
+    (1, r"concessao|exploracao|espaco|instalacoes|equipamentos|horarios?|precos"),
+    (2, r"pessoal|haccp|higiene|limpeza|consumos|agua|electricidade|eletricidade"),
+    (3, r"prazo|renova|caucao"),
+)
+INSTRUCOES_CONCESSAO = PREAMBULO + """
+
+É uma CONCESSÃO DE SERVIÇOS (a exploração de um bar, um refeitório, um
+espaço): quem a ganha paga à entidade ou cobra a terceiros. Extrai, das
+peças (Caderno de Encargos, Programa e anexos), com esta estrutura:
+
+Contrapartida ou renda a pagar à entidade: valor, periodicidade e
+actualização, ou —
+Prazo da concessão e renovações, ou —
+Espaço e equipamentos entregues; o que fica a cargo do concessionário
+(obras, equipamento, consumos, limpeza), ou —
+Horário e dias de funcionamento obrigatórios, ou —
+Preços: tabela, preços máximos ou produtos obrigatórios, ou —
+Pessoal mínimo e qualificações, ou —
+Requisitos legais (HACCP, licenças), ou —""" + _FIM_DO_CAMPO_11
+
 # --- o objecto das obras (29/09/2026). A pergunta do objecto foi escrita
 # para os servicos de TI, e as ancoras dela apanham a Clausula 1.a do CE,
 # que numa empreitada remete para o projecto: em 11 das 17 obras o
@@ -7717,6 +7794,13 @@ CAMPO_11 = {
                     ANCORAS_MAO_DE_OBRA, INSTRUCOES_MAO_DE_OBRA),
     "servicos": ("Nível de serviço", "o nível de serviço",
                  ANCORAS_SERVICOS, INSTRUCOES_SERVICOS),
+    "licencas": ("Licenças e suporte", "as licenças nem o suporte",
+                 ANCORAS_LICENCAS, INSTRUCOES_LICENCAS),
+    "locacao": ("Bens locados e condições", "os bens nem as condições da locação",
+                ANCORAS_LOCACAO, INSTRUCOES_LOCACAO),
+    "concessao": ("Renda e condições da concessão",
+                  "a renda nem as condições da concessão",
+                  ANCORAS_CONCESSAO, INSTRUCOES_CONCESSAO),
 }
 
 
@@ -7733,10 +7817,16 @@ RX_LICENCAS = re.compile(r"\blicen[cs]|subscri[cç]|renova\w* (d[oe] )?suporte|s
 RX_TRABALHO_DE_EQUIPA = re.compile(
     r"desenvolv|implementa|consultor|evolutiv|bolsa de horas|recursos|perfis|"
     r"alojamento|hosting|operacao")
+# O hardware com CPV de servicos de TI (Q3, 10/10/2026): a «Renovacao e
+# Expansao do Cluster de Armazenamento de Dados» do IPO (22540, 72300)
+# lia-se como equipa -- e o que se compra sao equipamentos HPE com
+# suporte. Como as licencas: pela designacao, e sem trabalho de equipa.
+RX_HARDWARE = re.compile(r"hardware|equipamentos? informatic|servidor|cluster|"
+                         r"storage|armazenamento de dados|datacenter")
 
 
 def familia_do_contrato(tipo, cpv, designacao=""):
-    """O tipo de contrato em cinco famílias, sem modelo
+    """O tipo de contrato em oito famílias, sem modelo
     (docs/historico/SETORES.md §2): o tipo do anúncio separa obras, bens
     e serviços, e a divisão do CPV separa os serviços entre si. **Sem
     tipo nem CPV fica «equipa»**, que é a pergunta de antes -- não se
@@ -7744,15 +7834,25 @@ def familia_do_contrato(tipo, cpv, designacao=""):
     as licenças dos serviços de TI (RX_LICENCAS)."""
     t = simplifica(tipo or "")
     codigo = re.sub(r"\D", "", (cpv or "").split(",")[0])
+    d = simplifica(designacao or "")
     if t.startswith("empreitada") or "concessao de obras" in t:
         return "obras"
-    if t.startswith(("aquisicao de bens", "locacao")):
+    # Q3, 10/10/2026: a concessao, a locacao e as licencas tem perguntas
+    # suas (as tres ANCORAS_/INSTRUCOES_ ao lado do CAMPO_11)
+    if t.startswith("concessao"):
+        return "concessao"
+    if t.startswith("locacao"):
+        return "locacao"
+    equipa = RX_TRABALHO_DE_EQUIPA.search(d)
+    if not equipa and (codigo[:2] == "48"
+                       or (codigo[:2] == "72" and RX_LICENCAS.search(d))):
+        return "licencas"
+    if t.startswith("aquisicao de bens"):
+        return "bens"
+    if codigo[:2] == "72" and RX_HARDWARE.search(d) and not equipa:
         return "bens"
     if codigo[:4] in ("9091", "7971") or codigo[:2] == "55":
         return "mao_de_obra"
-    d = simplifica(designacao or "")
-    if codigo[:2] == "72" and RX_LICENCAS.search(d) and not RX_TRABALHO_DE_EQUIPA.search(d):
-        return "bens"
     if codigo[:2] in ("72", "71", "73", "80") or codigo[:3] == "794":
         return "equipa"
     return "servicos" if (t or codigo) else "equipa"

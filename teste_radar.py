@@ -1612,14 +1612,16 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
             self.assertTrue(any(re.search(r, radar.simplifica(frase)) for r in fortes), frase)
         self.assertIn("Nível de serviço", radar.INSTRUCOES_EQUIPA)
 
-    def test_as_licencas_com_cpv_de_ti_sao_bens(self):
-        # 21659, 22682, 23589: artigos com quantidade lidos como perfis
+    def test_as_licencas_com_cpv_de_ti_sao_licencas(self):
+        # 21659, 22682, 23589: artigos com quantidade lidos como perfis;
+        # eram «bens» desde 29/09/2026, e desde a Q3 (10/10/2026) têm a
+        # família delas -- 11 dos 21 «bens» julgados eram licenças
         f = radar.familia_do_contrato
         for titulo, cpv in (("Licenciamento e manutenção de rede check Point", "72267000"),
                             ("Aquisição de Serviços de Suporte e Renovação do "
                              "Licenciamento CISCO", "72500000"),
                             ("Serviços Renovação Suporte AVAMAR 2026", "72100000")):
-            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "bens", titulo)
+            self.assertEqual(f("Aquisição de Serviços", cpv, titulo), "licencas", titulo)
         # com trabalho de equipa no mesmo contrato, fica equipa
         for titulo in ("Aquisição de serviços de suporte técnico e manutenção adaptativa "
                        "e evolutiva da plataforma DSpace",
@@ -1629,7 +1631,7 @@ class TestTerceiraRondaDaLeitura(unittest.TestCase):
         self.assertEqual(f("Aquisição de Serviços", "72267000"), "equipa")
         texto = ("6 - OBJETO DO CONTRATO\nDesignação do contrato: Licenças Office 2024\n"
                  "Tipo de Contrato Principal: Aquisição de Serviços\n")
-        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "bens")
+        self.assertEqual(radar.familia_do_anuncio(texto, "72268000"), "licencas")
 
     def test_a_lista_dos_itens_dos_bens(self):
         # 21659: «2- O fornecimento compreende os seguintes itens:»
@@ -5577,13 +5579,46 @@ class TestCampo11PorTipo(unittest.TestCase):
         f = radar.familia_do_contrato
         self.assertEqual(f("Empreitada de Obras Públicas", "45261910"), "obras")
         self.assertEqual(f("Aquisição de Bens Móveis", "37412241"), "bens")
-        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "bens")
+        self.assertEqual(f("Locação de Bens Móveis", "34144510"), "locacao")
         self.assertEqual(f("Aquisição de Serviços", "90911200"), "mao_de_obra")
         self.assertEqual(f("Aquisição de Serviços", "79714000"), "mao_de_obra")
         self.assertEqual(f("Aquisição de Serviços", "72000000"), "equipa")
         self.assertEqual(f("Aquisição de Serviços", "50711000"), "servicos")
         # o CPV com dois códigos: conta o primeiro
         self.assertEqual(f("Aquisição de Serviços", "72000000, 50000000"), "equipa")
+
+    def test_as_familias_que_os_juizes_separaram(self):
+        # Q3, 10/10/2026: os juízes acharam nos «bens» licenças e
+        # viaturas alugadas, nas «equipas» hardware, e na «mão-de-obra»
+        # a concessão de um bar
+        f = radar.familia_do_contrato
+        # o software (CPV 48), comprado como bens ou como serviço
+        self.assertEqual(f("Aquisição de Bens Móveis", "48321000",
+                           "Aquisição de bens móveis Software AutoCAD"), "licencas")
+        self.assertEqual(f("Aquisição de Bens Móveis", "48900000",
+                           "Subscrição de licenças de software Microsoft (modelo CSP)"),
+                         "licencas")
+        # mas um ERP a implementar não é uma compra de licenças
+        self.assertEqual(f("Aquisição de Serviços", "48000000",
+                           "Implementação de um ERP"), "servicos")
+        # a locação: duração, quilómetros, o que a renda inclui
+        self.assertEqual(f("Locação de Bens Móveis", "34110000",
+                           "Locação operacional de veículos automóveis ligeiros"),
+                         "locacao")
+        # o hardware com suporte (22540) não é uma equipa a propor
+        self.assertEqual(f("Aquisição de Serviços", "72300000",
+                           "Renovação e Expansão do Cluster de Armazenamento de "
+                           "Dados (DataCenter)"), "bens")
+        # a concessão de um bar (21877): quem concorre paga renda
+        self.assertEqual(f("Concessão de Serviços Públicos", "55511000",
+                           "concessão de exploração do bar"), "concessao")
+        self.assertEqual(f("Concessão de Obras Públicas", "45000000"), "obras")
+
+    def test_cada_familia_tem_o_seu_campo_11(self):
+        for familia in ("licencas", "locacao", "concessao"):
+            rotulo, falta, ancoras, instrucao = radar.CAMPO_11[familia]
+            self.assertTrue(rotulo and falta and ancoras, familia)
+            self.assertIn('{"equipa":', instrucao, familia)
 
     def test_sem_nada_fica_a_pergunta_de_antes(self):
         self.assertEqual(radar.familia_do_contrato("", ""), "equipa")

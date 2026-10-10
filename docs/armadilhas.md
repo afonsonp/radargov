@@ -784,7 +784,7 @@ Orçamento, cadeia de reserva, chaves.
   e a frase «seja considerado anormalmente baixo, o valor da caução»
   deixou de passar pelo limiar — levava-lhe a reserva.
 
-- **As licenças com CPV de serviços de TI lêem-se como bens**
+- **As licenças com CPV de serviços de TI não se lêem como equipa**
   (29/09/2026, `RX_LICENCAS`). «Licenciamento e manutenção de rede
   Check Point» (72267), «Suporte e Renovação do Licenciamento CISCO»,
   «Renovação Suporte AVAMAR»: a família «equipa» dizia «não consta» ou
@@ -794,6 +794,16 @@ Orçamento, cadeia de reserva, chaves.
   horas…). Mediu-se 115 dos 442 anúncios de CPV 72 desde junho. A
   leitura e a ficha passam pela mesma conta (`familia_das_seccoes()`) —
   se uma usasse só o tipo e o CPV, o rótulo e a pergunta divergiam.
+  **Desde a Q3 (10/10/2026) as licenças têm a família delas**,
+  «licencas»: dos 21 «bens» julgados, 11 eram licenças ou suporte, e a
+  pergunta dos artigos não pedia a duração, o contrato a renovar nem a
+  parceria do fabricante. Entra também o CPV 48 (software), que chegava
+  como «Aquisição de Bens». E a regra da designação serve o hardware
+  (`RX_HARDWARE`: o cluster de armazenamento da 22540, CPV 72, era
+  «equipa»); a **locação** e a **concessão de serviços** saem pelo tipo
+  do contrato, antes do CPV — o bar da 21877 (CPV 55) era «mão-de-obra»,
+  e quem o ganha paga renda. A ordem do `familia_do_contrato()` é a
+  regra: obras, concessão, locação, licenças, bens, hardware, mão-de-obra.
 
 - **A família «equipa» também pede o nível de serviço** (29/09/2026).
   As âncoras e a pergunta do SLA só existiam na família «serviços», e os
