@@ -21753,7 +21753,7 @@ def _paragrafo_dos_concorrentes():
                      plural(ultimo["pedidos_antes"] or 0, "pedido"),
                      "voltou a %s" % data_hora_pt(ultimo["fim"][:16]) if ultimo["fim"]
                      else "parada até %s" % data_hora_pt(e["parado_ate"][:16])))
-    return "<p class='nota'>%s</p>" % html.escape(frase)
+    return frase   # o parágrafo à volta é do molde (plataforma.html)
 
 
 def seccoes_da_plataforma():
@@ -22490,87 +22490,25 @@ def _celula_da_tabela(rotulo, valor, classe=""):
                                  " class='%s'" % classe if classe else "", valor)
 
 
-def _html_dos_semaforos(semaforos):
-    return "<div class='semaforos'>%s</div>" % "".join(
-        "<a class='semaforo %s' href='%s'><span class='ponto' aria-hidden='true'></span>"
-        "<span><b>%s</b><small>%s</small><span class='so-leitor'> (%s)</span></span></a>"
-        % (estado, html.escape(ligacao, quote=True), html.escape(nome),
-           html.escape(frase), {"bom": "está bem", "aviso": "atenção",
-                                "mau": "está mal"}[estado])
-        for nome, estado, frase, ligacao in semaforos)
-
-
-def _bloco_do_correio(cfg):
-    """O correio da plataforma: a conta que envia (a mesma do resumo das
-    empresas) e o endereco para onde vao os avisos dos pedidos de acesso.
-    Ate aqui nao havia onde o pôr, e os pedidos «nao avisavam ninguem»."""
-    e = cfg.get("email") or {}
-    senha_por_variavel = bool((os.environ.get("RADAR_EMAIL_SENHA") or "").strip())
-    porque = porque_o_email_nao_sai(config_do_correio(cfg))
-    return cartao("Correio", (
-        "<form class='form-email' method='post' action='/plataforma/correio'>"
-        "<label>Avisos da plataforma para<input type='email' name='avisos' value='%s' "
-        "placeholder='o seu e-mail'></label>"
-        "<label>Conta que envia<input type='email' name='de' value='%s' "
-        "placeholder='nome@gmail.com'></label>"
-        "<label>Servidor<input type='text' name='servidor' value='%s' "
-        "placeholder='smtp.gmail.com'></label>"
-        "<label>Porta<input type='text' name='porta' value='%s' inputmode='numeric'></label>"
-        "<label>Palavra-passe<input type='password' name='senha' value='' "
-        "autocomplete='new-password'%s></label>"
-        "<button type='submit' class='mg-btn mg-btn--primary'>Guardar</button></form>"
-        "<p class='nota' style='margin-top:12px'>%s</p>%s")
-        % (html.escape(str(e.get("avisos") or ""), quote=True),
-           html.escape(str(e.get("de") or ""), quote=True),
-           html.escape(str(e.get("servidor") or ""), quote=True),
-           html.escape(str(e.get("porta") or "587"), quote=True),
-           " disabled" if senha_por_variavel else "",
-           ("Pronto: os pedidos de acesso novos avisam %s." % html.escape(e.get("avisos") or "")
-            if not porque else "Não sai: %s." % html.escape(porque)),
-           accao("/plataforma/correio/teste", "Mandar um e-mail de teste", "bt-leve")
-           if not porque else ""),
-        meta="Os avisos dos pedidos de acesso vão para o primeiro endereço. A "
-             "palavra-passe grava-se no email_senha.txt, nunca no config.json, "
-             "e só se grava se escrever uma nova.", id_="correio")
-
-
-def _contas_encontradas(termo, empresas):
+def _contas_da_procura(termo, empresas):
     """A procura de uma conta pelo e-mail ou pelo nome (6.ª ronda,
     5/10/2026, perfil do suporte: «alguém liga e só sabe o e-mail, e eu
-    tenho de abrir empresa a empresa»). Devolve o HTML do resultado."""
-    termo = (termo or "").strip()[:120]
+    tenho de abrir empresa a empresa»). As contas que respondem, já com o
+    nome da empresa (None: sem empresa); o molde desenha-as."""
     if not termo:
-        return ""
+        return []
     padrao = "%" + para_like(termo) + "%"
     with liga() as c:
-        contas = c.execute(
+        contas_ = c.execute(
             "SELECT nome, email, papel, empresa_id, dono, ultimo_acesso FROM utilizadores "
             "WHERE email LIKE ? ESCAPE '%s' OR nome LIKE ? ESCAPE '%s' "
             "ORDER BY email LIMIT 20" % (ESCAPE_LIKE, ESCAPE_LIKE),
             (padrao, padrao)).fetchall()
-    if not contas:
-        return ("<div class='mg-empty'>Nenhuma conta com «%s» no e-mail ou no nome.</div>"
-                % html.escape(termo))
     nomes = {e["id"]: e["nome"] for e in empresas}
-
-    def empresa(r):
-        if r["dono"]:
-            return "a plataforma (dono)"
-        if r["empresa_id"] not in nomes:
-            return "sem empresa"
-        return "<a href='/plataforma/empresa/%d'>%s</a>" % (
-            r["empresa_id"], html.escape(nomes[r["empresa_id"]]))
-    linhas = "".join(
-        "<tr>%s%s%s%s%s</tr>" % (
-            _celula_da_tabela("Nome", html.escape(r["nome"] or "")),
-            _celula_da_tabela("E-mail", html.escape(r["email"])),
-            _celula_da_tabela("Empresa", empresa(r)),
-            _celula_da_tabela("Papel", html.escape(PAPEL_NO_ECRA.get(r["papel"], r["papel"]))),
-            _celula_da_tabela("Última entrada", html.escape(ha_quanto(r["ultimo_acesso"]))))
-        for r in contas)
-    return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
-            "<thead><tr><th>Nome</th><th>E-mail</th><th>Empresa</th><th>Papel</th>"
-            "<th>Última entrada</th></tr></thead><tbody>%s</tbody></table></div>" % linhas)
+    return [{"nome": r["nome"] or "", "email": r["email"], "dono": r["dono"],
+             "empresa_id": r["empresa_id"], "empresa": nomes.get(r["empresa_id"]),
+             "papel": PAPEL_NO_ECRA.get(r["papel"], r["papel"]),
+             "ultima": ha_quanto(r["ultimo_acesso"])} for r in contas_]
 
 
 @app.route("/plataforma")
@@ -22581,91 +22519,33 @@ def administracao_da_plataforma():
     sistema. A conta do dono e a dele, em Configuracoes > Conta."""
     cfg = ler_config()
     empresas = resumo_das_empresas()
-    tratar = a_tratar_hoje(empresas)
     with liga() as c:
         pendentes = c.execute("SELECT COUNT(*) FROM pedidos_acesso WHERE "
                               "COALESCE(estado,'') = ''").fetchone()[0]
-    linhas = "".join(
-        "<tr>%s%s%s%s%s%s%s</tr>" % (
-            _celula_da_tabela("N.º", "%d" % e["id"], "mg-num"),
-            _celula_da_tabela("Empresa", "<a href='/plataforma/empresa/%d'>%s</a>"
-                    % (e["id"], html.escape(e["nome"]))),
-            _celula_da_tabela("Estado", "<span class='mg-tag %s'>%s</span>"
-                    # «activa» neutra: e o normal, e so a suspensa pede o
-                    # olho (UX-7-LEIS V8, 30/09/2026)
-                    % (tom("mau") if e["suspensa"] else "",
-                       "suspensa" if e["suspensa"] else "activa")),
-            _celula_da_tabela("Contas", "%d" % e["contas"], "mg-num"),
-            _celula_da_tabela("Última entrada", html.escape(ha_quanto(e["ultima"]))),
-            _celula_da_tabela("Propostas em curso", "%d" % e["activas"], "mg-num"),
-            _celula_da_tabela("Leituras", "%d este mês · hoje %d/%d"
-                    % (e["leituras_mes"], e["leituras_hoje"], e["tecto"])))
-        for e in empresas)
-    tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
-              # os cabeçalhos dos números à direita, como eles (5.ª ronda)
-              "<thead><tr><th class='mg-num'>N.º</th><th>Empresa</th><th>Estado</th>"
-              "<th class='mg-num'>Contas</th>"
-              "<th>Última entrada</th><th class='mg-num'>Propostas em curso</th>"
-              "<th>Leituras</th>"
-              "</tr></thead><tbody>%s</tbody></table></div>" % linhas
-              if empresas else "<div class='mg-empty'>Ainda não há empresas: "
-              "nascem ao aceitar um pedido de acesso, ou aqui em baixo.</div>")
-    # Criar uma empresa sem pedido (4/10/2026, pedido dele): a empresa que
-    # chega por telefone ou numa reunião. Só o nome; o plano e o convite
-    # do gestor fazem-se na página dela, para onde se vai a seguir.
-    tabela += ("<form class='form-email' method='post' action='/plataforma/empresas/criar' "
-               "style='margin-top:12px'><label>Nova empresa"
-               "<input class='mg-field__input' type='text' name='nome' required "
-               "maxlength='120' autocomplete='off' placeholder='nome da empresa'></label>"
-               "<button type='submit' class='mg-btn mg-btn--secondary'>Criar a empresa"
-               "</button></form>")
+    # Criar uma empresa sem pedido (4/10/2026, pedido dele): a que chega
+    # por telefone ou numa reunião; o plano e o convite fazem-se na página
+    # dela. O correio é a conta que envia (a mesma do resumo das empresas)
+    # e o endereço dos avisos dos pedidos de acesso.
     termo = request.args.get("conta", "")
-    procura = ("<form class='form-email' method='get' action='/plataforma' "
-               "style='margin-bottom:12px'><label>Procurar uma conta"
-               "<input class='mg-field__input' type='search' name='conta' "
-               "maxlength='120' autocomplete='off' placeholder='e-mail ou nome' "
-               "value='%s'></label><button type='submit' class='mg-btn "
-               "mg-btn--secondary'>Procurar</button></form>%s"
-               % (html.escape(termo, quote=True), _contas_encontradas(termo, empresas)))
-    seccoes = "".join(
-        "<a class='mg-card conf-cx' href='/configuracoes/%s' style='display:block'>"
-        "<b>%s</b><div class='nota'>%s</div></a>" % (c_, html.escape(t_), html.escape(d_))
-        for c_, t_, d_, _, _ in seccoes_da_plataforma())
-    recolha = cartao(
-        "Recolha",
-        "<p class='nota'>Última verificação: %s. As horas estão em "
-        "<a href='/configuracoes/recolha'>Recolha</a>.</p>%s"
-        % (html.escape(data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma"),
-           _paragrafo_dos_concorrentes()),
-        accoes=accao("/verificar", icone("verificar") + " Verificar agora", "bt-leve",
-                     "Verificar agora? Vai ao Diário da República e às plataformas, "
-                     "e leva alguns minutos."),
-        id_="recolha")
-    tratar_html = cartao(
-        "A tratar hoje",
-        "<ul class='a-tratar'>%s</ul>" % "".join(
-            "<li><span>%s</span><a href='%s'>ver</a></li>"
-            % (html.escape(frase), html.escape(ligacao, quote=True))
-            for frase, ligacao in tratar)) if tratar else ""
-    # A ordem é a da manhã (G60 da 3.ª ronda, V4 P9 da ronda em PC): o
-    # que está mal, o que há para tratar, as empresas, o sistema -- e só
-    # no fim a Recolha e o Correio, que se usam uma vez e estavam a meio.
-    corpo = (
-        "<div class='larg'>%s%s"
-        "<h2 class='mg-field__label' style='margin:22px 0 6px'>Empresas</h2>%s%s"
-        "<h2 class='mg-field__label' style='margin:22px 0 6px'>O sistema</h2>"
-        "<div style='display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))'>%s"
-        "<a class='mg-card conf-cx' href='/pedidos-de-acesso' style='display:block'>"
-        "<b>Pedidos de acesso</b><div class='nota'>%s por decidir</div></a>"
-        "<a class='mg-card conf-cx' href='/plataforma/visitas' style='display:block'>"
-        "<b>Visitas ao site</b><div class='nota'>de onde vêm, o que vêem e o que "
-        "fazem</div></a>"
-        "<a class='mg-card conf-cx' href='/configuracoes/conta' style='display:block'>"
-        "<b>A minha conta</b><div class='nota'>a palavra-passe e as sessões</div></a>"
-        "</div><div style='margin-top:22px'>%s</div><div style='margin-top:22px'>%s</div>"
-        "</div>"
-        % (_html_dos_semaforos(semaforos_da_plataforma()), tratar_html, procura, tabela,
-           seccoes, pendentes, recolha, _bloco_do_correio(cfg)))
+    e = cfg.get("email") or {}
+    corpo = ecra(
+        "plataforma.html", semaforos=semaforos_da_plataforma(),
+        leitura={"bom": "está bem", "aviso": "atenção", "mau": "está mal"},
+        tratar=a_tratar_hoje(empresas), termo=termo,
+        termo_limpo=termo.strip()[:120],
+        contas=_contas_da_procura(termo.strip()[:120], empresas),
+        tom_mau=tom("mau"), empresas=[dict(x, ultima=ha_quanto(x["ultima"]))
+                                      for x in empresas],
+        seccoes=[(c_, t_, d_) for c_, t_, d_, _, _ in seccoes_da_plataforma()],
+        pendentes=pendentes,
+        verificar=Markup(icone("verificar") + " Verificar agora"),
+        ultima=data_hora_pt(le_marca("ultima_verificacao", "")) or "ainda nenhuma",
+        concorrentes=_paragrafo_dos_concorrentes(),
+        c={"avisos": str(e.get("avisos") or ""), "de": str(e.get("de") or ""),
+           "servidor": str(e.get("servidor") or ""),
+           "porta": str(e.get("porta") or "587"),
+           "por_variavel": bool((os.environ.get("RADAR_EMAIL_SENHA") or "").strip()),
+           "porque": porque_o_email_nao_sai(config_do_correio(cfg))})
     return envolver("configuracoes", "Plataforma",
                     "A administração da plataforma: o que está mal, o que há para "
                     "fazer hoje, e as empresas.", corpo)

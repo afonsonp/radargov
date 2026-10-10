@@ -38,3 +38,9 @@
     com o rótulo da coluna para o telemóvel (`data-r`). O conteúdo vem no
     corpo do `{% call %}`. -#}
 {% macro celula(rotulo, classe="") %}<td{% if rotulo %} data-r='{{ rotulo }}'{% endif %}{% if classe %} class='{{ classe }}'{% endif %}>{{ caller() }}</td>{% endmacro %}
+
+{#- Um cartão do sistema de desenho (o `Card`; era o `cartao()`, que
+    continua a servir os ecrãs em Python e é o único que tem o «?» do
+    bloco, o `porque`). O corpo vem no `{% call %}`; sem corpo não há
+    corpo. As `accoes` vêm feitas (um `{% set %}` com o botão). -#}
+{% macro cartao(titulo, meta="", accoes="", pe="", id="", banda=False) %}{% set corpo = caller() %}<section class='mg mg-card{% if banda %} mg-card--band{% endif %}'{% if id %} id='{{ id }}'{% endif %}><div class='mg-card__head'><div class='mg-card__cab'><h2 class='mg-card__title'>{{ titulo }}</h2>{% if meta %}<p class='mg-card__meta'>{{ meta }}</p>{% endif %}</div>{% if accoes %}<div class='mg-card__actions'>{{ accoes }}</div>{% endif %}</div>{% if corpo %}<div class='mg-card__body'>{{ corpo }}</div>{% endif %}{% if pe %}<div class='mg-card__foot'>{{ pe }}</div>{% endif %}</section>{% endmacro %}

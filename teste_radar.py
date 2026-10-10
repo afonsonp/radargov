@@ -28196,8 +28196,9 @@ class TestAsCorreccoesDeUXDoLancamento(_CicloDoTesteComUtilizadores):
         h = self._marcacao(self.cliente.get("/pedidos-de-acesso").get_data(as_text=True))
         self.assertLess(h.index(">Por decidir &middot; 1<"), h.index(">Decididos &middot; 1<"))
         self.assertNotIn("mg-btn--primary", h)
-        self.assertIn('tom("mau") if e["suspensa"] else ""',
-                      inspect.getsource(radar.administracao_da_plataforma))
+        self.assertIn('{{ tom_mau if e.suspensa else "" }}',
+                      radar.MOLDES_JINJA.loader.get_source(
+                          radar.MOLDES_JINJA, "plataforma.html")[0])
 
     def test_f4_os_alvos_do_topo_do_site_no_telemovel(self):
         self.assertIn(".topo nav a.entrar,.topo nav .btn-pequeno{display:inline-flex;"
