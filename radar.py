@@ -33678,8 +33678,9 @@ def tabela_das_decididas(linhas, rotulo_periodo):
     """A lista que confirma os numeros do periodo, com o total, para o
     molde da Situação. Cada Stat liga para aqui (`#decididas`). Em cartão
     no telemóvel (`tab-plataforma`, 6.ª ronda): a 364 px a tabela tinha
-    900 e só se via o título. Os preços vão feitos pelo `preco_pt()`,
-    como `Markup` (ver os «Achados» do docs/plano-d1.md)."""
+    900 e só se via o título. Os preços vão como texto: o `preco_pt()`
+    devolve tal qual o que não lê, e o proposto escreve-o quem usa a
+    aplicação -- até 10/10/2026 entravam no HTML sem escapar."""
     ganhas = [l for l in linhas if l["estado"] == "ganho"]
     perdidas = len(linhas) - len(ganhas)
     return {
@@ -33691,12 +33692,12 @@ def tabela_das_decididas(linhas, rotulo_periodo):
                     else "/proposta/%d" % l["id"],
             "titulo": corta(l["titulo"] or l["entidade"] or l["ref"] or "?", 70),
             "resultado": estado_da_empresa(l["estado"]),
-            "base": Markup(preco_pt(l["preco_base"])),
-            "proposto": Markup(preco_pt(l["valor_proposta"])),
+            "base": preco_pt(l["preco_base"]),
+            "proposto": preco_pt(l["valor_proposta"]),
             "ganho": l["estado"] == "ganho",
-            "adjudicado": Markup(preco_pt(l["valor_adjudicado"])),
+            "adjudicado": preco_pt(l["valor_adjudicado"]),
             "conta": euros(valor_ganho(l)),
-            "origem": Markup(de_onde_vem_o_ganho(l) or "—")} for l in linhas],
+            "origem": de_onde_vem_o_ganho(l) or "—"} for l in linhas],
         "ganhas": "%s ganha%s" % (mil_pt(len(ganhas)), "" if len(ganhas) == 1 else "s"),
         "perdidas": "%s perdida%s" % (mil_pt(perdidas), "" if perdidas == 1 else "s"),
         "total": euros(sum(valor_ganho(l) for l in ganhas)),
@@ -33744,9 +33745,9 @@ def tabela_em_jogo(ancora, rotulo, estados):
                     else "/proposta/%d" % p["id"],
             "titulo": corta(p["titulo"] or p["entidade"] or p["ref"] or "?", 70),
             "fase": estado_da_empresa(p["estado"]),
-            "base": Markup(preco_pt(p["preco_base"])),
-            "proposto": Markup(preco_pt(p["valor_proposta"])),
-            "conta": Markup(euros(valor_em_jogo(p)))} for p in linhas],
+            "base": preco_pt(p["preco_base"]),
+            "proposto": preco_pt(p["valor_proposta"]),
+            "conta": euros(valor_em_jogo(p))} for p in linhas],
         "quantas": plural(len(linhas), "proposta"),
         "total": euros(sum(valor_em_jogo(p) for p in linhas))}
 
