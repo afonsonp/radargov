@@ -11,7 +11,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 
 - [A recolha, e as fontes](#a-recolha-e-as-fontes) &middot; 18
 - [As peças e as plataformas](#as-pecas-e-as-plataformas) &middot; 13
-- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 34
+- [O modelo que lê as peças](#o-modelo-que-le-as-pecas) &middot; 35
 - [O motor de filtros](#o-motor-de-filtros) &middot; 16
 - [Datas, números e texto](#datas-numeros-e-texto) &middot; 13
 - [A árvore de CPV](#a-arvore-de-cpv) &middot; 5
@@ -25,7 +25,7 @@ O contexto por trás de cada um está no `docs/referencia.md` e no
 - [A interface](#a-interface) &middot; 133
 - [Convenções](#convencoes) &middot; 8
 
-São **465** ao todo, contados a 10/10/2026. Contam-se por secção com
+São **466** ao todo, contados a 10/10/2026. Contam-se por secção com
 `grep -c '^- \*\*'`, e o índice volta a ter de se recontar **sempre**
 que se acrescenta um ponto: somava 78 a 3/09/2026, 88 a 4/09/2026, 109 a
 15/09/2026 e 152 a 16/09 — **as quatro vezes abaixo do que as áreas
@@ -580,6 +580,16 @@ Orçamento, cadeia de reserva, chaves.
   declaração. O recorte junta-os antes de ir ao modelo
   (`junta_numerais_partidos()`), só quando o resultado é um numeral que
   existe. É a mesma família dos «1 2 meses» das armadilhas já pagas.
+
+- **O mesmo procedimento lê-se uma vez** (Q3, 10/10/2026). A 21295
+  altera a 19129, que não está na base, e a 21925 altera a 21295: as
+  duas tinham peças e leitura, e as duas leituras davam equipas
+  diferentes — um terço das falhas some só por repetir. O
+  `reaproveitar_leitura()` copia para um anúncio a leitura de outro da
+  mesma cadeia de alterações (`raiz_da_alteracao()`, `membros_da_cadeia()`)
+  **se for da pergunta de agora**; a da pergunta antiga não se copia,
+  relê-se. Fica um evento «a mesma do <ref>». Não se escolhe qual dos
+  dois é o bom: o primeiro a ser lido com a pergunta nova manda.
 
 - **A página que não tem texto diz-se, com o número** (Q3,
   10/10/2026). A lista das licenças da 24922 é uma imagem na pág. 15 do

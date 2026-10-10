@@ -5534,6 +5534,59 @@ class TestPaginasQueNaoSeLeram(BaseTemporaria):
         self.assertEqual(radar.nota_do_que_nao_se_leu("9/2026", docs[2:]), "")
 
 
+class TestOMesmoProcedimentoLeSeUmaVez(BaseTemporaria):
+    """Q3, 10/10/2026 (o bid manager): a 21295 altera a 19129, e a 21925
+    altera a 21295 -- é o mesmo procedimento, com as mesmas peças, e foi
+    lido duas vezes, com duas equipas diferentes. A leitura de um
+    procedimento já lido com a pergunta de agora reaproveita-se."""
+
+    def setUp(self):
+        super().setUp()
+        with radar.liga() as c:
+            c.executemany("INSERT INTO anuncios (ref, altera, estado) VALUES (?,?,?)",
+                          [("21295/2026", "19129/2026", "novo"),
+                           ("21925/2026", "21295/2026", "alteracao"),
+                           ("30000/2026", "", "novo")])
+
+    def ler(self, ref, pergunta=None):
+        with radar.liga() as c:
+            c.execute("INSERT OR REPLACE INTO analise (ref, objecto, equipa, "
+                      "documentos_proposta, modelo, fontes, quando, pergunta) "
+                      "VALUES (?,?,?,?,?,?,?,?)",
+                      (ref, "- o website", "Technical Leader UI/UX", "1. DEUCP",
+                       "nvidia", "CE.pdf (pág. 54)", "2026-10-03 21:10",
+                       pergunta or radar.VERSAO_DA_PERGUNTA))
+
+    def test_a_alteracao_leva_a_leitura_do_original(self):
+        self.ler("21295/2026")
+        self.assertEqual(radar.reaproveitar_leitura("21925/2026"), "21295/2026")
+        copia = radar.analise_de("21925/2026")
+        self.assertEqual(copia["equipa"], "Technical Leader UI/UX")
+        self.assertEqual(copia["fontes"], "CE.pdf (pág. 54)")
+        self.assertEqual(copia["pergunta"], radar.VERSAO_DA_PERGUNTA)
+
+    def test_e_o_original_a_da_alteracao(self):
+        self.ler("21925/2026")
+        self.assertEqual(radar.reaproveitar_leitura("21295/2026"), "21925/2026")
+
+    def test_uma_leitura_da_pergunta_antiga_nao_se_reaproveita(self):
+        self.ler("21295/2026", pergunta="antiga")
+        self.assertIsNone(radar.reaproveitar_leitura("21925/2026"))
+        self.assertIsNone(radar.reaproveitar_leitura("30000/2026"))
+
+    def test_a_leitura_nao_chama_o_modelo(self):
+        self.ler("21295/2026")
+        with unittest.mock.patch.object(radar, "cadeia_de_fornecedores",
+                                        return_value=[("x",)]), \
+                unittest.mock.patch.object(radar, "_perguntar") as perguntar:
+            self.assertEqual(radar.analisar_pecas("21925/2026"), (True, ""))
+        perguntar.assert_not_called()
+        with radar.liga() as c:
+            evento = c.execute("SELECT detalhe FROM eventos WHERE ref='21925/2026'"
+                               ).fetchone()
+        self.assertIn("21295/2026", evento["detalhe"])
+
+
 class TestAnexosTecnicos(unittest.TestCase):
     """28/09/2026: a leitura escolhia as peças pelo nome — «caderno» ou
     «programa» — e 88 de 235 documentos com texto não iam a pedido

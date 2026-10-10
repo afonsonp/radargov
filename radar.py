@@ -9697,6 +9697,43 @@ def nota_do_que_nao_se_leu(ref, docs):
     return ("Não lido: " + "; ".join(partes)) if partes else ""
 
 
+# --- o mesmo procedimento le-se uma vez (Q3, 10/10/2026)
+#
+# A 21295 altera a 19129 e a 21925 altera a 21295: o mesmo procedimento,
+# as mesmas pecas, lido duas vezes -- e com duas equipas diferentes (uma
+# corrida do modelo nao e uma medida). A leitura de um anuncio da mesma
+# cadeia de alteracoes, feita com a pergunta de agora, copia-se em vez de
+# se pedir outra. A da pergunta antiga nao: essa volta a ler-se.
+COLUNAS_DA_LEITURA = ("objecto", "equipa", "documentos_proposta",
+                      "preco_anormalmente_baixo", "localizacao", "caucao",
+                      "habilitacao", "pagamentos", "modelo", "fontes", "quando",
+                      "pergunta")
+
+
+def reaproveitar_leitura(ref):
+    """Copia para `ref` a leitura de outro anuncio do mesmo procedimento
+    (a raiz e os membros da cadeia de alteracoes), se houver uma com a
+    pergunta de agora. Devolve o ref de onde veio, ou None."""
+    with liga() as c:
+        a = c.execute("SELECT altera FROM anuncios WHERE ref=?", (ref,)).fetchone()
+        raiz = (raiz_da_alteracao(c, ref, a["altera"]) if a and a["altera"]
+                else None) or ref
+        irmaos = [x for x in [raiz] + [m["ref"] for m in membros_da_cadeia(c, raiz)]
+                  if x != ref]
+        if not irmaos:
+            return None
+        lida = c.execute(
+            "SELECT * FROM analise WHERE ref IN (%s) AND pergunta=? "
+            "ORDER BY quando DESC LIMIT 1" % ",".join("?" * len(irmaos)),
+            irmaos + [VERSAO_DA_PERGUNTA]).fetchone()
+        if not lida:
+            return None
+        c.execute("INSERT OR REPLACE INTO analise (ref, %s) VALUES (?%s)"
+                  % (", ".join(COLUNAS_DA_LEITURA), ",?" * len(COLUNAS_DA_LEITURA)),
+                  [ref] + [lida[k] for k in COLUNAS_DA_LEITURA])
+    return lida["ref"]
+
+
 def analisar_pecas(ref):
     """Le as pecas com o modelo e guarda os quatro campos. (ok, aviso).
 
@@ -9708,6 +9745,12 @@ def analisar_pecas(ref):
     if not cadeia:
         return False, ("falta a chave da API: põe-na em chave_api.txt, "
                        "na pasta do radar")
+
+    origem = reaproveitar_leitura(ref)
+    if origem:
+        registar_evento(ref, "leitura", "a mesma do %s: é o mesmo procedimento "
+                        "(uma alteração do anúncio)" % origem, quem="radar")
+        return True, ""
 
     # O que ficou por extrair extrai-se antes (28/09/2026): o Excel e os
     # ZIP que a migracao `pecas_em_excel` voltou a por ler. Sem nada por
