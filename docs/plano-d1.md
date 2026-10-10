@@ -158,7 +158,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.3d | os pedidos de acesso — **feito a 10/10/2026** (`pedidos_de_acesso.html`; as etiquetas dos repetidos passam a dados, e a decisão de cada pedido a campos da linha.) | 185 linhas |
 | 3.4 | Alertas e sugestões — **feito a 10/10/2026**: os Alertas já tinham passado no 3.2c-ii, e ficou o «Enviar uma sugestão» (`sugestoes.html`), com a recusa do POST, que traz o texto e o tipo de volta | |
 | 3.5 | Calendário e indicadores — **feito a 10/10/2026**: os indicadores já tinham passado no 3.2d-iii; o Calendário é o `calendario.html`, e os dois pedaços (a agenda do telemóvel e o «+N» de um dia) o `calendario_pedaco.html`, com as peças comuns em `_calendario.html` | |
-| 3.6 | Situação (`/situacao`) | |
+| 3.6 | Situação (`/situacao`) — **feito a 10/10/2026** (`situacao.html`: as abas, o período, as três vistas e as duas listas que confirmam os números, o «em jogo» e as decididas; o `tabela_em_jogo()` e o `tabela_das_decididas()` passam a dar só os dados. Os números, o funil, o CPV, o negócio e as ranhuras servem também os Indicadores e o Hoje, e entram feitos; o «Quem nos ganha» passa com o Mercado) | |
 | 3.7 | Mercado: contratos, entidades, ficha da entidade | |
 | 3.8 | Concursos e Propostas: listas, fases, tabela | os mais vistos |
 | 3.9 | A ficha do anúncio e da proposta | o maior (~5 000 linhas) |
@@ -192,6 +192,18 @@ corrige-se num trabalho à parte, com o seu teste.
   disco** (corrigido no 3.2d-ii): o `demo.py` gera os PDF na hora, com a
   data dentro, e o tamanho varia um byte de gravação para gravação. O
   portão normaliza os tamanhos em bytes.
+
+- **O `preco_pt()` deixa passar tal qual o que não lê como número**
+  (lote 3.6), e as tabelas da Situação (o «em jogo» e as decididas)
+  metiam-no no HTML sem escapar — o `valor_proposta` escreve-o quem usa
+  a aplicação. O molde reproduziu o defeito (os preços entravam como
+  `Markup`). **Corrigido a 10/10/2026**: os preços entram como texto, e
+  o Jinja escapa-os (`test_um_preco_que_nao_se_le_entra_escapado`). O
+  escape **não** foi para dentro do `preco_pt()`: seis sítios já o
+  escapam por fora, e o e-mail em texto usa-o cru. Os outros caminhos do
+  preço foram seguidos até ao ecrã e escapam todos; o `historico` e os
+  `eventos` guardam o preço tal qual, e quem os ler num ecrã novo tem de
+  escapar.
 
 ## 4. Riscos e como se tratam
 
