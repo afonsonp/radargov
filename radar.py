@@ -35653,10 +35653,7 @@ def pedidos_de_acesso():
         if len(ids_da_msg.get(chave_msg(l), ())) >= 2:
             etiquetas.append("mesma mensagem noutro pedido")
         if email in conta_do_email:
-            id_ = conta_do_email[email] or 0
-            etiquetas.append("já tem conta" + (
-                " (<a href='/plataforma/empresa/%d'>empresa %d</a>)" % (id_, id_)
-                if id_ else ""))
+            etiquetas.append(("já tem conta", conta_do_email[email] or 0))
         for o in linhas:
             if (o["id"] < l["id"] and o["estado"] in ("recusado", "espera")
                     and ((o["email"] or "").strip().lower() == email
@@ -35665,8 +35662,8 @@ def pedidos_de_acesso():
                 etiquetas.append("recusado a %s" % dia_ if o["estado"] == "recusado"
                                  else "em espera desde %s" % dia_)
                 break
-        return "".join(" <span class='mg-tag %s'>%s</span>" % (tom("avisa"), e)
-                       for e in etiquetas)
+        return [{"texto": e, "empresa": 0} if isinstance(e, str)
+                else {"texto": e[0], "empresa": e[1]} for e in etiquetas]
     desde, nomes = {}, {}
     for id_ in existem:
         with com_empresa(id_):
@@ -35690,86 +35687,35 @@ def pedidos_de_acesso():
                 and simplifica(nomes.get(id_) or "")
                 != simplifica(l["empresa"] or l["nome"] or ""))
 
-    def decisao(l):
-        if l["estado"] == "aceite":
-            id_ = l["empresa_id"] or 0
-            if id_ in existem and not outra_empresa(l, id_):
-                return ("<a href='/plataforma/empresa/%d'>aceite: empresa %d</a>"
-                        % (id_, id_))
-            return ("aceite: empresa %d (apagada%s)"
-                    % (id_, " a %s" % data_pt(apagadas[id_])
-                       if id_ in apagadas else ""))
-        if l["estado"] == "recusado":
-            return "recusado a %s: %s" % (html.escape(data_pt((l["decidido_em"] or "")[:10])),
-                                          html.escape(l["motivo"] or ""))
-        return ("<div class='mg-row' style='gap:8px;flex-wrap:wrap;align-items:center'>"
-                # secundario: um primario por pedido eram muitos (V8)
-                "<a class='mg-btn mg-btn--sm mg-btn--secondary' "
-                "href='/pedidos-de-acesso/%d/aceitar'>aceitar&hellip;</a>"
-                "<form class='accao' method='post' action='/pedidos-de-acesso/%d/recusar' "
-                "onsubmit=\"return confirm(%s)\" "
-                "style='display:flex;gap:6px;flex-wrap:wrap;align-items:center'>"
-                "<input class='mg-field__input' type='text' name='motivo' required "
-                "maxlength='300' placeholder='motivo' aria-label='Motivo da recusa do "
-                "pedido de %s' style='width:12em'>"
-                "<label class='nota'><input type='checkbox' name='avisar' value='1'> "
-                "avisar por e-mail</label>"
-                "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary'>"
-                "recusar</button></form>%s</div>"
-                % (l["id"], l["id"],
-                   # G58: recusar não se desfaz, e não perguntava
-                   html.escape(json.dumps("Recusar o pedido de %s? Fica recusado, "
-                                          "com o motivo, e não se desfaz."
-                                          % (l["empresa"] or l["nome"])), quote=True),
-                   html.escape(l["empresa"] or l["nome"], quote=True),
-                   # a lista de espera (LANC-F): o e-mail sai sozinho
-                   "" if l["estado"] == "espera" else
-                   "<form class='accao' method='post' action='/pedidos-de-acesso/%d/espera'>"
-                   "<button type='submit' class='mg-btn mg-btn--sm mg-btn--secondary' "
-                   "title='Fica na lista de espera, e quem pediu recebe um e-mail a "
-                   "dizê-lo'>pôr em espera</button></form>" % l["id"]))
-
-    def tabela(linhas):
-        return ("<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'>"
-                 "<thead><tr><th>Quando</th><th>Nome</th><th>Empresa</th>"
-                 "<th>E-mail</th><th>Telemóvel</th><th>Área</th><th>Mensagem</th>"
-                 "<th>Aviso por e-mail</th><th>Decisão</th></tr></thead><tbody>%s</tbody>"
-                 "</table></div>"
-                 % "".join(
-                     "<tr>%s%s%s%s%s%s%s%s%s</tr>" % (
-                         _celula_da_tabela("Quando", html.escape(data_hora_pt(l["criado_em"])), "mg-num"),
-                         _celula_da_tabela("Nome", html.escape(l["nome"])),
-                         _celula_da_tabela("Empresa", html.escape(l["empresa"])),
-                         _celula_da_tabela("E-mail", "<a href='mailto:%s'>%s</a>%s"
-                                 % (html.escape(l["email"], quote=True), html.escape(l["email"]),
-                                    repetido(l))),
-                         _celula_da_tabela("Telemóvel", ("<a href='tel:%s'>%s</a>" % (
-                             html.escape(re.sub(r"[^\d+]", "", l["telefone"]), quote=True),
-                             html.escape(l["telefone"]))) if l["telefone"] else "—", "mg-num"),
-                         _celula_da_tabela("Área", html.escape(l["sector"])),
-                         _celula_da_tabela("Mensagem", html.escape(l["mensagem"] or "")),
-                         _celula_da_tabela("Aviso por e-mail", html.escape(l["avisado"] or "a enviar")),
-                         _celula_da_tabela("Decisão", decisao(l)))
-                     for l in linhas))
+    def linha(l):
+        """O que o molde desenha de um pedido: os campos, as etiquetas e a
+        decisão."""
+        id_ = l["empresa_id"] or 0
+        return {
+            "id": l["id"], "quando": data_hora_pt(l["criado_em"]), "nome": l["nome"],
+            "empresa": l["empresa"], "email": l["email"], "etiquetas": repetido(l),
+            "telefone": l["telefone"], "tel": re.sub(r"[^\d+]", "", l["telefone"] or ""),
+            "sector": l["sector"], "mensagem": l["mensagem"] or "",
+            "avisado": l["avisado"] or "a enviar", "estado": l["estado"] or "",
+            "empresa_id": id_,
+            "ligada": id_ in existem and not outra_empresa(l, id_),
+            "apagada": data_pt(apagadas[id_]) if id_ in apagadas else "",
+            "dia": data_pt((l["decidido_em"] or "")[:10]), "motivo": l["motivo"] or "",
+            # G58: recusar não se desfaz, e não perguntava
+            "confirmar": json.dumps("Recusar o pedido de %s? Fica recusado, "
+                                    "com o motivo, e não se desfaz."
+                                    % (l["empresa"] or l["nome"])),
+            "alvo": l["empresa"] or l["nome"]}
 
     # Os por decidir em cima, num cartao seu, e os decididos por baixo
     # (UX-7-LEIS M5, 30/09/2026): estavam misturados por ordem de chegada.
-    por_decidir = [l for l in linhas if not l["estado"]]
-    em_espera = [l for l in linhas if l["estado"] == "espera"]
-    decididos = [l for l in linhas if l["estado"] in ("aceite", "recusado")]
-    def seccao(titulo, estes):
-        return ("<h2 class='mg-card__title pedidos-titulo'>%s &middot; %s</h2>%s"
-                % (titulo, mil_pt(len(estes)), tabela(estes)))
-    if linhas:
-        corpo = ((seccao("Por decidir", por_decidir) if por_decidir else
-                  "<p class='nota'>Nenhum pedido por decidir.</p>")
-                 + (seccao("Em espera", em_espera) if em_espera else "")
-                 + (seccao("Decididos", decididos) if decididos else ""))
-    else:
-        corpo = ("<div class='mg-empty'>Ainda não chegou nenhum pedido pelo "
-                 "site.</div>")
+    corpo = ecra(
+        "pedidos_de_acesso.html", algum=bool(linhas), mil=mil_pt, tom_avisa=tom("avisa"),
+        por_decidir=[linha(l) for l in linhas if not l["estado"]],
+        em_espera=[linha(l) for l in linhas if l["estado"] == "espera"],
+        decididos=[linha(l) for l in linhas if l["estado"] in ("aceite", "recusado")])
     return envolver(
-        "configuracoes", "Pedidos de acesso", "", "<div class='larg'>%s</div>" % corpo,
+        "configuracoes", "Pedidos de acesso", "", corpo,
         titulo_aba="Pedidos de acesso · Plataforma",
         cabeca=cabecalho_de_pagina(
             "Pedidos de acesso",
