@@ -26117,17 +26117,15 @@ def concentracao_html(ganha):
     # rampa mudava de tema sem os tokens mudarem com ela
     cores = tuple("color-mix(in srgb, var(--brand) %d%%, var(--surface-sunken))"
                   % pc for pc in (100, 80, 62, 46, 32))
-    fatias = []
-    for cor, x in zip(cores, topo):
-        fatias.append("<i style='width:%.2f%%;background:%s' title='%s — %s'></i>"
-                      % (100.0 * x["v"] / total, cor,
-                         html.escape(x["n"], quote=True), euros_curto(x["v"])))
+    fatias = [{"largura": "%.2f" % (100.0 * x["v"] / total), "cor": cor,
+               "titulo": "%s — %s" % (x["n"], euros_curto(x["v"]))}
+              for cor, x in zip(cores, topo)]
     resto = total - quota
     if resto > 0:
-        fatias.append("<i style='width:%.2f%%;background:var(--surface-sunken)' "
-                      "title='as outras %s empresas — %s'></i>"
-                      % (100.0 * resto / total, mil_pt(max(0, quantas - 5)),
-                         euros_curto(resto)))
+        fatias.append({"largura": "%.2f" % (100.0 * resto / total),
+                       "cor": "var(--surface-sunken)",
+                       "titulo": "as outras %s empresas — %s"
+                       % (mil_pt(max(0, quantas - 5)), euros_curto(resto))})
     # cada fatia também à vista (UX-ICONES-DICAS-PESOS 13): o nome e o
     # valor viviam só no `title` de um `<i>` vazio
     numeros = numeros_do_grafico(
@@ -26135,16 +26133,10 @@ def concentracao_html(ganha):
         [(x["n"], euros_curto(x["v"]), pct_pt(x["v"] / total, 0)) for x in topo]
         + ([("as outras %s empresas" % mil_pt(max(0, quantas - 5)),
              euros_curto(resto), pct_pt(resto / total, 0))] if resto > 0 else []))
-    return ("<div class='mg-card graf'><h2 class='mg-card__title'>Concentração</h2>"
-            "<div class='nota' style='margin:5px 0 14px'>Que fatia levam os "
-            "cinco maiores, entre as %s empresas que ganharam alguma "
-            "coisa.</div>"
-            "<div class='conc-n'>%s</div>"
-            "<div class='conc-b'>%s</div>"
-            "<div class='nota' style='margin-top:10px'>Os cinco maiores "
-            "levam %s dos %s adjudicados.</div>%s</div>"
-            % (mil_pt(quantas), pct_pt(quota / total, 0), "".join(fatias),
-               euros_curto(quota), euros_curto(total), numeros))
+    return _grafico("concentracao", quantas=Markup(mil_pt(quantas)),
+                    fatia=Markup(pct_pt(quota / total, 0)), fatias=fatias,
+                    quota=Markup(euros_curto(quota)),
+                    total=Markup(euros_curto(total)), numeros=Markup(numeros))
 
 
 def barras_h(linhas, titulo, nota="", ligar=False):
@@ -26160,21 +26152,22 @@ def barras_h(linhas, titulo, nota="", ligar=False):
     corpo = []
     for l in linhas:
         chave = l["ch"] if ligar and "ch" in l.keys() else ""
-        etiqueta = (liga_entidade(chave, l["n"]) if chave
-                    else html.escape(l["n"]))
-        corpo.append(
-            "<div class='bh'><span class='t' title='%s'>%s</span>"
-            "<span class='r'><i style='width:%.1f%%'></i></span>"
-            "<span class='v'>%s</span><span class='k'>%s</span></div>"
-            % (html.escape(l["n"], quote=True), etiqueta,
-               100.0 * l["v"] / maior, euros_curto(l["v"]),
-               "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")))
-    return ("<div class='mg-card graf'><h2 class='mg-card__title'>%s</h2>%s"
-            "<div class='barras-h'>%s</div></div>"
-            % (titulo,
-               "<div class='nota' style='margin:5px 0 12px'>%s</div>" % nota
-               if nota else "<div style='height:10px'></div>",
-               "".join(corpo)))
+        corpo.append({
+            "nome": l["n"],
+            "etiqueta": Markup(liga_entidade(chave, l["n"])) if chave else l["n"],
+            "largura": "%.1f" % (100.0 * l["v"] / maior),
+            "valor": Markup(euros_curto(l["v"])),
+            "contratos": "%d contrato%s" % (l["k"], "" if l["k"] == 1 else "s")})
+    return _grafico("barras_h", titulo=Markup(titulo), nota=Markup(nota),
+                    linhas=corpo)
+
+
+def _grafico(macro, **valores):
+    """Um gráfico do `moldes/_graficos.html`, desenhado para quem o pede a
+    uma função. Sai como `str` e não `Markup`: um `+` de quem chama com
+    um `Markup` escapava o outro lado."""
+    return str(getattr(MOLDES_JINJA.get_template("_graficos.html").module,
+                       macro)(**valores))
 
 
 # Acima disto, o eixo do tempo passa de trimestres para anos: com sete
@@ -26256,20 +26249,17 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
                            " destaque" if realce else "",
                            " alt" if muitas and (len(linhas) - 1 - i) % 2
                            else ""))
-        cols.append(
-            "<div class='col%s'><span class='v'>%s</span>"
-            "<div class='b' style='height:%.1f%%' title='%s: %s, %s %s%s'>"
-            "</div><span class='l'>%s</span></div>"
-            % (classes, fmt(l["v"]) if i in marcados else "",
-               max(2.0, 100.0 * l["v"] / maior), html.escape(l["t"]),
-               # pelo mil_pt: saia «39562 contratos» (UX-ICONES B.2); e
-               # no singular com um só (10/10/2026: «1 contratos» num
-               # trimestre da ficha da entidade, que o guia apanhou)
-               fmt(l["v"]), _contagem(l["k"]),
-               unidade[:-1] if l["k"] in (1, "1") else unidade,
-               ", trimestre a decorrer" if meio else
-               (", é aqui que cai a mediana" if realce else ""),
-               html.escape(l["t"]) + (" ·" if meio else "")))
+        cols.append({
+            "classes": classes, "t": l["t"], "meio": meio,
+            "v": Markup(fmt(l["v"])) if i in marcados else "",
+            "altura": "%.1f" % max(2.0, 100.0 * l["v"] / maior),
+            # pelo mil_pt: saia «39562 contratos» (UX-ICONES B.2); e
+            # no singular com um só (10/10/2026: «1 contratos» num
+            # trimestre da ficha da entidade, que o guia apanhou)
+            "valor": Markup(fmt(l["v"])), "k": Markup(_contagem(l["k"])),
+            "unidade": unidade[:-1] if l["k"] in (1, "1") else unidade,
+            "extra": ", trimestre a decorrer" if meio else
+            (", é aqui que cai a mediana" if realce else "")})
     # Os valores escondidos vão também para uma tabela à vista, num
     # `<details>` (UX-ICONES-DICAS-PESOS 13, 1/10/2026): estavam só no
     # `title` de um `div` sem foco, que o toque, o teclado e o leitor de
@@ -26278,12 +26268,8 @@ def barras_v(linhas, titulo, nota="", parcial="", destaque="", fmt=None,
         ("", "Valor", unidade.capitalize()),
         [(l["t"] + (" (a decorrer)" if parcial and l["t"] == parcial else ""),
           fmt(l["v"]), _contagem(l["k"])) for l in linhas]) if muitas else ""
-    return ("<div class='mg-card graf'><h2 class='mg-card__title'>%s</h2>%s"
-            "<div class='barras%s'>%s</div>%s</div>"
-            % (titulo,
-               "<div class='nota' style='margin:5px 0 16px'>%s</div>" % nota
-               if nota else "<div style='height:14px'></div>",
-               " muitas" if muitas else "", "".join(cols), numeros))
+    return _grafico("barras_v", titulo=Markup(titulo), nota=Markup(nota),
+                    muitas=muitas, cols=cols, numeros=Markup(numeros))
 
 
 def numeros_do_grafico(cabecas, linhas):
@@ -26292,18 +26278,8 @@ def numeros_do_grafico(cabecas, linhas):
     `title` passa a estar à vista de quem toca, de quem usa o teclado e
     do leitor de ecrã. `linhas` já vem formatado; a primeira coluna é o
     nome, as outras são números."""
-    if not linhas:
-        return ""
-    return ("<details class='graf-numeros'><summary>ver os números</summary>"
-            "<table><thead><tr>%s</tr></thead><tbody>%s</tbody></table></details>"
-            % ("".join("<th%s>%s</th>" % ("" if i == 0 else " class='p'",
-                                          html.escape(c) or
-                                          "<span class='so-leitor'>Nome</span>")
-                       for i, c in enumerate(cabecas)),
-               "".join("<tr>%s</tr>" % "".join(
-                   "<td%s>%s</td>" % ("" if i == 0 else " class='p'",
-                                      html.escape(str(v)))
-                   for i, v in enumerate(linha)) for linha in linhas)))
+    return _grafico("numeros", cabecas=cabecas,
+                    linhas=[[str(v) for v in linha] for linha in linhas])
 
 
 @app.route("/contratos/resumo")
