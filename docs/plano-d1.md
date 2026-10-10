@@ -159,7 +159,10 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.4 | Alertas e sugestões — **feito a 10/10/2026**: os Alertas já tinham passado no 3.2c-ii, e ficou o «Enviar uma sugestão» (`sugestoes.html`), com a recusa do POST, que traz o texto e o tipo de volta | |
 | 3.5 | Calendário e indicadores — **feito a 10/10/2026**: os indicadores já tinham passado no 3.2d-iii; o Calendário é o `calendario.html`, e os dois pedaços (a agenda do telemóvel e o «+N» de um dia) o `calendario_pedaco.html`, com as peças comuns em `_calendario.html` | |
 | 3.6 | Situação (`/situacao`) — **feito a 10/10/2026** (`situacao.html`: as abas, o período, as três vistas e as duas listas que confirmam os números, o «em jogo» e as decididas; o `tabela_em_jogo()` e o `tabela_das_decididas()` passam a dar só os dados. Os números, o funil, o CPV, o negócio e as ranhuras servem também os Indicadores e o Hoje, e entram feitos; o «Quem nos ganha» passa com o Mercado) | |
-| 3.7 | Mercado: contratos, entidades, ficha da entidade | |
+| 3.7a | Mercado: a lista das Entidades — **feito a 10/10/2026** (`entidades.html`, com a comparação de duas; o `_bloco_de_comparacao()` passa a dar só as duas colunas. O selo do papel, a fita do «connosco», a legenda e o paginador são partilhados e entram feitos) | o 3.7 partiu-se em quatro |
+| 3.7b | Mercado: os Concorrentes | |
+| 3.7c | Mercado: a ficha da entidade | |
+| 3.7d | Mercado: os Contratos, o resumo e os gráficos | |
 | 3.8 | Concursos e Propostas: listas, fases, tabela | os mais vistos |
 | 3.9 | A ficha do anúncio e da proposta | o maior (~5 000 linhas) |
 | 3.10 | O Hoje (`/`) e a pesquisa | |
