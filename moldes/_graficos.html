@@ -1,0 +1,18 @@
+{#- Os gráficos do Mercado: servem o resumo dos Contratos, a ficha da
+    entidade, os Indicadores e as Visitas, que os pedem a uma função
+    (`barras_h()`, `barras_v()`, `concentracao_html()`…). O Python chama
+    a macro pelo `_grafico()`. O `titulo` e a `nota` vêm feitos: são
+    frases do código, algumas com <b> e &mdash;; os valores formatados
+    (`euros_curto()`, `mil_pt()`) também, que sempre saíram tal qual. -#}
+{#- O cabeçalho de um cartão de gráfico: sem nota, um espaço. -#}
+{% macro _cabeca(titulo, nota, margem, altura) %}<div class='mg-card graf'><h2 class='mg-card__title'>{{ titulo }}</h2>{% if nota %}<div class='nota' style='margin:{{ margem }}'>{{ nota }}</div>{% else %}<div style='height:{{ altura }}px'></div>{% endif %}{% endmacro %}
+{#- Os números de um gráfico numa tabela pequena, num <details>
+    fechado (UX-ICONES-DICAS-PESOS 13). A primeira coluna é o nome. -#}
+{% macro numeros(cabecas, linhas) %}{% if linhas %}<details class='graf-numeros'><summary>ver os números</summary><table><thead><tr>{% for c in cabecas %}<th{% if not loop.first %} class='p'{% endif %}>{% if c %}{{ c }}{% else %}<span class='so-leitor'>Nome</span>{% endif %}</th>{% endfor %}</tr></thead><tbody>{% for linha in linhas %}<tr>{% for v in linha %}<td{% if not loop.first %} class='p'{% endif %}>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></details>{% endif %}{% endmacro %}
+{#- Barras horizontais: os nomes são longos e não cabem por baixo. -#}
+{% macro barras_h(titulo, nota, linhas) %}{{ _cabeca(titulo, nota, "5px 0 12px", 10) }}<div class='barras-h'>{% for l in linhas %}<div class='bh'><span class='t' title='{{ l.nome }}'>{{ l.etiqueta }}</span><span class='r'><i style='width:{{ l.largura }}%'></i></span><span class='v'>{{ l.valor }}</span><span class='k'>{{ l.contratos }}</span></div>{% endfor %}</div></div>{% endmacro %}
+{#- Barras verticais para o tempo. O `title` de cada barra diz o valor
+    que o rótulo por cima pode não dizer. -#}
+{% macro barras_v(titulo, nota, muitas, cols, numeros) %}{{ _cabeca(titulo, nota, "5px 0 16px", 14) }}<div class='barras{% if muitas %} muitas{% endif %}'>{% for c in cols %}<div class='col{{ c.classes }}'><span class='v'>{{ c.v }}</span><div class='b' style='height:{{ c.altura }}%' title='{{ c.t }}: {{ c.valor }}, {{ c.k }} {{ c.unidade }}{{ c.extra }}'></div><span class='l'>{{ c.t }}{% if c.meio %} ·{% endif %}</span></div>{% endfor %}</div>{{ numeros }}</div>{% endmacro %}
+{#- Quanto do mercado levam os cinco maiores, numa barra só. -#}
+{% macro concentracao(quantas, fatia, fatias, quota, total, numeros) %}<div class='mg-card graf'><h2 class='mg-card__title'>Concentração</h2><div class='nota' style='margin:5px 0 14px'>Que fatia levam os cinco maiores, entre as {{ quantas }} empresas que ganharam alguma coisa.</div><div class='conc-n'>{{ fatia }}</div><div class='conc-b'>{% for f in fatias %}<i style='width:{{ f.largura }}%;background:{{ f.cor }}' title='{{ f.titulo }}'></i>{% endfor %}</div><div class='nota' style='margin-top:10px'>Os cinco maiores levam {{ quota }} dos {{ total }} adjudicados.</div>{{ numeros }}</div>{% endmacro %}

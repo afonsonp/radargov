@@ -162,7 +162,8 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.7a | Mercado: a lista das Entidades — **feito a 10/10/2026** (`entidades.html`, com a comparação de duas; o `_bloco_de_comparacao()` passa a dar só as duas colunas. O selo do papel, a fita do «connosco», a legenda e o paginador são partilhados e entram feitos) | o 3.7 partiu-se em quatro |
 | 3.7b | Mercado: os Concorrentes — **feito a 10/10/2026** (`concorrentes.html`; a faixa do interesse, a ligação de cada fornecedor e o paginador são passados feitos) | |
 | 3.7c | Mercado: a ficha da entidade — **feito a 10/10/2026** (`entidade.html`, nos dois ramos, com e sem o Portal BASE; o «seguir» em `_entidade.html`, porque o cabeçalho da página ainda o pede do Python; o `nosso_lado_cx()`, o `filtros_da_ficha()` e o `_seguir_cx()` passam a dar só os dados. Os seis factos, a concorrência, os gráficos, a árvore e os contactos entram feitos) | |
-| 3.7d | Mercado: os Contratos, o resumo e os gráficos | |
+| 3.7d | Mercado: os gráficos e o resumo — **feito a 10/10/2026** (`_graficos.html`: as barras horizontais e verticais, a concentração e a tabela dos números; o Python chama-as pelo `_grafico()`, que devolve `str`, e as funções guardam o nome e a assinatura, porque servem também a ficha da entidade, os Indicadores e as Visitas) | |
+| 3.7e | Mercado: a lista dos Contratos (`/contratos`) | 540 linhas só a rota |
 | 3.8 | Concursos e Propostas: listas, fases, tabela | os mais vistos |
 | 3.9 | A ficha do anúncio e da proposta | o maior (~5 000 linhas) |
 | 3.10 | O Hoje (`/`) e a pesquisa | |
