@@ -154,7 +154,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.2d-iii | os Indicadores — **feito a 10/10/2026** (`indicadores.html`, só o esqueleto: as linhas de saúde e os números são o `linhas_de_saude()` e o `kpi()`, partilhados por muitos ecrãs, e passam a macros no lote que for dono deles). **Com este, as Configurações estão todas em moldes** | 197 linhas |
 | 3.3a | Plataforma: os Erros, as Sugestões e as Visitas — **feito a 10/10/2026** (`plataforma_erros.html`, `plataforma_sugestoes.html`, `plataforma_visitas.html`, `visitas_tabela.html`; nasce a macro `celula`) | só o dono os vê |
 | 3.3b | a página principal da Plataforma — **feito a 10/10/2026** (`plataforma.html`; saem o `_html_dos_semaforos`, o `_bloco_do_correio` e o `_contas_encontradas`, que passa a `_contas_da_procura`, só dados; nasce a macro `cartao`, sem o «?» do bloco) | |
-| 3.3c | a página de cada empresa | 141 linhas |
+| 3.3c | a página de cada empresa — **feito a 10/10/2026** (`plataforma_empresa.html`, e a tabela da actividade em `actividade_tabela.html`, que serve também as duas `/actividade`; saem o `_gestos_do_suporte`, o `_cartao_do_plano`, o `_cartao_de_apagar`, o `_cartao_do_uso`, o `_cartao_da_nota` e o `_cartao_da_actividade`; o `_cartao_do_pedido` passa a `_pedidos_da_empresa`, só dados) | 141 linhas |
 | 3.3d | os pedidos de acesso | 185 linhas |
 | 3.4 | Alertas e sugestões | |
 | 3.5 | Calendário e indicadores | |

@@ -1894,7 +1894,7 @@ ronda: estavam a meio, e os semáforos passaram a encher a linha).
 - **A página de cada empresa** (`/plataforma/empresa/<n>`, a que cada
   linha da tabela leva): o **pedido de acesso** de onde nasceu, com o
   que quem pediu escreveu no site — nome, e-mail, telemóvel, NIF, área,
-  mensagem (`_cartao_do_pedido()`, 9/10/2026); as contas, com o papel, a última entrada, as
+  mensagem (`_pedidos_da_empresa()`, 9/10/2026); as contas, com o papel, a última entrada, as
   sessões abertas e o «repor palavra-passe»; os **convites por usar**,
   com «gerar de novo» (anula o antigo e mostra a ligação nova, uma vez)
   e «anular», e um «criar convite», com o endereço opcional (G61); os alertas ligados e se o e-mail

@@ -1,0 +1,5 @@
+{#- O registo de actividade de uma empresa (2R-§7 (11), 4/10/2026): as
+    entradas e o que se fez nas contas. Serve a /actividade do gestor, a
+    do dono e o cartão da página da empresa. -#}
+{%- import "_pecas.html" as p -%}
+{% if linhas %}<div class='mg-card tab-cx'><table class='mg-table tab-plataforma'><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Detalhe</th><th>IP</th><th>Aparelho</th></tr></thead><tbody>{% for l in linhas %}<tr>{% call p.celula("Quando", "mg-num") %}{{ l.quando }}{% endcall %}{% call p.celula("Quem") %}{{ l.quem }}{% endcall %}{% call p.celula("O quê") %}{{ l.o_que }}{% endcall %}{% call p.celula("Detalhe") %}{{ l.detalhe }}{% endcall %}{% call p.celula("IP", "mg-num") %}{{ l.ip }}{% endcall %}{% call p.celula("Aparelho") %}{{ l.aparelho }}{% endcall %}</tr>{% endfor %}</tbody></table></div>{% else %}<p class='nota'>Nada nos últimos {{ dias }} dias.</p>{% endif %}
