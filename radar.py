@@ -17211,6 +17211,9 @@ def botao(classe):
 # 3.2b): o `botao`, que traduz a classe da casa na do sistema, e o `js`,
 # que faz de um texto uma cadeia de JavaScript (o `confirm()` do `accao`).
 MOLDES_JINJA.filters.update(botao=botao, js=json.dumps)
+# E o `icone`, que os moldes chamam pelo nome (lote 3.7e): o `<svg>` é
+# HTML nosso, e entra marcado.
+MOLDES_JINJA.globals["icone"] = lambda *a, **k: Markup(icone(*a, **k))
 
 
 def tom(classe):
@@ -27447,7 +27450,8 @@ def espera_corpus():
 
 
 def barra_corpus(anos):
-    """Quando foi a ultima vez, e o botao de trazer o que ha de novo."""
+    """Quando foi a ultima vez, e o botao de trazer o que ha de novo: os
+    valores do `corpus` do `moldes/contratos.html`."""
     estado = le_marca_corpus("actualizacao", "")
     passo = le_marca_corpus("actualizacao_passo", "")
     quando = le_marca_corpus("ultima_importacao", "nunca")
@@ -27457,33 +27461,16 @@ def barra_corpus(anos):
         # importacao substitui o ano inteiro da proxima vez), mas o
         # estado tem de deixar de mentir
         estado, passo = "interrompida", ""
-    if a_correr:
-        direita = ("<span class='a-correr'>a actualizar&hellip; %s</span>"
-                   % html.escape(passo))
-    elif not sou_dono():
-        direita = ""
-    else:
+    actualizar = ""
+    if not a_correr and sou_dono():
         # leva os filtros de agora, para se voltar ao que se estava a ver
         seguir = urlencode(args_da_lista(request.args))
-        direita = accao("/contratos/actualizar" + ("?" + seguir if seguir else ""),
-                        "Actualizar contratos")
-    aviso = ""
-    if estado == "falhou":
-        aviso = ("<div class='cpv-activo' style='border-color:"
-                 "color-mix(in srgb,var(--danger) 25%,transparent);"
-                 "background:var(--danger-soft);color:var(--danger)'>A última "
-                 "actualização falhou: %s</div>" % html.escape(passo))
-    elif estado == "interrompida":
-        aviso = ("<div class='cpv-activo'>A última actualização ficou a "
-                 "meio &mdash; o painel foi fechado antes de acabar. Nada "
-                 "se perdeu: carregue outra vez para a repetir.</div>")
-    return ("<div class='corpus-barra'>"
-            "<span>Contratos do Portal BASE (IMPIC, dados.gov) &middot; "
-            "%s contratos de %s &middot; trazido em %s</span>%s</div>%s"
-            % (mil_pt(ha_corpus()),
-               "%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
-               else (str(anos[0]) if anos else "—"),
-               html.escape(data_hora_pt(quando)), direita, aviso))
+        actualizar = Markup("/contratos/actualizar" + ("?" + seguir if seguir else ""))
+    return {"estado": estado, "passo": passo, "a_correr": a_correr,
+            "actualizar": actualizar, "n": mil_pt(ha_corpus()),
+            "anos": ("%d a %d" % (anos[0], anos[-1]) if len(anos) > 1
+                     else (str(anos[0]) if anos else "—")),
+            "quando": data_hora_pt(quando)}
 
 
 def ganhadores_da_linha(linha):
@@ -27643,117 +27630,33 @@ def contratos():
     with liga() as c:
         n_cpv = c.execute("SELECT COUNT(*) n FROM cpv_dict").fetchone()["n"]
 
-    def v(nome):
-        return html.escape(request.args.get(nome, ""), quote=True)
-
-    # No modo fim, de/ate desactivam-se COM explicacao (B03: dois eixos
-    # do tempo na mesma pagina confundiam) -- um campo que some sem
-    # explicacao e o silencio que a P3 proibe. Desactivado nao submete,
-    # e o motor tambem os ignora (filtros_dos_contratos).
-    trava_datas = (" disabled title='no modo por fim estimado o eixo do "
-                   "tempo é a janela do fim — as datas de celebração não "
-                   "se aplicam'" if fim else "")
-    escondidos_modo = ("<input type='hidden' name='ver' value='fim'>"
-                       if fim else "")
-    opcoes_meses = ("<select class='mg-field__input' name='meses'>%s</select>" % "".join(
-        "<option value='%d'%s>terminam em %d meses</option>"
-        % (m, " selected" if m == meses else "", m)
-        for m in MESES_RENOVACOES)) if fim else ""
+    # No modo fim, de/ate saem do formulário (B03: dois eixos do tempo na
+    # mesma pagina confundiam) e, vindos de fora, diz-se que ficaram de
+    # lado -- nunca em silencio (P3). O motor tambem os ignora
+    # (filtros_dos_contratos).
     modo_limpo = "/contratos?ver=fim" if fim else "/contratos"
 
     # Sem "excluir palavras", sem "excluir CPV" a ver e sem o E/OU
     # (14/09/2026, como nos anuncios); as duas entidades sugerem-se do
     # corpus e, escolhida a sugestao, a chave (o NIF) vai em entid/vencid,
     # que a ficha da entidade ja usava. O que vier na URL passa escondido.
-    # Os campos do `EcraMercado` (24/09/2026): rotulo por cima, o `Field`
-    # do sistema, numa grelha -- a mesma forma dos filtros dos Concursos.
     # Os filtros em botões, como nos Concursos (front end novo, 6/10/2026):
     # a pesquisa à largura toda, e por baixo um botão por filtro, que
-    # abre o seu campo e, posto, acende e diz o valor (`chip_de_filtro()`).
-    # Os campos são os mesmos, com os mesmos nomes: o motor, os alertas
-    # e o JS das sugestões não dão pela diferença.
-    campo = campo_de_filtro
+    # abre o seu campo e, posto, acende e diz o valor. Os campos são os
+    # mesmos, com os mesmos nomes: o motor, os alertas e o JS das
+    # sugestões não dão pela diferença.
     arg = lambda k: (request.args.get(k) or "").strip()
-    data_campo = lambda nome, rot: campo(
-        rot, "<input class='mg-field__input campo-data' type='text' "
-        "name='%s' value='%s'%s inputmode='numeric' placeholder='dd/mm/aaaa' "
-        "maxlength='10' pattern='\\d{1,2}/\\d{1,2}/\\d{4}'>"
-        % (nome, "" if fim else html.escape(data_para_campo(arg(nome)), quote=True),
-           trava_datas))
     de_, ate_ = data_para_campo(arg("de")), data_para_campo(arg("ate"))
     celebrado = " ".join(x for x in (("de %s" % de_) if de_ else "",
                                      ("até %s" % ate_) if ate_ else "") if x)
-    quem_ganhou = "Quem tem o contrato" if fim else "Quem ganhou"
-    chips = "".join((
-        chip_de_filtro("Entidade", "entidade", arg("adj"), campo(
-            "Entidade que comprou",
-            "<input class='mg-field__input' type='text' name='adj' value='%s' "
-            "placeholder='Nome ou NIF' list='entidades-contratos' "
-            "autocomplete='off' data-sugere='contratos' data-chave-em='entid'>"
-            % v("adj"))),
-        chip_de_filtro(quem_ganhou, "equipa", arg("ganhou"), campo(
-            quem_ganhou,
-            "<input class='mg-field__input' type='text' name='ganhou' "
-            "value='%s' placeholder='Nome ou NIF' list='entidades-contratos' "
-            "autocomplete='off' data-sugere='contratos' data-chave-em='vencid'>"
-            % v("ganhou"))),
-        # O CPV à vista (V2 da ronda em PC, 26/09/2026): é a primeira coisa
-        # que se filtra num estudo de mercado. O campo é o mesmo que a
-        # árvore enche (`filtro-cpv`), e sugere códigos pelo número ou
-        # pelo nome, do `/cpv.json` dos contratos (`CPV_SUGERE_JS`).
-        # sem perfil, o botão abre a árvore (7/10/2026); com ele não há
-        # árvore, e o CPV escreve-se no campo do botão
-        botao_da_arvore(arg("cpv"), "sintaxe-cpv") if not com_interesse else
-        chip_de_filtro("CPV", "lista", arg("cpv"), campo(
-            "CPV", "<input class='mg-field__input' type='text' "
-            "id='filtro-cpv' name='cpv' value='%s' "
-            "placeholder='Código ou nome, ex. 45233' list='cpv-sugestoes' "
-            "autocomplete='off' data-cpv-sugere='contratos' "
-            "aria-describedby='sintaxe-cpv'>" % v("cpv"))),
-        chip_de_filtro("Procedimento", "documento", arg("proc"), campo(
-            "Procedimento", selector_procedimento(procs, arg("proc"))
-            .replace("<select ", "<select class='mg-field__input' ", 1))),
-        (chip_de_filtro("Termina em", "calendario",
-                        "%d meses" % meses if request.args.get("meses") else "",
-                        campo("Termina em", opcoes_meses)) if fim else
-         chip_de_filtro("Celebrado", "calendario", celebrado,
-                        data_campo("de", "Celebrado de")
-                        + data_campo("ate", "Celebrado até"))),
-        chip_de_filtro("Preço mínimo", "euro",
-                       ("%s €" % arg("min")) if arg("min") else "", campo(
-            "Preço mínimo", "<input class='mg-field__input' type='text' "
-            "name='min' value='%s' placeholder='€' inputmode='decimal'>"
-            % v("min")))))
-    # o `<!--perfil-->` marca onde entra o perfil da empresa, que se
-    # calcula mais abaixo (`faixa_interesse`)
-    filtros = (
-        "<form class='mg-card filtros sem-vazios' id='filtros-mercado' "
-        "method='get' action='/contratos'>%s"
-        "<label class='f-q'><span class='so-leitor'>Objecto</span>%s"
-        "<input class='mg-field__input' type='text' name='q' value='%s' "
-        "placeholder='Procurar contratos pelo objecto'></label>"
-        "<div class='f-chips'><!--perfil-->%s%s</div>"
-        "<input type='hidden' name='entid' value='%s'>"
-        "<input type='hidden' name='vencid' value='%s'>"
-        "<input type='hidden' id='filtro-cpv-excl' name='cpv_excl' value='%s'>"
-        "%s"
-        # fora do `title` (UX-ICONES-DICAS-PESOS, 14), fechada desde
-        # 6/10/2026
-        "<details class='como-se-conta f-sintaxe'><summary>Como se escreve "
-        "o CPV</summary><p class='mg-field__hint' id='sintaxe-cpv'>Um ou "
-        "mais códigos, separados por |; os zeros à direita alargam ao "
-        "grupo (45000000 é toda a construção).</p></details>"
-        "</form><datalist id='entidades-contratos'></datalist>"
-        "<datalist id='cpv-sugestoes'></datalist>"
-        % (escondidos_modo, icone("pesquisar", 18), v("q"), chips,
-           fim_da_fila(html.escape(modo_limpo, quote=True),
-                       any(arg(k) for k in ("q", "adj", "entid", "ganhou",
-                                            "vencid", "cpv", "proc", "de",
-                                            "ate", "min", "meses"))),
-           v("entid"), v("vencid"), v("cpv_excl"),
-           campos_escondidos(request.args, ("q_excl", "op", "interesse"))))
+    chips = {k: corta(v, 40) if v else "" for k, v in (
+        ("adj", arg("adj")), ("ganhou", arg("ganhou")), ("cpv", arg("cpv")),
+        ("proc", arg("proc")), ("celebrado", celebrado),
+        ("meses", "%d meses" % meses if request.args.get("meses") else ""),
+        ("min", ("%s €" % arg("min")) if arg("min") else ""))}
 
     hoje = datetime.now().date()
+    corpo = []
     if linhas:
         # o inverso do B02: quando o procedimento teve anuncio no radar,
         # a linha leva a ficha dele (so os refs que existem mesmo)
@@ -27766,15 +27669,8 @@ def contratos():
         papeis = papeis_de(
             [l["adjudicante_chave"] for l in linhas]
             + [ch for l in linhas for ch, _ in ganhadores_da_linha(l)])
-        corpo = []
         for l in linhas:
-            venceu = " + ".join(
-                liga_entidade(ch, n, papeis=papeis)
-                for ch, n in ganhadores_da_linha(l)) or "—"
-            objecto = html.escape(corta(l["objecto"], 150))
-            if (l["n_anuncio"] or "").strip() in com_ficha:
-                objecto += (" &middot; <a href='/anuncio/%s'>anúncio</a>"
-                            % (l["n_anuncio"] or "").strip())
+            falta = ""
             if fim:
                 # o fim primeiro, com a contagem: e o eixo deste modo
                 try:
@@ -27784,272 +27680,108 @@ def contratos():
                              "em %s dia%s" % (mil_pt(dias),
                                               "" if dias == 1 else "s"))
                 except (TypeError, ValueError):
-                    falta = ""
-                corpo.append(
-                    # sem negrito: vinte datas iguais a 700 eram o que
-                    # mais pesava na pagina (UX-7-LEIS, V7)
-                    "<tr><td class='d'>%s<br>"
-                    "<span class='nota'>%s</span></td>"
-                    "<td class='o'>%s</td><td>%s</td><td class='g'>%s</td>"
-                    "<td class='d'>%s</td><td class='p'>%s</td></tr>"
-                    % (data_pt(l["fim_estimado"]), falta, objecto,
-                       liga_entidade(l["adjudicante_chave"],
-                                     l["adj_nome"] or "", papeis=papeis),
-                       venceu, data_pt(l["data_celebracao"]),
-                       euros(l["preco_contratual"])))
-            else:
-                # Cinco colunas e não sete (lote PC-A, 26/09/2026): o fim
-                # estimado vai por baixo da celebração e o procedimento
-                # por baixo do objecto, como a linha secundária dos
-                # Concursos. Com sete, o Objecto ficava em 160-230px e
-                # partia-se em nove linhas, e a 1280 o Preço saía cortado.
-                corpo.append(
-                    "<tr><td class='d'>%s%s</td>"
-                    "<td class='o'>%s<span class='nota sub'>%s</span></td>"
-                    "<td>%s</td><td class='g'>%s</td>"
-                    "<td class='p'>%s</td></tr>"
-                    % (data_pt(l["data_celebracao"]),
-                       # o fim só quando o dump traz o prazo
-                       "<span class='nota sub'>fim %s</span>"
-                       % data_pt(l["fim_estimado"])
-                       if l["fim_estimado"] else "",
-                       objecto,
-                       html.escape(l["tipo_procedimento"] or ""),
-                       liga_entidade(l["adjudicante_chave"],
-                                     l["adj_nome"] or "", papeis=papeis),
-                       venceu,
-                       euros(l["preco_contratual"])))
-        if fim:
-            cabecalhos = ("<th>Fim estimado</th><th>Objecto</th>"
-                          "<th>Entidade</th><th>Quem tem o contrato</th>"
-                          "<th>Celebrado</th><th class='p'>Preço</th>")
-        else:
-            # O fim estimado ao lado da celebracao: um contrato em curso
-            # le-se pelo fim, nao so pelo principio. O travessao e "sem
-            # prazo no dump", nao zero.
-            cabecalhos = ("<th>Celebrado<span class='nota sub'>fim "
-                          "estimado</span></th>"
-                          "<th>Objecto<span class='nota sub'>procedimento"
-                          "</span></th><th>Entidade</th>"
-                          "<th>Quem ganhou</th>"
-                          "<th class='p'>Preço</th>")
-        tabela = ("<div class='mg-card tab-cx'><table class='mg-table tab-contratos'>"
-                  "<thead><tr>%s</tr></thead><tbody>%s</tbody>"
-                  "</table><div class='tab-pe'><span class='nota'>%s</span>"
-                  "</div></div>" % (cabecalhos, "".join(corpo),
-                                    LEGENDA_DO_PAPEL))
-    elif ha_pergunta:
-        tabela = ("<div class='mg-empty'>%s "
-                  "<a href='%s'>limpar</a></div>"
-                  % ("Nada deste filtro termina nos próximos %d meses."
-                     % meses if fim else
-                     "Nada corresponde a este filtro.",
-                     html.escape(modo_limpo, quote=True)))
-    elif fim:
-        tabela = ("<div class='mg-empty comecar'>"
-                  "<h2 class='mg-empty__title'>De que mercado quer ver os fins de contrato?</h2>"
-                  "<span>Escolha um CPV na árvore ou escreva uma entidade: "
-                  "a lista mostra os contratos desse mercado que terminam "
-                  "na janela, do mais próximo para o mais distante. Um "
-                  "contrato a acabar volta muitas vezes a concurso &mdash; "
-                  "quem o vê antes do anúncio prepara-se com tempo.</span>"
-                  "<span class='p'>Com o <a href='/configuracoes/interesse'>"
-                  "perfil da empresa</a> definido, esta página abre logo com os "
-                  "contratos dos seus CPV.</span>"
-                  "</div>")
-    else:
-        # A pergunta vem primeiro. Um milhao e meio de contratos por data
-        # nao e uma resposta a nada.
-        tabela = ("<div class='mg-empty comecar'>"
-                  "<h2 class='mg-empty__title'>Filtre os contratos do Portal BASE.</h2>"
-                  "<span>Escolha um CPV na árvore, escreva quem ganhou ou "
-                  "que entidade comprou, aperte as datas ou o valor. Os "
-                  "gráficos e a lista respondem ao filtro.</span>"
-                  "<span class='p'>São %s contratos: sem filtro, os mais "
-                  "recentes não dizem nada sobre nada. Com o "
-                  "<a href='/configuracoes/interesse'>perfil da empresa</a> definido, "
-                  "esta página abre logo com os contratos dos seus CPV.</span>"
-                  "</div>"
-                  % mil_pt(ha_corpus()))
+                    pass
+            n_anuncio = (l["n_anuncio"] or "").strip()
+            # Cinco colunas e não sete no modo por celebração (lote PC-A,
+            # 26/09/2026): o fim estimado vai por baixo da celebração (só
+            # quando o dump traz o prazo) e o procedimento por baixo do
+            # objecto. Com sete, o Objecto partia-se em nove linhas.
+            corpo.append({
+                "fim": data_pt(l["fim_estimado"]) if fim or l["fim_estimado"] else "",
+                "falta": falta, "celebrado": data_pt(l["data_celebracao"]),
+                "objecto": corta(l["objecto"], 150),
+                "anuncio": n_anuncio if n_anuncio in com_ficha else "",
+                "proc": l["tipo_procedimento"] or "",
+                "entidade": Markup(liga_entidade(l["adjudicante_chave"],
+                                                 l["adj_nome"] or "", papeis=papeis)),
+                "venceu": Markup(" + ".join(
+                    liga_entidade(ch, n, papeis=papeis)
+                    for ch, n in ganhadores_da_linha(l)) or "—"),
+                "preco": Markup(euros(l["preco_contratual"]))})
 
     # O modo diz-se por extenso na frase do cabecalho e na aba acesa
-    # (24/09/2026, o `EcraMercado`); ate ai era o titulo da tabela, que
-    # era a defesa contra o "ecra bifacetado" que o custo da opcao A (6.1)
-    # previa. A frase muda com o modo, e por isso a defesa continua.
+    # (24/09/2026, o `EcraMercado`): a frase muda com o modo, e é a
+    # defesa contra o "ecra bifacetado" que o custo da opcao A (6.1)
+    # previa. O somatorio e do filtro todo, nao da pagina: e o numero que
+    # diz quanto vale este mercado.
+    primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
+    paginado = correspondem > len(linhas)
+    conta = {"n": mil_pt(correspondem), "s": "" if correspondem == 1 else "s",
+             "ate": data_pt(fim_janela) if fim else "",
+             "paginas": mil_pt(paginas) if paginado else "",
+             "pagina": mil_pt(pagina), "primeiro": mil_pt(primeiro),
+             "ultimo": mil_pt(primeiro + len(linhas) - 1),
+             "total": Markup(euros(valor)),
+             "parte": (Markup(euros(parte)) if parte is not None
+                       and round(parte) != round(valor or 0) else "")}
 
-    if ha_pergunta:
-        if fim:
-            conta = ("Do fim mais próximo para o mais distante &middot; "
-                     "%s contrato%s a terminar até %s"
-                     % (mil_pt(correspondem),
-                        "" if correspondem == 1 else "s",
-                        data_pt(fim_janela)))
-            if correspondem > len(linhas):
-                conta += (" &middot; página %s de %s"
-                          % (mil_pt(pagina), mil_pt(paginas)))
-        else:
-            conta = "Celebrados mais recentes primeiro &middot; "
-            if correspondem > len(linhas):
-                primeiro = (pagina - 1) * POR_PAGINA_LISTA + 1
-                conta += ("%s&ndash;%s de %s &middot; página %s de %s"
-                          % (mil_pt(primeiro),
-                             mil_pt(primeiro + len(linhas) - 1),
-                             mil_pt(correspondem), mil_pt(pagina),
-                             mil_pt(paginas)))
-            else:
-                conta += "%s %s" % (mil_pt(correspondem),
-                                    "contrato" if correspondem == 1
-                                    else "contratos")
-        # O somatorio e do filtro todo, nao da pagina: e o numero que diz
-        # quanto vale este mercado, e por pagina nao queria dizer nada.
-        conta += " &middot; <b>%s</b> no total" % euros(valor)
-        if parte is not None and round(parte) != round(valor or 0):
-            conta += (" &middot; a parte desta entidade: <b>%s</b> (nos "
-                      "consórcios, o contrato reparte-se pelos vencedores)"
-                      % euros(parte))
-        # a ligacao diz quantas linhas e que saem: encostada ao "1-20"
-        # exportava as dezenas de milhares sem avisar. Leva ver/meses,
-        # por isso o CSV exporta o mesmo modo que a lista mostra.
-        linha_conta = "<span class='conta'>" + conta + "</span>"
-    else:
-        linha_conta = ""
-
-    fonte = ("<div class='nota' style='margin-top:14px'>O dump do IMPIC é "
-             "semanal: os contratos das últimas semanas podem ainda não lá "
-             "estar. Anos fechados não mudam &mdash; o botão só volta a "
-             "trazer o ano corrente e o anterior. Os contratos começam em %d "
-             "&mdash; é o mais antigo que o dados.gov chega a dar, os "
-             "zips de 2012 a 2014 vêm vazios.%s</div>"
-             % (primeiro_ano_corpus(),
-                # o comando e do dono da plataforma: a um cliente era um
-                # texto tecnico sem uso (teste com utilizadores, 25/09/2026)
-                (" Para trazer um ano de novo, <code>python radar.py "
-                 "--contratos %d</code>." % primeiro_ano_corpus())
-                if sou_dono() else ""))
-
-    # O campo do CPV e escondido, por isso um filtro activo nao se via em
-    # lado nenhum a nao ser no chip da arvore, fechada. A faixa diz o que
-    # esta a filtrar e da onde carregar para o tirar. As ligacoes "tirar"
-    # levam ver/meses atras (args_da_lista guarda-os): tirar um campo
-    # nao pode trocar de modo.
-    faixas = [faixa_cpv_activo(
-        request.args,
-        "/contratos?" + urlencode(args_da_lista(request.args, cpv="")))]
     # A chave da entidade e opaca na URL: diz-se de quem e, e da-se a
-    # ficha ao lado.
+    # ficha ao lado. As ligacoes "tirar" levam ver/meses atras
+    # (args_da_lista guarda-os): tirar um campo nao pode trocar de modo.
+    faixas = []
     for campo, papel in (("entid", "adjudicadas por"),
                          ("vencid", "detidas por" if fim else "ganhas por")):
-        valor = (request.args.get(campo) or "").strip()
-        if not valor:
+        chave = arg(campo)
+        if not chave:
             continue
         with liga_corpus() as c:
             r = c.execute("SELECT nome FROM entidades WHERE chave=?",
-                          (valor,)).fetchone()
-        sem = args_da_lista(request.args, **{campo: ""})
-        faixas.append("<div class='cpv-activo'>Só as %s <b>%s</b>"
-                      "<a href='/entidade/%s'>ficha</a>"
-                      "<a href='/contratos?%s'>tirar</a></div>"
-                      % (papel, html.escape(r["nome"] if r else valor),
-                         quote(valor, safe=""), urlencode(sem)))
-    # de/ate vindos de fora (um filtro guardado, uma ligacao antiga)
-    # ficam de lado no modo fim -- e diz-se, nunca em silencio (P3).
-    if fim and ((request.args.get("de") or "").strip()
-                or (request.args.get("ate") or "").strip()):
-        faixas.append("<div class='cpv-activo'>As datas de celebração do "
-                      "filtro <b>não se aplicam</b> neste modo: o eixo do "
-                      "tempo é a janela do fim estimado. Estão postas de "
-                      "lado, não perdidas &mdash; voltam no modo por "
-                      "celebração.</div>")
-    faixa_cpv = "".join(faixas)
-    faixa_interesse = _faixa_do_interesse("/contratos", escondidos_interesse,
-                                          cfg, so_cpv=True, curta=True)
-    if com_interesse:
-        filtros = filtros.replace("<input type='text' id='filtro-cpv-excl'",
-                                  "<input type='hidden' id='filtro-cpv-excl'")
+                          (chave,)).fetchone()
+        faixas.append({"papel": papel, "nome": r["nome"] if r else chave,
+                       "chave": quote(chave, safe=""),
+                       "sem": Markup(urlencode(args_da_lista(request.args,
+                                                             **{campo: ""})))})
 
-    # Pedidos so ao abrir, como a arvore: sao ~800 ms de consultas e a
-    # tabela nao tem de esperar por eles. Sem filtro nem aparecem: sobre
-    # o corpus inteiro demoravam muito e respondiam a pergunta nenhuma.
-    # O pedido leva a query string inteira, ver/meses incluidos: os
-    # graficos respondem ao mesmo conjunto que a tabela mostra.
-    # Desde 24/09/2026 (o `EcraMercado`) vivem na coluna da direita e
-    # pedem-se sozinhos ao abrir a pagina -- continuam a nao atrasar a
-    # tabela, que vem no HTML; so aparecem com pergunta feita.
-    graficos = ("<div id='graf-corpo' class='graf-corpo mercado-lado' "
-                "data-auto><p class='ficha-nota'>A carregar quem ganha e "
-                "quem compra…</p></div>") if ha_pergunta else ""
-
-    abas = abas_do_mercado("fim" if fim else "contratos", request.args)
-
-    nota_estimativa = (
-        "<div class='nota' style='margin:14px 0 4px'>O fim é <b>estimado</b>: "
-        "data de celebração mais o prazo de execução declarado ao IMPIC. "
-        "Prorrogações e cessações antecipadas não constam do dump &mdash; "
-        "confirme antes de contar com a data.</div>") if fim else ""
-
-    # A porta directa para a ficha de uma entidade (11.7-B) vive na aba
-    # Entidades, desde 17/09/2026. O formulario do pe deste cartao saiu a
-    # 30/09/2026 (UX-7-LEIS H3): eram tres sitios para chegar a mesma
-    # ficha -- este, o campo «Entidade que comprou» e a aba.
-
-    # Os dois blocos de pergunta dobram-se quando JA HA pergunta, e e o
-    # INVERSO da lista dos anuncios (16/09/2026, fase 5).
-    #
-    # Nao e a mesma regra aplicada duas vezes: sao duas paginas com o
-    # oposto por omissao. A lista abre com 1 268 anuncios para triar e os
-    # filtros sao o caso excepcional -- por isso fecham. O Mercado nao
-    # mostra nada sem pergunta: sem filtro os campos SAO a pagina, e por
-    # isso abrem. Com filtro posto, o que interessa e a resposta.
-    #
-    # Medido na instalacao dele: o primeiro contrato estava aos 700px
-    # (na lista, 284), e 213 desses eram os nove campos mais a caixa da
-    # ficha de entidade -- ja respondidos, com o CPV activo declarado na
-    # sua propria banda logo abaixo.
-    # A pergunta e um cartao aberto (o `EcraMercado`): «Perguntar ao
-    # corpus» sem pergunta, «Perguntar outra coisa» com ela, e o resumo
-    # do filtro na meta. Esteve dobrada com pergunta feita (16/09/2026):
-    # a referencia tem-na aberta, e os campos sao agora uma grelha curta.
-    # Sem cartão à volta desde 6/10/2026 (front end novo): a pesquisa e
-    # os botões, como nos Concursos, com o perfil da empresa como
-    # primeiro botão aceso. O `id='pergunta'` fica, para as ligações.
-    pergunta = ("<div id='pergunta'>"
-                + ("" if fim else faixa_de_avisos_de_datas(request.args))
-                + filtros.replace("<!--perfil-->", faixa_interesse, 1) + "</div>")
-
-    # O `EcraMercado`: a pergunta, a arvore, a linha do resumo (o filtro
-    # activo e a contagem a esquerda, os dois modos a direita), e por
-    # baixo a tabela com os graficos na coluna da direita.
-    # As abas sairam desta linha para cima do cartao do filtro (UX-7-LEIS
-    # J2, 1/10/2026): estavam por baixo do filtro e da contagem, e nos
-    # Concursos e nas Propostas estao por cima.
-    resumo_linha = ("<div class='mercado-resumo'>%s%s</div>"
-                    % (faixa_cpv, linha_conta))
-    tabela_e_notas = (tabela +
-                      paginador(pagina, paginas, request.args, "/contratos") +
-                      nota_estimativa)
-    corpo_mercado = (("<div class='mercado-duas'><div class='mercado-tabela'>%s"
-                      "</div>%s</div>" % (tabela_e_notas, graficos))
-                     if ha_pergunta else tabela_e_notas)
-    conteudo = (abas + "<div class='larg'>" + pergunta +
-                ("" if com_interesse else "<div class='arvore-escondida'>"
-                 + arvore_html(n_cpv, "contratos") + "</div>") +
-                resumo_linha + corpo_mercado + barra_corpus(anos) +
-                (fonte if ha_pergunta else "") + "</div>")
-    # Acima do tecto o CSV corta, e diz-se no botao e nao so na dica:
-    # «as 50 000 linhas deste filtro» por cima de 161 711 fazia a folha
-    # somar menos de metade do ecra (teste com utilizadores, 26/09/2026).
-    corta_csv = correspondem > TECTO_CSV
-    accoes = ("<a class='mg-btn mg-btn--secondary' href='/contratos/csv?%s' "
-              "title='%s'>%s Exportar CSV%s</a>"
-              % (html.escape(urlencode(args_da_lista(request.args)), quote=True),
-                 ("só as primeiras %s das %s linhas deste filtro, pela ordem da lista: "
-                  "filtre mais para as ter todas"
-                  % (mil_pt(TECTO_CSV), mil_pt(correspondem))) if corta_csv
-                 else "as %s linhas deste filtro" % mil_pt(correspondem),
-                 icone("descarregar"),
-                 " (%s de %s)" % (mil_pt(TECTO_CSV), mil_pt(correspondem))
-                 if corta_csv else "")
-              ) if ha_pergunta else ""
+    # O campo do CPV e escondido, por isso um filtro activo nao se via em
+    # lado nenhum a nao ser no chip da arvore, fechada: a faixa diz o que
+    # esta a filtrar e da onde carregar para o tirar.
+    faixa_cpv = faixa_cpv_activo(
+        request.args,
+        "/contratos?" + urlencode(args_da_lista(request.args, cpv="")))
+    # A pergunta vem sem cartão à volta desde 6/10/2026 (front end novo):
+    # a pesquisa e os botões, como nos Concursos, com o perfil da empresa
+    # como primeiro botão aceso. Os gráficos pedem-se ao abrir (~800 ms
+    # de consultas que a tabela não espera), com a query string inteira,
+    # e só com pergunta feita: sobre o corpus inteiro respondiam a nada.
+    conteudo = ecra(
+        "contratos.html", fim=fim, pergunta=ha_pergunta,
+        com_interesse=com_interesse, meses=meses,
+        abas=Markup(abas_do_mercado("fim" if fim else "contratos", request.args)),
+        avisos_de_datas=Markup("" if fim else faixa_de_avisos_de_datas(request.args)),
+        faixa_interesse=Markup(_faixa_do_interesse(
+            "/contratos", escondidos_interesse, cfg, so_cpv=True, curta=True)),
+        q=request.args.get("q", ""), adj=request.args.get("adj", ""),
+        ganhou=request.args.get("ganhou", ""), cpv=request.args.get("cpv", ""),
+        min=request.args.get("min", ""), entid=request.args.get("entid", ""),
+        vencid=request.args.get("vencid", ""),
+        cpv_excl=request.args.get("cpv_excl", ""),
+        de=de_, ate=ate_, chips=chips,
+        quem_ganhou="Quem tem o contrato" if fim else "Quem ganhou",
+        # sem perfil, o botão do CPV abre a árvore (7/10/2026); com ele
+        # não há árvore, e o CPV escreve-se no campo do botão
+        botao_da_arvore=Markup("" if com_interesse
+                               else botao_da_arvore(arg("cpv"), "sintaxe-cpv")),
+        procedimento=Markup(selector_procedimento(procs, arg("proc")).replace(
+            "<select ", "<select class='mg-field__input' ", 1)),
+        opcoes_meses=MESES_RENOVACOES,
+        fim_da_fila=Markup(fim_da_fila(
+            html.escape(modo_limpo, quote=True),
+            any(arg(k) for k in ("q", "adj", "entid", "ganhou", "vencid", "cpv",
+                                 "proc", "de", "ate", "min", "meses")))),
+        escondidos=Markup(campos_escondidos(request.args,
+                                            ("q_excl", "op", "interesse"))),
+        arvore=Markup("" if com_interesse else arvore_html(n_cpv, "contratos")),
+        faixa_cpv=Markup(faixa_cpv), faixas=faixas,
+        datas_postas_de_lado=fim and bool(arg("de") or arg("ate")),
+        conta=conta, linhas=corpo, legenda=Markup(LEGENDA_DO_PAPEL),
+        limpo=modo_limpo, total_corpus=mil_pt(ha_corpus()),
+        paginador=Markup(paginador(pagina, paginas, request.args, "/contratos")),
+        barra=barra_corpus(anos), primeiro_ano=primeiro_ano_corpus(),
+        dono=sou_dono())
+    # Acima do tecto o CSV corta, e diz-se no botao e nao so na dica.
+    accoes = MOLDES_JINJA.get_template("_contratos.html").module.exportar(
+        urlencode(args_da_lista(request.args)), mil_pt(correspondem),
+        mil_pt(TECTO_CSV), correspondem > TECTO_CSV) if ha_pergunta else ""
 
     if fim:
         return envolver(

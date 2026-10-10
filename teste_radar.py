@@ -22739,6 +22739,35 @@ class TestOCsvDoMercadoDizQueCorta(BaseTemporaria):
         self.assertNotIn("Exportar CSV (", corpo)
 
 
+class TestOMercadoDizQueAActualizacaoFalhou(BaseTemporaria):
+    """D1, lote 3.7e (10/10/2026): com a última actualização do corpus
+    falhada, o /contratos dava 500 desde 29/09. O aviso vermelho tinha
+    `25%,transparent` dentro de uma string formatada com `%`, e o Python
+    lia o `%,` como um formato. O molde diz o que o código queria dizer,
+    com o motivo escapado."""
+
+    def setUp(self):
+        super().setUp()
+        self.enterContext(unittest.mock.patch.object(
+            radar, "CORPUS", os.path.join(self.pasta, "contratos.db")))
+        radar.iniciar_corpus()
+        with radar.liga_corpus() as c:
+            c.execute("INSERT INTO contratos (ano, objecto, objecto_norm,"
+                      " adjudicante, data_celebracao, preco_contratual)"
+                      " VALUES (2026, 'Limpeza', 'limpeza', 'CML',"
+                      " '2026-08-01', 1000.0)")
+
+    def test_o_aviso_da_falha_aparece_e_a_pagina_abre(self):
+        radar.marca_corpus("actualizacao", "falhou")
+        radar.marca_corpus("actualizacao_passo", "rede <b>caiu</b>")
+        r = radar.app.test_client().get("/contratos?q=limpeza")
+        self.assertEqual(r.status_code, 200)
+        corpo = r.get_data(as_text=True)
+        self.assertIn("A última actualização falhou: rede &lt;b&gt;caiu&lt;/b&gt;",
+                      corpo)
+        self.assertIn("var(--danger) 25%,transparent", corpo)
+
+
 class TestOsFactosDaEntidadeLevamOFiltro(BaseTemporaria):
     """E21: filtrar a ficha de uma entidade por CPV mudava as listas e
     deixava «Compra · 24 m» nos mesmos 73,6 M€; e a janela das listas

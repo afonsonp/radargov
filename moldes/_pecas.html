@@ -44,3 +44,13 @@
     bloco, o `porque`). O corpo vem no `{% call %}`; sem corpo não há
     corpo. As `accoes` vêm feitas (um `{% set %}` com o botão). -#}
 {% macro cartao(titulo, meta="", accoes="", pe="", id="", banda=False) %}{% set corpo = caller() %}<section class='mg mg-card{% if banda %} mg-card--band{% endif %}'{% if id %} id='{{ id }}'{% endif %}><div class='mg-card__head'><div class='mg-card__cab'><h2 class='mg-card__title'>{{ titulo }}</h2>{% if meta %}<p class='mg-card__meta'>{{ meta }}</p>{% endif %}</div>{% if accoes %}<div class='mg-card__actions'>{{ accoes }}</div>{% endif %}</div>{% if corpo %}<div class='mg-card__body'>{{ corpo }}</div>{% endif %}{% if pe %}<div class='mg-card__foot'>{{ pe }}</div>{% endif %}</section>{% endmacro %}
+
+{#- Um filtro em botão (era o `chip_de_filtro()`, que serve os
+    Concursos até ao lote deles): o botão diz o nome do filtro e, posto,
+    o valor (já cortado por quem chama), e acende-se; abre uma caixa com
+    os campos, que vêm no `{% call %}`, e o «Aplicar». -#}
+{% macro chip(rotulo, nome_do_icone, valor) %}<details class='f-chip{% if valor %} f-chip--on{% endif %}' name='filtros'><summary>{{ icone(nome_do_icone, 16) }}{{ rotulo }}{% if valor %}: <b>{{ valor }}</b>{% endif %}{{ icone("baixo", 14) }}</summary><div class='f-chip__caixa'>{{ caller() }}<button type='submit' class='mg-btn mg-btn--primary mg-btn--sm'>Aplicar</button></div></details>{% endmacro %}
+
+{#- Um campo de um filtro, com o rótulo por cima (era o
+    `campo_de_filtro()`). O controlo vem no `{% call %}`. -#}
+{% macro campo_filtro(rotulo, classe="") %}<label class='mg-field{{ classe }}'><span class='mg-field__label'>{{ rotulo }}</span>{{ caller() }}</label>{% endmacro %}

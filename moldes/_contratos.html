@@ -1,0 +1,7 @@
+{#- As peças dos Contratos que o Python também desenha: o cabeçalho da
+    página (`cabecalho_de_pagina()`) ainda é Python e leva o «Exportar
+    CSV» à direita, e chama-o por `MOLDES_JINJA.get_template(
+    "_contratos.html").module.exportar(...)`. -#}
+{#- Acima do tecto o CSV corta, e diz-se no botão e não só na dica
+    (teste com utilizadores, 26/09/2026). -#}
+{% macro exportar(href, n, tecto, corta) %}<a class='mg-btn mg-btn--secondary' href='/contratos/csv?{{ href }}' title='{% if corta %}só as primeiras {{ tecto }} das {{ n }} linhas deste filtro, pela ordem da lista: filtre mais para as ter todas{% else %}as {{ n }} linhas deste filtro{% endif %}'>{{ icone("descarregar") }} Exportar CSV{% if corta %} ({{ tecto }} de {{ n }}){% endif %}</a>{% endmacro %}

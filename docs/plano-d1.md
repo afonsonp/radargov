@@ -163,7 +163,7 @@ quando lá chegarmos. **Como se faz um lote** (aprendido no 3.1):
 | 3.7b | Mercado: os Concorrentes — **feito a 10/10/2026** (`concorrentes.html`; a faixa do interesse, a ligação de cada fornecedor e o paginador são passados feitos) | |
 | 3.7c | Mercado: a ficha da entidade — **feito a 10/10/2026** (`entidade.html`, nos dois ramos, com e sem o Portal BASE; o «seguir» em `_entidade.html`, porque o cabeçalho da página ainda o pede do Python; o `nosso_lado_cx()`, o `filtros_da_ficha()` e o `_seguir_cx()` passam a dar só os dados. Os seis factos, a concorrência, os gráficos, a árvore e os contactos entram feitos) | |
 | 3.7d | Mercado: os gráficos e o resumo — **feito a 10/10/2026** (`_graficos.html`: as barras horizontais e verticais, a concentração e a tabela dos números; o Python chama-as pelo `_grafico()`, que devolve `str`, e as funções guardam o nome e a assinatura, porque servem também a ficha da entidade, os Indicadores e as Visitas) | |
-| 3.7e | Mercado: a lista dos Contratos (`/contratos`) | 540 linhas só a rota |
+| 3.7e | Mercado: a lista dos Contratos — **feito a 10/10/2026** (`contratos.html`, nos dois modos, com a barra do corpus, que o `barra_corpus()` passa a dar em dados; o «Exportar CSV» em `_contratos.html`, porque o cabeçalho ainda o pede do Python; nascem as macros `chip` e `campo_filtro` e o `icone` global dos moldes — o `chip_de_filtro()` fica para os Concursos até ao 3.8). **Com este, o Mercado está todo em moldes** | 540 linhas só a rota |
 | 3.8 | Concursos e Propostas: listas, fases, tabela | os mais vistos |
 | 3.9 | A ficha do anúncio e da proposta | o maior (~5 000 linhas) |
 | 3.10 | O Hoje (`/`) e a pesquisa | |
@@ -208,6 +208,14 @@ corrige-se num trabalho à parte, com o seu teste.
   preço foram seguidos até ao ecrã e escapam todos; o `historico` e os
   `eventos` guardam o preço tal qual, e quem os ler num ecrã novo tem de
   escapar.
+
+- **O `/contratos` dava 500 com a última actualização falhada** (lote
+  3.7e, desde 29/09/2026): o aviso vermelho da barra do corpus tinha
+  `25%,transparent` dentro de uma string formatada com `%`, e o `%,` é
+  um formato inválido. O dono ficava sem o Mercado e sem saber porquê.
+  **Corrigido pelo próprio molde** — um molde não reproduz um erro de
+  formatação —, com o teste `TestOMercadoDizQueAActualizacaoFalhou`, que
+  falha sem a correcção. É a única diferença do lote contra o master.
 
 ## 4. Riscos e como se tratam
 
